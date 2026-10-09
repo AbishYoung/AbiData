@@ -185,9 +185,10 @@ func Classify(err error) *Error {
 			}
 			return &Error{Code: DuplicateValue, Details: d, Cause: err}
 		case sqlite3.CONSTRAINT_FOREIGNKEY, sqlite3.CONSTRAINT_TRIGGER:
-			if se.ExtendedCode() == sqlite3.CONSTRAINT_FOREIGNKEY {
-				return &Error{Code: LinkedRecords, Cause: err}
-			}
+			// SQLite reports ON DELETE RESTRICT as CONSTRAINT_TRIGGER. Builders cannot
+			// create triggers (the only trigger is the non-raising OCC safety net),
+			// so this code always means a foreign key.
+			return &Error{Code: LinkedRecords, Cause: err}
 		case sqlite3.CONSTRAINT_CHECK:
 			d := map[string]any{}
 			if m := checkNameRe.FindStringSubmatch(msg); m != nil {

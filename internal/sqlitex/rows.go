@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/ncruces/go-sqlite3"
 )
@@ -125,7 +126,23 @@ func (r *Rows) Scan(dest ...any) error {
 		case nil:
 			// skip column
 		default:
-			return fmt.Errorf("sqlitex: unsupported scan destination %T", d)
+			// Named types over basic kinds (e.g. type FieldType string).
+			rv := reflect.ValueOf(d)
+			if rv.Kind() != reflect.Pointer || rv.IsNil() {
+				return fmt.Errorf("sqlitex: unsupported scan destination %T", d)
+			}
+			switch e := rv.Elem(); e.Kind() {
+			case reflect.String:
+				e.SetString(r.st.ColumnText(i))
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				e.SetInt(r.st.ColumnInt64(i))
+			case reflect.Float32, reflect.Float64:
+				e.SetFloat(r.st.ColumnFloat(i))
+			case reflect.Bool:
+				e.SetBool(r.st.ColumnBool(i))
+			default:
+				return fmt.Errorf("sqlitex: unsupported scan destination %T", d)
+			}
 		}
 	}
 	return nil

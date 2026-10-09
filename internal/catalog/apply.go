@@ -424,8 +424,21 @@ func (p *planner) dropTable(op Op) error {
 	if err := p.exec("DROP TABLE " + Quote(t.PhysicalName)); err != nil {
 		return ddlError(err)
 	}
-	if err := p.exec(`DELETE FROM _sys_tables WHERE id = ?`, t.ID); err != nil {
-		return err
+	// foreign_keys is OFF during schema changes, so _sys_* cascades do not fire:
+	// delete dependent metadata explicitly.
+	for _, q := range []string{
+		`DELETE FROM _sys_columns WHERE table_id = ?`,
+		`DELETE FROM _sys_indexes WHERE table_id = ?`,
+		`DELETE FROM _sys_relationships WHERE child_table_id = ? OR parent_table_id = ?`,
+		`DELETE FROM _sys_tables WHERE id = ?`,
+	} {
+		args := []any{t.ID}
+		if strings.Count(q, "?") == 2 {
+			args = append(args, t.ID)
+		}
+		if err := p.exec(q, args...); err != nil {
+			return err
+		}
 	}
 	if err := p.exec(`DELETE FROM _sys_row_history WHERE table_id = ?`, t.ID); err != nil {
 		return err
@@ -1357,6 +1370,9 @@ func (p *planner) impact(validators []Validator) error {
 		if err := rows.Scan(&child, &parent, &n); err != nil {
 			rows.Close()
 			return err
+		}
+		if strings.HasPrefix(child, "_sys_") {
+			return fmt.Errorf("catalog: internal metadata inconsistency: %d rows in %s refer to missing %s rows", n, child, parent)
 		}
 		cd, pd := child, parent
 		if t, ok := p.s.TableByPhysical(child); ok {
