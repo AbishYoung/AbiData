@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = "http://127.0.0.1:18080";
+const port = process.env.ABIDATA_E2E_PORT ?? "18080";
+const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: ".",

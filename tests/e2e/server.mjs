@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const bin = join(here, ".bin", "abidata");
 
-const ADDR = "127.0.0.1:18080";
+const ADDR = `127.0.0.1:${process.env.ABIDATA_E2E_PORT ?? "18080"}`;
 const ADMIN_EMAIL = "admin@example.com";
 const ADMIN_PASSWORD = "admin-password-1";
 
