@@ -1,11 +1,12 @@
 import { create } from "zustand";
 
 /** A document tab in the workspace (brief: each object opens as a tab). */
-export type TabKind = "table";
-export type TableView = "datasheet" | "design";
+export type TabKind = "table" | "query";
+/** Views: tables have datasheet/design; queries have datasheet/design/sql. */
+export type TableView = "datasheet" | "design" | "sql";
 
 export interface Tab {
-  /** Stable key: `${kind}:${objectId}`; a new unsaved table uses `table:new:<n>`. */
+  /** Stable key: `${kind}:${objectId}`; a new unsaved object uses `${kind}:new:<n>`. */
   key: string;
   kind: TabKind;
   objectId: string | null;
@@ -62,8 +63,8 @@ export const useTabs = create<TabsState>((set) => ({
           ...s.byWs,
           [ws]: {
             ...cur,
-            tabs: cur.tabs.map((t) => (t.key === key ? { ...t, title, objectId: objectId ?? t.objectId, key: objectId ? `table:${objectId}` : t.key } : t)),
-            active: cur.active === key && objectId ? `table:${objectId}` : cur.active,
+            tabs: cur.tabs.map((t) => (t.key === key ? { ...t, title, objectId: objectId ?? t.objectId, key: objectId ? `${t.kind}:${objectId}` : t.key } : t)),
+            active: cur.active === key && objectId ? `${cur.tabs.find((t) => t.key === key)?.kind ?? "table"}:${objectId}` : cur.active,
           },
         },
       };

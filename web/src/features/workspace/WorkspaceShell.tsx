@@ -11,7 +11,10 @@ import { NavPane } from "@/features/nav/NavPane";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
 import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
+import { QueryTab } from "@/features/queries/QueryTab";
 import { alertBox } from "@/components/styles";
+
+const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL" } as const;
 
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
 
@@ -67,9 +70,9 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
           Close
         </button>
       )}
-      {current?.kind === "table" && current.objectId && canDesign(role) && (
+      {current?.objectId && canDesign(role) && (
         <div role="group" aria-label="View" className="flex items-center gap-1 px-2">
-          {(["datasheet", "design"] as const).map((v) => (
+          {(current.kind === "query" ? (["datasheet", "design", "sql"] as const) : (["datasheet", "design"] as const)).map((v) => (
             <button
               key={v}
               type="button"
@@ -77,7 +80,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
               onClick={() => setView(ws, current.key, v)}
               className={`rounded px-2 py-1 text-sm ${current.view === v ? "bg-accent text-accent-fg" : "hover:bg-surface"}`}
             >
-              {v === "datasheet" ? "Datasheet" : "Design"}
+              {VIEW_LABEL[v]}
             </button>
           ))}
         </div>
@@ -96,14 +99,18 @@ function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined 
       </div>
     );
   }
-  const designing = tab.view === "design" && canDesign(role);
+  const designing = tab.view !== "datasheet" && canDesign(role);
+  let content;
+  if (tab.kind === "query") {
+    content = <QueryTab ws={ws} queryId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? tab.view : "datasheet"} />;
+  } else if (designing || !tab.objectId) {
+    content = <TableDesignTab ws={ws} tableId={tab.objectId} tabKey={tab.key} />;
+  } else {
+    content = <DatasheetTab ws={ws} tableId={tab.objectId} />;
+  }
   return (
     <div id="document-panel" role="tabpanel" aria-label={tab.title} className="flex min-h-0 flex-1 flex-col">
-      {designing || !tab.objectId ? (
-        <TableDesignTab ws={ws} tableId={tab.objectId} tabKey={tab.key} />
-      ) : (
-        <DatasheetTab ws={ws} tableId={tab.objectId} />
-      )}
+      {content}
     </div>
   );
 }
