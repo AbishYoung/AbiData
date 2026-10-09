@@ -28,7 +28,7 @@ const GROUPS: NavGroup[] = [
   { id: "jobs", label: "Jobs", noun: "jobs", icon: Clock },
 ];
 
-export function NavPane() {
+export function NavPane({ ws, role }: { ws: string; role: string | undefined }) {
   const searchId = useId();
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -45,7 +45,7 @@ export function NavPane() {
   const searching = query.trim() !== "";
 
   return (
-    <nav aria-label="Navigation pane" className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
+    <nav aria-label="Navigation pane" data-ws={ws} data-role={role} className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
       <div className="border-b border-border p-2">
         <label htmlFor={searchId} className="sr-only">
           Search objects

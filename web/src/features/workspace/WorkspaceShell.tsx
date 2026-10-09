@@ -1,15 +1,106 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useActivityStore } from "@/lib/activity";
+import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
+import { useStatusBar } from "@/lib/statusbar";
 import type { Me } from "@/lib/session";
+import { useTabs, useWorkspaceTabs, type Tab } from "@/app/tabs";
 import { NavPane } from "@/features/nav/NavPane";
 import { UserMenu } from "@/features/nav/UserMenu";
+import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
+import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
 import { alertBox } from "@/components/styles";
+
+const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
+
+export type WorkspaceRole = "owner" | "builder" | "editor" | "viewer";
+
+function canDesign(role: WorkspaceRole | undefined): boolean {
+  return role === "owner" || role === "builder";
+}
+
+function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined }) {
+  const { tabs, active } = useWorkspaceTabs(ws);
+  const activate = useTabs((s) => s.activate);
+  const close = useTabs((s) => s.close);
+  const setView = useTabs((s) => s.setView);
+  const current = tabs.find((t) => t.key === active);
+
+  function onClose(t: Tab) {
+    if (t.dirty && !window.confirm(`“${t.title}” has unsaved changes. Close it and discard them?`)) return;
+    close(ws, t.key);
+  }
+
+  return (
+    <div className="flex items-stretch border-b border-border bg-surface-2">
+      <div role="tablist" aria-label="Open objects" className="flex min-w-0 flex-1 overflow-x-auto">
+        {tabs.map((t) => (
+          <div key={t.key} className={`flex items-center border-r border-border ${t.key === active ? "bg-surface" : ""}`}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={t.key === active}
+              aria-controls="document-panel"
+              onClick={() => activate(ws, t.key)}
+              className="max-w-56 truncate px-3 py-2 text-sm"
+            >
+              {t.title}
+              {t.dirty && <span className="ml-1" aria-label="unsaved changes">•</span>}
+            </button>
+            <button type="button" onClick={() => onClose(t)} className="mr-1 rounded p-1 hover:bg-surface-2" aria-label={`Close ${t.title}`}>
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+      </div>
+      {current?.kind === "table" && current.objectId && canDesign(role) && (
+        <div role="group" aria-label="View" className="flex items-center gap-1 px-2">
+          {(["datasheet", "design"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={current.view === v}
+              onClick={() => setView(ws, current.key, v)}
+              className={`rounded px-2 py-1 text-sm ${current.view === v ? "bg-accent text-accent-fg" : "hover:bg-surface"}`}
+            >
+              {v === "datasheet" ? "Datasheet" : "Design"}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined }) {
+  const { tabs, active } = useWorkspaceTabs(ws);
+  const tab = tabs.find((t) => t.key === active);
+  if (!tab) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 text-fg-muted">
+        <p>Open an object from the navigation pane</p>
+      </div>
+    );
+  }
+  const designing = tab.view === "design" && canDesign(role);
+  return (
+    <div id="document-panel" role="tabpanel" aria-label={tab.title} className="flex min-h-0 flex-1 flex-col">
+      {designing || !tab.objectId ? (
+        <TableDesignTab ws={ws} tableId={tab.objectId} tabKey={tab.key} />
+      ) : (
+        <DatasheetTab ws={ws} tableId={tab.objectId} />
+      )}
+    </div>
+  );
+}
 
 export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   const operations = useActivityStore((s) => s.operations);
+  const live = useLiveStore((s) => s.state);
+  const recordNav = useStatusBar((s) => s.recordNav);
+  useWorkspaceEvents(ws);
   const workspace = useQuery({
     queryKey: ["workspace", ws],
     queryFn: () =>
@@ -17,6 +108,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         label: "Opening workspace",
       }),
   });
+  const role = workspace.data?.role;
 
   return (
     <div className="flex h-full flex-col">
@@ -32,7 +124,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <NavPane />
+        <NavPane ws={ws} role={role} />
         <main className="flex min-w-0 flex-1 flex-col bg-bg">
           {workspace.isError ? (
             <div role="alert" className={`${alertBox} m-4`}>
@@ -40,16 +132,16 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
             </div>
           ) : (
             <>
-              <div className="h-9 border-b border-border bg-surface-2" />
-              <div className="flex flex-1 items-center justify-center p-6 text-fg-muted">
-                <p>{workspace.isPending ? "Opening workspace…" : "Open an object from the navigation pane"}</p>
-              </div>
+              <TabStrip ws={ws} role={role} />
+              <TabContent ws={ws} role={role} />
             </>
           )}
         </main>
       </div>
       <footer className="flex items-center gap-4 border-t border-border bg-surface px-3 py-1 text-xs text-fg-muted">
-        <span>Background operations: {operations}</span>
+        <span aria-live="polite">{recordNav ?? ""}</span>
+        <span className="ml-auto">Background operations: {operations}</span>
+        <span>Updates: {LIVE_LABEL[live]}</span>
       </footer>
     </div>
   );
