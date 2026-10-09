@@ -48,8 +48,6 @@ type Run struct {
 	mu     sync.Mutex
 	logs   []LogEntry
 	logLen int
-	// sentinels shared by modules within this VM (db.NULL, json.null)
-	sentinels map[string]*lua.LUserData
 }
 
 // maxLogBytes caps a run's log (tail kept), per brief (256 KiB).
