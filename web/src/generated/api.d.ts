@@ -247,6 +247,128 @@ export interface paths {
         patch: operations["updateMember"];
         trace?: never;
     };
+    "/api/v1/w/{ws}/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog snapshot (ETag = schema_version) */
+        get: operations["getSchema"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/schema/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply schema changes (blocked with SCHEMA_CHANGE_BLOCKED unless force) */
+        post: operations["applySchema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/schema/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run schema changes and roll back, returning the impact report */
+        post: operations["previewSchema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/tables/{table}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page of rows */
+        get: operations["listRows"];
+        put?: never;
+        /** Insert a row */
+        post: operations["insertRow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/tables/{table}/rows/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** All-or-nothing batch of inserts/updates/deletes */
+        post: operations["batchRows"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/tables/{table}/rows/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Row count, capped at 100,000 */
+        get: operations["countRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/tables/{table}/rows/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One row (ETag = _version) */
+        get: operations["getRow"];
+        put?: never;
+        post?: never;
+        /** Delete a row (If-Match: version) */
+        delete: operations["deleteRow"];
+        options?: never;
+        head?: never;
+        /** Update fields of a row (If-Match: version) */
+        patch: operations["updateRow"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -314,14 +436,116 @@ export interface components {
             /** Format: date-time */
             last_login_at?: string;
         };
+        BatchOp: {
+            fields?: {
+                [key: string]: unknown;
+            };
+            /** Format: int64 */
+            id?: number;
+            /** @enum {string} */
+            op: "insert" | "update" | "delete";
+            /** Format: int64 */
+            version?: number;
+        };
+        BatchResult: {
+            /** Format: int64 */
+            id: number;
+            op: string;
+            row?: components["schemas"]["Row"];
+        };
+        BatchRowsRequest: {
+            ops: components["schemas"]["BatchOp"][] | null;
+        };
+        BatchRowsResponse: {
+            results: components["schemas"]["BatchResult"][] | null;
+        };
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
+        };
+        Column: {
+            default_sql?: string;
+            description: string;
+            display_name: string;
+            field_type: string;
+            id: string;
+            is_hidden: boolean;
+            is_required: boolean;
+            lookup_display_column_id?: string;
+            lookup_relationship_id?: string;
+            /** Format: int64 */
+            ordinal: number;
+            physical_name: string;
+            table_id: string;
+            type_options: components["schemas"]["TypeOptions"];
+            validation_sql?: string;
+            validation_text?: string;
+        };
+        ColumnSpec: {
+            default_sql?: string;
+            description?: string;
+            display_name: string;
+            field_type: string;
+            id?: string;
+            is_hidden?: boolean;
+            is_required?: boolean;
+            lookup?: components["schemas"]["LookupSpec"];
+            physical_name?: string;
+            type_options?: components["schemas"]["TypeOptions"];
+            validation_sql?: string;
+            validation_text?: string;
         };
         CompleteSetupRequest: {
             display_name: string;
             password: string;
             token: string;
+        };
+        ConversionFailure: {
+            column: string;
+            column_id: string;
+            /** Format: int64 */
+            count: number;
+            from: string;
+            samples: components["schemas"]["Sample"][] | null;
+            to: string;
+        };
+        CountRowsResponse: {
+            capped: boolean;
+            /** Format: int64 */
+            count: number;
+        };
+        ImpactReport: {
+            breaking: components["schemas"]["Issue"][] | null;
+            conversion_failures: components["schemas"]["ConversionFailure"][] | null;
+            created_ids?: {
+                [key: string]: string;
+            };
+            restore_point_required: boolean;
+            /** Format: int64 */
+            rows_affected: number;
+            /** Format: int64 */
+            schema_version: number;
+            warnings: components["schemas"]["Issue"][] | null;
+        };
+        Index: {
+            column_ids: string[] | null;
+            id: string;
+            is_unique: boolean;
+            physical_name: string;
+            table_id: string;
+        };
+        IndexSpec: {
+            column_ids: string[] | null;
+            id?: string;
+            is_unique?: boolean;
+            physical_name?: string;
+            table_id: string;
+        };
+        Issue: {
+            id?: string;
+            kind: string;
+            message: string;
+            object?: string;
         };
         ListMembersResponse: {
             items: components["schemas"]["MemberDTO"][] | null;
@@ -329,6 +553,14 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+        };
+        LookupSpec: {
+            display_column_id?: string;
+            enforce?: boolean;
+            on_delete?: string;
+            parent_table_id: string;
+            relationship_id?: string;
+            relationship_name?: string;
         };
         MeBody: {
             csrf_token: string;
@@ -349,6 +581,21 @@ export interface components {
             workspace_id: string;
             workspace_name: string;
         };
+        Op: {
+            column?: components["schemas"]["ColumnSpec"];
+            column_id?: string;
+            column_order?: string[] | null;
+            display_name?: string;
+            index?: components["schemas"]["IndexSpec"];
+            index_id?: string;
+            op: string;
+            physical_name?: string;
+            props?: components["schemas"]["TableProps"];
+            relationship?: components["schemas"]["RelationshipSpec"];
+            relationship_id?: string;
+            table?: components["schemas"]["TableSpec"];
+            table_id?: string;
+        };
         Quota: {
             /** Format: int64 */
             artifact_bytes?: number;
@@ -363,8 +610,106 @@ export interface components {
             /** Format: int64 */
             ui_event_budget_ms?: number;
         };
+        Relationship: {
+            child_column_id: string;
+            child_table_id: string;
+            enforce: boolean;
+            id: string;
+            name: string;
+            on_delete: string;
+            parent_table_id: string;
+        };
+        RelationshipSpec: {
+            child_column_id: string;
+            child_table_id: string;
+            enforce?: boolean;
+            id?: string;
+            name: string;
+            on_delete?: string;
+            parent_table_id: string;
+        };
+        Row: {
+            /** Format: int64 */
+            _version: number;
+            display?: {
+                [key: string]: string;
+            };
+            fields: {
+                [key: string]: unknown;
+            };
+            /** Format: int64 */
+            id: number;
+        };
+        RowPage: {
+            items: components["schemas"]["Row"][] | null;
+            /** Format: int64 */
+            next_offset?: number;
+        };
+        RowWrite: {
+            /** @description Values keyed by column ID, in the API representation of each field type. */
+            fields: {
+                [key: string]: unknown;
+            };
+        };
+        Sample: {
+            /** Format: int64 */
+            row_id: number;
+            value: unknown;
+        };
+        Schema: {
+            relationships: components["schemas"]["Relationship"][] | null;
+            /** Format: int64 */
+            schema_version: number;
+            tables: components["schemas"]["Table"][] | null;
+        };
+        SchemaApplyResult: {
+            report: components["schemas"]["ImpactReport"];
+            schema: components["schemas"]["Schema"];
+        };
+        SchemaChangeRequest: {
+            /**
+             * Format: int64
+             * @description schema_version the change was designed against; a mismatch fails with CONCURRENT_MODIFICATION.
+             */
+            base_version?: number;
+            /** @description Builder acknowledged the breaking issues in the impact report. */
+            force?: boolean;
+            ops: components["schemas"]["Op"][] | null;
+        };
         SetupStatusResponse: {
             pending: boolean;
+        };
+        Table: {
+            columns: components["schemas"]["Column"][] | null;
+            description: string;
+            display_name: string;
+            id: string;
+            indexes: components["schemas"]["Index"][] | null;
+            physical_name: string;
+            track_history: boolean;
+            /** Format: int64 */
+            version: number;
+        };
+        TableProps: {
+            description?: string;
+            display_name?: string;
+            track_history?: boolean;
+        };
+        TableSpec: {
+            columns?: components["schemas"]["ColumnSpec"][] | null;
+            description?: string;
+            display_name: string;
+            id?: string;
+            id_column_id?: string;
+            physical_name?: string;
+            track_history?: boolean;
+        };
+        TypeOptions: {
+            expression?: string;
+            format?: string;
+            /** Format: int64 */
+            max_length?: number;
+            result_type?: string;
         };
         UpdateMemberRequest: {
             /** @enum {string} */
@@ -1599,6 +1944,859 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getSchema: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    applySchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchemaChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaApplyResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    previewSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchemaChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaApplyResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listRows: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+                /** @description Comma-separated column IDs; prefix '-' for descending. */
+                sort?: string;
+                /** @description JSON filter model. */
+                filter?: string;
+            };
+            header?: never;
+            path: {
+                ws: string;
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowPage"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    insertRow: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                ws: string;
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RowWrite"];
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Row"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    batchRows: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                ws: string;
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRowsRequest"];
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchRowsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    countRows: {
+        parameters: {
+            query?: {
+                filter?: string;
+            };
+            header?: never;
+            path: {
+                ws: string;
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountRowsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                table: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Row"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    deleteRow: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": string;
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                ws: string;
+                table: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateRow: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": string;
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                ws: string;
+                table: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RowWrite"];
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Row"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

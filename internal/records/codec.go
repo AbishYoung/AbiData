@@ -354,7 +354,7 @@ func ResultFieldType(rt string) catalog.FieldType {
 
 // FormatCurrency renders a ×10⁴ scaled integer as a decimal string with exactly 4 places.
 func FormatCurrency(v int64) string {
-	u := uint64(v)
+	u := uint64(v) //nolint:gosec // deliberate two's-complement reinterpretation; negated below for v < 0
 	sign := ""
 	if v < 0 {
 		u = -u // two's complement negation is exact for math.MinInt64

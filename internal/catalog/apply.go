@@ -676,7 +676,7 @@ func (p *planner) addColumn(op Op) error {
 	}
 	p.s.index()
 	t, _ = p.s.Table(t.ID)
-	native := c.ValidationSQL == "" && !(c.Required && c.DefaultSQL == "") && (c.Type != Lookup || rel == nil || !rel.Enforce)
+	native := c.ValidationSQL == "" && (!c.Required || c.DefaultSQL != "") && (c.Type != Lookup || rel == nil || !rel.Enforce)
 	if native {
 		if err := p.exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", Quote(t.PhysicalName), columnDef(c))); err != nil {
 			return ddlError(err)

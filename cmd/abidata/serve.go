@@ -19,9 +19,12 @@ import (
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/events"
 	"abidata/internal/httpapi"
 	"abidata/internal/ids"
 	"abidata/internal/obs"
+	"abidata/internal/records"
+	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 	"abidata/web"
 )
@@ -69,9 +72,33 @@ func serve() error {
 			"subsystem", "auth", "email", cfg.BootstrapAdminEmail, "setup_token", tok)
 	}
 
+	hub := events.NewHub(events.DefaultRing)
+	schemas := catalog.NewCache()
+	wsLog := obs.Subsystem(log, "workspace")
+	// Migrate, then reconcile catalog vs physical schema (D5); drift marks the
+	// workspace needs_repair and is logged, but does not block opening.
+	migrate := func(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
+		if err := catalog.Migrate(ctx, id, c); err != nil {
+			return err
+		}
+		s, err := catalog.Load(ctx, c)
+		if err != nil {
+			return err
+		}
+		drift, err := catalog.Reconcile(ctx, c, s)
+		if err != nil {
+			return err
+		}
+		if len(drift) > 0 {
+			wsLog.Error("catalog drift detected", "workspace_id", id, "drift", drift)
+			st := admin.StatusNeedsRepair
+			_ = adm.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st})
+		}
+		return nil
+	}
 	wm, err := workspace.NewManager(workspace.Config{
 		DataDir: cfg.DataDir, MaxOpen: cfg.MaxOpenWorkspaces, Synchronous: cfg.Synchronous,
-		Migrate: catalog.Migrate, Observe: metricsObserver{metrics},
+		Migrate: migrate, Observe: metricsObserver{metrics},
 		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
 			w, err := adm.GetWorkspace(ctx, id)
 			if err != nil {
@@ -88,8 +115,13 @@ func serve() error {
 	if err != nil {
 		return err
 	}
+	engine := &catalog.Engine{AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+		schemas.Put(l.ID(), s)
+		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
+	}}
 	api := httpapi.New(httpapi.Deps{Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
-		Workspaces: wm, Version: version, SPA: spa})
+		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
+		Records: &records.Service{Schemas: schemas, Events: hub}, Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
 		BaseContext: func(net.Listener) context.Context { return context.Background() }}

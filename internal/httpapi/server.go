@@ -21,8 +21,11 @@ import (
 
 	"abidata/internal/admin"
 	"abidata/internal/auth"
+	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/events"
 	"abidata/internal/obs"
+	"abidata/internal/records"
 	"abidata/internal/workspace"
 )
 
@@ -34,6 +37,10 @@ type Deps struct {
 	Admin      *admin.Store
 	Auth       *auth.Service
 	Workspaces *workspace.Manager
+	Schemas    *catalog.Cache
+	Catalog    *catalog.Engine
+	Records    *records.Service
+	Events     *events.Hub
 	Version    string
 	SPA        fs.FS // contents of web/dist; nil serves nothing
 }
@@ -71,10 +78,12 @@ func New(deps Deps) *Server {
 	r.Get("/healthz", s.healthz)
 	r.Get("/readyz", s.readyz)
 	r.Get("/metrics", s.metricsHandler)
+	r.Get("/api/v1/w/{ws}/events", s.eventsHandler)
 
 	s.registerAuth(api)
 	s.registerAdmin(api)
 	s.registerWorkspace(api)
+	s.registerData(api)
 
 	r.NotFound(s.notFound)
 	return s
@@ -191,3 +200,5 @@ func (s *Server) sessionCookie(value string, maxAge int) *http.Cookie {
 
 // detached gives work that must finish (e.g. audit) a context that survives client aborts.
 func detached(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }
+
+func chiParam(r *http.Request, name string) string { return chi.URLParam(r, name) }

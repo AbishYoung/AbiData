@@ -30,7 +30,7 @@ linters:
         linters: [errcheck, noctx]
       - path: _test\.go
         linters: [gosec]
-        text: "G101|G107|G115|G204|G304"
+        text: "G101|G107|G115|G204|G304|G702"
       # Paths come from validated server configuration, not request input.
       - path: (cmd/abidata/lock\.go|internal/auth/keys\.go)
         linters: [gosec]

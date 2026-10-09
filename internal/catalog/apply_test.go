@@ -332,7 +332,10 @@ func TestLookupRelationshipAndFKCheck(t *testing.T) {
 	}
 	f.exec(`INSERT INTO Customers(Name) VALUES ('Ada')`)
 	f.exec(`INSERT INTO Orders(Customer) VALUES (1)`)
-	err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error { _, err := tx.Exec(f.ctx, `INSERT INTO Orders(Customer) VALUES (99)`); return err })
+	err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+		_, err := tx.Exec(f.ctx, `INSERT INTO Orders(Customer) VALUES (99)`)
+		return err
+	})
 	if fault.Classify(err).Code != fault.LinkedRecords {
 		t.Fatalf("FK not enforced: %v", err)
 	}
@@ -378,7 +381,6 @@ func TestExpressionInjectionRejected(t *testing.T) {
 		{DisplayName: "V", Type: ShortText, PhysicalName: "_version"},
 	}
 	for _, spec := range bad {
-		spec := spec
 		_, err := f.run(Apply, ApplyOptions{Force: true}, Op{Kind: OpAddColumn, TableID: tb.ID, Column: &spec})
 		if err == nil {
 			t.Errorf("accepted %+v", spec)

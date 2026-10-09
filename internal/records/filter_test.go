@@ -107,7 +107,7 @@ func TestCompileFilter(t *testing.T) {
 			if w != tc.where {
 				t.Errorf("where = %s, want %s", w, tc.where)
 			}
-			if !reflect.DeepEqual(a, tc.args) && !(len(a) == 0 && len(tc.args) == 0) {
+			if !reflect.DeepEqual(a, tc.args) && (len(a) != 0 || len(tc.args) != 0) {
 				t.Errorf("args = %#v, want %#v", a, tc.args)
 			}
 		})
@@ -175,7 +175,7 @@ func TestCompileFilterErrors(t *testing.T) {
 			}
 		})
 	}
-	if _, _, err := CompileFilter(tbl, &Filter{Col: "nope", Op: OpIsNull}, testDecoder); err == nil || err.(*fault.Error).Message != "Unknown field." {
+	if _, _, err := CompileFilter(tbl, &Filter{Col: "nope", Op: OpIsNull}, testDecoder); err == nil || fault.Classify(err).Message != "Unknown field." {
 		t.Errorf("unknown field message: %v", err)
 	}
 	// Limits are inclusive.

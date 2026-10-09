@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,9 @@ import (
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/events"
 	"abidata/internal/ids"
+	"abidata/internal/records"
 	"abidata/internal/workspace"
 )
 
@@ -59,7 +62,14 @@ func newEnv(t *testing.T) *env {
 		"index.html":       {Data: []byte("<!doctype html><title>AbiData</title>")},
 		"assets/app-1a.js": {Data: []byte("console.log(1)")},
 	}
-	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa})
+	hub := events.NewHub(1000)
+	schemas := catalog.NewCache()
+	engine := &catalog.Engine{AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+		schemas.Put(l.ID(), s)
+		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
+	}}
+	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
+		Schemas: schemas, Catalog: engine, Events: hub, Records: &records.Service{Schemas: schemas, Events: hub}})
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
 	return &env{t: t, srv: srv, s: s, ad: ad, au: au}
@@ -86,9 +96,13 @@ func noOrigin(r *http.Request) { r.Header.Del("Origin") }
 func (c *client) do(method, path string, body any, opts ...opt) (int, map[string]any, http.Header) {
 	c.e.t.Helper()
 	var rd io.Reader
-	if body != nil {
-		b, _ := json.Marshal(body)
+	switch b := body.(type) {
+	case nil:
+	case rawJSON:
 		rd = strings.NewReader(string(b))
+	default:
+		enc, _ := json.Marshal(b)
+		rd = strings.NewReader(string(enc))
 	}
 	req, _ := http.NewRequest(method, c.e.srv.URL+path, rd)
 	if body != nil {
@@ -340,3 +354,8 @@ func TestBootstrapSetupFlow(t *testing.T) {
 		t.Fatal("setup did not sign in as admin")
 	}
 }
+
+// rawJSON is sent verbatim (to test number precision).
+type rawJSON string
+
+func urlEscape(s string) string { return url.QueryEscape(s) }
