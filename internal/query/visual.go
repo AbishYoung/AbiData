@@ -3,9 +3,9 @@ package query
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"abidata/internal/catalog"
@@ -191,7 +191,7 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 	joined := map[string]bool{order[0]: true}
 	from := []string{sourceSQL(srcs[order[0]])}
 	type edge struct {
-		kind string
+		kind  string
 		conds []string
 	}
 	pending := map[string]*edge{}
