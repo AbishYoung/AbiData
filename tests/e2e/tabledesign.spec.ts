@@ -58,7 +58,7 @@ test("builds Suppliers and a Products table with every field type, previews and 
   await addField(page, 12, "Total", "Calculated");
   await propertiesPanel(page).getByLabel("Expression").fill("Qty * 2");
   await propertiesPanel(page).getByLabel("Result type").selectOption({ label: "Integer" });
-  await expect(page.getByRole("tab", { name: /New table/ })).toContainText("•");
+  await expect(page.getByRole("tab", { name: /New table/ })).toContainText("(unsaved)");
 
   await expectDesignViewAccessible(page);
 
@@ -69,7 +69,7 @@ test("builds Suppliers and a Products table with every field type, previews and 
 
   await expect(nav(page).getByRole("button", { name: "Products", exact: true })).toBeVisible();
   await expect(nav(page).getByRole("button", { name: "More actions for Products" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Products" })).not.toContainText("•");
+  await expect(page.getByRole("tab", { name: "Products" })).not.toContainText("(unsaved)");
 
   const products = await tableByName(page, "Products");
   expect(products.columns.map((c) => [c.display_name, c.field_type])).toEqual([

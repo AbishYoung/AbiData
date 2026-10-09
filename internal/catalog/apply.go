@@ -473,7 +473,9 @@ func (p *planner) setTableProps(op Op) error {
 		return badf("Missing table properties.")
 	}
 	if op.Props.DisplayName != nil {
-		return p.renameTable(Op{TableID: t.ID, DisplayName: *op.Props.DisplayName})
+		if err := p.renameTable(Op{TableID: t.ID, DisplayName: *op.Props.DisplayName}); err != nil {
+			return err
+		}
 	}
 	if op.Props.Description != nil {
 		if len(*op.Props.Description) > 4000 {

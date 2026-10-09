@@ -37,24 +37,36 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
     <div className="flex items-stretch border-b border-border bg-surface-2">
       <div role="tablist" aria-label="Open objects" className="flex min-w-0 flex-1 overflow-x-auto">
         {tabs.map((t) => (
-          <div key={t.key} className={`flex items-center border-r border-border ${t.key === active ? "bg-surface" : ""}`}>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={t.key === active}
-              aria-controls="document-panel"
-              onClick={() => activate(ws, t.key)}
-              className="max-w-56 truncate px-3 py-2 text-sm"
-            >
-              {t.title}
-              {t.dirty && <span className="ml-1" aria-label="unsaved changes">•</span>}
-            </button>
-            <button type="button" onClick={() => onClose(t)} className="mr-1 rounded p-1 hover:bg-surface-2" aria-label={`Close ${t.title}`}>
-              <X size={14} aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={t.key === active}
+            aria-controls="document-panel"
+            title="Press Delete to close"
+            onClick={() => activate(ws, t.key)}
+            onKeyDown={(e) => {
+              if (e.key === "Delete") {
+                e.preventDefault();
+                onClose(t);
+              }
+            }}
+            onAuxClick={(e) => {
+              if (e.button === 1) onClose(t);
+            }}
+            className={`max-w-56 truncate border-r border-border px-3 py-2 text-sm ${t.key === active ? "bg-surface" : ""}`}
+          >
+            {t.title}
+            {t.dirty && <span className="ml-1">(unsaved)</span>}
+          </button>
         ))}
       </div>
+      {current && (
+        <button type="button" onClick={() => onClose(current)} className="flex items-center gap-1 px-2 text-sm hover:bg-surface" aria-label={`Close ${current.title}`}>
+          <X size={14} aria-hidden="true" />
+          Close
+        </button>
+      )}
       {current?.kind === "table" && current.objectId && canDesign(role) && (
         <div role="group" aria-label="View" className="flex items-center gap-1 px-2">
           {(["datasheet", "design"] as const).map((v) => (

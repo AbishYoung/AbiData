@@ -108,12 +108,8 @@ export async function applyFromDialog(dialog: Locator): Promise<void> {
   await expect(dialog).toBeHidden();
 }
 
-/**
- * wcag2a/wcag2aa scan of the page. The shell's tab strip (WorkspaceShell.tsx, owned by another worker) puts
- * close buttons inside role="tablist", which axe reports as aria-required-children; it is excluded here so
- * this spec checks the design view and dialogs.
- */
+/** wcag2a/wcag2aa scan of the whole page. */
 export async function expectDesignViewAccessible(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).exclude('[role="tablist"]').analyze();
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }

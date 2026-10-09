@@ -454,3 +454,16 @@ func crashChild(t *testing.T, dir string, id ids.WorkspaceID) {
 		Column: &ColumnSpec{DisplayName: "A", Type: Integer}})
 	t.Fatal("unreachable: hook should have exited")
 }
+
+// Regression: set_table_props applies every given property, not only the name.
+func TestSetTablePropsAll(t *testing.T) {
+	f := newFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "A"}})
+	tb, _ := f.schema().TableByPhysical("A")
+	name, desc, hist := "Accounts", "Ledger accounts", true
+	f.apply(Op{Kind: OpSetTableProps, TableID: tb.ID, Props: &TableProps{DisplayName: &name, Description: &desc, TrackHistory: &hist}})
+	got, _ := f.schema().Table(tb.ID)
+	if got.DisplayName != name || got.Description != desc || !got.TrackHistory {
+		t.Fatalf("%+v", got)
+	}
+}
