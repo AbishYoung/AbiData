@@ -21,3 +21,6 @@ Use `github.com/ncruces/go-sqlite3` v0.35.6 (CGo-free, wasm2go build of SQLite) 
 
 ## Consequences
 Per-connection memory is higher (Wasm sandbox per connection), which is acceptable given ≤6 connections per open workspace and the LRU cap. `*sqlite3.Conn` is not goroutine-safe; `sqlitex` serialises access per connection.
+
+## Addendum (Phase 0)
+`VACUUM INTO` attaches its target database internally, so it fails with `LIMIT_ATTACHED=0`. The limit is therefore applied to every connection kind **except** `Maintenance`, which is opened on demand by internal callers only (backups, integrity checks) and never runs user or script SQL.

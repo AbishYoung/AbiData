@@ -48,7 +48,7 @@ func TestPragmasPerKind(t *testing.T) {
 				t.Errorf("%s: %s = %s, want %s", c.Kind(), k, got, v)
 			}
 		}
-		if got := c.Raw().Limit(sqlite3.LIMIT_ATTACHED, -1); got != 0 {
+		if got := c.Raw().Limit(sqlite3.LIMIT_ATTACHED, -1); got != 0 && c.Kind() != Maintenance {
 			t.Errorf("%s: LIMIT_ATTACHED = %d", c.Kind(), got)
 		}
 	}

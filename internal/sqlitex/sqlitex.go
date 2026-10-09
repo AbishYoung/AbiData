@@ -89,8 +89,12 @@ func (c *Conn) configure(opts Options) error {
 	if bt == 0 {
 		bt = 5 * time.Second
 	}
-	// No ATTACH on any connection: isolation must not depend on the authorizer alone.
-	c.c.Limit(sqlite3.LIMIT_ATTACHED, 0)
+	// No ATTACH on any connection that can run user SQL: isolation must not depend
+	// on the authorizer alone. Maintenance connections are internal-only and keep
+	// the default, because VACUUM INTO attaches its target database internally.
+	if opts.Kind != Maintenance {
+		c.c.Limit(sqlite3.LIMIT_ATTACHED, 0)
+	}
 
 	stmts := []string{
 		fmt.Sprintf("PRAGMA busy_timeout=%d", bt.Milliseconds()),
