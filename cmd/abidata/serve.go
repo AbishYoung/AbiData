@@ -72,12 +72,12 @@ func serve() error {
 	wm, err := workspace.NewManager(workspace.Config{
 		DataDir: cfg.DataDir, MaxOpen: cfg.MaxOpenWorkspaces, Synchronous: cfg.Synchronous,
 		Migrate: catalog.Migrate, Observe: metricsObserver{metrics},
-		MaxPageCount: func(id ids.WorkspaceID) int64 {
-			w, err := adm.GetWorkspace(context.Background(), id)
+		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
+			w, err := adm.GetWorkspace(ctx, id)
 			if err != nil {
-				return 0
+				return 0, err
 			}
-			return w.Quota.MaxPageCount
+			return w.Quota.MaxPageCount, nil
 		},
 	})
 	if err != nil {

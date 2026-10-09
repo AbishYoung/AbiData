@@ -132,6 +132,13 @@ func (s *Server) registerAdmin(api huma.API) {
 		if err != nil {
 			return nil, errNotFound
 		}
+		cur, err := s.deps.Admin.GetWorkspace(ctx, id)
+		if err != nil {
+			return nil, mapAdminErr(err)
+		}
+		if cur.Status == admin.StatusDeleted || cur.Status == admin.StatusRestoring {
+			return nil, fault.Newf(fault.BadRequest, "A %s workspace cannot be changed here.", cur.Status)
+		}
 		patch := admin.WorkspacePatch{Name: in.Body.Name, Quota: in.Body.Quota}
 		if in.Body.Status != nil {
 			st := admin.WorkspaceStatus(*in.Body.Status)
@@ -139,6 +146,11 @@ func (s *Server) registerAdmin(api huma.API) {
 		}
 		if err := s.deps.Admin.UpdateWorkspace(ctx, id, patch); err != nil {
 			return nil, mapAdminErr(err)
+		}
+		if in.Body.Quota != nil {
+			if err := s.deps.Workspaces.ReapplyQuota(detached(ctx), id); err != nil {
+				return nil, err
+			}
 		}
 		w, err := s.deps.Admin.GetWorkspace(ctx, id)
 		if err != nil {
@@ -259,6 +271,8 @@ func mapAdminErr(err error) error {
 		return errNotFound
 	case errors.Is(err, admin.ErrConflict):
 		return fault.E(fault.DuplicateValue)
+	case errors.Is(err, admin.ErrLastOwner):
+		return fault.New(fault.BadRequest, "A workspace must keep at least one owner.")
 	}
 	return err
 }

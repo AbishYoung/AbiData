@@ -317,3 +317,58 @@ func BenchmarkFreshEnvRun(b *testing.B) {
 		}
 	}
 }
+
+// Regression (Phase 0 security review #1): table library functions write raw and
+// must not be able to mutate the read-only library proxies.
+func TestProxyNotWritableViaTableLib(t *testing.T) {
+	v := NewVM()
+	defer v.Close()
+	for _, src := range []string{
+		`table.insert(string, "leak")`, `table.insert(math, 1, "leak")`, `table.insert(table, "leak")`,
+		`table.remove(string)`, `table.sort(string)`,
+	} {
+		if _, err := run(t, v, src, time.Second); err == nil {
+			t.Errorf("%s: expected error", src)
+		}
+	}
+	rets := mustRun(t, v, `return string[1] == nil and ("")[1] == nil and math[1] == nil and table[1] == nil`)
+	if rets[0] != lua.LTrue {
+		t.Fatal("proxy mutated through table library")
+	}
+}
+
+// Regression (#6): limit errors cannot be swallowed by pcall.
+func TestLimitNotSwallowedByPcall(t *testing.T) {
+	v := NewVM()
+	defer v.Close()
+	_, err := run(t, v, `for i = 1, 5 do pcall(string.rep, "x", 1e9) end return "survived"`, time.Second)
+	if k, ok := kindOf(err); !ok || k != KindLimit {
+		t.Fatalf("want limit error, got %v", err)
+	}
+}
+
+// Regression (#5): builtins that push many values are capped.
+func TestBuiltinValueCountCaps(t *testing.T) {
+	for _, src := range []string{
+		`local s = string.rep("x", 1000000) return string.byte(s, 1, -1)`,
+		`return unpack({}, 1, 1e8)`,
+	} {
+		v := NewVM()
+		start := time.Now()
+		_, err := run(t, v, src, 2*time.Second)
+		if err == nil {
+			t.Errorf("%s: expected error", src)
+		}
+		if el := time.Since(start); el > 500*time.Millisecond {
+			t.Errorf("%s: took %v", src, el)
+		}
+		v.Close()
+	}
+}
+
+// Regression (#11): the pattern step budget is per operation, not per run.
+func TestPatternBudgetPerOperation(t *testing.T) {
+	v := NewVM()
+	defer v.Close()
+	mustRun(t, v, `local s = string.rep("ab", 200) for i = 1, 5000 do string.find(s, "b+a") end`)
+}

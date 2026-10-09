@@ -50,7 +50,8 @@ type Config struct {
 	// after Exclusive; it owns its transactions.
 	Migrate func(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error
 	// MaxPageCount returns the DB-size quota for a workspace (0 = unlimited).
-	MaxPageCount func(id ids.WorkspaceID) int64
+	// An error fails the open (quota enforcement fails closed).
+	MaxPageCount func(ctx context.Context, id ids.WorkspaceID) (int64, error)
 	// Observe receives timing samples; nil means none.
 	Observe Observer
 }
@@ -159,7 +160,10 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 func (m *Manager) openWriter(ctx context.Context, id ids.WorkspaceID, p Paths) (*sqlitex.Conn, error) {
 	var pages int64
 	if m.cfg.MaxPageCount != nil {
-		pages = m.cfg.MaxPageCount(id)
+		var err error
+		if pages, err = m.cfg.MaxPageCount(ctx, id); err != nil {
+			return nil, fmt.Errorf("workspace %s: quota: %w", id, err)
+		}
 	}
 	w, err := sqlitex.Open(ctx, p.DB, sqlitex.Options{Kind: sqlitex.Writer, Synchronous: m.cfg.Synchronous, MaxPageCount: pages})
 	if err != nil {
@@ -408,4 +412,36 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
+}
+
+// ReapplyQuota pushes a changed DB-size quota to an open workspace's writer.
+// Closed workspaces pick it up on their next open.
+func (m *Manager) ReapplyQuota(ctx context.Context, id ids.WorkspaceID) error {
+	if m.cfg.MaxPageCount == nil {
+		return nil
+	}
+	m.mu.Lock()
+	h, open := m.handles[id]
+	open = open && h.state == stOpen
+	m.mu.Unlock()
+	if !open {
+		return nil
+	}
+	pages, err := m.cfg.MaxPageCount(ctx, id)
+	if err != nil {
+		return err
+	}
+	l, err := m.Acquire(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer l.Release()
+	return l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+		// 0 means unlimited; SQLite's maximum page count restores that.
+		if pages <= 0 {
+			pages = 4294967294
+		}
+		_, err := tx.Exec(ctx, fmt.Sprintf("PRAGMA max_page_count=%d", pages))
+		return err
+	})
 }

@@ -39,7 +39,8 @@ func luaIndex2StringIndex(str string, i int, start bool) int {
 // classified limit/timeout error.
 func (v *VM) find(L *lua.LState, pattern, str string, offset, limit int) []*pm.MatchData {
 	r := v.run
-	mds, err := pm.Find(r.patternBudget, pattern, roBytes(str), offset, limit)
+	budget := &pm.Budget{Ctx: r.ctx, MaxSteps: r.limits.PatternSteps}
+	mds, err := pm.Find(budget, pattern, roBytes(str), offset, limit)
 	if err != nil {
 		if errors.Is(err, pm.ErrStepLimit) {
 			v.raiseLimit(L, "pattern too complex: step limit exceeded")

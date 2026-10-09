@@ -95,6 +95,14 @@ func (c *Conn) configure(opts Options) error {
 	if opts.Kind != Maintenance {
 		c.c.Limit(sqlite3.LIMIT_ATTACHED, 0)
 	}
+	// Defensive mode blocks writable_schema, sqlite_dbpage writes and similar
+	// corruption vectors. Staging needs journal_mode=OFF, which defensive mode
+	// forbids; staging DBs are private scratch files.
+	if opts.Kind != Staging {
+		if _, err := c.c.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
+			return fmt.Errorf("sqlitex: enable defensive mode: %w", err)
+		}
+	}
 
 	stmts := []string{
 		fmt.Sprintf("PRAGMA busy_timeout=%d", bt.Milliseconds()),

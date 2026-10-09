@@ -9,8 +9,6 @@ import (
 
 	lua "github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/parse"
-
-	"abidata/internal/script/pm"
 )
 
 // Limits are the per-run resource caps enforced inside the VM.
@@ -49,16 +47,16 @@ type ModuleLoader func(name string) (source string, ok bool)
 
 // runState is the per-run mutable state. A VM serves one run at a time.
 type runState struct {
-	ctx           context.Context
-	limits        Limits
-	patternBudget *pm.Budget
-	limitErr      error
-	rng           *rand.Rand
-	print         func(string)
-	loader        ModuleLoader
-	modules       map[string]lua.LValue
-	loading       map[string]bool
-	hostGlobals   map[string]lua.LValue
+	ctx         context.Context
+	cancel      context.CancelFunc
+	limits      Limits
+	limitErr    error
+	rng         *rand.Rand
+	print       func(string)
+	loader      ModuleLoader
+	modules     map[string]lua.LValue
+	loading     map[string]bool
+	hostGlobals map[string]lua.LValue
 }
 
 // VM is one sandboxed gopher-lua state. Library tables are exposed only through
@@ -104,6 +102,15 @@ func NewVM() *VM {
 		v.safe[name] = fn
 	}
 	v.safe["setmetatable"] = L.NewFunction(safeSetMetatable)
+	origUnpack := g.RawGetString("unpack").(*lua.LFunction).GFunction
+	v.safe["unpack"] = L.NewFunction(func(L *lua.LState) int {
+		tbl := L.CheckTable(1)
+		i, j := L.OptInt(2, 1), L.OptInt(3, tbl.Len())
+		if j-i >= maxResults {
+			L.RaiseError("too many results to unpack")
+		}
+		return origUnpack(L)
+	})
 	v.safe["print"] = L.NewFunction(v.basePrint)
 	v.safe["require"] = L.NewFunction(v.require)
 
@@ -113,6 +120,16 @@ func NewVM() *VM {
 	realString.RawSetString("gfind", lua.LNil)
 	realString.RawSetString("__index", lua.LNil)
 	origFormat := realString.RawGetString("format").(*lua.LFunction).GFunction
+	origByte := realString.RawGetString("byte").(*lua.LFunction).GFunction
+	realString.RawSetString("byte", L.NewFunction(func(L *lua.LState) int {
+		s := L.CheckString(1)
+		i := luaIndex2StringIndex(s, L.OptInt(2, 1), true)
+		j := luaIndex2StringIndex(s, L.OptInt(3, L.OptInt(2, 1)), false)
+		if j-i > maxResults {
+			L.RaiseError("string slice too long")
+		}
+		return origByte(L)
+	}))
 	for name, fn := range map[string]lua.LGFunction{
 		"find": v.strFind, "match": v.strMatch, "gmatch": v.strGmatch, "gsub": v.strGsub,
 		"rep": v.strRep, "format": v.strFormat(origFormat),
@@ -129,6 +146,16 @@ func NewVM() *VM {
 
 	realTable := copyTable(L, g.RawGetString("table").(*lua.LTable))
 	realTable.RawSetString("concat", L.NewFunction(v.tableConcat))
+	// insert/remove/sort write raw (bypassing __newindex); refuse locked tables.
+	for _, name := range []string{"insert", "remove", "sort"} {
+		orig := realTable.RawGetString(name).(*lua.LFunction).GFunction
+		realTable.RawSetString(name, L.NewFunction(func(L *lua.LState) int {
+			if isLocked(L.CheckTable(1)) {
+				L.RaiseError("attempt to modify read-only table")
+			}
+			return orig(L)
+		}))
+	}
 	v.safe["table"] = readOnlyProxy(L, realTable)
 
 	realMath := copyTable(L, g.RawGetString("math").(*lua.LTable))
@@ -153,6 +180,15 @@ func clearTable(t *lua.LTable) {
 	for _, k := range keys {
 		t.RawSet(k, lua.LNil)
 	}
+}
+
+// maxResults caps values a builtin may push (Lua 5.1's LUAI_MAXCSTACK).
+const maxResults = 8000
+
+// isLocked reports whether t is a protected table (a library proxy or host object).
+func isLocked(t *lua.LTable) bool {
+	mt, ok := t.Metatable.(*lua.LTable)
+	return ok && mt.RawGetString("__metatable") != lua.LNil
 }
 
 // readOnlyProxy returns an empty table whose metatable forwards reads to real,
@@ -301,7 +337,12 @@ func (v *VM) newEnv() *lua.LTable {
 }
 
 func (v *VM) raiseLimit(L *lua.LState, msg string) {
-	v.run.limitErr = fmt.Errorf("%w: %s", ErrLimitExceeded, msg)
+	if v.run.limitErr == nil {
+		v.run.limitErr = fmt.Errorf("%w: %s", ErrLimitExceeded, msg)
+	}
+	// Cancelling the run makes the limit uncatchable: pcall may trap this error,
+	// but the VM stops at the next instruction boundary.
+	v.run.cancel()
 	L.RaiseError("%s", msg)
 }
 
@@ -320,16 +361,18 @@ func (v *VM) Exec(ctx context.Context, proto *lua.FunctionProto, opts RunOptions
 	if opts.Limits.PatternSteps == 0 {
 		opts.Limits.PatternSteps = DefaultPatternSteps
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	v.run = &runState{
-		ctx:           ctx,
-		limits:        opts.Limits,
-		patternBudget: &pm.Budget{Ctx: ctx, MaxSteps: opts.Limits.PatternSteps},
-		rng:           rand.New(rand.NewPCG(opts.Seed, opts.Seed^0x9e3779b97f4a7c15)),
-		print:         opts.Print,
-		loader:        opts.Loader,
-		modules:       map[string]lua.LValue{},
-		loading:       map[string]bool{},
-		hostGlobals:   opts.HostGlobals,
+		ctx:         ctx,
+		cancel:      cancel,
+		limits:      opts.Limits,
+		rng:         rand.New(rand.NewPCG(opts.Seed, opts.Seed^0x9e3779b97f4a7c15)),
+		print:       opts.Print,
+		loader:      opts.Loader,
+		modules:     map[string]lua.LValue{},
+		loading:     map[string]bool{},
+		hostGlobals: opts.HostGlobals,
 	}
 	defer func() { v.run = nil }()
 

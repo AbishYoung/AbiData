@@ -9,6 +9,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/mail"
+	"net/netip"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,13 +22,30 @@ import (
 
 // Session lifetime and login throttling (brief <auth_and_tenancy>).
 const (
-	IdleTimeout     = 12 * time.Hour
-	AbsoluteTimeout = 7 * 24 * time.Hour
-	LoginWindow     = 15 * time.Minute
-	LoginMaxPerKey  = 5   // per email+IP
-	LoginMaxPerIP   = 100 // per IP, slows password spraying across emails
-	touchInterval   = time.Minute
+	IdleTimeout      = 12 * time.Hour
+	AbsoluteTimeout  = 7 * 24 * time.Hour
+	LoginWindow      = 15 * time.Minute
+	LoginMaxPerKey   = 5   // per email + client address (brief)
+	LoginMaxPerEmail = 20  // per account, across addresses (IPv6 rotation)
+	LoginMaxPerIP    = 300 // per address, slows password spraying across accounts
+	touchInterval    = time.Minute
+	hashWait         = 2 * time.Second
 )
+
+// limitKeyIP normalises a client address for rate limiting: IPv4 (including
+// v4-mapped) as-is, IPv6 by its /64 so one host cannot rotate addresses.
+func limitKeyIP(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	a = a.Unmap()
+	if a.Is6() {
+		p, _ := a.Prefix(64)
+		return p.String()
+	}
+	return a.String()
+}
 
 // Principal is the authenticated caller.
 type Principal struct {
@@ -47,6 +66,9 @@ type Service struct {
 	log    *slog.Logger
 
 	dummy func() string
+	// hashSlots bounds concurrent argon2 work (64 MiB each) so unauthenticated
+	// login floods cannot exhaust memory.
+	hashSlots chan struct{}
 
 	setupMu    sync.Mutex
 	setupToken string // one-time bootstrap token; empty once used
@@ -59,7 +81,8 @@ func NewService(repo admin.Repository, keys Keys, params Argon2Params, now func(
 		now = time.Now
 	}
 	return &Service{repo: repo, keys: keys, params: params, now: now, log: log,
-		dummy: sync.OnceValue(func() string { h, _ := HashPassword("dummy-password", params); return h })}
+		dummy:     sync.OnceValue(func() string { h, _ := HashPassword("dummy-password", params); return h }),
+		hashSlots: make(chan struct{}, max(2, min(8, runtime.GOMAXPROCS(0)/2)))}
 }
 
 // HashToken maps a raw session token to the stored id_hash (HMAC-SHA256 with the
@@ -92,42 +115,39 @@ func NormalizeEmail(email string) (string, error) {
 func (s *Service) Login(ctx context.Context, email, password, ip, userAgent string) (LoginResult, error) {
 	now := s.now()
 	email = strings.ToLower(strings.TrimSpace(email))
-	keyPair := "pair:" + email + "|" + ip
-	keyIP := "ip:" + ip
-	for _, k := range []struct {
-		key string
-		max int
-	}{{keyPair, LoginMaxPerKey}, {keyIP, LoginMaxPerIP}} {
-		a, err := s.repo.GetLoginAttempts(ctx, k.key)
-		if err != nil {
-			return LoginResult{}, err
-		}
-		if a.Count >= k.max && !a.WindowStart.Before(now.Add(-LoginWindow)) {
-			retry := a.WindowStart.Add(LoginWindow).Sub(now)
-			return LoginResult{}, &fault.Error{Code: fault.RateLimited, RetryAfter: retry,
-				Message: "Too many failed sign-in attempts. Wait before trying again."}
-		}
+	ipKey := limitKeyIP(ip)
+	keyPair := "pair:" + email + "|" + ipKey
+	keyEmail := "email:" + email
+	// Count the attempt before verifying, atomically per key, so concurrent
+	// requests cannot slip past the limit.
+	if err := s.countAttempts(ctx, now, map[string]int{keyPair: LoginMaxPerKey, keyEmail: LoginMaxPerEmail, "ip:" + ipKey: LoginMaxPerIP}); err != nil {
+		return LoginResult{}, err
 	}
 
 	invalid := fault.New(fault.Unauthenticated, "The email or password is incorrect.")
 	u, err := s.repo.GetUserByEmail(ctx, email)
 	if errors.Is(err, admin.ErrNotFound) {
-		_, _ = VerifyPassword(password, s.dummy())
-		s.recordFailure(ctx, now, keyPair, keyIP)
+		_, _ = s.verify(ctx, password, s.dummy())
 		return LoginResult{}, invalid
 	}
 	if err != nil {
 		return LoginResult{}, err
 	}
-	ok, err := VerifyPassword(password, u.PasswordHash)
-	if err != nil || !ok || u.Disabled {
-		s.recordFailure(ctx, now, keyPair, keyIP)
+	ok, err := s.verify(ctx, password, u.PasswordHash)
+	if err != nil {
+		var fe *fault.Error
+		if errors.As(err, &fe) {
+			return LoginResult{}, err
+		}
+	}
+	if !ok || u.Disabled {
 		return LoginResult{}, invalid
 	}
+	_ = s.repo.ClearLoginAttempts(ctx, keyEmail)
 	_ = s.repo.ClearLoginAttempts(ctx, keyPair)
 
 	if NeedsRehash(u.PasswordHash, s.params) {
-		if h, err := HashPassword(password, s.params); err == nil {
+		if h, err := s.hash(ctx, password); err == nil {
 			_ = s.repo.SetPasswordHash(ctx, u.ID, h)
 		}
 	}
@@ -145,12 +165,51 @@ func (s *Service) Login(ctx context.Context, email, password, ip, userAgent stri
 	return LoginResult{Token: token, ExpiresAt: sess.ExpiresAt, Principal: principalOf(u, sess)}, nil
 }
 
-func (s *Service) recordFailure(ctx context.Context, now time.Time, keys ...string) {
-	for _, k := range keys {
-		if _, err := s.repo.RecordLoginFailure(ctx, k, now, LoginWindow); err != nil && s.log != nil {
-			s.log.WarnContext(ctx, "record login failure", "err", err)
+// countAttempts increments each key's fixed-window counter and fails with
+// RATE_LIMITED if any exceeds its maximum.
+func (s *Service) countAttempts(ctx context.Context, now time.Time, limits map[string]int) error {
+	for key, limit := range limits {
+		a, err := s.repo.RecordLoginFailure(ctx, key, now, LoginWindow)
+		if err != nil {
+			return err
+		}
+		if a.Count > limit {
+			return &fault.Error{Code: fault.RateLimited, RetryAfter: a.WindowStart.Add(LoginWindow).Sub(now),
+				Message: "Too many sign-in attempts. Wait before trying again."}
 		}
 	}
+	return nil
+}
+
+func (s *Service) acquireHashSlot(ctx context.Context) (func(), error) {
+	t := time.NewTimer(hashWait)
+	defer t.Stop()
+	select {
+	case s.hashSlots <- struct{}{}:
+		return func() { <-s.hashSlots }, nil
+	case <-t.C:
+		return nil, &fault.Error{Code: fault.RateLimited, RetryAfter: time.Second, Message: "The server is busy. Try again in a moment."}
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (s *Service) verify(ctx context.Context, password, hash string) (bool, error) {
+	release, err := s.acquireHashSlot(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return VerifyPassword(password, hash)
+}
+
+func (s *Service) hash(ctx context.Context, password string) (string, error) {
+	release, err := s.acquireHashSlot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	return HashPassword(password, s.params)
 }
 
 func principalOf(u admin.User, sess admin.Session) Principal {
@@ -201,14 +260,22 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	if err != nil {
 		return err
 	}
-	ok, err := VerifyPassword(current, u.PasswordHash)
-	if err != nil || !ok {
+	key := "pw:" + u.ID
+	if err := s.countAttempts(ctx, s.now(), map[string]int{key: LoginMaxPerKey}); err != nil {
+		return err
+	}
+	ok, err := s.verify(ctx, current, u.PasswordHash)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return fault.New(fault.BadRequest, "The current password is incorrect.")
 	}
+	_ = s.repo.ClearLoginAttempts(ctx, key)
 	if err := ValidatePassword(next); err != nil {
 		return err
 	}
-	h, err := HashPassword(next, s.params)
+	h, err := s.hash(ctx, next)
 	if err != nil {
 		return err
 	}
@@ -249,7 +316,7 @@ func (s *Service) CreateUser(ctx context.Context, email, displayName, password s
 	if strings.TrimSpace(displayName) == "" {
 		displayName = email
 	}
-	h, err := HashPassword(password, s.params)
+	h, err := s.hash(ctx, password)
 	if err != nil {
 		return admin.User{}, err
 	}

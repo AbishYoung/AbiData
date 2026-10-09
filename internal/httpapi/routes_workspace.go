@@ -120,18 +120,9 @@ func (s *Server) registerWorkspace(api huma.API) {
 		}
 	}) (*struct{ Body MemberDTO }, error) {
 		m, _ := MembershipFrom(ctx)
-		cur, err := s.deps.Admin.GetRole(ctx, m.Workspace.ID, in.User)
-		if err != nil {
-			return nil, mapAdminErr(err)
-		}
 		role := admin.Role(in.Body.Role)
-		if cur == admin.RoleOwner && role != admin.RoleOwner {
-			if err := s.ensureAnotherOwner(ctx, m.Workspace.ID); err != nil {
-				return nil, err
-			}
-		}
-		if err := s.deps.Admin.SetMembership(ctx, admin.Membership{WorkspaceID: m.Workspace.ID, UserID: in.User, Role: role}); err != nil {
-			return nil, err
+		if err := s.deps.Admin.ChangeMembership(ctx, m.Workspace.ID, in.User, &role); err != nil {
+			return nil, mapAdminErr(err)
 		}
 		u, err := s.deps.Admin.GetUser(ctx, in.User)
 		if err != nil {
@@ -149,30 +140,10 @@ func (s *Server) registerWorkspace(api huma.API) {
 		User string `path:"user"`
 	}) (*struct{}, error) {
 		m, _ := MembershipFrom(ctx)
-		cur, err := s.deps.Admin.GetRole(ctx, m.Workspace.ID, in.User)
-		if err != nil {
-			return nil, mapAdminErr(err)
-		}
-		if cur == admin.RoleOwner {
-			if err := s.ensureAnotherOwner(ctx, m.Workspace.ID); err != nil {
-				return nil, err
-			}
-		}
-		if err := s.deps.Admin.DeleteMembership(ctx, m.Workspace.ID, in.User); err != nil {
+		if err := s.deps.Admin.ChangeMembership(ctx, m.Workspace.ID, in.User, nil); err != nil {
 			return nil, mapAdminErr(err)
 		}
 		s.audit(ctx, "member.remove", "workspace", string(m.Workspace.ID), map[string]any{"user_id": in.User})
 		return nil, nil
 	})
-}
-
-func (s *Server) ensureAnotherOwner(ctx context.Context, ws ids.WorkspaceID) error {
-	n, err := s.deps.Admin.CountOwners(ctx, ws)
-	if err != nil {
-		return err
-	}
-	if n <= 1 {
-		return fault.New(fault.BadRequest, "A workspace must keep at least one owner.")
-	}
-	return nil
 }

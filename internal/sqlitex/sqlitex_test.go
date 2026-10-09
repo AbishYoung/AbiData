@@ -174,3 +174,18 @@ func TestImmediateRollbackAndCtx(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Regression (Phase 0 review #13): defensive mode blocks schema corruption vectors.
+func TestDefensiveMode(t *testing.T) {
+	ctx := context.Background()
+	c, err := Open(ctx, filepath.Join(t.TempDir(), "a.db"), Options{Kind: Writer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	_ = c.ExecScript(ctx, `CREATE TABLE t(x)`)
+	_ = c.ExecScript(ctx, `PRAGMA writable_schema=ON`)
+	if _, err := c.Exec(ctx, `UPDATE sqlite_schema SET sql = 'CREATE TABLE t(y)' WHERE name = 't'`); err == nil {
+		t.Fatal("sqlite_schema writable despite defensive mode")
+	}
+}

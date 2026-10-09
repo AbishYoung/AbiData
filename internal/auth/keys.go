@@ -39,6 +39,9 @@ func loadOrCreate(path string, supplied []byte) ([]byte, error) {
 	if len(supplied) > 0 {
 		return supplied, nil
 	}
+	if fi, err := os.Stat(path); err == nil && fi.Mode().Perm()&0o077 != 0 {
+		return nil, fmt.Errorf("auth: key file %s is accessible by other users (mode %v); chmod 600 it", path, fi.Mode().Perm())
+	}
 	b, err := os.ReadFile(path)
 	if err == nil {
 		key, derr := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(b)))

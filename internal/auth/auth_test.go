@@ -3,8 +3,11 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -200,5 +203,69 @@ func TestKeysGeneratedOnce(t *testing.T) {
 	k3, _ := LoadKeys(dir, sup, nil)
 	if string(k3.Session) != string(sup) {
 		t.Fatal("supplied key ignored")
+	}
+}
+
+// Regression (Phase 0 review #3): parallel attempts cannot exceed the limit.
+func TestLoginRateLimitUnderConcurrency(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newSvc(t)
+	_, _ = s.CreateUser(ctx, "par@example.com", "P", "long-enough-pw", false)
+	var wg sync.WaitGroup
+	var unauth, limited atomic.Int64
+	for range 40 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.Login(ctx, "par@example.com", "wrong-password", "7.7.7.7", "")
+			switch code(err) {
+			case fault.Unauthenticated:
+				unauth.Add(1)
+			case fault.RateLimited:
+				limited.Add(1)
+			default:
+				t.Errorf("unexpected %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if unauth.Load() > LoginMaxPerKey {
+		t.Fatalf("%d password checks ran; limit is %d", unauth.Load(), LoginMaxPerKey)
+	}
+}
+
+// Regression (#7): an account cannot be brute-forced by rotating source addresses.
+func TestLoginPerAccountLimitAndIPv6Prefix(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newSvc(t)
+	_, _ = s.CreateUser(ctx, "acct@example.com", "A", "long-enough-pw", false)
+	for i := range LoginMaxPerEmail {
+		ip := fmt.Sprintf("10.0.%d.%d", i/250, i%250)
+		_, _ = s.Login(ctx, "acct@example.com", "wrong-password", ip, "")
+	}
+	if _, err := s.Login(ctx, "acct@example.com", "wrong-password", "192.0.2.99", ""); code(err) != fault.RateLimited {
+		t.Fatalf("per-account limit not enforced: %v", err)
+	}
+	// Addresses in one IPv6 /64 share a key.
+	if limitKeyIP("2001:db8:1:2::1") != limitKeyIP("2001:db8:1:2:ffff::9") || limitKeyIP("2001:db8:1:3::1") == limitKeyIP("2001:db8:1:2::1") {
+		t.Fatal("IPv6 /64 keying wrong")
+	}
+	if limitKeyIP("::ffff:1.2.3.4") != limitKeyIP("1.2.3.4") {
+		t.Fatal("v4-mapped address not normalised")
+	}
+}
+
+// Regression (#8): current-password guesses on ChangePassword are limited.
+func TestChangePasswordAttemptsLimited(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newSvc(t)
+	_, _ = s.CreateUser(ctx, "cp@example.com", "C", "long-enough-pw", false)
+	res, _ := s.Login(ctx, "cp@example.com", "long-enough-pw", "1.1.1.1", "")
+	p, _ := s.Authenticate(ctx, res.Token)
+	for range LoginMaxPerKey {
+		_ = s.ChangePassword(ctx, p, "wrong-password", "another-long-pw")
+	}
+	if err := s.ChangePassword(ctx, p, "long-enough-pw", "another-long-pw"); code(err) != fault.RateLimited {
+		t.Fatalf("want RATE_LIMITED, got %v", err)
 	}
 }
