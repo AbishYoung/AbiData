@@ -64,10 +64,11 @@ type runState struct {
 // only allowlisted values, so nothing a script does persists into the next run.
 // A VM whose run ended in a timeout, panic, or host error must be discarded.
 type VM struct {
-	L       *lua.LState
-	safe    map[string]lua.LValue // allowlisted base functions + library proxies
-	run     *runState
-	tainted bool
+	L         *lua.LState
+	safe      map[string]lua.LValue // allowlisted base functions + library proxies
+	run       *runState
+	tainted   bool
+	sentinels map[string]*lua.LUserData
 }
 
 var allowedBase = []string{
@@ -353,6 +354,10 @@ type RunOptions struct {
 	Print       func(string)
 	Loader      ModuleLoader
 	HostGlobals map[string]lua.LValue
+	// Entry, if set, names a global function the chunk defines; it is called
+	// with EntryArgs after the chunk runs and its results are returned instead.
+	Entry     string
+	EntryArgs []lua.LValue
 }
 
 // Exec runs proto in a fresh environment and returns its results. Callers must
@@ -397,7 +402,19 @@ func (v *VM) Exec(ctx context.Context, proto *lua.FunctionProto, opts RunOptions
 				perr = fmt.Errorf("script runtime panic: %v", p)
 			}
 		}()
-		return L.PCall(0, lua.MultRet, nil)
+		if err := L.PCall(0, lua.MultRet, nil); err != nil || opts.Entry == "" {
+			return err
+		}
+		L.SetTop(base)
+		entry := fn.Env.RawGetString(opts.Entry)
+		if _, ok := entry.(*lua.LFunction); !ok {
+			return &lua.ApiError{Type: lua.ApiErrorRun, Object: lua.LString(fmt.Sprintf("function %q is not defined", opts.Entry))}
+		}
+		L.Push(entry)
+		for _, a := range opts.EntryArgs {
+			L.Push(a)
+		}
+		return L.PCall(len(opts.EntryArgs), lua.MultRet, nil)
 	}()
 	if callErr != nil {
 		v.tainted = true
