@@ -86,6 +86,22 @@ func (l *Lease) ReadConn(ctx context.Context, fn func(c *sqlitex.Conn) error) er
 // writer, after waiting for the priority gate. Interactive waits are capped by
 // GateTimeout (→ WORKSPACE_BUSY). Re-entry returns ErrNestedWrite.
 func (l *Lease) Write(ctx context.Context, p Priority, fn func(tx *sqlitex.Tx) error) error {
+	return l.WriteWith(ctx, p, WriteOptions{}, fn)
+}
+
+// WriteOptions adjust the writer connection around one transaction.
+type WriteOptions struct {
+	// ForeignKeysOff disables foreign key enforcement for the transaction (required
+	// by the 12-step table rebuild; it is a no-op inside a transaction, so it is set
+	// before BEGIN) and restores it afterwards.
+	ForeignKeysOff bool
+	// Setup runs on the writer before BEGIN (e.g. registering DIRECTONLY helper
+	// functions); its cleanup runs after COMMIT or ROLLBACK.
+	Setup func(c *sqlitex.Conn) (cleanup func(), err error)
+}
+
+// WriteWith is Write with connection options.
+func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn func(tx *sqlitex.Tx) error) error {
 	if ctx.Value(writeKey{l.h.id}) != nil || !l.writing.CompareAndSwap(false, true) {
 		return ErrNestedWrite
 	}
@@ -120,7 +136,27 @@ func (l *Lease) Write(ctx context.Context, p Priority, fn func(tx *sqlitex.Tx) e
 	if err := l.check(); err != nil {
 		return err
 	}
-	return l.h.writer.Immediate(context.WithValue(ctx, writeKey{l.h.id}, true), fn)
+	w := l.h.writer
+	if opts.ForeignKeysOff {
+		if _, err := w.Exec(ctx, "PRAGMA foreign_keys=OFF"); err != nil {
+			return err
+		}
+		defer func() { _, _ = w.Exec(context.WithoutCancel(ctx), "PRAGMA foreign_keys=ON") }()
+	}
+	if opts.Setup != nil {
+		cleanup, err := opts.Setup(w)
+		if err != nil {
+			return err
+		}
+		if cleanup != nil {
+			defer cleanup()
+		}
+	}
+	err := w.Immediate(context.WithValue(ctx, writeKey{l.h.id}, true), fn)
+	if opts.ForeignKeysOff || opts.Setup != nil {
+		w.ClearStmtCache() // DDL may have changed what cached statements refer to
+	}
+	return err
 }
 
 // WriterContext reports whether ctx is inside a Write for this workspace.
