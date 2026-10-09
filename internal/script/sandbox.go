@@ -377,6 +377,13 @@ func (v *VM) Exec(ctx context.Context, proto *lua.FunctionProto, opts RunOptions
 	defer func() { v.run = nil }()
 
 	L := v.L
+	L.Options.MaxConcatLen = opts.Limits.MaxString
+	L.Options.OnConcatLimit = func(*lua.LState) {
+		if v.run.limitErr == nil {
+			v.run.limitErr = fmt.Errorf("%w: string length limit exceeded (%d bytes)", ErrLimitExceeded, opts.Limits.MaxString)
+		}
+		v.run.cancel()
+	}
 	L.SetContext(ctx)
 	defer L.RemoveContext()
 	fn := L.NewFunctionFromProto(proto)
@@ -422,7 +429,8 @@ func (v *VM) classify(ctx context.Context, err error) error {
 	var apiErr *lua.ApiError
 	if errors.As(err, &apiErr) {
 		msg := apiErr.Object.String()
-		if strings.Contains(msg, "registry overflow") || strings.Contains(msg, "stack overflow") {
+		if strings.Contains(msg, "registry overflow") || strings.Contains(msg, "stack overflow") ||
+			strings.Contains(msg, "string length limit exceeded") {
 			return &Error{Kind: KindLimit, Message: msg, Traceback: apiErr.StackTrace}
 		}
 		return &Error{Kind: KindRuntime, Message: msg, Traceback: apiErr.StackTrace}

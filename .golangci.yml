@@ -22,6 +22,7 @@ linters:
     paths:
       # Vendored gopher-lua pattern matcher (MIT); kept close to upstream.
       - internal/script/pm
+      - third_party
     rules:
       - linters: [gosec]
         text: "G104"

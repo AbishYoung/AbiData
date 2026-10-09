@@ -3,6 +3,7 @@ package script
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -371,4 +372,31 @@ func TestPatternBudgetPerOperation(t *testing.T) {
 	v := NewVM()
 	defer v.Close()
 	mustRun(t, v, `local s = string.rep("ab", 200) for i = 1, 5000 do string.find(s, "b+a") end`)
+}
+
+// Gate 3 / review #2: repeated doubling with `..` is stopped by the concat cap
+// long before it can exhaust memory.
+func TestConcatDoublingStopped(t *testing.T) {
+	v := NewVM()
+	defer v.Close()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	start := time.Now()
+	_, err := run(t, v, `local s = "x" for i = 1, 40 do s = s .. s end return #s`, 5*time.Second)
+	if k, ok := kindOf(err); !ok || k != KindLimit {
+		t.Fatalf("want limit, got %v", err)
+	}
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	if grew := int64(after.HeapAlloc) - int64(before.HeapAlloc); grew > 64<<20 {
+		t.Fatalf("heap grew by %d MiB", grew>>20)
+	}
+	if el := time.Since(start); el > time.Second {
+		t.Fatalf("took %v", el)
+	}
+	// A pcall cannot swallow it either (the run is cancelled).
+	_, err = run(t, NewVM(), `local s = "x" for i = 1, 40 do pcall(function() s = s .. s end) end return #s`, 5*time.Second)
+	if k, _ := kindOf(err); k != KindLimit {
+		t.Fatalf("pcall swallowed concat limit: %v", err)
+	}
 }

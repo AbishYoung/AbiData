@@ -30,3 +30,5 @@ ignore (
 	./tests/e2e/node_modules
 	./web/node_modules
 )
+
+replace github.com/yuin/gopher-lua => ./third_party/gopher-lua
