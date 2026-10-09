@@ -388,3 +388,39 @@ func Now() string { return FormatTime(time.Now()) }
 
 // ParseTime parses TimeLayout.
 func ParseTime(s string) (time.Time, error) { return time.Parse(TimeLayout, s) }
+
+// Statement describes a prepared statement without running it.
+type Statement struct {
+	Columns  []string
+	Params   []string // named parameters including their prefix (":name"); positional ones as "?N"
+	ReadOnly bool
+}
+
+// Describe prepares sql (one statement) and reports its shape.
+func (c *Conn) Describe(ctx context.Context, sql string) (Statement, error) {
+	defer c.bindCtx(ctx)()
+	st, tail, err := c.c.Prepare(sql)
+	if err != nil {
+		return Statement{}, wrapErr(ctx, err)
+	}
+	if st == nil {
+		return Statement{}, errors.New("sqlitex: empty statement")
+	}
+	defer func() { _ = st.Close() }()
+	if strings.TrimSpace(tail) != "" {
+		return Statement{}, errors.New("sqlitex: multiple statements are not allowed")
+	}
+	var d Statement
+	for i := range st.ColumnCount() {
+		d.Columns = append(d.Columns, st.ColumnName(i))
+	}
+	for i := 1; i <= st.BindCount(); i++ {
+		name := st.BindName(i)
+		if name == "" {
+			name = fmt.Sprintf("?%d", i)
+		}
+		d.Params = append(d.Params, name)
+	}
+	d.ReadOnly = st.ReadOnly()
+	return d, nil
+}
