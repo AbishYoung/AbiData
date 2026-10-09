@@ -164,3 +164,8 @@ func sqliteMessage(err error) string {
 	}
 	return msg
 }
+
+// CheckExpr applies the lexical expression rules (single balanced expression,
+// no statement separators, comments or parameters) for SQL fragments authored
+// elsewhere, e.g. visual query expressions.
+func CheckExpr(expr string) error { return lexCheck(expr) }

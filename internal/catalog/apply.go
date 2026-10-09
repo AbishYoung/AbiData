@@ -1388,9 +1388,8 @@ func (p *planner) impact(validators []Validator) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if err := p.checkSavedQueries(); err != nil {
-		return err
-	}
+	// Validators run first: they may recompile derived SQL (visual queries) in
+	// this transaction before every saved query is re-prepared.
 	for _, v := range validators {
 		b, w, err := v(p.ctx, p.tx, p.s)
 		if err != nil {
@@ -1399,7 +1398,7 @@ func (p *planner) impact(validators []Validator) error {
 		p.report.Breaking = append(p.report.Breaking, b...)
 		p.report.Warnings = append(p.report.Warnings, w...)
 	}
-	return nil
+	return p.checkSavedQueries()
 }
 
 func (p *planner) checkSavedQueries() error {
