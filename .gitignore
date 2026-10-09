@@ -12,3 +12,4 @@ coverage.*
 .DS_Store
 /.claude/
 /web/tsconfig.tsbuildinfo
+/tests/e2e/.bin/

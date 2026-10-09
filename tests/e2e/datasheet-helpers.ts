@@ -173,7 +173,7 @@ export async function openTable(page: Page, f: Fixture, tableName: string): Prom
 /** Opens a table's datasheet from the navigation pane of the already open workspace. */
 export async function switchTable(page: Page, tableName: string): Promise<Locator> {
   const nav = page.getByRole("navigation", { name: "Navigation pane" });
-  await nav.getByRole("button", { name: tableName }).click();
+  await nav.getByRole("button", { name: tableName, exact: true }).click();
   const grid = page.getByRole("grid", { name: `${tableName} datasheet` });
   await expect(grid).toBeVisible();
   return grid;
@@ -207,14 +207,8 @@ export async function rowIndexOf(grid: Locator, name: string, column = "Name"): 
   throw new Error(`no row named ${name}`);
 }
 
-/**
- * Runs axe (wcag2a, wcag2aa) on the datasheet document panel plus any open dialogs.
- * The surrounding shell (tab strip, navigation pane) belongs to other features and is
- * covered by shell.spec.ts, so it is excluded here.
- */
+/** Runs axe (wcag2a, wcag2aa) on the whole page with the datasheet open (including any dialogs). */
 export async function expectDatasheetAccessible(page: Page): Promise<void> {
-  const builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).include("#document-panel");
-  if ((await page.locator('[role="dialog"]').count()) > 0) builder.include('[role="dialog"]');
-  const results = await builder.analyze();
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }
