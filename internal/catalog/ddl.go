@@ -134,7 +134,14 @@ func createIndexSQL(t *Table, x Index) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("catalog: index %s column %s missing", x.ID, id)
 		}
-		cols = append(cols, Quote(c.PhysicalName))
+		// Text keys use NOCASE: the datasheet sorts text case-insensitively (as
+		// Access does), and only an index with the same collation can serve it.
+		// Unique text indexes are therefore case-insensitive too.
+		if isTextType(c) {
+			cols = append(cols, Quote(c.PhysicalName)+" COLLATE NOCASE")
+		} else {
+			cols = append(cols, Quote(c.PhysicalName))
+		}
 	}
 	u := ""
 	if x.Unique {
@@ -152,4 +159,15 @@ func occTriggerSQL(t *Table) string {
 	return fmt.Sprintf(`CREATE TRIGGER %s AFTER UPDATE ON %s FOR EACH ROW WHEN NEW."_version" = OLD."_version" `+
 		`BEGIN UPDATE %s SET "_version" = OLD."_version" + 1 WHERE "id" = NEW."id"; END`,
 		Quote(occTriggerName(t)), q, q)
+}
+
+// isTextType reports whether c holds text that sorts case-insensitively.
+func isTextType(c *Column) bool {
+	switch c.Type {
+	case ShortText, LongText, Hyperlink:
+		return true
+	case Calculated:
+		return c.Options.ResultType == "" || c.Options.ResultType == "text"
+	}
+	return false
 }

@@ -175,6 +175,16 @@ func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *
 			return
 		case <-t.C:
 		}
+		for _, id := range wm.OpenIDs() {
+			l, err := wm.Acquire(ctx, id)
+			if err != nil {
+				continue
+			}
+			if err := records.PurgeIdempotency(ctx, l, time.Now()); err != nil {
+				log.Warn("purge idempotency keys", "subsystem", "janitor", "workspace_id", id, "err", err)
+			}
+			l.Release()
+		}
 		wm.CloseIdle(ctx, 10*time.Minute)
 		if n, err := adm.PurgeSessions(ctx, time.Now(), auth.IdleTimeout); err != nil {
 			log.Warn("purge sessions", "subsystem", "janitor", "err", err)

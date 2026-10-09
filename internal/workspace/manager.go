@@ -451,3 +451,16 @@ func (m *Manager) ReapplyQuota(ctx context.Context, id ids.WorkspaceID) error {
 		return err
 	})
 }
+
+// OpenIDs lists workspaces that are currently open (for janitor tasks).
+func (m *Manager) OpenIDs() []ids.WorkspaceID {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]ids.WorkspaceID, 0, len(m.handles))
+	for id, h := range m.handles {
+		if h.state == stOpen {
+			out = append(out, id)
+		}
+	}
+	return out
+}
