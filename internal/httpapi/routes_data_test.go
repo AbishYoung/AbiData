@@ -185,3 +185,47 @@ func TestEventsStreamDeliversRowChanges(t *testing.T) {
 		t.Fatalf("non-member events: %d", resp2.StatusCode)
 	}
 }
+
+func TestQueriesOverHTTP(t *testing.T) {
+	e, root, ws := setupWorkspace(t)
+	base := "/api/v1/w/" + ws
+	_, res, _ := root.do("POST", base+"/schema/apply", map[string]any{"ops": []map[string]any{{"op": "create_table", "table": map[string]any{
+		"display_name": "Pets", "columns": []map[string]any{{"display_name": "Kind", "field_type": "short_text"}}}}}})
+	tbl := res["schema"].(map[string]any)["tables"].([]any)[0].(map[string]any)
+	tid := tbl["id"].(string)
+	kind := tbl["columns"].([]any)[1].(map[string]any)["id"].(string)
+	for _, k := range []string{"cat", "dog", "cat"} {
+		root.do("POST", base+"/tables/"+tid+"/rows", map[string]any{"fields": map[string]any{kind: k}})
+	}
+	model := map[string]any{"sources": []any{map[string]any{"alias": "p", "table_id": tid, "x": 0, "y": 0}},
+		"fields": []any{map[string]any{"alias": "p", "column_id": kind, "group": "group_by"},
+			map[string]any{"alias": "p", "column_id": "id", "group": "count", "output_name": "N"}}}
+	ed := e.login("ed@example.com")
+	// Editors can run but not save.
+	st, out, _ := ed.do("POST", base+"/queries/run", map[string]any{"model": model})
+	if st != 200 || len(out["rows"].([]any)) != 2 {
+		t.Fatalf("editor run %d %v", st, out)
+	}
+	if st, _, _ := ed.do("POST", base+"/queries", map[string]any{"name": "Counts", "kind": "visual", "visual_model": model}); st != 403 {
+		t.Fatalf("editor saved query: %d", st)
+	}
+	if st, _, _ := ed.do("POST", base+"/sql/run", map[string]any{"sql": "SELECT 1"}); st != 403 {
+		t.Fatalf("editor used SQL console: %d", st)
+	}
+	st, q, h := root.do("POST", base+"/queries", map[string]any{"name": "Counts", "kind": "visual", "visual_model": model})
+	if st != 201 || h.Get("ETag") != `"1"` {
+		t.Fatalf("save %d %v", st, q)
+	}
+	st, out, _ = ed.do("POST", base+"/queries/"+q["id"].(string)+"/run", map[string]any{})
+	if st != 200 || len(out["rows"].([]any)) != 2 {
+		t.Fatalf("editor run saved %d %v", st, out)
+	}
+	st, out, _ = root.do("POST", base+"/sql/run", map[string]any{"sql": "SELECT count(*) AS n FROM Pets WHERE Kind = :k", "params": map[string]any{"k": "cat"}})
+	if st != 200 || out["rows"].([]any)[0].([]any)[0].(float64) != 2 {
+		t.Fatalf("sql console %d %v", st, out)
+	}
+	st, out, _ = root.do("POST", base+"/sql/run", map[string]any{"sql": "ATTACH 'x.db' AS x"})
+	if st != 403 || errCode(out) != "SQL_NOT_ALLOWED" {
+		t.Fatalf("attach via console %d %v", st, out)
+	}
+}

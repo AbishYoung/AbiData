@@ -20,6 +20,7 @@ import (
 	"abidata/internal/config"
 	"abidata/internal/events"
 	"abidata/internal/ids"
+	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/workspace"
 )
@@ -64,12 +65,13 @@ func newEnv(t *testing.T) *env {
 	}
 	hub := events.NewHub(1000)
 	schemas := catalog.NewCache()
-	engine := &catalog.Engine{AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
 	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
-		Schemas: schemas, Catalog: engine, Events: hub, Records: &records.Service{Schemas: schemas, Events: hub}})
+		Schemas: schemas, Catalog: engine, Events: hub, Records: &records.Service{Schemas: schemas, Events: hub},
+		Queries: &query.Service{Schemas: schemas, Events: hub}})
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
 	return &env{t: t, srv: srv, s: s, ad: ad, au: au}

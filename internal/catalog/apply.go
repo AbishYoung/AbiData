@@ -1419,7 +1419,16 @@ func (p *planner) checkSavedQueries() error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	flagged := map[string]bool{}
+	for _, b := range p.report.Breaking {
+		if b.Object == "query" {
+			flagged[b.ID] = true
+		}
+	}
 	for _, x := range qs {
+		if flagged[x.id] {
+			continue
+		}
 		if _, err := p.tx.Prepare(p.ctx, x.sql); err != nil {
 			p.report.Breaking = append(p.report.Breaking, Issue{Kind: "query_invalid", Object: "query", ID: x.id,
 				Message: fmt.Sprintf("Saved query %q would stop working: %s", x.name, sqliteMessage(err))})

@@ -23,6 +23,7 @@ import (
 	"abidata/internal/httpapi"
 	"abidata/internal/ids"
 	"abidata/internal/obs"
+	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -115,13 +116,13 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	engine := &catalog.Engine{AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
 	api := httpapi.New(httpapi.Deps{Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
-		Records: &records.Service{Schemas: schemas, Events: hub}, Version: version, SPA: spa})
+		Records: &records.Service{Schemas: schemas, Events: hub}, Queries: &query.Service{Schemas: schemas, Events: hub}, Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
 		BaseContext: func(net.Listener) context.Context { return context.Background() }}
