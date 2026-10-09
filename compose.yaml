@@ -1,0 +1,43 @@
+services:
+  abidata:
+    build: .
+    restart: unless-stopped
+    environment:
+      ABIDATA_PUBLIC_URL: ${ABIDATA_PUBLIC_URL:-https://localhost}
+      ABIDATA_SESSION_KEY_FILE: /run/secrets/session_key
+      ABIDATA_MANIFEST_KEY_FILE: /run/secrets/manifest_key
+    volumes:
+      - abidata-data:/var/lib/abidata
+      - abidata-backups:/var/lib/abidata-backups
+    secrets:
+      - session_key
+      - manifest_key
+    stop_grace_period: 45s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - abidata
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ABIDATA_SITE: ${ABIDATA_SITE:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+secrets:
+  session_key:
+    file: ./secrets/session_key
+  manifest_key:
+    file: ./secrets/manifest_key
+
+volumes:
+  abidata-data:
+  abidata-backups:
+  caddy-data:
+  caddy-config:

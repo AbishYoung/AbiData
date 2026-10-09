@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.data
+bin
+node_modules
+**/node_modules
+web/dist/*
+!web/dist/.gitkeep
+secrets
+tests/e2e/test-results
+tests/e2e/playwright-report
+test-results
+playwright-report
+coverage
+*.log

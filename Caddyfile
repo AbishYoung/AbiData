@@ -1,0 +1,13 @@
+{$ABIDATA_SITE:localhost} {
+	encode {
+		zstd
+		gzip
+		match {
+			not header Content-Type text/event-stream*
+		}
+	}
+
+	reverse_proxy abidata:8080 {
+		flush_interval -1
+	}
+}
