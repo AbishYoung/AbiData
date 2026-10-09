@@ -90,7 +90,7 @@ func DerivePhysicalName(display string) string {
 	if s == "" {
 		s = "field"
 	}
-	if c := s[0]; !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z') {
+	if c := s[0]; (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
 		s = "f_" + s
 	}
 	if sqliteKeywords[strings.ToUpper(s)] || reservedColumns[strings.ToLower(s)] {

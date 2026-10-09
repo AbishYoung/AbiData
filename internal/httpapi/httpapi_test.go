@@ -17,6 +17,7 @@ import (
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/ids"
 	"abidata/internal/workspace"
 )
 
@@ -43,7 +44,12 @@ func newEnv(t *testing.T) *env {
 	}
 	t.Cleanup(func() { _ = ad.Close() })
 	au := auth.NewService(ad, auth.Keys{Session: make([]byte, 32)}, auth.Argon2Params{Memory: 1024, Time: 1, Threads: 1, KeyLen: 32, SaltLen: 16}, nil, nil)
-	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
+	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate,
+		// Same fail-closed quota lookup as serve: regression for create-before-row.
+		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
+			w, err := ad.GetWorkspace(ctx, id)
+			return w.Quota.MaxPageCount, err
+		}})
 	if err != nil {
 		t.Fatal(err)
 	}

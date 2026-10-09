@@ -120,6 +120,9 @@ func installHumaErrors(log *slog.Logger) {
 			code = fault.BadRequest
 		}
 		fe := &fault.Error{Code: code}
+		if code == fault.Internal && len(errs) > 0 {
+			fe.Cause = errors.Join(errs...) // keep the cause for the server log
+		}
 		if code == fault.BadRequest {
 			fe.Message = msg
 			var details []map[string]any

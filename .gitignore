@@ -11,3 +11,4 @@
 coverage.*
 .DS_Store
 /.claude/
+/web/tsconfig.tsbuildinfo

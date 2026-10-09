@@ -24,14 +24,17 @@ Files / interfaces:
 - `web/` shell (login, workspace picker, nav pane placeholder, ApiClient) — Sonnet packet D after OpenAPI is generated.
 Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `internal/workspace`, `internal/sqlitex`, `cmd/abidata`.
 
-## Phase 0 status
-Done (backend, all green: `go test -race ./...`, golangci-lint 0 issues):
-- ids, fault, sqlitex, admin (schema + repo), config, obs, workspace manager, catalog migration v1, auth, httpapi, cmd/abidata (serve/healthcheck/user create-admin, flock, graceful shutdown, janitor), OpenAPI generation (`go generate ./internal/httpapi` → `web/src/generated/api.d.ts` via `npm --prefix web run gen:api`).
-- Gate 0 backend tests pass: CSRF missing/wrong → 403, wrong/missing Origin → 403, login/logout, lockout after 5, idle + absolute expiry, IDOR → 404, traversal IDs → 404, ErrNestedWrite (2 s timeout), 500×6 acquire/release over 300 workspaces with LRU 128 and FD baseline check, Exclusive drain + WORKSPACE_MAINTENANCE with Retry-After, pragma verification per kind, second `serve` fails on the lock.
-In progress: web shell + Playwright harness (Sonnet packet D); Phase 0 security review (fresh Opus reviewer).
+## Phase 0 status — Gate 0 PASSED (2026-10-09)
+- `go test -race ./...` green (11 packages); vitest 14/14; Playwright 6/6 (shell flow, keyboard-only sign-in, axe clean light+dark on /login, picker, workspace shell); tsc + eslint clean; golangci-lint clean except `unused` on Phase 1 catalog work-in-progress (ddl.go/ident.go/load.go helpers not yet wired; resolved as Phase 1 lands).
+- Gate 0 tests: CSRF missing/wrong → 403; wrong/missing Origin → 403; login/logout; lockout after 5 (also under 40 parallel attempts); idle + absolute expiry; IDOR → 404; traversal IDs → 404; ErrNestedWrite (2 s timeout); 500 goroutines × 300 workspaces, LRU 128, FD baseline; Exclusive drain + WORKSPACE_MAINTENANCE/Retry-After; pragmas per connection kind; second `serve` fails on the lock; CLI refuses while server runs; SIGTERM clean stop.
+- Security review (fresh Opus reviewer) findings 1, 3–13 fixed with regression tests (commit a29f8db + follow-up). Deferred:
+  - **#2 (high) `..` concatenation / unbounded Lua memory** → heap watchdog + per-run allocation guard are Phase 3 core work; Gate 3 "s..s ×40 survives" test covers it. No endpoint executes Lua before Phase 3.
+  - #12 (low) owners can learn whether an email has an account when adding members — accepted: owners are trusted within their workspace and need the feedback; platform-wide user listing stays admin-only.
+  - pprof on ABIDATA_DEBUG_ADDR is unauthenticated by design (operator-only bind, off by default); documented in operations docs (Phase 7).
+- e2e harness: Playwright `webServer` runs `tests/e2e/server.mjs` (builds SPA + binary, temp data dir, create-admin, serve) because Playwright starts webServer before globalSetup.
 
 ## Next
-- Integrate web shell, address security review, close Gate 0, start Phase 1.
+- Phase 1: Tables & Datasheet (plan below).
 
 ## Notes / decisions taken without asking (per working agreement)
 - Session ID hash is HMAC-SHA256(session key, token) rather than bare SHA-256, so a leaked admin DB yields no usable cookies; this is what the generated session key is for.

@@ -147,7 +147,7 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 	if _, err := os.Stat(p.DB); err == nil {
 		return fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
 	}
-	w, err := m.openWriter(ctx, id, p)
+	w, err := m.openWriterQuota(ctx, id, p, false)
 	if err != nil {
 		_ = os.Remove(p.DB)
 		_ = os.Remove(p.WAL)
@@ -158,8 +158,14 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 }
 
 func (m *Manager) openWriter(ctx context.Context, id ids.WorkspaceID, p Paths) (*sqlitex.Conn, error) {
+	return m.openWriterQuota(ctx, id, p, true)
+}
+
+// openWriterQuota opens the writer; quota lookup is skipped on Create, which
+// runs before the workspace's admin record exists (the quota applies on open).
+func (m *Manager) openWriterQuota(ctx context.Context, id ids.WorkspaceID, p Paths, quota bool) (*sqlitex.Conn, error) {
 	var pages int64
-	if m.cfg.MaxPageCount != nil {
+	if quota && m.cfg.MaxPageCount != nil {
 		var err error
 		if pages, err = m.cfg.MaxPageCount(ctx, id); err != nil {
 			return nil, fmt.Errorf("workspace %s: quota: %w", id, err)
