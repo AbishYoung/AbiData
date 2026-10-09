@@ -89,12 +89,12 @@ type Session struct {
 
 // Quota holds per-workspace limits. Zero means "use the platform default".
 type Quota struct {
-	MaxPageCount       int64 `json:"max_page_count,omitempty"`
-	MaxConcurrentJobs  int   `json:"max_concurrent_jobs,omitempty"`
-	EgressPerMinute    int   `json:"egress_per_minute,omitempty"`
-	ArtifactBytes      int64 `json:"artifact_bytes,omitempty"`
-	UIEventBudgetMS    int   `json:"ui_event_budget_ms,omitempty"`
-	ScriptConcurrency  int   `json:"script_concurrency,omitempty"`
+	MaxPageCount      int64 `json:"max_page_count,omitempty"`
+	MaxConcurrentJobs int   `json:"max_concurrent_jobs,omitempty"`
+	EgressPerMinute   int   `json:"egress_per_minute,omitempty"`
+	ArtifactBytes     int64 `json:"artifact_bytes,omitempty"`
+	UIEventBudgetMS   int   `json:"ui_event_budget_ms,omitempty"`
+	ScriptConcurrency int   `json:"script_concurrency,omitempty"`
 }
 
 // Workspace is the admin-side record of a workspace.
@@ -158,7 +158,7 @@ type Repository interface {
 	CreateUser(ctx context.Context, u User) error // ErrConflict on duplicate email
 	GetUser(ctx context.Context, id string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error) // case-insensitive
-	ListUsers(ctx context.Context) ([]User, error)                    // ordered by email
+	ListUsers(ctx context.Context) ([]User, error)                  // ordered by email
 	CountUsers(ctx context.Context) (int, error)
 	UpdateUser(ctx context.Context, id string, p UserPatch) error
 	SetPasswordHash(ctx context.Context, id, hash string) error
@@ -182,13 +182,13 @@ type Repository interface {
 	// Workspaces
 	CreateWorkspace(ctx context.Context, w Workspace, owner string) error // also inserts owner membership; ErrConflict on duplicate name
 	GetWorkspace(ctx context.Context, id ids.WorkspaceID) (Workspace, error)
-	ListWorkspaces(ctx context.Context) ([]Workspace, error)                          // excludes deleted; ordered by name
+	ListWorkspaces(ctx context.Context) ([]Workspace, error)                             // excludes deleted; ordered by name
 	ListWorkspacesForUser(ctx context.Context, userID string) ([]WorkspaceAccess, error) // excludes deleted; ordered by name
 	UpdateWorkspace(ctx context.Context, id ids.WorkspaceID, p WorkspacePatch) error
 
 	// Memberships
 	GetRole(ctx context.Context, ws ids.WorkspaceID, userID string) (Role, error) // ErrNotFound if not a member
-	SetMembership(ctx context.Context, m Membership) error                      // upsert
+	SetMembership(ctx context.Context, m Membership) error                        // upsert
 	DeleteMembership(ctx context.Context, ws ids.WorkspaceID, userID string) error
 	ListMembers(ctx context.Context, ws ids.WorkspaceID) ([]Member, error) // ordered by email
 	CountOwners(ctx context.Context, ws ids.WorkspaceID) (int, error)

@@ -15,7 +15,7 @@ import (
 	"abidata/internal/sqlitex"
 )
 
-func testMigrate(ctx context.Context, c *sqlitex.Conn) error {
+func testMigrate(ctx context.Context, _ ids.WorkspaceID, c *sqlitex.Conn) error {
 	return c.ExecScript(ctx, `CREATE TABLE IF NOT EXISTS t(id INTEGER PRIMARY KEY, v INTEGER NOT NULL DEFAULT 0)`)
 }
 

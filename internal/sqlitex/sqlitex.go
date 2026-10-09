@@ -261,7 +261,7 @@ func (c *Conn) Prepare(ctx context.Context, sql string) (columns []string, err e
 	if st == nil {
 		return nil, errors.New("sqlitex: empty statement")
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	if strings.TrimSpace(tail) != "" {
 		return nil, errors.New("sqlitex: multiple statements are not allowed")
 	}

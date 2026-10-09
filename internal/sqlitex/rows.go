@@ -34,13 +34,12 @@ func (r *Rows) Next() bool {
 func (r *Rows) Err() error { return r.err }
 
 // Close releases the statement back to the cache. Safe to call more than once.
-func (r *Rows) Close() error {
+func (r *Rows) Close() {
 	if r.closed {
-		return nil
+		return
 	}
 	r.closed = true
 	r.release()
-	return nil
 }
 
 // Columns returns the result column names.

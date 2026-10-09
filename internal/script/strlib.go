@@ -8,6 +8,7 @@ package script
 // output cap, and every result is checked against the run's max string size.
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -40,7 +41,7 @@ func (v *VM) find(L *lua.LState, pattern, str string, offset, limit int) []*pm.M
 	r := v.run
 	mds, err := pm.Find(r.patternBudget, pattern, roBytes(str), offset, limit)
 	if err != nil {
-		if err == pm.ErrStepLimit {
+		if errors.Is(err, pm.ErrStepLimit) {
 			v.raiseLimit(L, "pattern too complex: step limit exceeded")
 		}
 		if r.ctx.Err() != nil {

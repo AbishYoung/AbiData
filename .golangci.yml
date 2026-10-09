@@ -19,14 +19,31 @@ linters:
         - name: exported
           disabled: true
   exclusions:
+    paths:
+      # Vendored gopher-lua pattern matcher (MIT); kept close to upstream.
+      - internal/script/pm
     rules:
-      - linters:
-          - gosec
+      - linters: [gosec]
         text: "G104"
-      - linters:
-          - gosec
+      # Tests: deferred Close of test resources, subprocesses and plain requests are fine.
+      - path: _test\.go
+        linters: [errcheck, noctx]
+      - path: _test\.go
+        linters: [gosec]
+        text: "G101|G107|G115|G204|G304"
+      # Paths come from validated server configuration, not request input.
+      - path: (cmd/abidata/lock\.go|internal/auth/keys\.go)
+        linters: [gosec]
         text: "G304"
-        path: _test\.go
+      # Lua math.random is deliberately a deterministic, per-run seeded PRNG;
+      # roBytes is an audited zero-copy read-only view of an immutable string.
+      - path: internal/script/
+        linters: [gosec]
+        text: "G103|G115|G404"
+      # Generated artifacts are world-readable by design.
+      - path: tools/gen/
+        linters: [gosec]
+        text: "G306"
 
 formatters:
   enable:

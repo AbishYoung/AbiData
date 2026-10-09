@@ -138,7 +138,7 @@ func (l *Lease) Maintenance(ctx context.Context, fn func(c *sqlitex.Conn) error)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	return fn(c)
 }
 

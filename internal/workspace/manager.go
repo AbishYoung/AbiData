@@ -48,7 +48,7 @@ type Config struct {
 	GateTimeout time.Duration // max interactive wait for the writer (default 10s) → WORKSPACE_BUSY
 	// Migrate runs on the writer connection each time a workspace is opened and
 	// after Exclusive; it owns its transactions.
-	Migrate func(ctx context.Context, c *sqlitex.Conn) error
+	Migrate func(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error
 	// MaxPageCount returns the DB-size quota for a workspace (0 = unlimited).
 	MaxPageCount func(id ids.WorkspaceID) int64
 	// Observe receives timing samples; nil means none.
@@ -87,12 +87,12 @@ type handle struct {
 	closed   chan struct{} // closed when a stClosing handle is gone
 	drained  chan struct{} // non-nil while Exclusive waits for refs <= 1
 
-	writer      *sqlitex.Conn
-	gate        gate
-	readers     *readerPool
-	maintMu     sync.Mutex
-	scriptCtx   context.Context // cancelled when the workspace drains
-	scriptStop  context.CancelFunc
+	writer     *sqlitex.Conn
+	gate       gate
+	readers    *readerPool
+	maintMu    sync.Mutex
+	scriptCtx  context.Context // cancelled when the workspace drains
+	scriptStop context.CancelFunc
 }
 
 // Manager owns all open workspaces.
@@ -166,7 +166,7 @@ func (m *Manager) openWriter(ctx context.Context, id ids.WorkspaceID, p Paths) (
 		return nil, err
 	}
 	if m.cfg.Migrate != nil {
-		if err := m.cfg.Migrate(ctx, w); err != nil {
+		if err := m.cfg.Migrate(ctx, id, w); err != nil {
 			_ = w.Close()
 			return nil, fmt.Errorf("workspace %s: migrate: %w", id, err)
 		}

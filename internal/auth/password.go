@@ -65,7 +65,10 @@ func parseHash(hash string) (Argon2Params, []byte, []byte, error) {
 	if err != nil || len(key) == 0 {
 		return Argon2Params{}, nil, nil, ErrBadHash
 	}
-	p.KeyLen = uint32(len(key))
+	if len(key) > 1024 {
+		return Argon2Params{}, nil, nil, ErrBadHash
+	}
+	p.KeyLen = uint32(len(key)) //nolint:gosec // bounded to 1024 above
 	p.SaltLen = len(salt)
 	return p, salt, key, nil
 }
