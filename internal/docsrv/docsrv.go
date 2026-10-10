@@ -270,5 +270,32 @@ func HighlightCSS() (string, error) {
 	if err := f.WriteCSS(&dark, styles.Get("monokai")); err != nil {
 		return "", err
 	}
-	return light.String() + "\n@media (prefers-color-scheme: dark) {\n" + dark.String() + "}\n", nil
+	// Follow the app's theme: the system preference unless the user forced one
+	// with [data-theme] on <html> (same rules as web/src/styles/tokens.css).
+	return scope(light.String(), `:root:not([data-theme="dark"])`) +
+		"\n@media (prefers-color-scheme: dark) {\n" + scope(dark.String(), `:root:not([data-theme="light"])`) + "}\n" +
+		scope(dark.String(), `:root[data-theme="dark"]`), nil
+}
+
+// scope prefixes every selector of chroma's flat stylesheet with prefix.
+func scope(css, prefix string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(css, "\n") {
+		sel, rest, ok := strings.Cut(line, "{")
+		if !ok || strings.TrimSpace(sel) == "" {
+			b.WriteString(line + "\n")
+			continue
+		}
+		// Keep chroma's leading comment ("/* Background */ .bg").
+		comment := ""
+		if i := strings.Index(sel, "*/"); i >= 0 {
+			comment, sel = sel[:i+2]+" ", sel[i+2:]
+		}
+		parts := strings.Split(sel, ",")
+		for i, p := range parts {
+			parts[i] = prefix + " " + strings.TrimSpace(p)
+		}
+		b.WriteString(comment + strings.Join(parts, ", ") + " {" + rest + "\n")
+	}
+	return b.String()
 }

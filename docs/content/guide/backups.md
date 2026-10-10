@@ -14,10 +14,10 @@ Backups are taken while people keep working. Each one is checked for corruption 
 
 | Kind | Made when | Kept |
 |---|---|---|
-| Manual | An owner chooses to create a backup | Until you delete it. Retention never removes manual backups |
+| Manual | An owner chooses to create a backup | Until you delete it. Retention never removes manual backups; a workspace can hold at most 20 |
 | Scheduled | Every day, from 02:00 UTC by default | The newest per day for 7 days and the newest per week for 4 weeks |
 | Restore point | Automatically before a destructive design change or a large replacing import | The 5 newest |
-| `pre_restore` | Automatically during a restore, to keep what was replaced | 7 days |
+| `pre_restore` | Automatically during a restore, to keep what was replaced | The 3 newest, for at most 7 days |
 
 A platform administrator can change the hour of the scheduled backups or turn them off for the whole server. See [Backup strategy](/docs/operations/backup-strategy).
 
@@ -26,10 +26,10 @@ A platform administrator can change the hour of the scheduled backups or turn th
 Take one before a risky change, such as reorganising tables or running a bulk script.
 
 1. Open **Workspace settings** from the user menu. You must be an owner.
-2. Open the backups section and choose to create a backup.
+2. In the **Backups** section, choose **Back up now**.
 3. Wait for it to appear in the list with its size and time.
 
-Creating a backup does not interrupt anyone.
+Creating a backup does not interrupt anyone. Only one backup of a workspace runs at a time. When the workspace already holds 20 manual backups, delete an old one first: choose **Delete** on its row and confirm. Only manual backups can be deleted; the other kinds are removed by retention.
 
 ## Restore points {#restore-points}
 
@@ -40,7 +40,9 @@ When you apply a design change that deletes or converts data, or run an import t
 Restoring replaces the whole workspace with the backup. Everything entered after the backup was taken is lost from the live workspace.
 
 1. Pick the backup in the list and choose **Restore**.
-2. Confirm.
+2. Type the workspace's exact name to confirm, then choose **Restore and disconnect everyone**.
+
+Only one restore of a workspace can run at a time; a second one is refused with [WORKSPACE_BUSY](/docs/reference/errors#workspace-busy). If an administrator has suspended the workspace, it stays suspended after the restore.
 
 What happens:
 
@@ -48,7 +50,7 @@ What happens:
 2. All connected users are disconnected and the workspace is unavailable for a short time. Requests during the swap get [WORKSPACE_MAINTENANCE](/docs/reference/errors#workspace-maintenance).
 3. The current database files are moved aside and the backup is put in place. If anything fails here, the original files are moved back and you see [RESTORE_FAILED](/docs/reference/errors#restore-failed).
 4. The workspace opens again. Users reconnect and reload their data.
-5. The replaced files are kept as a `pre_restore` backup for 7 days, so you can undo a restore by restoring that backup.
+5. The replaced files are kept as a `pre_restore` backup (the 3 newest, for up to 7 days), so you can undo a restore by restoring that backup.
 
 If the server stops in the middle of a restore, it finishes or reverts the restore when it starts again. The workspace is never left half replaced.
 
@@ -62,7 +64,9 @@ Use this to recover a few records without touching the live data, or to make a c
 2. Enter a name. It must not match an existing workspace.
 3. Open the new workspace from your workspace list. You are its owner.
 
-The live workspace is not touched, and nobody is disconnected. The copy gets the same storage quota. Copy back what you need by exporting from one workspace and importing into the other: see [Imports and exports](/docs/guide/imports-exports).
+The live workspace is not touched, and nobody is disconnected. The copy gets the same storage quota.
+
+Creating workspaces is normally a platform administrator's job, so an owner who is not a platform administrator can create at most 3 workspaces this way. Past that, the request is refused with [QUOTA_EXCEEDED](/docs/reference/errors#quota-exceeded); ask an administrator. Copy back what you need by exporting from one workspace and importing into the other: see [Imports and exports](/docs/guide/imports-exports).
 
 ## Things to know {#notes}
 

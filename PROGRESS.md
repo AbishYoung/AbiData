@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Gates 3–6 PASSED (2026-10-10). Phase 7 in progress: graceful shutdown done; docs content + docs panel packet running.
+Gates 3–6 PASSED (2026-10-10). Phase 7 in progress: graceful shutdown, docs (content, panel, generated refs, error links), perf re-verify done; a11y sweep + container smoke running; Phase 7 review next.
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
@@ -86,6 +86,8 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 
 ## Phase 7 — Hardening, docs
 - Graceful shutdown: scheduler stops, running runs get 30 s then are cancelled as `interrupted`; SSE hubs/log bus closed so streams end; HTTP drain 15 s; ops; background backup archiving; workspaces.
+- Docs: guide (tables, queries, forms, reports, scripts, jobs, imports/exports, backups, members, keyboard) and operations (install, configuration, upgrade, backup strategy, security, monitoring) pages; generated Lua API (module-qualified anchors, e.g. `db-query`), error and shortcut references; in-app docs panel (MiniSearch, Mod+K palette, `?`), ErrorDialog "Learn more" → `reference/errors#code`, Monaco hover "Open in the docs". Code highlighting follows a forced `[data-theme]`. `TestDocsIntegrity` green.
+  - Doc statements to confirm with a human: no row-history viewer exists; unique indexes only via the schema API; `/metrics` needs an admin session (awkward for Prometheus); compose.yaml lacks `ABIDATA_BOOTSTRAP_ADMIN_EMAIL`/`ABIDATA_TRUSTED_PROXIES`; UI-event budgets are fixed (brief says workspace-configurable 250 ms–5 s).
 - Perf budgets re-verified (2026-10-10, after Phases 5–6): 1M-row page fetch p95 31.8 ms (< 50); form event round trip, 50 users, p95 3.1 ms (< 150); 200k-row upsert with 20 interactive writers, interactive p99 8.5 ms (< 50).
 
 ## Phase 5 — Ingest backend (imports, exports, Lua `staging`)
@@ -96,8 +98,8 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Import wizard / export UI merged: modal 4-step wizard (`web/src/features/imports`), Export dialog on table/query menus and the datasheet toolbar; e2e `import-export.spec.ts`.
 
 ## Next (resume here)
-In flight: docs content + docs panel packet (Sonnet, port 18092).
-1. Merge docs packet (error dialogs link to /docs/reference/errors#code).
+In flight: a11y sweep + container smoke packet (Sonnet, port 18093; Docker now local at ~/.docker/bin).
+1. Gaps found by the docs agent: workspace-configurable UI-event budgets (brief), `/metrics` scrape auth, compose env vars.
 2. Axe on every route + container smoke CI job (Sonnet packet running, port 18093); Phase 7 security review after merges.
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
