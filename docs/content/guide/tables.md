@@ -102,7 +102,7 @@ Filters and sorts are for your view only. To save a selection for others, create
 
 In **Design**, turn on **Track history of changes to rows**. From then on, every insert, update and delete through the app is recorded with the user, time and the values before and after.
 
-History is written by the row API, forms, imports and the `records` module in scripts. Changes made with `db.exec` in a script are not recorded.
+History is written by the row API (the datasheet), forms and the `records` module in scripts. Bulk imports and changes made with `db.exec` in a script are not recorded.
 
 ## Changing a design safely {#schema-changes}
 
