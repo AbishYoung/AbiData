@@ -50,9 +50,9 @@ type Global struct {
 	// Hosts are the host patterns any workspace may be granted; "*" allows any host.
 	Hosts []string `json:"hosts"`
 	// AllowHTTP permits plain http (port 80 must still be listed by the workspace).
-	AllowHTTP bool `json:"allow_http"`
+	AllowHTTP bool `json:"allow_http,omitempty"`
 	// Disabled turns all egress off.
-	Disabled bool `json:"disabled"`
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 // DefaultGlobal lets workspaces decide via their allowlists, https only.

@@ -20,12 +20,16 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"abidata/internal/admin"
+	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/egress"
 	"abidata/internal/events"
 	"abidata/internal/forms"
+	"abidata/internal/jobs"
 	"abidata/internal/obs"
+	"abidata/internal/ops"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/reports"
@@ -49,6 +53,10 @@ type Deps struct {
 	Scripts    *scripts.Service
 	Reports    *reports.Service
 	Events     *events.Hub
+	Jobs       *jobs.Service    // nil: job routes answer NOT_FOUND
+	Ops        *ops.Service     // long-running operations (imports, exports)
+	Artifacts  *artifacts.Store // job/export output files
+	Egress     *egress.Gateway  // workspace allowlist settings validation
 	Version    string
 	SPA        fs.FS // contents of web/dist; nil serves nothing
 }
@@ -95,6 +103,8 @@ func New(deps Deps) *Server {
 	s.registerQueries(api)
 	s.registerForms(api)
 	s.registerReports(api)
+	s.registerJobs(api)
+	s.registerEgress(api)
 
 	r.NotFound(s.notFound)
 	return s

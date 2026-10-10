@@ -17,14 +17,18 @@ import (
 	"time"
 
 	"abidata/internal/admin"
+	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/egress"
 	"abidata/internal/events"
 	"abidata/internal/forms"
 	"abidata/internal/httpapi"
 	"abidata/internal/ids"
+	"abidata/internal/jobs"
 	"abidata/internal/obs"
+	"abidata/internal/ops"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/reports"
@@ -82,6 +86,9 @@ func serve() error {
 	hub := events.NewHub(events.DefaultRing)
 	schemas := catalog.NewCache()
 	wsLog := obs.Subsystem(log, "workspace")
+	// afterOpen runs once a workspace has been opened (set below, once the
+	// services it needs exist): reconcile interrupted operations, rebuild the job index.
+	var afterOpen func(id ids.WorkspaceID)
 	// Migrate, then reconcile catalog vs physical schema (D5); drift marks the
 	// workspace needs_repair and is logged, but does not block opening.
 	migrate := func(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
@@ -100,6 +107,9 @@ func serve() error {
 			wsLog.Error("catalog drift detected", "workspace_id", id, "drift", drift)
 			st := admin.StatusNeedsRepair
 			_ = adm.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st})
+		}
+		if afterOpen != nil {
+			go afterOpen(id)
 		}
 		return nil
 	}
@@ -130,11 +140,82 @@ func serve() error {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
+	quota := func(id ids.WorkspaceID) admin.Quota {
+		w, err := adm.GetWorkspace(context.Background(), id)
+		if err != nil {
+			return admin.Quota{}
+		}
+		return w.Quota
+	}
+	arts := &artifacts.Store{Dir: filepath.Join(cfg.DataDir, "artifacts"), Quota: func(id ids.WorkspaceID) int64 { return quota(id).ArtifactBytes }}
+	gateway := egress.New(egress.Config{
+		Global: func(ctx context.Context) (egress.Global, error) { return httpapi.LoadGlobalEgress(ctx, adm) },
+		Allowlist: func(ctx context.Context, id ids.WorkspaceID) ([]egress.Entry, error) {
+			l, err := wm.Acquire(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			defer l.Release()
+			items, err := httpapi.ReadAllowlist(ctx, l)
+			out := make([]egress.Entry, len(items))
+			for i, e := range items {
+				out[i] = egress.Entry{Pattern: e.Pattern, Ports: e.Ports}
+			}
+			return out, err
+		},
+		PerMinute: func(id ids.WorkspaceID) int { return quota(id).EgressPerMinute },
+		Log:       obs.Subsystem(log, "egress"),
+	})
+	defer gateway.Close()
+	opsSvc := &ops.Service{Workspaces: wm, Events: hub, Log: obs.Subsystem(log, "ops")}
+	jobStore := &jobs.SQLStore{Admin: adm, Workspaces: wm}
+	jobSvc := &jobs.Service{Scripts: scriptSvc, Events: hub}
+	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts}
+	sched := jobs.New(jobs.Config{Store: jobStore, Executor: executor, Workers: cfg.JobWorkers, Log: obs.Subsystem(log, "jobs"),
+		PerWorkspace: func(id ids.WorkspaceID) int { return quota(id).MaxConcurrentJobs },
+		Publish:      func(id ids.WorkspaceID, r jobs.Run) { hub.Publish(string(id), events.JobRun, r) }})
+	jobSvc.Scheduler = sched
+	enqueue := func(ctx context.Context, l *workspace.Lease, name, by string, args map[string]any, fromForm bool) (string, error) {
+		return jobSvc.Enqueue(ctx, l, name, by, args, fromForm)
+	}
+	executor.Enqueue = func(ctx context.Context, id ids.WorkspaceID, name, by string, args map[string]any, fromForm bool) (string, error) {
+		l, err := wm.Acquire(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		defer l.Release()
+		return enqueue(ctx, l, name, by, args, fromForm)
+	}
+	afterOpen = func(id ids.WorkspaceID) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		l, err := wm.Acquire(ctx, id)
+		if err != nil {
+			return
+		}
+		defer l.Release()
+		if err := opsSvc.Reconcile(ctx, l); err != nil {
+			wsLog.Warn("reconcile operations", "workspace_id", id, "err", err)
+		}
+		if err := sched.Rebuild(ctx, id); err != nil {
+			wsLog.Warn("rebuild job index", "workspace_id", id, "err", err)
+		}
+	}
+	if err := sched.Recover(ctx); err != nil {
+		log.Error("job recovery", "subsystem", "jobs", "err", err)
+	}
+	schedCtx, stopSched := context.WithCancel(context.Background())
+	schedDone := make(chan struct{})
+	go func() { sched.Start(schedCtx); close(schedDone) }()
+
 	api := httpapi.New(httpapi.Deps{Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
-		Forms:   &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub}, Version: version, SPA: spa})
+		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
+			Enqueue: enqueue},
+		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway,
+		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
 		BaseContext: func(net.Listener) context.Context { return context.Background() }}
@@ -143,7 +224,7 @@ func serve() error {
 		go serveDebug(cfg.DebugAddr, log)
 	}
 	janitorCtx, stopJanitor := context.WithCancel(context.Background())
-	go janitor(janitorCtx, log, wm, adm)
+	go janitor(janitorCtx, log, wm, adm, arts)
 
 	errc := make(chan error, 1)
 	go func() {
@@ -153,6 +234,9 @@ func serve() error {
 	select {
 	case err := <-errc:
 		stopJanitor()
+		stopSched()
+		<-schedDone
+		_ = opsSvc.Shutdown(context.Background())
 		_ = wm.Shutdown(context.Background())
 		return err
 	case <-ctx.Done():
@@ -167,6 +251,17 @@ func serve() error {
 	if err := srv.Shutdown(shutCtx); err != nil {
 		log.Warn("http drain incomplete", "err", err)
 	}
+	// Running job runs are cancelled (recorded as cancelled); runs a crash cuts
+	// short are marked interrupted by Recover on the next start.
+	stopSched()
+	select {
+	case <-schedDone:
+	case <-shutCtx.Done():
+		log.Warn("job runs did not stop in time")
+	}
+	if err := opsSvc.Shutdown(shutCtx); err != nil {
+		log.Warn("operations did not stop in time", "err", err)
+	}
 	wsCtx, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel2()
 	if err := wm.Shutdown(wsCtx); err != nil {
@@ -179,7 +274,10 @@ func serve() error {
 	return nil
 }
 
-func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store) {
+// artifactRetention is how long job and export artifacts are kept.
+const artifactRetention = 30 * 24 * time.Hour
+
+func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store, arts *artifacts.Store) {
 	t := time.NewTicker(5 * time.Minute)
 	defer t.Stop()
 	for {
@@ -197,6 +295,11 @@ func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *
 				log.Warn("purge idempotency keys", "subsystem", "janitor", "workspace_id", id, "err", err)
 			}
 			l.Release()
+		}
+		if n, err := arts.Sweep(artifactRetention, time.Now()); err != nil {
+			log.Warn("sweep artifacts", "subsystem", "janitor", "err", err)
+		} else if n > 0 {
+			log.Info("swept artifacts", "subsystem", "janitor", "count", n)
 		}
 		wm.CloseIdle(ctx, 10*time.Minute)
 		if n, err := adm.PurgeSessions(ctx, time.Now(), auth.IdleTimeout); err != nil {

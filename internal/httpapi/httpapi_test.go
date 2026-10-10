@@ -15,6 +15,9 @@ import (
 	"testing/fstest"
 
 	"abidata/internal/admin"
+	"abidata/internal/artifacts"
+	"abidata/internal/jobs"
+	"abidata/internal/ops"
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
@@ -78,9 +81,17 @@ func newEnv(t *testing.T) *env {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
+	runner := script.NewRunner(4, 4)
+	arts := &artifacts.Store{Dir: filepath.Join(dir, "artifacts")}
+	jobSvc := &jobs.Service{Scripts: scriptSvc, Events: hub}
+	jobSvc.Scheduler = jobs.New(jobs.Config{Store: &jobs.SQLStore{Admin: ad, Workspaces: wm},
+		Executor: &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Artifacts: arts}})
+	t.Cleanup(jobSvc.Scheduler.Wait)
+	opsSvc := &ops.Service{Workspaces: wm, Events: hub}
+	t.Cleanup(func() { _ = opsSvc.Shutdown(ctx) })
 	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
 		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
-		Queries: querySvc, Scripts: scriptSvc,
+		Queries: querySvc, Scripts: scriptSvc, Jobs: jobSvc, Ops: opsSvc, Artifacts: arts,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub},
 		Forms:   &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub}})
 	srv := httptest.NewServer(s)
