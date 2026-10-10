@@ -86,6 +86,7 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 
 ## Phase 7 — Hardening, docs
 - Graceful shutdown: scheduler stops, running runs get 30 s then are cancelled as `interrupted`; SSE hubs/log bus closed so streams end; HTTP drain 15 s; ops; background backup archiving; workspaces.
+- Perf budgets re-verified (2026-10-10, after Phases 5–6): 1M-row page fetch p95 31.8 ms (< 50); form event round trip, 50 users, p95 3.1 ms (< 150); 200k-row upsert with 20 interactive writers, interactive p99 8.5 ms (< 50).
 
 ## Phase 5 — Ingest backend (imports, exports, Lua `staging`)
 - `internal/ingest`: streamed upload (100 MiB) -> staging SQLite (`c1..cN`, meta table) for CSV (delimiter/BOM/UTF-16/cp1252 sniffing, record caps), XLSX (archive pre-scan + excelize limits), JSON/NDJSON (depth cap); inference on the first 1,000 non-empty values; mapping validated against the catalog; validation pass (first 100 row errors + count); commit as operation `import` (2,000-row background chunks; append/upsert/replace; chunked or all_or_nothing); exports as operation `export` (keyset pages; csv/xlsx/json -> artifact). Janitor sweeps staging after 24 h.
@@ -97,7 +98,7 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 ## Next (resume here)
 In flight: docs content + docs panel packet (Sonnet, port 18092).
 1. Merge docs packet (error dialogs link to /docs/reference/errors#code).
-2. Axe on every route; perf budgets re-verified; Phase 7 security review; Docker/compose verification in CI.
+2. Axe on every route + container smoke CI job (Sonnet packet running, port 18093); Phase 7 security review after merges.
 3. Follow-up: OpenAPI `LogEntry` schema should match the stream payload `{time, level, msg, attrs}`.
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
