@@ -191,23 +191,23 @@ func (p *policyRT) RoundTrip(req *http.Request) (*http.Response, error) {
 // check enforces scheme, host pattern (global ∩ workspace) and port.
 func (g *Gateway) check(u *url.URL, global Global, allow []Entry) error {
 	if global.Disabled {
-		return fmt.Errorf("%w: egress is disabled by the administrator", errDenied)
+		return fmt.Errorf("%w: Egress is disabled by the administrator", errDenied)
 	}
 	switch u.Scheme {
 	case "https":
 	case "http":
 		if !global.AllowHTTP {
-			return fmt.Errorf("%w: only https is allowed", errDenied)
+			return fmt.Errorf("%w: Only https is allowed", errDenied)
 		}
 	default:
-		return fmt.Errorf("%w: scheme %q is not allowed", errDenied, u.Scheme)
+		return fmt.Errorf("%w: Scheme %q is not allowed", errDenied, u.Scheme)
 	}
 	if u.User != nil {
-		return fmt.Errorf("%w: credentials in the URL are not allowed", errDenied)
+		return fmt.Errorf("%w: Credentials in the URL are not allowed", errDenied)
 	}
 	host := normHost(u.Hostname())
 	if host == "" {
-		return fmt.Errorf("%w: missing host", errDenied)
+		return fmt.Errorf("%w: The URL has no host", errDenied)
 	}
 	port := u.Port()
 	if port == "" {
@@ -217,14 +217,14 @@ func (g *Gateway) check(u *url.URL, global Global, allow []Entry) error {
 		}
 	}
 	if !matchAny(global.Hosts, host) {
-		return fmt.Errorf("%w: host %s is not allowed by the platform policy", errDenied, host)
+		return fmt.Errorf("%w: The platform policy does not allow host %s", errDenied, host)
 	}
 	for _, e := range allow {
 		if matchPattern(e.Pattern, host) && portListed(e.Ports, port) {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: %s:%s is not in the workspace allowlist", errDenied, host, port)
+	return fmt.Errorf("%w: The workspace allowlist does not include %s:%s", errDenied, host, port)
 }
 
 func normHost(h string) string { return strings.TrimSuffix(strings.ToLower(h), ".") }
@@ -281,7 +281,7 @@ func ValidPattern(p string) bool {
 			return false
 		}
 		for _, c := range label {
-			if !(c == '-' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9') {
+			if c != '-' && (c < 'a' || c > 'z') && (c < '0' || c > '9') {
 				return false
 			}
 		}
@@ -424,7 +424,7 @@ func (g *Gateway) do(ctx context.Context, ws ids.WorkspaceID, u *url.URL, req Re
 	if err != nil {
 		return nil, 0, classify(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// resp.Body is the decoded stream when the transport negotiated compression,
 	// so the cap also bounds decompressed bytes.
 	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
@@ -447,7 +447,7 @@ func classify(err error) error {
 	switch {
 	case errors.Is(err, errDenied):
 		_, msg, _ := strings.Cut(err.Error(), errDenied.Error()+": ")
-		return fault.New(fault.EgressDenied, upperFirst(msg)+".")
+		return fault.New(fault.EgressDenied, msg+".")
 	case errors.Is(err, ErrBlockedAddress):
 		return fault.New(fault.EgressDenied, "The host resolves to an address that is not publicly routable.")
 	case errors.As(err, &fe):
@@ -457,13 +457,6 @@ func classify(err error) error {
 	default:
 		return fault.Wrap(fault.EgressFailed, err)
 	}
-}
-
-func upperFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // bucket is a token bucket refilled at perMinute/60 tokens per second.
