@@ -28,7 +28,7 @@ import (
 // Run limits (brief: 200,000 detail rows, 30 s).
 const (
 	MaxRows        = 200_000
-	maxSourceBytes = 256 << 20
+	maxSourceBytes = 192 << 20 // estimated live bytes incl. Go overhead (limits.go)
 	MaxRunTime     = 30 * time.Second
 )
 
@@ -74,6 +74,11 @@ type Caller struct {
 
 // Run resolves the report and streams instances in order.
 func (s *Service) Run(ctx context.Context, in RunInput) error {
+	release, err := slots.acquire(in.Lease.ID())
+	if err != nil {
+		return err
+	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, MaxRunTime)
 	defer cancel()
 	rep := in.Report
@@ -98,12 +103,18 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 				k = r.vals[g.ColumnID]
 			} else {
 				k = r.calc[fmt.Sprintf("__g%d", gi)]
+				if ks, ok := k.(string); ok && len(ks) > maxGroupKeyLen {
+					return fault.Newf(fault.BadRequest, "Group %d's expression returned text longer than %d characters.", gi+1, maxGroupKeyLen)
+				}
 				luaGroups = true
 			}
 			r.keys = append(r.keys, interval(k, g.Interval))
 		}
 	}
 	if luaGroups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		sort.SliceStable(rows, func(i, j int) bool {
 			for gi, g := range lay.Groups {
 				c := compare(rows[i].keys[gi], rows[j].keys[gi])
@@ -332,6 +343,7 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 			defer rs.Close()
 			size := 0
 			for rs.Next() {
+				size += rowOverhead + fieldOverhead*len(fields)
 				for _, v := range rs.Values() {
 					size += sqlitex.SizeOf(v)
 				}
@@ -551,7 +563,15 @@ func compare(a, b any) int {
 		}
 		return 0
 	}
-	return strings.Compare(strings.ToLower(fmt.Sprint(a)), strings.ToLower(fmt.Sprint(b)))
+	as, ok := a.(string)
+	if !ok {
+		as = fmt.Sprint(a)
+	}
+	bs, ok := b.(string)
+	if !ok {
+		bs = fmt.Sprint(b)
+	}
+	return foldCompare(as, bs)
 }
 
 func toFloat(v any) (float64, bool) {

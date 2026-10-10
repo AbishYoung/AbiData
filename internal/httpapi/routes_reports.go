@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 
 	"abidata/internal/admin"
 	"abidata/internal/reports"
 )
+
+// reportWriteTimeout bounds how long a report stream waits on a slow client.
+const reportWriteTimeout = 30 * time.Second
 
 func (s *Server) registerReports(api huma.API) {
 	tags := []string{"reports"}
@@ -161,12 +166,19 @@ func (s *Server) registerReports(api huma.API) {
 				w := hctx.BodyWriter()
 				enc := json.NewEncoder(w)
 				flusher, _ := w.(http.Flusher)
+				// A client that stops reading must not pin the run's rows in
+				// memory: each write gets a deadline (ignored if unsupported).
+				_, rw := humachi.Unwrap(hctx)
+				rc := http.NewResponseController(rw)
 				n := 0
 				bctx, stop := l.Bind(hctx.Context())
 				defer stop()
 				err := s.deps.Reports.Run(bctx, reports.RunInput{Lease: l, Schema: sch, Report: rep, Params: params,
 					Caller: reports.Caller{UserID: p.UserID, Builder: m.Role.AtLeast(admin.RoleBuilder), TZ: tz},
 					Emit: func(inst reports.Instance) error {
+						if n%200 == 0 {
+							_ = rc.SetWriteDeadline(time.Now().Add(reportWriteTimeout))
+						}
 						if err := enc.Encode(inst); err != nil {
 							return err
 						}
