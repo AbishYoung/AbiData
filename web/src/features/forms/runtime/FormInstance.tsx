@@ -2,11 +2,12 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertDialog } from "radix-ui";
-import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Plus, Save, Trash2, Undo2 } from "lucide-react";
+import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, History, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary } from "@/components/styles";
 import { useStatusBar } from "@/lib/statusbar";
 import { findTable, type Column } from "@/lib/schema";
+import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { useSavedQuery } from "@/features/queries/savedQueries";
 import { formKeys, getForm, type Form, type FormControl, type FormSection } from "../formsApi";
 import { ControlView, domId, type ControlEnv } from "./Controls";
@@ -186,6 +187,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   const focus = useSessionState(store, (s) => s.focus);
   const dirty = rec ? isDirty(rec) : false;
   const [deleting, setDeleting] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // ---- tab, status bar --------------------------------------------------------------------
   useEffect(() => {
@@ -333,6 +335,8 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       onSave={() => void session.save()}
       onUndo={() => session.cancelEdit()}
       onDelete={() => setDeleting(true)}
+      canHistory={top && !!writeTable && !!rec && !rec.isNew && rec.id !== null}
+      onHistory={() => setHistoryOpen(true)}
     />
   );
 
@@ -470,6 +474,9 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
         </div>
       )}
       {body}
+      {historyOpen && writeTable && rec && rec.id !== null && (
+        <RowHistoryPanel ws={env.ws} tableId={writeTable.id} rowId={rec.id} onClose={() => setHistoryOpen(false)} />
+      )}
       <ConfirmDialog
         open={confirm !== null}
         title="Please confirm"
@@ -535,6 +542,8 @@ function Toolbar(props: {
   onSave: () => void;
   onUndo: () => void;
   onDelete: () => void;
+  canHistory: boolean;
+  onHistory: () => void;
 }) {
   const { top, label, count, index, rec, busy, dirty } = props;
   const small = "!px-2";
@@ -575,6 +584,12 @@ function Toolbar(props: {
         <button type="button" className={btn} disabled={busy} onClick={props.onDelete}>
           <Trash2 size={16} aria-hidden="true" />
           Delete
+        </button>
+      )}
+      {props.canHistory && (
+        <button type="button" className={btn} onClick={props.onHistory}>
+          <History size={16} aria-hidden="true" />
+          History
         </button>
       )}
       {dirty && <span className="ml-1 text-sm text-fg-muted">Unsaved changes</span>}

@@ -1,5 +1,5 @@
 import { useId, type Ref } from "react";
-import { Download, FilterX, ListFilter, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Download, FilterX, History, ListFilter, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { btn, input } from "@/components/styles";
 import type { Condition } from "./filter";
 
@@ -19,6 +19,8 @@ interface ToolbarProps {
   canDelete: boolean;
   onDelete: () => void;
   onExport?: () => void;
+  canHistory: boolean;
+  onHistory: () => void;
   filterRef: Ref<HTMLInputElement>;
 }
 
@@ -63,6 +65,10 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
       <button type="button" className={btn} onClick={p.onDelete} disabled={!p.canDelete}>
         <Trash2 size={14} aria-hidden="true" />
         Delete record
+      </button>
+      <button type="button" className={btn} onClick={p.onHistory} disabled={!p.canHistory}>
+        <History size={14} aria-hidden="true" />
+        History
       </button>
       {p.onExport && (
         <button type="button" className={btn} onClick={p.onExport}>
