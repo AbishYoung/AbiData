@@ -444,7 +444,7 @@ func (s *Service) computeCalc(ctx context.Context, l *workspace.Lease, c Caller,
 		fmt.Fprintf(&b, "__r[%q] = {pcall(function() return (%s) end)}\n", ctl.ID, ctl.Calc.LuaExpr)
 	}
 	b.WriteString("return __r\n")
-	proto, err := script.Compile(b.String(), "calc")
+	proto, err := script.CompileCached(b.String(), "calc")
 	if err != nil {
 		resp.CalcErrors = map[string]string{"*": fault.Classify(err).DisplayMessage()}
 		return

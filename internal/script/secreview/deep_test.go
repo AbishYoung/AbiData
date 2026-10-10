@@ -1,10 +1,7 @@
-// Package secreview holds Phase 3 security-review repro tests. Tests that prove
-// a still-open finding are gated behind environment variables so the normal
-// suite stays green; run them with the variable named in each test.
+// Package secreview holds regression tests for the Phase 3 security review.
 package secreview
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,16 +9,16 @@ import (
 	"abidata/internal/script"
 )
 
-// Run with ABIDATA_SECREVIEW_CRASH=<shape>: a builder-sized (<1 MiB) source with
-// deep nesting overflows the Go stack in the gopher-lua parser/compiler, which is
-// a fatal runtime error (not recoverable) that kills the whole server process.
-// Reachable from POST /scripts/check, script/form/report save, and calc/group
-// expressions.
-func TestDeepNestingCompileCrashesProcess(t *testing.T) {
-	shape := os.Getenv("ABIDATA_SECREVIEW_CRASH")
-	if shape == "" {
-		t.Skip("set ABIDATA_SECREVIEW_CRASH=<shape>; this test is expected to crash the test binary")
+// M1 (fixed; regression): a builder-sized (<1 MiB) source with deep nesting
+// could overflow the Go stack or take tens of seconds in the gopher-lua
+// parser/compiler. Compile now rejects it up front (script.MaxNesting).
+func TestDeepNestingCompile(t *testing.T) {
+	for _, shape := range []string{"table", "unary", "not", "pow", "concat", "call", "do", "if", "func", "do50k", "paren"} {
+		t.Run(shape, func(t *testing.T) { deepCompile(t, shape) })
 	}
+}
+
+func deepCompile(t *testing.T, shape string) {
 	n := 300_000
 	var src string
 	switch shape {
@@ -53,5 +50,7 @@ func TestDeepNestingCompileCrashesProcess(t *testing.T) {
 	}
 	start := time.Now()
 	_, err := script.Compile(src, "deep")
-	t.Logf("%s (%d bytes): compile took %s, err=%v (no crash)", shape, len(src), time.Since(start), err)
+	if el := time.Since(start); err == nil || el > time.Second {
+		t.Fatalf("%s (%d bytes): compile took %s, err=%v", shape, len(src), el, err)
+	}
 }

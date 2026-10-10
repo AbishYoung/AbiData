@@ -444,7 +444,7 @@ func (s *Service) evaluate(ctx context.Context, in RunInput, fields []field, row
   end
 end
 `)
-	proto, err := script.Compile(b.String(), "report")
+	proto, err := script.CompileCached(b.String(), "report")
 	if err != nil {
 		return &fault.Error{Code: fault.ScriptError, Message: "The report's expressions or module have a syntax error: " + fault.Classify(err).DisplayMessage()}
 	}

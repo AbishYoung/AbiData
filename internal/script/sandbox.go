@@ -304,6 +304,9 @@ func (v *VM) require(L *lua.LState) int {
 
 // Compile parses and compiles source into a function prototype for caching.
 func Compile(source, chunkName string) (*lua.FunctionProto, error) {
+	if err := checkNesting(source); err != nil {
+		return nil, &Error{Kind: KindSyntax, Message: chunkName + ": " + err.Error()}
+	}
 	chunk, err := parse.Parse(strings.NewReader(source), chunkName)
 	if err != nil {
 		return nil, &Error{Kind: KindSyntax, Message: err.Error()}
