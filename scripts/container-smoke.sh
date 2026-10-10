@@ -54,7 +54,7 @@ curl -fsS -b "$jar" -H "Origin: $base" -H "X-CSRF-Token: $csrf" -H 'Content-Type
   -d '{"name":"Smoke"}' "$base/api/v1/admin/workspaces" >/dev/null
 echo "setup complete for $email; workspace Smoke created"
 
-cd tests/e2e
-npm ci --no-audit --no-fund
-npx playwright install --with-deps chromium >/dev/null 2>&1 || npx playwright install chromium
-ABIDATA_E2E_EXTERNAL_URL="$base" npx playwright test smoke.spec.ts
+(cd tests/e2e && \
+  npm ci --no-audit --no-fund && \
+  { npx playwright install --with-deps chromium >/dev/null 2>&1 || npx playwright install chromium; } && \
+  ABIDATA_E2E_EXTERNAL_URL="$base" npx playwright test smoke.spec.ts)
