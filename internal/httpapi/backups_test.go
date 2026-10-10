@@ -2,8 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"testing"
+	"testing/fstest"
 
+	"abidata/internal/docsrv"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -119,5 +123,39 @@ func TestAdminStatsAndBackupPolicy(t *testing.T) {
 	_, pol, _ = root.do("GET", "/api/v1/admin/settings/backup", nil)
 	if pol["enabled"] != false || pol["hour_utc"].(float64) != 5 {
 		t.Fatalf("policy %v", pol)
+	}
+}
+
+func testDocs(t *testing.T) *docsrv.Site {
+	t.Helper()
+	s, err := docsrv.Build(fstest.MapFS{"guide/index.md": {Data: []byte("---\ntitle: Guide\n---\n# Guide\n\nHello [errors](/docs/reference/errors#not-found).\n")}}, docsrv.Generated())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestDocsRoutes(t *testing.T) {
+	e := newEnv(t)
+	anon := e.client()
+	st, idx, _ := anon.do("GET", "/api/v1/docs", nil)
+	if st != 200 || len(idx["pages"].([]any)) < 3 {
+		t.Fatalf("index %d %v", st, idx)
+	}
+	st, pg, _ := anon.do("GET", "/api/v1/docs/page?slug=reference/errors", nil)
+	if st != 200 || !strings.Contains(pg["html"].(string), `id="not-found"`) {
+		t.Fatalf("page %d", st)
+	}
+	if st, _, _ := anon.do("GET", "/api/v1/docs/page?slug=../../etc/passwd", nil); st != 404 {
+		t.Fatalf("missing page %d", st)
+	}
+	req, _ := http.NewRequest("GET", e.srv.URL+"/api/v1/docs/highlight.css", nil)
+	resp, err := anon.http.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/css") {
+		t.Fatalf("css %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
 }

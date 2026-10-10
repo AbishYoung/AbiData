@@ -26,6 +26,7 @@ import (
 	"abidata/internal/backup"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/docsrv"
 	"abidata/internal/egress"
 	"abidata/internal/events"
 	"abidata/internal/forms"
@@ -56,6 +57,7 @@ type Deps struct {
 	Scripts    *scripts.Service
 	Reports    *reports.Service
 	Events     *events.Hub
+	Docs       *docsrv.Site     // rendered documentation (nil: docs routes answer NOT_FOUND)
 	Logs       *events.Bus      // server log records for the admin live log stream (nil: 404)
 	Jobs       *jobs.Service    // nil: job routes answer NOT_FOUND
 	Ops        *ops.Service     // long-running operations (imports, exports)
@@ -103,6 +105,7 @@ func New(deps Deps) *Server {
 	r.Get("/metrics", s.metricsHandler)
 	r.Get("/api/v1/w/{ws}/events", s.eventsHandler)
 	r.Get("/api/v1/admin/logs/stream", s.logsHandler)
+	r.Get("/api/v1/docs/highlight.css", s.docsCSS)
 
 	s.registerAuth(api)
 	s.registerAdmin(api)
@@ -115,6 +118,7 @@ func New(deps Deps) *Server {
 	s.registerEgress(api)
 	s.registerIngest(api)
 	s.registerBackups(api)
+	s.registerDocs(api)
 
 	r.NotFound(s.notFound)
 	return s

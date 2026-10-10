@@ -16,12 +16,14 @@ import (
 	"syscall"
 	"time"
 
+	"abidata/docs"
 	"abidata/internal/admin"
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/docsrv"
 	"abidata/internal/egress"
 	"abidata/internal/events"
 	"abidata/internal/forms"
@@ -139,6 +141,15 @@ func serve() error {
 		log.Error("restore recovery", "subsystem", "backup", "err", err)
 	}
 
+	docContent, err := fs.Sub(docs.Content, "content")
+	if err != nil {
+		return err
+	}
+	site, err := docsrv.Build(docContent, docsrv.Generated())
+	if err != nil {
+		return err
+	}
+
 	spa, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		return err
@@ -237,7 +248,7 @@ func serve() error {
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			Enqueue: enqueue},
-		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus,
+		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus, Docs: site,
 		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,

@@ -230,6 +230,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Docs pages in reading order, with plain text for client-side search */
+        get: operations["docsIndex"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/docs/lua-api.json": {
         parameters: {
             query?: never;
@@ -239,6 +256,23 @@ export interface paths {
         };
         /** The Lua API manifest (modules, functions, contexts) */
         get: operations["luaAPI"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/docs/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One rendered docs page */
+        get: operations["docsPage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1372,6 +1406,9 @@ export interface components {
             Queries: string[] | null;
             Tables: string[] | null;
         };
+        DocsIndex: {
+            pages: components["schemas"]["Summary"][] | null;
+        };
         EgressEntry: {
             note?: string;
             /** @description Exact host (api.example.com) or *.domain for any subdomain. */
@@ -1523,6 +1560,12 @@ export interface components {
             lua_expr?: string;
             /** @enum {string} */
             sort?: "asc" | "desc" | "";
+        };
+        Heading: {
+            id: string;
+            /** Format: int64 */
+            level: number;
+            text: string;
         };
         ImpactReport: {
             breaking: components["schemas"]["Issue"][] | null;
@@ -1854,6 +1897,16 @@ export interface components {
             result?: unknown;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        };
+        Page: {
+            headings: components["schemas"]["Heading"][] | null;
+            html: string;
+            /** Format: int64 */
+            order: number;
+            section: string;
+            slug: string;
+            summary?: string;
+            title: string;
         };
         PageSetup: {
             /** Format: int64 */
@@ -2245,6 +2298,15 @@ export interface components {
             form_id: string;
             link_child_column_id: string;
             link_master_column_id: string;
+        };
+        Summary: {
+            headings: components["schemas"]["Heading"][] | null;
+            section: string;
+            slug: string;
+            summary?: string;
+            /** @description Plain text for client-side search (minisearch). */
+            text: string;
+            title: string;
         };
         Table: {
             columns: components["schemas"]["Column"][] | null;
@@ -3413,6 +3475,44 @@ export interface operations {
             };
         };
     };
+    docsIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocsIndex"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     luaAPI: {
         parameters: {
             query?: never;
@@ -3434,6 +3534,55 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    docsPage: {
+        parameters: {
+            query?: {
+                slug?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

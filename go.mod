@@ -3,6 +3,7 @@ module abidata
 go 1.27.2
 
 require (
+	github.com/alecthomas/chroma/v2 v2.2.0
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/ncruces/go-sqlite3 v0.35.6
@@ -11,6 +12,9 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shopspring/decimal v1.5.0
 	github.com/xuri/excelize/v2 v2.11.0
+	github.com/yuin/goldmark v1.7.13
+	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
+	github.com/yuin/goldmark-meta v1.1.0
 	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/crypto v0.58.0
 )
@@ -18,6 +22,7 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
@@ -33,6 +38,7 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
 
 ignore (

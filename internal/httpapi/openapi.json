@@ -1067,6 +1067,24 @@
         ],
         "type": "object"
       },
+      "DocsIndex": {
+        "additionalProperties": false,
+        "properties": {
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/Summary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "pages"
+        ],
+        "type": "object"
+      },
       "EgressEntry": {
         "additionalProperties": false,
         "properties": {
@@ -1580,6 +1598,27 @@
         "required": [
           "header",
           "footer"
+        ],
+        "type": "object"
+      },
+      "Heading": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "level"
         ],
         "type": "object"
       },
@@ -2860,6 +2899,48 @@
           "progress",
           "created_by",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "Page": {
+        "additionalProperties": false,
+        "properties": {
+          "headings": {
+            "items": {
+              "$ref": "#/components/schemas/Heading"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "html": {
+            "type": "string"
+          },
+          "order": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "section": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "order",
+          "section",
+          "html",
+          "headings"
         ],
         "type": "object"
       },
@@ -4159,6 +4240,44 @@
           "form_id",
           "link_master_column_id",
           "link_child_column_id"
+        ],
+        "type": "object"
+      },
+      "Summary": {
+        "additionalProperties": false,
+        "properties": {
+          "headings": {
+            "items": {
+              "$ref": "#/components/schemas/Heading"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "section": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "text": {
+            "description": "Plain text for client-side search (minisearch).",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "section",
+          "headings",
+          "text"
         ],
         "type": "object"
       },
@@ -5770,6 +5889,47 @@
         ]
       }
     },
+    "/api/v1/docs": {
+      "get": {
+        "operationId": "docsIndex",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocsIndex"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Docs pages in reading order, with plain text for client-side search",
+        "tags": [
+          "docs"
+        ]
+      }
+    },
     "/api/v1/docs/lua-api.json": {
       "get": {
         "operationId": "luaAPI",
@@ -5819,6 +5979,68 @@
           }
         },
         "summary": "The Lua API manifest (modules, functions, contexts)",
+        "tags": [
+          "docs"
+        ]
+      }
+    },
+    "/api/v1/docs/page": {
+      "get": {
+        "operationId": "docsPage",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "slug",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "One rendered docs page",
         "tags": [
           "docs"
         ]
