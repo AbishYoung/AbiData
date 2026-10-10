@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { useActivityStore } from "@/lib/activity";
 import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
 import { useStatusBar } from "@/lib/statusbar";
 import type { Me } from "@/lib/session";
@@ -15,6 +14,9 @@ import { QueryTab } from "@/features/queries/QueryTab";
 import { FormTab } from "@/features/forms/FormTab";
 import { ScriptTab } from "@/features/scripts/ScriptTab";
 import { ReportTab } from "@/features/reports/ReportTab";
+import { JobTab } from "@/features/jobs/JobTab";
+import { EgressSettings } from "@/features/settings/EgressSettings";
+import { OperationsStatus } from "@/components/OperationsStatus";
 import { alertBox } from "@/components/styles";
 
 const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form", report: "Report" } as const;
@@ -24,6 +26,8 @@ const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
   form: ["form", "design"],
   report: ["report", "design"],
   script: [],
+  job: [],
+  settings: [],
 };
 
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
@@ -115,6 +119,10 @@ function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined 
     content = <ReportTab ws={ws} reportId={tab.objectId} tabKey={tab.key} view={tab.view === "design" && canDesign(role) ? "design" : "report"} />;
   } else if (tab.kind === "form") {
     content = <FormTab ws={ws} formId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? "design" : "form"} />;
+  } else if (tab.kind === "job") {
+    content = <JobTab ws={ws} jobId={tab.objectId} tabKey={tab.key} />;
+  } else if (tab.kind === "settings") {
+    content = <EgressSettings ws={ws} />;
   } else if (tab.kind === "script") {
     content = <ScriptTab ws={ws} scriptId={tab.objectId} tabKey={tab.key} />;
   } else if (tab.kind === "query") {
@@ -132,7 +140,7 @@ function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined 
 }
 
 export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
-  const operations = useActivityStore((s) => s.operations);
+  const openTab = useTabs((s) => s.open);
   const live = useLiveStore((s) => s.state);
   const recordNav = useStatusBar((s) => s.recordNav);
   useWorkspaceEvents(ws);
@@ -155,7 +163,15 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         <h1 className="text-base font-semibold">{workspace.data?.name ?? "Workspace"}</h1>
         {workspace.data && <span className="text-sm text-fg-muted">Role: {workspace.data.role}</span>}
         <div className="ml-auto">
-          <UserMenu me={me} />
+          <UserMenu
+            me={me}
+            {...(role === "owner"
+              ? {
+                  onWorkspaceSettings: () =>
+                    openTab(ws, { key: "settings:workspace", kind: "settings", objectId: null, view: "design", title: "Workspace settings" }),
+                }
+              : {})}
+          />
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -175,7 +191,9 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
       </div>
       <footer className="flex items-center gap-4 border-t border-border bg-surface px-3 py-1 text-xs text-fg-muted">
         <span aria-live="polite">{recordNav ?? ""}</span>
-        <span className="ml-auto">Background operations: {operations}</span>
+        <span className="ml-auto">
+          <OperationsStatus ws={ws} />
+        </span>
         <span>Updates: {LIVE_LABEL[live]}</span>
       </footer>
     </div>
