@@ -1,3 +1,12 @@
+# Regenerates internal/catalog/testdata/phase1-workspace.db (Gate 7 upgrade test).
+#
+# Usage, with DIR a scratch directory:
+#   git worktree add DIR/p1 5bb62f4            # the Phase 1 (Gate 1) commit
+#   mkdir -p DIR/p1/web/dist && echo '<!doctype html>' > DIR/p1/web/dist/index.html
+#   (cd DIR/p1 && go build -o ../abidata-p1 ./cmd/abidata)
+#   python3 -I scripts/make-phase1-fixture.py DIR
+#   cp DIR/p1data/workspaces/<printed workspace id>.db internal/catalog/testdata/phase1-workspace.db
+# The test hard-codes the workspace id; update it when regenerating.
 import json, os, subprocess, sys, time, urllib.request, http.cookiejar, shutil
 S = sys.argv[1]
 data = os.path.join(S, "p1data")
