@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Phases 3–5 in parallel (Gate 3 pending security review; Phase 4 pending band designer; Phase 5 server core done). Phase 6 starting.
+Gates 3 and 4 PASSED (2026-10-10). Phase 5 in progress (ingest backend in flight; import UI, egress review remaining). Phase 6 core started.
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
@@ -48,23 +48,29 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Sandbox, runner, host modules, Script Studio, forms backend (D10 protocol, ADR 0005), form runtime UI, form designer + nav Forms group — all merged.
 - Gate 3 functional items green: isolation/termination tests, manifest parity, order-form e2e (forms-runtime.spec.ts: lookup, subform lines, calc totals, OCC save + toast, before_update cancel > 5000, Esc revert, confirm path, keyboard, axe), perf p95 4.4 ms/50 users.
 - Fixed while merging: `design.changed` was never handled client-side (design-object caches never refreshed) — now invalidates per kind; e2e editor user creation made idempotent (specs share one server).
-- Remaining: Phase 3 security review (fresh Opus, in flight) → fix findings → Gate 3.
+- Phase 3 security review (fresh Opus): all findings fixed, each repro inverted into a default-run regression test (`internal/script/secreview`, `internal/reports/secreview_test.go`, `internal/forms/secreview_test.go`):
+  - H1–H3: `string.format` projects result length (Lua 5.1 verbs only); gsub `%n` and `csv.encode` check the cap before allocating; `FromLua` has a 200k node budget.
+  - H4: runner takes the workspace slot before a global slot. M2: watchdog picks the run with the largest allocation estimate (gopher-lua fork patch 2, `LState.NoteAlloc`) and GCs before choosing again. L3: a limit swallowed by a tail-position `pcall` still fails the run.
+  - H5: report runs capped (2/workspace, ≤4/process, WORKSPACE_BUSY), source size counts Go overhead (192 MiB), NDJSON write deadline 30 s, Lua group keys ≤ 1 KiB with allocation-free case-folded compare.
+  - M1: `Compile` pre-scans nesting/operator chains (200, like LUAI_MAXCCALLS); generated report/form chunks are compiled once (`CompileCached`). M3: broken connections never reset their statements.
+  - L1: confirm continuations are HMAC tokens bound to workspace/form/user/expiry (per-process key); lifecycle names never resumable. L4: CheckDML rejects VACUUM/REINDEX/ANALYZE. L5: log size counts fields. Info: `fetch` validates/clamps `timeout_ms`/`max_bytes` and caps the body at the run's string cap.
+  - Accepted as documented: L2 (form save accepts any column of the source — same as the rows API editors already have; form rules are UX, not authorization) and positional `INSERT … SELECT` copying `_version` (affects only new rows).
+- **Gate 3 PASSED 2026-10-10**: go test -race, golangci-lint 0, vitest 260/260, Playwright 51/51.
 
 ## Phase 4 — Reports
 - Backend (definitions, resolver, NDJSON run), client paginator (`web/src/features/reports/paginate.ts`, 17 tests), report viewer + print CSS + Letter/A4 PDF snapshot specs (ADR 0006: pdfjs-dist test-only), 10k-row e2e ≈ 0.5 s — merged.
-- Remaining: band designer (Sonnet, in flight) → Gate 4.
+- Band designer merged. **Gate 4 PASSED 2026-10-10**: stream goldens, paginator tests, Letter/A4 PDF snapshots, 10k rows ≈ 0.5 s; full suite as Gate 3.
 
 ## Phase 5 — Jobs, Egress, Ingest
 - Done (Opus): `internal/egress` (policy ∩ allowlist per hop, SSRF-safe dial with own resolution + Control re-check, caps, gzip-bomb guard, per-ws token bucket; Gate 5 SSRF list tested), Lua `fetch` (job-only), `internal/jobs` (cron with pinned robfig DST semantics: spring-forward gap skipped, fall-back repeat fires twice; scheduler: overlap skip/queue, misfire run_once/skip, retry backoff × attempt, Recover → interrupted, per-ws quota; fake-clock tests; SQL store over `_adm_job_index` (+ migration 0002) and workspace tables; Lua executor; jobs service CRUD/OCC/enqueue), `job`/`jobs`/`artifacts` Lua modules, forms → `jobs.enqueue` for editors on opted-in jobs, `internal/artifacts` (quota, safe names, sweep), `internal/ops` (operations, progress events, cancel, reconcile on open, shutdown), routes (jobs/runs/artifacts/operations/egress settings incl. admin policy), serve wiring + janitor.
-- In flight (Sonnet): ingest backend (imports/exports/staging module, Gate 5 import perf + rollback tests), jobs UI + egress settings + operations client.
+- Merged: jobs UI (nav group, job tab, live run history, run detail log/artifacts/cancel), workspace egress settings tab, operations client + status-bar popover. Follow-ups: admin platform-egress UI (no admin area yet), `next_run` in Job API, cancel of a queued run returns 400, unused `useActivityStore.operations`.
+- In flight (Sonnet): ingest backend (imports/exports/staging module, Gate 5 import perf + rollback tests).
 - Remaining: import wizard/export UI packet (after ingest backend), egress/SSRF Opus security review, Gate 5.
 
 ## Next (resume here)
-In flight (worktrees under .claude/worktrees/agent-*; verify, merge, full gate on each report): Phase 3 security review (Opus, report only), band designer (Sonnet, port 18088), ingest backend (Sonnet), jobs UI (Sonnet, port 18089).
-1. Phase 3 review → fix findings with regression tests → Gate 3.
-2. Band designer merge → Gate 4.
-3. Ingest backend + jobs UI merge → import wizard UI packet → egress review → Gate 5.
-4. Phase 6 (Opus core: snapshot/restore journal + recovery) — starting now.
+In flight: ingest backend (Sonnet, worktree agent-ac187d861cc171844).
+1. Ingest backend merge → import wizard/export UI packet → egress/SSRF Opus review → Gate 5.
+2. Phase 6: backup tests (parity, under load, tamper, crash matrix via hook), backup routes, RestorePoint wiring, scheduled backups + Recover at startup, admin console, live log stream, quotas, Phase 6 review.
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
 ## Notes / decisions taken without asking (per working agreement)
