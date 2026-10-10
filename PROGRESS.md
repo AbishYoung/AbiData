@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Phase 0 — Foundations & spikes
+Phases 3–5 in parallel (Gate 3 pending security review; Phase 4 pending band designer; Phase 5 server core done). Phase 6 starting.
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
@@ -44,20 +44,28 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Phase 2 security review done; findings 1–5 fixed with regression tests (commit 59956a4): per-connection SQLite memory caps + LIMIT_LENGTH, NOMEM → QUOTA_EXCEEDED with broken-connection discard, result byte caps, no expr_sql for editors, db.exec REPLACE/_version guard, DDL lexer/rename scanner fixes. Info items noted: SQLite ≥ 3.41 functions in the DDL allowlist (portability floor).
 - SQL console entry point in the Queries nav group (builders only), with e2e. **Gate 2 PASSED 2026-10-09**: go test -race, golangci-lint 0, vitest 142/142, Playwright 29/29.
 
-## Phase 4 — Reports (backend started early)
-- Done: definitions/validation/CRUD + module scripts, run resolver (groups incl. Lua-expression groups, case-insensitive grouping, group/report aggregates with exact currency, running sums, calc via one driver run), NDJSON run route, schema validator. Goldens pass; 10k rows resolve in ~220 ms.
-- Remaining: client paginator (Opus), band designer UI, print CSS, PDF snapshot specs.
+## Phase 3 — Lua runtime & Forms
+- Sandbox, runner, host modules, Script Studio, forms backend (D10 protocol, ADR 0005), form runtime UI, form designer + nav Forms group — all merged.
+- Gate 3 functional items green: isolation/termination tests, manifest parity, order-form e2e (forms-runtime.spec.ts: lookup, subform lines, calc totals, OCC save + toast, before_update cancel > 5000, Esc revert, confirm path, keyboard, axe), perf p95 4.4 ms/50 users.
+- Fixed while merging: `design.changed` was never handled client-side (design-object caches never refreshed) — now invalidates per kind; e2e editor user creation made idempotent (specs share one server).
+- Remaining: Phase 3 security review (fresh Opus, in flight) → fix findings → Gate 3.
+
+## Phase 4 — Reports
+- Backend (definitions, resolver, NDJSON run), client paginator (`web/src/features/reports/paginate.ts`, 17 tests), report viewer + print CSS + Letter/A4 PDF snapshot specs (ADR 0006: pdfjs-dist test-only), 10k-row e2e ≈ 0.5 s — merged.
+- Remaining: band designer (Sonnet, in flight) → Gate 4.
+
+## Phase 5 — Jobs, Egress, Ingest
+- Done (Opus): `internal/egress` (policy ∩ allowlist per hop, SSRF-safe dial with own resolution + Control re-check, caps, gzip-bomb guard, per-ws token bucket; Gate 5 SSRF list tested), Lua `fetch` (job-only), `internal/jobs` (cron with pinned robfig DST semantics: spring-forward gap skipped, fall-back repeat fires twice; scheduler: overlap skip/queue, misfire run_once/skip, retry backoff × attempt, Recover → interrupted, per-ws quota; fake-clock tests; SQL store over `_adm_job_index` (+ migration 0002) and workspace tables; Lua executor; jobs service CRUD/OCC/enqueue), `job`/`jobs`/`artifacts` Lua modules, forms → `jobs.enqueue` for editors on opted-in jobs, `internal/artifacts` (quota, safe names, sweep), `internal/ops` (operations, progress events, cancel, reconcile on open, shutdown), routes (jobs/runs/artifacts/operations/egress settings incl. admin policy), serve wiring + janitor.
+- In flight (Sonnet): ingest backend (imports/exports/staging module, Gate 5 import perf + rollback tests), jobs UI + egress settings + operations client.
+- Remaining: import wizard/export UI packet (after ingest backend), egress/SSRF Opus security review, Gate 5.
 
 ## Next (resume here)
-Script Studio merged (Monaco lazy chunk, LuaEditor reusable, live diagnostics, scripts e2e). Gate 2 closed.
-In flight (Sonnet worktrees; verify, merge, full gate when they report — if a session ended, inspect .claude/worktrees/agent-*): form runtime (owns the Gate 3 order-form e2e, port 18085), form designer + nav Forms group (18086), report viewer + print CSS + PDF specs + ADR 0006 pdfjs test dep (18087).
-Done since: client paginator `web/src/features/reports/paginate.ts` (17 tests); generated outputs regenerated and CI checks freshness.
-Phase 5 started: `internal/egress/egress.go` written and builds; the global policy defaults to allowing any host, so the workspace allowlist decides. NOT yet tested — next: Gate 5 SSRF test list, Lua `fetch` module (host.Data hook, job context only), then the Opus security review.
-After the form designer merges: band designer packet (reuses canvas), then Phase 3 security review → Gate 3.
-1. Dispatch Phase 3 frontend packets: form runtime (FormTab "form" view: single/continuous/datasheet, controls, combobox, subform, calc display, D10 client for /forms/{id}/events|save|delete), then form designer (canvas with dnd-kit, property sheet, embeds LuaEditor from Script Studio) owning the Gate 3 order-form e2e; then the Phase 3 security review.
-2. Phase 4: write the client paginator (Opus, pure function + tests), then the band designer packet.
-Contracts already committed: tab kinds form/script + shell routing (FormTab/ScriptTab placeholders), generated web/src/generated/lua-api.json (go generate ./internal/httpapi).
-Environment: git works via /usr/bin/git now (Xcode license accepted). The account's Sonnet session limit was hit once (reset ~3 h later); keep ≤ 3 concurrent Sonnet packets.
+In flight (worktrees under .claude/worktrees/agent-*; verify, merge, full gate on each report): Phase 3 security review (Opus, report only), band designer (Sonnet, port 18088), ingest backend (Sonnet), jobs UI (Sonnet, port 18089).
+1. Phase 3 review → fix findings with regression tests → Gate 3.
+2. Band designer merge → Gate 4.
+3. Ingest backend + jobs UI merge → import wizard UI packet → egress review → Gate 5.
+4. Phase 6 (Opus core: snapshot/restore journal + recovery) — starting now.
+Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
 ## Notes / decisions taken without asking (per working agreement)
 - Session ID hash is HMAC-SHA256(session key, token) rather than bare SHA-256, so a leaked admin DB yields no usable cookies; this is what the generated session key is for.
