@@ -48,7 +48,9 @@ func serve() error {
 		return err
 	}
 	metrics := obs.NewMetrics()
-	log := obs.NewLogger(os.Stdout, cfg.LogLevel)
+	// Records at info and above also feed the admin console's live log stream.
+	logBus := events.NewBus(2000)
+	log := obs.NewLogger(os.Stdout, cfg.LogLevel, obs.NewBusHandler(logBus, slog.LevelInfo))
 	slog.SetDefault(log)
 	if cfg.MaxMemoryMB > 0 {
 		debug.SetMemoryLimit(int64(cfg.MaxMemoryMB) << 20)
@@ -235,7 +237,7 @@ func serve() error {
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			Enqueue: enqueue},
-		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups,
+		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus,
 		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,

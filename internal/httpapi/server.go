@@ -55,6 +55,7 @@ type Deps struct {
 	Scripts    *scripts.Service
 	Reports    *reports.Service
 	Events     *events.Hub
+	Logs       *events.Bus      // server log records for the admin live log stream (nil: 404)
 	Jobs       *jobs.Service    // nil: job routes answer NOT_FOUND
 	Ops        *ops.Service     // long-running operations (imports, exports)
 	Artifacts  *artifacts.Store // job/export output files
@@ -99,6 +100,7 @@ func New(deps Deps) *Server {
 	r.Get("/readyz", s.readyz)
 	r.Get("/metrics", s.metricsHandler)
 	r.Get("/api/v1/w/{ws}/events", s.eventsHandler)
+	r.Get("/api/v1/admin/logs/stream", s.logsHandler)
 
 	s.registerAuth(api)
 	s.registerAdmin(api)

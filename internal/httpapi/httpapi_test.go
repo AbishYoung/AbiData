@@ -94,7 +94,7 @@ func newEnv(t *testing.T) *env {
 	ingestSvc := &ingest.Service{DataDir: dir, Workspaces: wm, Schemas: schemas, Catalog: engine, Records: recSvc, Queries: querySvc, Ops: opsSvc, Artifacts: arts}
 	backups := &backup.Service{DataDir: dir, BackupDir: filepath.Join(dir, "backups"), Admin: ad, Workspaces: wm,
 		Key: []byte(strings.Repeat("m", 32)), AfterRestore: func(_ context.Context, id ids.WorkspaceID) { schemas.Drop(id) }}
-	s := New(Deps{Config: cfg, Ingest: ingestSvc, Backups: backups, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
+	s := New(Deps{Config: cfg, Ingest: ingestSvc, Backups: backups, Logs: events.NewBus(100), Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
 		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
 		Queries: querySvc, Scripts: scriptSvc, Jobs: jobSvc, Ops: opsSvc, Artifacts: arts,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub},
