@@ -1,5 +1,5 @@
 import { ContextMenu, DropdownMenu } from "radix-ui";
-import { Ellipsis, Eye, Pencil, Ruler, Trash2, type LucideIcon } from "lucide-react";
+import { Download, Ellipsis, Eye, Pencil, Ruler, Trash2, Upload, type LucideIcon } from "lucide-react";
 import type { Table } from "@/lib/schema";
 
 export interface TableAction {
@@ -12,10 +12,12 @@ export interface TableAction {
 /** The actions available to a role on one table. */
 export function tableActions(
   canDesign: boolean,
-  handlers: { open: () => void; design: () => void; rename: () => void; remove: () => void },
+  handlers: { open: () => void; design: () => void; rename: () => void; remove: () => void; export?: () => void; importInto?: () => void },
 ): TableAction[] {
   const actions: TableAction[] = [{ id: "open", label: "Open", icon: Eye, run: handlers.open }];
+  if (handlers.export) actions.push({ id: "export", label: "Export…", icon: Download, run: handlers.export });
   if (canDesign) {
+    if (handlers.importInto) actions.push({ id: "import", label: "Import into this table…", icon: Upload, run: handlers.importInto });
     actions.push(
       { id: "design", label: "Design view", icon: Ruler, run: handlers.design },
       { id: "rename", label: "Rename", icon: Pencil, run: handlers.rename },

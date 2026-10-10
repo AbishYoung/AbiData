@@ -1,5 +1,5 @@
 import { ContextMenu, DropdownMenu } from "radix-ui";
-import { Code, Ellipsis, Eye, Pencil, Ruler, Trash2, type LucideIcon } from "lucide-react";
+import { Code, Download, Ellipsis, Eye, Pencil, Ruler, Trash2, type LucideIcon } from "lucide-react";
 import type { Saved } from "@/features/queries/savedQueries";
 
 export interface QueryAction {
@@ -12,9 +12,10 @@ export interface QueryAction {
 /** The actions available to a role on one saved query. */
 export function queryActions(
   canDesign: boolean,
-  handlers: { open: () => void; design: () => void; sql: () => void; rename: () => void; remove: () => void },
+  handlers: { open: () => void; design: () => void; sql: () => void; rename: () => void; remove: () => void; export?: () => void },
 ): QueryAction[] {
   const actions: QueryAction[] = [{ id: "open", label: "Open", icon: Eye, run: handlers.open }];
+  if (handlers.export) actions.push({ id: "export", label: "Export…", icon: Download, run: handlers.export });
   if (canDesign) {
     actions.push(
       { id: "design", label: "Design view", icon: Ruler, run: handlers.design },

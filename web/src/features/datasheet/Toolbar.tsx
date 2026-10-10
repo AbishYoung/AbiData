@@ -1,5 +1,5 @@
 import { useId, type Ref } from "react";
-import { FilterX, ListFilter, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Download, FilterX, ListFilter, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { btn, input } from "@/components/styles";
 import type { Condition } from "./filter";
 
@@ -18,6 +18,7 @@ interface ToolbarProps {
   refreshing: boolean;
   canDelete: boolean;
   onDelete: () => void;
+  onExport?: () => void;
   filterRef: Ref<HTMLInputElement>;
 }
 
@@ -63,6 +64,12 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
         <Trash2 size={14} aria-hidden="true" />
         Delete record
       </button>
+      {p.onExport && (
+        <button type="button" className={btn} onClick={p.onExport}>
+          <Download size={14} aria-hidden="true" />
+          Export…
+        </button>
+      )}
       {p.conditions.length > 0 && (
         <ul aria-label="Active filters" className="flex flex-wrap items-center gap-1">
           {p.conditions.map((c, i) => (
