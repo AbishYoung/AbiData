@@ -33,28 +33,23 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
   - pprof on ABIDATA_DEBUG_ADDR is unauthenticated by design (operator-only bind, off by default); documented in operations docs (Phase 7).
 - e2e harness: Playwright `webServer` runs `tests/e2e/server.mjs` (builds SPA + binary, temp data dir, create-admin, serve) because Playwright starts webServer before globalSetup.
 
-## Current phase: 1 — Tables & Datasheet
+## Phase 1 — Tables & Datasheet: Gate 1 PASSED (2026-10-09)
+- `go test -race ./...` (15 packages), golangci-lint 0, tsc + eslint 0, vitest 95/95, Playwright 23/23 (shell, datasheet incl. every field type / edit / delete / filter-by-selection / sort / OCC merge / keyboard-only / axe full page, table design incl. impact dialog / conversion failure / restore-point note / keyboard-only / axe).
+- OCC 10-way race, trigger safety net, transactional DDL byte-identical on block, kill -9 mid-rebuild, rename breaking saved query, idempotency, SSE < 1 s, FuzzIdentifier 1.5M / FuzzFilterCompile 16.7M / FuzzDecodeValue 2.8M execs.
+- Perf: 1M-row page fetch p50 17 ms / p95 31 ms with an indexed sort (text index keys use COLLATE NOCASE to serve the case-insensitive datasheet sort; unique text indexes are therefore case-insensitive, as in Access).
 
-### Phase 1 plan
-- Backend (Opus): catalog types/ops/DDL/expr validation, transactional preview/apply engine with 12-step rebuilds, reconcile on open, schema cache; records OCC/idempotency/history/change feed; events bus + resumable SSE; HTTP routes. Sonnet: value codec + conversion matrix; filter/sort compiler.
-- Frontend (Sonnet, after contracts committed by Opus: tabs store, events hook, schema hook, status bar): datasheet; table design + impact dialog + nav pane CRUD; e2e specs.
+## Current phase: 2 — Queries
+Done: authorizer policy + Gate 2 denial tests (ATTACH other workspace, writable_schema, pragma TVFs, INSERT via CTE, _sys_ read as editor, load_extension, DDL, transactions, VACUUM INTO, multi-statement); read-only runner (params, 50k-row cap, 10 s cap); visual compiler (joins, totals/HAVING, Access criteria rows, params, editability, deps) with goldens; saved queries (CRUD + If-Match, deps, dependent recompile, visual queries follow renames inside schema changes, editor-policy validation for SQL kind); routes incl. SQL console (builder) and usages. Editors run but cannot save (HTTP test).
+Remaining for Gate 2: QBE designer UI + SQL view + params prompt + nav Queries group + e2e (Sonnet packet started; interrupted by the account's session limit — resume after reset), Phase 2 security review (fresh Opus).
 
-### Phase 1 status
-Done (all green with `CGO_ENABLED=0 go test ./...`, golangci-lint 0 issues, web typecheck/lint/vitest):
-- catalog engine; Gate 1 tests: OCC (10 goroutines → 1 ok / 9 conflict; raw UPDATE bumps _version via trigger), transactional DDL (blocked TEXT→INTEGER: preview lists failures + samples, apply blocked, file byte-identical), kill-9 mid-rebuild (child process) → reopen unchanged + integrity ok, rename breaking a saved SQL query reported, idempotency (same key → one row/identical response; different body → IDEMPOTENCY_CONFLICT), SSE edit visible to second client < 1 s (HTTP test), FuzzIdentifier 1.5M execs, FuzzFilterCompile 16.7M execs, FuzzDecodeValue 2.8M execs.
-- HTTP: schema get/preview/apply, rows list/count/get/insert/patch/delete/batch (If-Match, Idempotency-Key, UseNumber decoding), /w/{ws}/events SSE.
-- Web contracts: tabs store, SSE hook (real EventSource state in status bar), schema hook, status bar record navigator slot.
-Remaining for Gate 1:
-- Datasheet UI, table design UI + impact dialog, nav pane table CRUD (packets written; dispatch blocked — see below), their Playwright specs (datasheet e2e incl. every field type, filter-by-selection, sort, OCC merge dialog, keyboard-only, axe).
-- Perf: 1M-row page fetch p95 < 50 ms (indexed sort) test.
-- Janitor: purge `_sys_idempotency` > 24 h for open workspaces.
-- Re-run all Go tests with `-race`.
-
-### BLOCKER (needs the user)
-macOS reports the Xcode license has not been accepted. This breaks `/usr/bin/git` (worked around with `/opt/homebrew/bin/git`), **cgo** (so `go test -race` cannot run; using `CGO_ENABLED=0` meanwhile), and the agent tool's **git worktree isolation** (subagent dispatch fails). Fix: run `sudo xcodebuild -license accept` once.
+## Phase 3 work started early (Opus-owned core)
+- ADR 0004: vendored gopher-lua with a concatenation cap (closes review finding #2 for `..`).
+- Runtime framework: manifest/registry + parity check, budgets, pooled runner (global + per-workspace slots), heap watchdog, Go↔Lua conversion, entry calls; host bindings + UI session types.
+- Sonnet packet for decimal/datetime/json/csv/log modules in flight.
 
 ## Next
-- After the license is accepted: re-run `go test -race ./...`, dispatch the two Phase 1 frontend packets, finish Gate 1.
+- Resume the QBE UI and Lua value-module packets after the session limit resets (~21:40 local); Phase 2 security review; close Gate 2.
+- Meanwhile (Opus): db/records/record/ui/notify/event host modules; forms service and event dispatch.
 
 ## Notes / decisions taken without asking (per working agreement)
 - Session ID hash is HMAC-SHA256(session key, token) rather than bare SHA-256, so a leaked admin DB yields no usable cookies; this is what the generated session key is for.

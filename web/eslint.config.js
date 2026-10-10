@@ -14,6 +14,9 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
+      // Only relevant with the React Compiler (not used): TanStack Virtual's hooks
+      // return non-memoizable functions by design.
+      "react-hooks/incompatible-library": "off",
     },
   },
 );
