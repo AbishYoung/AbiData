@@ -14,6 +14,7 @@ import (
 	"abidata/internal/egress"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/ingest"
 	"abidata/internal/records"
 	"abidata/internal/script"
 	"abidata/internal/script/host"
@@ -34,6 +35,7 @@ type LuaExecutor struct {
 	Records    *records.Service
 	Egress     *egress.Gateway // nil: fetch unavailable
 	Artifacts  *artifacts.Store
+	Ingest     *ingest.Service // nil: the staging module is unavailable
 	// Enqueue queues another job from inside a run (jobs.enqueue).
 	Enqueue func(ctx context.Context, ws ids.WorkspaceID, jobName, by string, args map[string]any, fromForm bool) (string, error)
 }
@@ -72,6 +74,11 @@ func (x *LuaExecutor) Execute(ctx context.Context, ws ids.WorkspaceID, job Job, 
 				info, err := x.Artifacts.Save(ws, run.ID, name, mime, strings.NewReader(string(content)))
 				return info.Size, err
 			}},
+	}
+	if x.Ingest != nil {
+		rs := x.Ingest.NewRunStaging(l, run.ID)
+		defer rs.Close() // staging databases are deleted when the run ends
+		d.Staging = rs
 	}
 	if x.Egress != nil {
 		d.Fetch = func(ctx context.Context, req egress.Request) (*egress.Response, error) {

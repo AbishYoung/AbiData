@@ -67,6 +67,11 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - In flight (Sonnet): ingest backend (imports/exports/staging module, Gate 5 import perf + rollback tests).
 - Remaining: import wizard/export UI packet (after ingest backend), egress/SSRF Opus security review, Gate 5.
 
+## Phase 5 — Ingest backend (imports, exports, Lua `staging`)
+- `internal/ingest`: streamed upload (100 MiB) -> staging SQLite (`c1..cN`, meta table) for CSV (delimiter/BOM/UTF-16/cp1252 sniffing, record caps), XLSX (archive pre-scan + excelize limits), JSON/NDJSON (depth cap); inference on the first 1,000 non-empty values; mapping validated against the catalog; validation pass (first 100 row errors + count); commit as operation `import` (2,000-row background chunks; append/upsert/replace; chunked or all_or_nothing); exports as operation `export` (keyset pages; csv/xlsx/json -> artifact). Janitor sweeps staging after 24 h.
+- Lua `staging` module (job context): `internal/script/modules/staging`, host binding `host.StagingStore`, per-run files `staging/<ws>/run-<run>-<n>.db` removed by `jobs.LuaExecutor`.
+- Known behaviours: bulk imports do not write `_sys_row_history`; replace of more than 50k rows is chunked (table is emptied with the first chunk; restore-point hook arrives in Phase 6); the workspace write gate is strict-priority, so a saturated interactive load can starve a background import.
+
 ## Next (resume here)
 In flight: ingest backend (Sonnet, worktree agent-ac187d861cc171844).
 1. Ingest backend merge → import wizard/export UI packet → egress/SSRF Opus review → Gate 5.

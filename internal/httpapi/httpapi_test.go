@@ -22,6 +22,7 @@ import (
 	"abidata/internal/events"
 	"abidata/internal/forms"
 	"abidata/internal/ids"
+	"abidata/internal/ingest"
 	"abidata/internal/jobs"
 	"abidata/internal/ops"
 	"abidata/internal/query"
@@ -89,7 +90,8 @@ func newEnv(t *testing.T) *env {
 	t.Cleanup(jobSvc.Scheduler.Wait)
 	opsSvc := &ops.Service{Workspaces: wm, Events: hub}
 	t.Cleanup(func() { _ = opsSvc.Shutdown(ctx) })
-	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
+	ingestSvc := &ingest.Service{DataDir: dir, Workspaces: wm, Schemas: schemas, Catalog: engine, Records: recSvc, Queries: querySvc, Ops: opsSvc, Artifacts: arts}
+	s := New(Deps{Config: cfg, Ingest: ingestSvc, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
 		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
 		Queries: querySvc, Scripts: scriptSvc, Jobs: jobSvc, Ops: opsSvc, Artifacts: arts,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub},

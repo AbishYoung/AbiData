@@ -43,6 +43,9 @@ type Data struct {
 	// Job describes the running job (job context only).
 	Job *JobRun
 
+	// Staging backs the staging module (job context only; nil elsewhere).
+	Staging StagingStore
+
 	// UI holds form-event state (ui_event context only).
 	UI *UISession
 	// Extra carries context-specific values (job args, run id, …).
@@ -83,4 +86,23 @@ func (d *Data) FinishTx(committed bool) {
 			fn()
 		}
 	}
+}
+
+// StagingStore is the job-context binding of the staging module: scratch
+// SQLite databases that live for one run. Handles are small integers returned
+// by Create. Values are nil, bool, int64, float64 or string.
+type StagingStore interface {
+	// Create makes a staging table with the given column names.
+	Create(ctx context.Context, columns []string) (handle int, err error)
+	// Insert adds one row: a map keyed by column name or a slice in column order.
+	Insert(ctx context.Context, handle int, row any) error
+	// Query runs one SELECT against the staging table (named `data`).
+	// params is nil, a []any (positional ?) or a map[string]any (named :key).
+	Query(ctx context.Context, handle int, sql string, params any) (columns []string, rows [][]any, err error)
+	// Count returns the number of staged rows.
+	Count(ctx context.Context, handle int) (int64, error)
+	// Merge copies the rows into a workspace table; opts holds mode, key,
+	// chunk and all_or_nothing. The result has inserted, updated, skipped,
+	// error_count and errors.
+	Merge(ctx context.Context, handle int, table string, opts map[string]any) (map[string]any, error)
 }
