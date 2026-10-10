@@ -36,8 +36,8 @@ func TestDocsIntegrity(t *testing.T) {
 	lua := s.Pages[docsrv.LuaAPISlug]
 	for _, m := range script.Manifest() {
 		for _, f := range m.Funcs {
-			if !lua.HasAnchor(docsrv.Anchor(f.Name)) {
-				t.Errorf("Lua API page has no section for %s", f.Name)
+			if !lua.HasAnchor(docsrv.Anchor(docsrv.FuncName(m, f))) {
+				t.Errorf("Lua API page has no section for %s", docsrv.FuncName(m, f))
 			}
 		}
 	}
@@ -49,6 +49,27 @@ func TestDocsIntegrity(t *testing.T) {
 	}
 	if len(s.Index()) < 3 {
 		t.Fatalf("only %d pages", len(s.Index()))
+	}
+}
+
+// Function names repeat across modules (csv.parse, datetime.parse), so section
+// ids are qualified and must be unique on the generated pages.
+func TestGeneratedHeadingIDsAreUnique(t *testing.T) {
+	s := site(t)
+	for _, slug := range []string{docsrv.LuaAPISlug, docsrv.ErrorsSlug} {
+		seen := map[string]bool{}
+		for _, h := range s.Pages[slug].Headings {
+			if seen[h.ID] {
+				t.Errorf("%s: duplicate heading id %q", slug, h.ID)
+			}
+			seen[h.ID] = true
+		}
+	}
+	lua := s.Pages[docsrv.LuaAPISlug]
+	for _, id := range []string{"db-query", "csv-parse", "datetime-parse", "json-encode", "csv-encode", "fetch", "module-fetch", "record-get", "records-get"} {
+		if !lua.HasAnchor(id) {
+			t.Errorf("Lua API page has no section %q", id)
+		}
 	}
 }
 
