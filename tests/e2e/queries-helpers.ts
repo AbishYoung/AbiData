@@ -92,10 +92,14 @@ export async function createSampleData(page: Page): Promise<SampleData> {
   return { customers, products, orders };
 }
 
-/** Creates the editor user and adds it to the current workspace as an editor. */
+/** Creates the editor user (once per server; specs share it) and adds it to the current workspace as an editor. */
 export async function addEditorMember(page: Page): Promise<void> {
   const ws = workspaceId(page);
-  await apiPost(page, "/api/v1/admin/users", { email: EDITOR_EMAIL, display_name: "Edith Editor", password: EDITOR_PASSWORD });
+  try {
+    await apiPost(page, "/api/v1/admin/users", { email: EDITOR_EMAIL, display_name: "Edith Editor", password: EDITOR_PASSWORD });
+  } catch (e) {
+    if (!String(e).includes("DUPLICATE_VALUE")) throw e;
+  }
   await apiPost(page, `/api/v1/w/${ws}/members`, { email: EDITOR_EMAIL, role: "editor" });
 }
 

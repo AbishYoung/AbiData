@@ -35,6 +35,9 @@ function parse<T>(e: MessageEvent): T | null {
   }
 }
 
+/** design.changed kind → query-key prefix of that object type's cache. */
+const DESIGN_PREFIX: Record<string, string> = { query: "queries", form: "forms", report: "reports", script: "scripts" };
+
 export function handleEvent(qc: QueryClient, ws: string, type: string, e: MessageEvent): void {
   switch (type) {
     case "rows.changed":
@@ -50,10 +53,18 @@ export function handleEvent(qc: QueryClient, ws: string, type: string, e: Messag
       void qc.invalidateQueries({ queryKey: keys.schema(ws) });
       void qc.invalidateQueries({ queryKey: keys.rowsAll(ws) });
       break;
+    case "design.changed": {
+      // Saved queries, forms, reports and scripts cache under ["<kind>s", ws, …].
+      const d = parse<{ kind?: string }>(e);
+      const prefix = d?.kind ? DESIGN_PREFIX[d.kind] : undefined;
+      if (prefix) void qc.invalidateQueries({ queryKey: [prefix, ws] });
+      break;
+    }
     case "reset":
       void qc.invalidateQueries({ queryKey: keys.schema(ws) });
       void qc.invalidateQueries({ queryKey: keys.rowsAll(ws) });
       void qc.invalidateQueries({ queryKey: ["count", ws] });
+      for (const prefix of Object.values(DESIGN_PREFIX)) void qc.invalidateQueries({ queryKey: [prefix, ws] });
       break;
   }
 }
