@@ -42,17 +42,16 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Backend done; Gate 2 tests pass (authorizer denials, compiler goldens, editors run-not-save, SQL console builder-only).
 - QBE designer UI merged (designer, SQL view, params prompt, results, nav Queries group); Playwright suite 26/26 incl. queries.spec.ts.
 - Phase 2 security review done; findings 1–5 fixed with regression tests (commit 59956a4): per-connection SQLite memory caps + LIMIT_LENGTH, NOMEM → QUOTA_EXCEEDED with broken-connection discard, result byte caps, no expr_sql for editors, db.exec REPLACE/_version guard, DDL lexer/rename scanner fixes. Info items noted: SQLite ≥ 3.41 functions in the DDL allowlist (portability floor).
-- Remaining: blank SQL console entry point in the UI (nothing opens one yet); mark Gate 2 passed after a full gate run.
+- SQL console entry point in the Queries nav group (builders only), with e2e. **Gate 2 PASSED 2026-10-09**: go test -race, golangci-lint 0, vitest 142/142, Playwright 29/29.
 
 ## Phase 4 — Reports (backend started early)
 - Done: definitions/validation/CRUD + module scripts, run resolver (groups incl. Lua-expression groups, case-insensitive grouping, group/report aggregates with exact currency, running sums, calc via one driver run), NDJSON run route, schema validator. Goldens pass; 10k rows resolve in ~220 ms.
 - Remaining: client paginator (Opus), band designer UI, print CSS, PDF snapshot specs.
 
 ## Next (resume here)
-1. When the Script Studio packet reports back: verify, merge, run the full gate (go test -race, golangci-lint, web typecheck/lint/vitest, Playwright).
-2. Add the SQL console entry point; close Gate 2.
-3. Dispatch Phase 3 frontend packets: form runtime (FormTab "form" view: single/continuous/datasheet, controls, combobox, subform, calc display, D10 client for /forms/{id}/events|save|delete), then form designer (canvas with dnd-kit, property sheet, embeds LuaEditor from Script Studio) owning the Gate 3 order-form e2e; then the Phase 3 security review.
-4. Phase 4: write the client paginator (Opus, pure function + tests), then the band designer packet.
+Script Studio merged (Monaco lazy chunk, LuaEditor reusable, live diagnostics, scripts e2e). Gate 2 closed.
+1. Dispatch Phase 3 frontend packets: form runtime (FormTab "form" view: single/continuous/datasheet, controls, combobox, subform, calc display, D10 client for /forms/{id}/events|save|delete), then form designer (canvas with dnd-kit, property sheet, embeds LuaEditor from Script Studio) owning the Gate 3 order-form e2e; then the Phase 3 security review.
+2. Phase 4: write the client paginator (Opus, pure function + tests), then the band designer packet.
 Contracts already committed: tab kinds form/script + shell routing (FormTab/ScriptTab placeholders), generated web/src/generated/lua-api.json (go generate ./internal/httpapi).
 Environment: git works via /usr/bin/git now (Xcode license accepted). The account's Sonnet session limit was hit once (reset ~3 h later); keep ≤ 3 concurrent Sonnet packets.
 

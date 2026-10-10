@@ -16,6 +16,7 @@ import { input } from "@/components/styles";
 import { useTabs, useWorkspaceTabs, type TableView } from "@/app/tabs";
 import { useSchema, type Table } from "@/lib/schema";
 import { DeleteTableDialog, RenameTableDialog } from "./TableCrudDialogs";
+import { ScriptsGroupBody } from "./ScriptNavItem";
 import { TableNavItem, tableActions } from "./TableNavItem";
 import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
@@ -91,6 +92,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
     while (tabs.some((t) => t.key === `table:new:${n}`)) n++;
     openTab(ws, { key: `table:new:${n}`, kind: "table", objectId: null, view: "design", title: n === 1 ? "New table" : `New table ${n}` });
   }
+
+  function newScript(): void {
+    let n = 1;
+    while (tabs.some((t) => t.key === `script:new:${n}`)) n++;
+    openTab(ws, { key: `script:new:${n}`, kind: "script", objectId: null, view: "design", title: n === 1 ? "New script" : `New script ${n}` });
+  }
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
   function toggle(id: string) {
@@ -123,7 +130,7 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1">
-        {GROUPS.map((g) => {
+        {GROUPS.filter((g) => g.id !== "scripts" || design).map((g) => {
           const open = !collapsed.has(g.id);
           const Icon = g.icon;
           const panelId = `nav-group-${g.id}`;
@@ -165,12 +172,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     <SquareTerminal size={16} aria-hidden="true" />
                   </button>
                 )}
-                {g.id === "tables" && design && (
+                {(g.id === "tables" || g.id === "scripts") && design && (
                   <button
                     type="button"
-                    onClick={newTable}
-                    aria-label="New table"
-                    title="New table"
+                    onClick={g.id === "tables" ? newTable : newScript}
+                    aria-label={g.id === "tables" ? "New table" : "New script"}
+                    title={g.id === "tables" ? "New table" : "New script"}
                     className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
                   >
                     <Plus size={16} aria-hidden="true" />
@@ -242,7 +249,10 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                   )}
                 </div>
               )}
-              {open && g.id !== "tables" && g.id !== "queries" && (
+              {open && g.id === "scripts" && (
+                <ScriptsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} />
+              )}
+              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && (
                 <p id={panelId} className="px-9 py-1 text-sm text-fg-muted">
                   {searching ? `No ${g.noun} match “${query.trim()}”` : `No ${g.noun} yet`}
                 </p>

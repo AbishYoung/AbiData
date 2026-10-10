@@ -165,6 +165,31 @@ test("saved query: SQL view is read-only, and the datasheet prompts for the para
   await signOut(page);
 });
 
+test("builder opens the SQL console, runs a statement, and writes are refused", async ({ page }) => {
+  await signInAs(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.getByRole("link", { name: new RegExp(WORKSPACE) }).click();
+  await expect(page).toHaveURL(/\/w\//);
+
+  await nav(page).getByRole("button", { name: "SQL console" }).click();
+  await expect(page.getByRole("tab", { name: /SQL console/ })).toBeVisible();
+  const editor = page.getByTestId("sql-editor");
+  await editor.getByLabel("SQL", { exact: true }).fill("SELECT Name FROM Customers ORDER BY Name");
+  await editor.getByRole("button", { name: "Run", exact: true }).click();
+  const results = page.getByRole("dialog", { name: "Query results" });
+  const grid = results.getByRole("grid", { name: "Query results" });
+  await expect(grid).toBeVisible();
+  expect(await gridRows(grid)).toEqual([["Ann"], ["Bob"]]);
+  await expectDesignViewAccessible(page);
+  await page.keyboard.press("Escape");
+  await expect(results).toBeHidden();
+
+  await editor.getByLabel("SQL", { exact: true }).fill("DELETE FROM Customers");
+  await editor.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Query results" }).getByRole("alert")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await signOut(page);
+});
+
 test("an editor can open and run the saved query but cannot design or save it", async ({ page }) => {
   await signInAs(page, EDITOR_EMAIL, EDITOR_PASSWORD);
   await page.getByRole("link", { name: new RegExp(WORKSPACE) }).click();
