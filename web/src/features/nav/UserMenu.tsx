@@ -1,6 +1,6 @@
 import { DropdownMenu } from "radix-ui";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { Check, ChevronDown, LogOut, Settings, Shield, User } from "lucide-react";
 import { queryClient } from "@/app/queryClient";
 import { useLogout, type Me } from "@/lib/session";
 import { isThemePref, useThemeStore } from "@/lib/theme";
@@ -33,6 +33,15 @@ export function UserMenu({ me, onWorkspaceSettings }: { me: Me; onWorkspaceSetti
               <DropdownMenu.Item className={item} onSelect={onWorkspaceSettings}>
                 <Settings size={16} aria-hidden="true" />
                 Workspace settings
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className="my-1 h-px bg-border" />
+            </>
+          )}
+          {me.user.is_platform_admin && (
+            <>
+              <DropdownMenu.Item className={item} onSelect={() => void navigate({ to: "/admin" })}>
+                <Shield size={16} aria-hidden="true" />
+                Admin console
               </DropdownMenu.Item>
               <DropdownMenu.Separator className="my-1 h-px bg-border" />
             </>
