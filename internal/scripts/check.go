@@ -175,7 +175,7 @@ func memberAccesses(src string) []access {
 				adv(1)
 			}
 			adv(1)
-		case isIdent(c) && !(c >= '0' && c <= '9'):
+		case isIdent(c) && (c < '0' || c > '9'):
 			if i > 0 && (src[i-1] == '.' || src[i-1] == ':') {
 				for i < len(src) && isIdent(src[i]) {
 					adv(1)
