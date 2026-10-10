@@ -7,8 +7,12 @@ import {
   moveFieldTo,
   emptyDraft,
   sameDraft,
+  indexedStateOf,
+  inMultiFieldIndex,
   validateDraft,
+  withFieldIndexed,
   withFieldType,
+  withoutField,
   type Draft,
   type DraftField,
 } from "./draft";
@@ -233,5 +237,89 @@ describe("moveFieldTo", () => {
     expect(ids(moveFieldTo(fields, "C1", 0))).toEqual(["C0", "C1", "C2", "C3", "C4"]);
     expect(ids(moveFieldTo(fields, "C0", 3))).toEqual(ids(fields));
     expect(ids(moveFieldTo(fields, "C1", 99))).toEqual(["C0", "C2", "C3", "C4", "C1"]);
+  });
+});
+
+describe("indexes", () => {
+  const ix = (id: string, cols: string[], unique: boolean) => ({ id, table_id: T, physical_name: `ix_${id}`, is_unique: unique, column_ids: cols });
+  const indexed: Schema = {
+    ...schema,
+    tables: (schema.tables ?? []).map((t) =>
+      t.id === T ? { ...t, indexes: [ix("IX1", ["C1"], true), ix("IX2", ["C1", "C2"], false), ix("IX3", ["C2"], false)] } : t,
+    ),
+  };
+  const itable = indexed.tables?.[0];
+  function base(): Draft {
+    if (!itable) throw new Error("fixture");
+    return draftFromTable(itable, indexed);
+  }
+  const buildI = (draft: Draft) => buildOps({ tableId: T, newTableId: "NEW", original: base(), draft });
+
+  it("reads the Indexed state from the schema", () => {
+    const d = base();
+    expect(indexedStateOf(d, "C1")).toBe("unique");
+    expect(indexedStateOf(d, "C2")).toBe("duplicates_ok");
+    expect(indexedStateOf(d, "C3")).toBe("none");
+    expect(inMultiFieldIndex(d, "C1")).toBe(true);
+    expect(inMultiFieldIndex(d, "C3")).toBe(false);
+    expect(buildI(d).ops).toEqual([]);
+  });
+
+  it("creates a unique index for a field with none", () => {
+    const d = withFieldIndexed(base(), base(), "C3", "unique", "NEWIX");
+    const { ops, fieldIds } = buildI(d);
+    expect(ops).toEqual([{ op: "create_index", index: { id: "NEWIX", table_id: T, column_ids: ["C3"], is_unique: true } }]);
+    expect(fieldIds).toEqual(["C3"]);
+  });
+
+  it("drops then recreates when toggling uniqueness, leaving multi-field indexes alone", () => {
+    const d = withFieldIndexed(base(), base(), "C1", "duplicates_ok", "NEWIX");
+    expect(buildI(d).ops).toEqual([
+      { op: "drop_index", index_id: "IX1" },
+      { op: "create_index", index: { id: "NEWIX", table_id: T, column_ids: ["C1"], is_unique: false } },
+    ]);
+  });
+
+  it("drops the index when set to No, and switching back is no change", () => {
+    const d = withFieldIndexed(base(), base(), "C2", "none", "X");
+    expect(buildI(d).ops).toEqual([{ op: "drop_index", index_id: "IX3" }]);
+    expect(buildI(withFieldIndexed(d, base(), "C2", "duplicates_ok", "Y")).ops).toEqual([]);
+    const flipped = withFieldIndexed(withFieldIndexed(base(), base(), "C1", "duplicates_ok", "Z"), base(), "C1", "unique", "W");
+    expect(sameDraft(flipped, base())).toBe(true);
+  });
+
+  it("puts drop_index before other ops and create_index after adds", () => {
+    const added: DraftField = { ...blankField("NEWCOL"), displayName: "Price", fieldType: "currency" };
+    let d: Draft = { ...base(), fields: [...base().fields, added] };
+    d = edit(d, "C3", { description: "x" });
+    d = withFieldIndexed(d, base(), "NEWCOL", "unique", "NEWIX");
+    d = withFieldIndexed(d, base(), "C2", "none", "X");
+    d = { ...d, indexes: [...d.indexes, { id: "MIX", isNew: true, physicalName: "", columnIds: ["C3", "NEWCOL"], unique: true }] };
+    expect(buildI(d).ops.map((o) => o.op)).toEqual(["drop_index", "alter_column", "add_column", "create_index", "create_index"]);
+  });
+
+  it("dropping a field drops its indexes in the draft and sends no drop_index", () => {
+    const d = withoutField(base(), "C1");
+    expect(d.indexes.map((x) => x.id)).toEqual(["IX3"]);
+    expect(buildI(d).ops).toEqual([{ op: "drop_column", table_id: T, column_id: "C1" }]);
+  });
+
+  it("deleting a multi-field index from the dialog emits drop_index", () => {
+    const d = { ...base(), indexes: base().indexes.filter((x) => x.id !== "IX2") };
+    expect(buildI(d).ops).toEqual([{ op: "drop_index", index_id: "IX2" }]);
+  });
+
+  it("creates indexes after create_table for a new table", () => {
+    const e = emptyDraft("IDF");
+    const d: Draft = {
+      ...e,
+      tableName: "T",
+      fields: [...e.fields, { ...blankField("F1"), displayName: "Name" }, { ...blankField("F2"), displayName: "Code" }],
+      indexes: [{ id: "I1", isNew: true, physicalName: "", columnIds: ["F1", "F2"], unique: true }],
+    };
+    const { ops, fieldIds } = buildOps({ tableId: null, newTableId: "TBL", original: e, draft: d });
+    expect(ops.map((o) => o.op)).toEqual(["create_table", "create_index"]);
+    expect(ops[1]).toEqual({ op: "create_index", index: { id: "I1", table_id: "TBL", column_ids: ["F1", "F2"], is_unique: true } });
+    expect(fieldIds).toEqual([null, "F1"]);
   });
 });

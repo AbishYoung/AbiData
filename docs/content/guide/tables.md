@@ -45,7 +45,12 @@ Each field has a display name (what people see) and a SQL name (used in queries 
 
 You can mark a field **Hidden in the datasheet**. Hidden fields still exist and still appear in queries.
 
-A table can also have unique indexes, which reject a second record with the same value. The table designer does not create them yet; you add them through the schema API (`create_index`). A duplicate fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value). Unique text indexes compare case-insensitively, so `abc` and `ABC` are duplicates.
+An index speeds up searching and sorting, and a unique index also rejects a second record with the same value.
+
+- **Indexed** (a field property) is **No**, **Yes (duplicates OK)** or **Yes (no duplicates)**. The last one makes the field unique. The system ID field and fields that are part of a multi-field index do not offer it.
+- **Indexes** (button above the field grid) lists every index of the table, including ones over several fields. To add one, choose 1 to 16 fields in order and tick **Unique (no duplicate combinations)**; use the trash button to delete one.
+
+Index changes are part of the design draft: they take effect through **Preview changes** and **Apply** like any other change. If the table already holds duplicate values, creating a unique index is reported as breaking in the preview and cannot be applied until the duplicates are fixed. Deleting a field also deletes every index that includes it. Once a unique index exists, a duplicate fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value). Unique text indexes compare case-insensitively, so `abc` and `ABC` are duplicates.
 
 ## Relationships and lookups {#lookups}
 

@@ -66,12 +66,27 @@ export interface DraftField {
   format: string;
 }
 
+/** An index as edited in the designer; single-field ones are driven by a field's "Indexed" property. */
+export interface DraftIndex {
+  id: string;
+  /** Not yet in the catalog; created with create_index. */
+  isNew: boolean;
+  /** Empty until the server has named it. */
+  physicalName: string;
+  /** Draft field IDs, in index order (1 to 16). */
+  columnIds: string[];
+  unique: boolean;
+}
+
+export const MAX_INDEX_FIELDS = 16;
+
 export interface Draft {
   tableName: string;
   description: string;
   trackHistory: boolean;
   /** Includes the read-only autonumber ID field first. */
   fields: DraftField[];
+  indexes: DraftIndex[];
 }
 
 export function blankField(id: string): DraftField {
@@ -136,6 +151,13 @@ export function draftFromTable(t: Table, schema: Schema): Draft {
     description: t.description,
     trackHistory: t.track_history,
     fields: columns.map((c) => fieldFromColumn(c, schema)),
+    indexes: (t.indexes ?? []).map((x) => ({
+      id: x.id,
+      isNew: false,
+      physicalName: x.physical_name,
+      columnIds: [...(x.column_ids ?? [])],
+      unique: x.is_unique,
+    })),
   };
 }
 
@@ -146,6 +168,7 @@ export function emptyDraft(idFieldId: string): Draft {
     description: "",
     trackHistory: false,
     fields: [{ ...blankField(idFieldId), isNew: false, physicalName: "id", displayName: "ID", fieldType: "autonumber", maxLength: "" }],
+    indexes: [],
   };
 }
 
@@ -153,8 +176,19 @@ export function sameField(a: DraftField, b: DraftField): boolean {
   return (Object.keys(a) as (keyof DraftField)[]).every((k) => a[k] === b[k]);
 }
 
+function indexKey(x: DraftIndex): string {
+  return `${x.id}|${x.unique ? 1 : 0}|${x.columnIds.join(",")}`;
+}
+
+function sameIndexes(a: DraftIndex[], b: DraftIndex[]): boolean {
+  if (a.length !== b.length) return false;
+  const keys = new Set(a.map(indexKey));
+  return b.every((x) => keys.has(indexKey(x)));
+}
+
 export function sameDraft(a: Draft, b: Draft): boolean {
   return (
+    sameIndexes(a.indexes, b.indexes) &&
     a.tableName === b.tableName &&
     a.description === b.description &&
     a.trackHistory === b.trackHistory &&
@@ -164,6 +198,63 @@ export function sameDraft(a: Draft, b: Draft): boolean {
       return o !== undefined && sameField(f, o);
     })
   );
+}
+
+// ---- indexes -----------------------------------------------------------------
+
+export type IndexedState = "none" | "duplicates_ok" | "unique";
+
+/** Whether the field can take the "Indexed" property (the system ID field is already the primary key). */
+export function isIndexable(f: DraftField): boolean {
+  return f.fieldType !== "autonumber";
+}
+
+/** Indexes with exactly this one field. */
+export function singleIndexesOf(draft: Draft, fieldId: string): DraftIndex[] {
+  return draft.indexes.filter((x) => x.columnIds.length === 1 && x.columnIds[0] === fieldId);
+}
+
+/** True when the field is part of an index with more than one field. */
+export function inMultiFieldIndex(draft: Draft, fieldId: string): boolean {
+  return draft.indexes.some((x) => x.columnIds.length > 1 && x.columnIds.includes(fieldId));
+}
+
+/** The state shown by the field's "Indexed" property. */
+export function indexedStateOf(draft: Draft, fieldId: string): IndexedState {
+  const single = singleIndexesOf(draft, fieldId);
+  if (single.some((x) => x.unique)) return "unique";
+  if (single.length > 0) return "duplicates_ok";
+  return "none";
+}
+
+/**
+ * Sets a field's single-field index. A state that matches an index the table already had reuses it
+ * (so switching back is not a change); otherwise a new index with newId is created.
+ */
+export function withFieldIndexed(draft: Draft, original: Draft, fieldId: string, state: IndexedState, newId: string): Draft {
+  if (indexedStateOf(draft, fieldId) === state) return draft;
+  const rest = draft.indexes.filter((x) => !(x.columnIds.length === 1 && x.columnIds[0] === fieldId));
+  if (state === "none") return { ...draft, indexes: rest };
+  const unique = state === "unique";
+  const prior = singleIndexesOf(original, fieldId).find((x) => x.unique === unique);
+  const index: DraftIndex = prior
+    ? { ...prior, columnIds: [...prior.columnIds] }
+    : { id: newId, isNew: true, physicalName: "", columnIds: [fieldId], unique };
+  return { ...draft, indexes: [...rest, index] };
+}
+
+/** Removes a field. The server drops every index over a dropped field, so the draft does the same. */
+export function withoutField(draft: Draft, fieldId: string): Draft {
+  return {
+    ...draft,
+    fields: draft.fields.filter((f) => f.id !== fieldId),
+    indexes: draft.indexes.filter((x) => !x.columnIds.includes(fieldId)),
+  };
+}
+
+/** Display text for an index: its fields in order. */
+export function indexFieldNames(draft: Draft, x: DraftIndex): string {
+  return x.columnIds.map((id) => draft.fields.find((f) => f.id === id)?.displayName.trim() || "(unnamed)").join(", ");
 }
 
 /** Applies a change of data type, resetting settings that the new type cannot carry. */
@@ -255,6 +346,23 @@ export function buildOps(input: BuildInput): BuiltChange {
   const originals = new Map(original.fields.map((f) => [f.id, f]));
   const current = new Map(draft.fields.map((f) => [f.id, f]));
 
+  // Indexes: removed ones are dropped before anything else changes; the server drops an index
+  // together with a dropped field on its own, so those need no op. New ones come last.
+  const keptIds = new Set(draft.indexes.map((x) => x.id));
+  const dropIndexOps: Op[] = [];
+  const dropIndexIds: (string | null)[] = [];
+  for (const x of original.indexes) {
+    if (keptIds.has(x.id) || x.columnIds.some((c) => !current.has(c))) continue;
+    push({ op: "drop_index", index_id: x.id }, x.columnIds[0] ?? null, dropIndexOps, dropIndexIds);
+  }
+  const createIndexOps: Op[] = [];
+  const createIndexIds: (string | null)[] = [];
+  const originalIndexIds = new Set(original.indexes.map((x) => x.id));
+  for (const x of draft.indexes) {
+    if (originalIndexIds.has(x.id)) continue;
+    push({ op: "create_index", index: indexSpec(tableId, x) }, x.columnIds[0] ?? null, createIndexOps, createIndexIds);
+  }
+
   // Existing fields: renames and full-state alters.
   const alters: Op[] = [];
   const alterIds: (string | null)[] = [];
@@ -292,8 +400,8 @@ export function buildOps(input: BuildInput): BuiltChange {
   const reusesName = draft.fields.some(
     (f) => droppedNames.has(f.displayName.trim().toLowerCase()) && (!originals.has(f.id) || originals.get(f.id)?.displayName !== f.displayName),
   );
-  const ops: Op[] = [...early];
-  const fieldIds: (string | null)[] = [...earlyIds];
+  const ops: Op[] = [...early, ...dropIndexOps];
+  const fieldIds: (string | null)[] = [...earlyIds, ...dropIndexIds];
   const groups: [Op[], (string | null)[]][] = reusesName
     ? [[drops, dropIds], [alters, alterIds], [adds, addIds]]
     : [[alters, alterIds], [drops, dropIds], [adds, addIds]];
@@ -312,7 +420,13 @@ export function buildOps(input: BuildInput): BuiltChange {
     ops.push({ op: "reorder_columns", table_id: tableId, column_order: wanted });
     fieldIds.push(null);
   }
+  ops.push(...createIndexOps);
+  fieldIds.push(...createIndexIds);
   return { ops, fieldIds };
+}
+
+function indexSpec(tableId: string, x: DraftIndex): NonNullable<Op["index"]> {
+  return { id: x.id, table_id: tableId, column_ids: x.columnIds, is_unique: x.unique };
 }
 
 function buildCreate(newTableId: string, draft: Draft): BuiltChange {
@@ -324,7 +438,13 @@ function buildCreate(newTableId: string, draft: Draft): BuiltChange {
     columns,
   };
   if (draft.description !== "") table.description = draft.description;
-  return { ops: [{ op: "create_table", table }], fieldIds: [null] };
+  const ops: Op[] = [{ op: "create_table", table }];
+  const fieldIds: (string | null)[] = [null];
+  for (const x of draft.indexes) {
+    ops.push({ op: "create_index", index: indexSpec(newTableId, x) });
+    fieldIds.push(x.columnIds[0] ?? null);
+  }
+  return { ops, fieldIds };
 }
 
 // ---- client-side validation --------------------------------------------------
