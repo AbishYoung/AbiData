@@ -10,3 +10,7 @@ Changes (search for "[AbiData patch]"):
    Lua error before allocating a result longer than the limit. The sandbox sets
    it per run to the context's max string size. `Options.OnConcatLimit` is called
    first so the sandbox can cancel the run (making the error uncatchable by pcall).
+2. `LState.NoteAlloc` / `Allocated` / `ResetAllocated` — a per-state (root of
+   coroutines) atomic estimate of bytes allocated, fed by `..` results and
+   `OP_NEWTABLE`, plus host functions that build strings. The sandbox's heap
+   watchdog uses it to stop the run that is actually growing the heap.

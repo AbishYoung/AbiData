@@ -197,7 +197,7 @@ func (v *VM) strGsub(L *lua.LState) int {
 		keep := true
 		switch lv := repl.(type) {
 		case lua.LString, lua.LNumber:
-			rep = expandRepl(L, lv.String(), m, str)
+			rep = v.expandRepl(L, lv.String(), m, str, v.run.limits.MaxString-out.Len())
 		case *lua.LTable:
 			idx := 0
 			if m.CaptureLength() > 2 {
@@ -240,6 +240,7 @@ func (v *VM) strGsub(L *lua.LState) int {
 		v.checkLen(L, out.Len()+len(str)-prev, "string.gsub")
 	}
 	out.WriteString(str[prev:])
+	L.NoteAlloc(out.Len())
 	L.Push(lua.LString(out.String()))
 	L.Push(lua.LNumber(len(mds)))
 	return 2
@@ -262,7 +263,9 @@ func replValue(L *lua.LState, val lua.LValue) (bool, string) {
 	return false, ""
 }
 
-func expandRepl(L *lua.LState, repl string, m *pm.MatchData, str string) string {
+// expandRepl expands %0-%9 in a gsub replacement, raising the string limit as
+// soon as the expansion would exceed room bytes (before it is built).
+func (v *VM) expandRepl(L *lua.LState, repl string, m *pm.MatchData, str string, room int) string {
 	if !strings.Contains(repl, "%") {
 		return repl
 	}
@@ -276,7 +279,9 @@ func expandRepl(L *lua.LState, repl string, m *pm.MatchData, str string) string 
 		i++
 		d := repl[i]
 		if d >= '0' && d <= '9' {
-			b.WriteString(capturedString(L, m, str, 2*int(d-'0')))
+			cs := capturedString(L, m, str, 2*int(d-'0'))
+			v.checkLen(L, b.Len()+len(cs)+(v.run.limits.MaxString-room), "string.gsub")
+			b.WriteString(cs)
 		} else {
 			b.WriteByte(d)
 		}
@@ -294,6 +299,7 @@ func (v *VM) strRep(L *lua.LState) int {
 	if n > v.run.limits.MaxString/len(str) {
 		v.raiseLimit(L, fmt.Sprintf("string.rep result exceeds max string size (%d bytes)", v.run.limits.MaxString))
 	}
+	L.NoteAlloc(len(str) * n)
 	L.Push(lua.LString(strings.Repeat(str, n)))
 	return 1
 }
@@ -303,6 +309,11 @@ func (v *VM) strRep(L *lua.LState) int {
 func (v *VM) strFormat(orig lua.LGFunction) lua.LGFunction {
 	return func(L *lua.LState) int {
 		f := L.CheckString(1)
+		// projected bounds the output before anything is built: literal bytes,
+		// plus each %s/%q argument's length (doubled for %q), plus a fixed
+		// allowance for numeric verbs (width/precision are at most 99).
+		projected := len(f)
+		arg := 2
 		for i := 0; i < len(f); i++ {
 			if f[i] != '%' {
 				continue
@@ -331,9 +342,35 @@ func (v *VM) strFormat(orig lua.LGFunction) lua.LGFunction {
 			if digits > 2 {
 				L.RaiseError("invalid format (width or precision too long)")
 			}
+			if i >= len(f) || strings.IndexByte("cdiouxXeEfgGqs", f[i]) < 0 {
+				L.RaiseError("invalid option to 'format'")
+			}
+			switch f[i] {
+			case 's', 'q':
+				n := 0
+				if lv := L.Get(arg); lv != lua.LNil {
+					if s, ok := lv.(lua.LString); ok {
+						n = len(s)
+					} else {
+						n = len(lv.String())
+					}
+				}
+				if f[i] == 'q' {
+					n = 2*n + 2
+				}
+				projected += n + 99
+			default:
+				projected += 99 + 330 // %f of a huge float can be ~310 digits
+			}
+			arg++
+			if projected > v.run.limits.MaxString {
+				v.raiseLimit(L, fmt.Sprintf("string.format result exceeds max string size (%d bytes)", v.run.limits.MaxString))
+			}
 		}
 		n := orig(L)
-		v.checkLen(L, len(L.CheckString(-1)), "string.format")
+		r := len(L.CheckString(-1))
+		L.NoteAlloc(r)
+		v.checkLen(L, r, "string.format")
 		return n
 	}
 }
@@ -362,6 +399,7 @@ func (v *VM) tableConcat(L *lua.LState) int {
 			b.WriteString(sep)
 		}
 	}
+	L.NoteAlloc(b.Len())
 	L.Push(lua.LString(b.String()))
 	return 1
 }

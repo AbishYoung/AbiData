@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 )
 
 type LValueType int
@@ -184,6 +185,11 @@ type LState struct {
 	Dead    bool
 	Options Options
 
+	// allocated approximates bytes allocated by this state's run (strings
+	// built by concatenation, new tables, and host-reported allocations) so a
+	// memory watchdog can tell which run is growing the heap. [AbiData patch]
+	allocated atomic.Int64
+
 	stop         int32
 	reg          *registry
 	stack        callFrameStack
@@ -213,3 +219,18 @@ type LChannel chan LValue
 
 func (ch LChannel) String() string   { return fmt.Sprintf("channel: %p", ch) }
 func (ch LChannel) Type() LValueType { return LTChannel }
+
+// NoteAlloc adds n bytes to the root state's allocation estimate. [AbiData patch]
+func (ls *LState) NoteAlloc(n int) {
+	root := ls
+	for root.Parent != nil {
+		root = root.Parent
+	}
+	root.allocated.Add(int64(n))
+}
+
+// Allocated returns the allocation estimate; safe from other goroutines. [AbiData patch]
+func (ls *LState) Allocated() int64 { return ls.allocated.Load() }
+
+// ResetAllocated zeroes the allocation estimate (a pooled state's new run). [AbiData patch]
+func (ls *LState) ResetAllocated() { ls.allocated.Store(0) }

@@ -324,6 +324,15 @@ func (m *mod) encode(L *lua.LState) int {
 	w.Comma = comma
 	max := m.r.Budget.MaxString
 	write := func(rec []string) {
+		// Worst case per field is every byte a doubled quote plus the
+		// enclosing quotes and a delimiter; check before the writer allocates.
+		projected := buf.Len() + 2
+		for _, f := range rec {
+			projected += 2*len(f) + 3
+		}
+		if max > 0 && projected > max {
+			m.r.RaiseLimit("csv.encode result exceeds max string size")
+		}
 		_ = w.Write(rec) // bytes.Buffer writes cannot fail; delimiter validated above
 		w.Flush()
 		if max > 0 && buf.Len() > max {

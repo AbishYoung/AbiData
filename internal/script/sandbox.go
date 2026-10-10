@@ -416,6 +416,11 @@ func (v *VM) Exec(ctx context.Context, proto *lua.FunctionProto, opts RunOptions
 		}
 		return L.PCall(len(opts.EntryArgs), lua.MultRet, nil)
 	}()
+	// A limit raised inside a tail-called pcall leaves no instruction for the
+	// cancelled context to stop, so the call can "succeed"; limits still win.
+	if callErr == nil && v.run.limitErr != nil {
+		callErr = v.run.limitErr
+	}
 	if callErr != nil {
 		v.tainted = true
 		L.SetTop(base)

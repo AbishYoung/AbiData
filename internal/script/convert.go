@@ -75,12 +75,27 @@ func intToLua(i int64) lua.LValue {
 
 // FromLua converts Lua values to Go: db.NULL and json.null → Null{}, integral
 // numbers → int64, tables → []any (sequences) or map[string]any.
+//
+// Shared tables are converted once per reference, so the walk is bounded by
+// MaxFromLuaNodes rather than by depth alone (a DAG of shared tables would
+// otherwise expand exponentially).
 func FromLua(r *Run, v lua.LValue) any {
-	return fromLua(r, v, 0)
+	n := 0
+	return fromLua(r, v, 0, &n)
 }
 
-func fromLua(r *Run, v lua.LValue, depth int) any {
+// MaxFromLuaNodes bounds the values one FromLua call may visit.
+const MaxFromLuaNodes = 200_000
+
+func fromLua(r *Run, v lua.LValue, depth int, nodes *int) any {
 	if depth > 64 {
+		return nil
+	}
+	*nodes++
+	if *nodes > MaxFromLuaNodes {
+		if r != nil {
+			r.RaiseLimit(fmt.Sprintf("value has more than %d elements", MaxFromLuaNodes))
+		}
 		return nil
 	}
 	switch x := v.(type) {
@@ -111,13 +126,13 @@ func fromLua(r *Run, v lua.LValue, depth int) any {
 		if n > 0 && n == count {
 			out := make([]any, 0, n)
 			for i := 1; i <= n; i++ {
-				out = append(out, fromLua(r, x.RawGetInt(i), depth+1))
+				out = append(out, fromLua(r, x.RawGetInt(i), depth+1, nodes))
 			}
 			return out
 		}
 		out := map[string]any{}
 		x.ForEach(func(k, val lua.LValue) {
-			out[k.String()] = fromLua(r, val, depth+1)
+			out[k.String()] = fromLua(r, val, depth+1, nodes)
 		})
 		return out
 	}

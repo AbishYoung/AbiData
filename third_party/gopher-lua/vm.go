@@ -682,6 +682,7 @@ func init() {
 			B := int(inst & 0x1ff)    //GETB
 			C := int(inst>>9) & 0x1ff //GETC
 			v := newLTable(B, C)
+			L.NoteAlloc(64 + 16*(B+C)) // [AbiData patch]
 			// this section is inlined by go-inline
 			// source function is 'func (rg *registry) Set(regi int, vali LValue) ' in '_state.go'
 			{
@@ -2388,6 +2389,7 @@ func stringConcat(L *LState, total, last int) LValue {
 				}
 			}
 			rhs = LString(strings.Join(buf, ""))
+			L.NoteAlloc(len(rhs.(LString))) // [AbiData patch]
 		}
 	}
 	return rhs

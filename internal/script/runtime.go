@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
 	"strings"
@@ -176,6 +177,7 @@ type Runner struct {
 type activeRun struct {
 	cancel context.CancelCauseFunc
 	budget time.Duration
+	L      *lua.LState // set once the run has a VM; guarded by activeMu
 }
 
 // ErrMemory is the watchdog's cancellation cause.
@@ -243,18 +245,20 @@ func (rn *Runner) Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	defer cancel(nil)
 	ctx, cancelT := context.WithTimeout(ctx, b.Wall)
 	defer cancelT()
-	select {
-	case rn.global <- struct{}{}:
-		defer func() { <-rn.global }()
-	case <-ctx.Done():
-		return ExecResult{}, &Error{Kind: KindTimeout, Message: "the server is busy running other scripts"}
-	}
+	// Take the workspace slot first so one workspace's excess runs queue on
+	// their own slot instead of parking on (and starving others of) global ones.
 	ws := rn.slots(req.Workspace)
 	select {
 	case ws <- struct{}{}:
 		defer func() { <-ws }()
 	case <-ctx.Done():
 		return ExecResult{}, &Error{Kind: KindTimeout, Message: "this workspace is busy running other scripts"}
+	}
+	select {
+	case rn.global <- struct{}{}:
+		defer func() { <-rn.global }()
+	case <-ctx.Done():
+		return ExecResult{}, &Error{Kind: KindTimeout, Message: "the server is busy running other scripts"}
 	}
 	ar := &activeRun{cancel: cancel, budget: b.Wall}
 	rn.activeMu.Lock()
@@ -272,6 +276,10 @@ func (rn *Runner) Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 
 	vm := rn.getVM()
 	defer rn.putVM(vm)
+	vm.L.ResetAllocated()
+	rn.activeMu.Lock()
+	ar.L = vm.L
+	rn.activeMu.Unlock()
 	tz := req.TZ
 	if tz == nil {
 		tz = time.UTC
@@ -316,7 +324,8 @@ func (rn *Runner) Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 }
 
 // watchdog samples heap usage every 10 ms while scripts run and cancels the
-// largest-budget run when above the soft limit.
+// run that has allocated the most (by the VM's estimate) when above the soft
+// limit, falling back to the largest budget when no run reports allocations.
 func (rn *Runner) watchdog() {
 	sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
 	t := time.NewTicker(10 * time.Millisecond)
@@ -336,9 +345,14 @@ func (rn *Runner) watchdog() {
 		}
 		rn.activeMu.Lock()
 		var victim *activeRun
+		var most int64
 		for a := range rn.active {
-			if victim == nil || a.budget > victim.budget {
-				victim = a
+			var n int64
+			if a.L != nil {
+				n = a.L.Allocated()
+			}
+			if victim == nil || n > most || (n == most && a.budget > victim.budget) {
+				victim, most = a, n
 			}
 		}
 		if victim != nil {
@@ -346,5 +360,11 @@ func (rn *Runner) watchdog() {
 			delete(rn.active, victim)
 		}
 		rn.activeMu.Unlock()
+		if victim != nil {
+			// Give the victim a moment to unwind, then collect so the next
+			// sample reflects what it freed rather than claiming a bystander.
+			time.Sleep(20 * time.Millisecond)
+			runtime.GC()
+		}
 	}
 }
