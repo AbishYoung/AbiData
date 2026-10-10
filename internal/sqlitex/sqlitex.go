@@ -332,7 +332,7 @@ func (c *Conn) Prepare(ctx context.Context, sql string) (columns []string, err e
 
 func (c *Conn) prepare(sql string) (*sqlite3.Stmt, func(), error) {
 	if st := c.cache.take(sql); st != nil {
-		return st, func() { c.cache.put(sql, st) }, nil
+		return st, c.releaser(sql, st), nil
 	}
 	st, tail, err := c.c.Prepare(sql)
 	if err != nil {
@@ -345,7 +345,25 @@ func (c *Conn) prepare(sql string) (*sqlite3.Stmt, func(), error) {
 		_ = st.Close()
 		return nil, nil, errors.New("sqlitex: multiple statements are not allowed")
 	}
-	return st, func() { c.cache.put(sql, st) }, nil
+	return st, c.releaser(sql, st), nil
+}
+
+// releaser returns the statement to the cache. A broken connection (after a
+// recovered driver panic) is never touched again: resetting its statements can
+// panic a second time outside any guard. A panic during the reset itself marks
+// the connection broken instead of escaping.
+func (c *Conn) releaser(sql string, st *sqlite3.Stmt) func() {
+	return func() {
+		if c.broken {
+			return
+		}
+		defer func() {
+			if recover() != nil {
+				c.broken = true
+			}
+		}()
+		c.cache.put(sql, st)
+	}
 }
 
 // ClearStmtCache finalises cached statements (call after schema changes).

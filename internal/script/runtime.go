@@ -89,17 +89,55 @@ var DecimalFactory = func(r *Run, s string) lua.LValue { return lua.LString(s) }
 // maxLogBytes caps a run's log (tail kept), per brief (256 KiB).
 const maxLogBytes = 256 << 10
 
-// Log appends to the run log (keeping the tail within maxLogBytes).
+// Log appends to the run log (keeping the tail within maxLogBytes). Fields
+// count toward the size; an entry that alone exceeds the cap keeps a
+// truncated message and drops its fields.
 func (r *Run) Log(level, msg string, fields map[string]any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	e := LogEntry{At: time.Now(), Level: level, Message: msg, Fields: fields}
+	if logSize(e) > maxLogBytes {
+		if len(e.Message) > maxLogBytes/2 {
+			e.Message = e.Message[:maxLogBytes/2] + "… (truncated)"
+		}
+		if e.Fields != nil {
+			e.Fields = map[string]any{"_truncated": "fields exceeded the log size limit"}
+		}
+	}
 	r.logs = append(r.logs, e)
-	r.logLen += len(msg) + 64
+	r.logLen += logSize(e)
 	for r.logLen > maxLogBytes && len(r.logs) > 1 {
-		r.logLen -= len(r.logs[0].Message) + 64
+		r.logLen -= logSize(r.logs[0])
 		r.logs = r.logs[1:]
 	}
+}
+
+func logSize(e LogEntry) int { return len(e.Message) + 64 + valueSize(e.Fields, 0) }
+
+// valueSize estimates the encoded size of a converted Lua value.
+func valueSize(v any, depth int) int {
+	if depth > 64 {
+		return 0
+	}
+	switch x := v.(type) {
+	case string:
+		return len(x) + 2
+	case map[string]any:
+		n := 2
+		for k, val := range x {
+			n += len(k) + 4 + valueSize(val, depth+1)
+		}
+		return n
+	case []any:
+		n := 2
+		for _, val := range x {
+			n += 1 + valueSize(val, depth+1)
+		}
+		return n
+	case nil:
+		return 4
+	}
+	return 16
 }
 
 // Logs returns the run log.

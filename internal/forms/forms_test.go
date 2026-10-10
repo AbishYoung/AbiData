@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -203,10 +204,16 @@ func TestOrderFormLifecycle(t *testing.T) {
 	// Two-phase confirm: click → confirm request; confirm with answer → handler runs.
 	saved := *resp.Saved
 	resp, err = f.svc.Event(f.ctx, f.l, f.editor, orderForm.ID, EventRequest{Event: "click", Control: "Ship", RecordID: saved.ID, RecordVersion: saved.Version, Record: saved.Fields})
-	if err != nil || resp.Confirm == nil || resp.Confirm.Continuation != "do_ship" {
+	if err != nil || resp.Confirm == nil || !strings.HasPrefix(resp.Confirm.Continuation, "do_ship.") {
 		t.Fatalf("confirm: %+v %v", resp, err)
 	}
-	if _, err := f.svc.Event(f.ctx, f.l, f.editor, orderForm.ID, EventRequest{Event: "confirm", Continuation: "do_ship", Answer: yes(true),
+	token := resp.Confirm.Continuation
+	// The token is bound to the user who was asked.
+	if _, err := f.svc.Event(f.ctx, f.l, f.viewer, orderForm.ID, EventRequest{Event: "confirm", Continuation: token, Answer: yes(true),
+		RecordID: saved.ID, RecordVersion: saved.Version, Record: saved.Fields}); fault.Classify(err).Code != fault.BadRequest {
+		t.Fatalf("another user's token: %v", err)
+	}
+	if _, err := f.svc.Event(f.ctx, f.l, f.editor, orderForm.ID, EventRequest{Event: "confirm", Continuation: token, Answer: yes(true),
 		RecordID: saved.ID, RecordVersion: saved.Version, Record: saved.Fields}); err != nil {
 		t.Fatal(err)
 	}

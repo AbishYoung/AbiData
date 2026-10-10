@@ -3,6 +3,7 @@
 package fetch
 
 import (
+	"math"
 	"sort"
 	"time"
 
@@ -71,11 +72,26 @@ func build(r *script.Run) lua.LValue {
 				L.ArgError(2, "headers must be a table")
 			}
 			if n, ok := opts.RawGetString("timeout_ms").(lua.LNumber); ok {
-				req.Timeout = time.Duration(float64(n)) * time.Millisecond
+				f := float64(n)
+				if math.IsNaN(f) || f < 1 {
+					L.ArgError(2, "timeout_ms must be a positive number")
+				}
+				req.Timeout = time.Duration(min(f, float64(egress.MaxTimeout/time.Millisecond))) * time.Millisecond
 			}
 			if n, ok := opts.RawGetString("max_bytes").(lua.LNumber); ok {
-				req.MaxBytes = int64(n)
+				f := float64(n)
+				if math.IsNaN(f) || f < 1 {
+					L.ArgError(2, "max_bytes must be a positive number")
+				}
+				req.MaxBytes = int64(min(f, float64(egress.MaxBytes)))
 			}
+		}
+		// The body becomes a Lua string, so it may not exceed the run's string cap.
+		if lim := int64(r.Budget.MaxString); lim > 0 {
+			if req.MaxBytes == 0 {
+				req.MaxBytes = egress.DefaultMaxBytes
+			}
+			req.MaxBytes = min(req.MaxBytes, lim)
 		}
 		resp, err := d.Fetch(r.Ctx, req)
 		if err != nil {

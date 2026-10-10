@@ -56,6 +56,18 @@ func TestFetch(t *testing.T) {
 	if err != nil || res.Values[0] != false || res.Values[1] != true {
 		t.Fatalf("pcall: %v %#v", err, res.Values)
 	}
+	// Options are validated and clamped (and the body never exceeds the string cap).
+	for _, bad := range []string{`{timeout_ms = 0/0}`, `{timeout_ms = -5}`, `{max_bytes = 0/0}`, `{max_bytes = -1}`} {
+		if _, err := runWith(t, script.Job, d, `fetch("https://api.test/", `+bad+`)`); err == nil || !strings.Contains(err.Error(), "positive") {
+			t.Fatalf("%s accepted: %v", bad, err)
+		}
+	}
+	if _, err := runWith(t, script.Job, d, `fetch("https://api.test/", {timeout_ms = 1e300, max_bytes = 1e300})`); err != nil {
+		t.Fatal(err)
+	}
+	if got.Timeout != egress.MaxTimeout || got.MaxBytes != egress.MaxBytes {
+		t.Fatalf("not clamped: %+v", got)
+	}
 	_, err = runWith(t, script.Job, d, `fetch("https://api.test/", {body = {}})`)
 	if err == nil || !strings.Contains(err.Error(), "body must be a string") {
 		t.Fatalf("bad body: %v", err)

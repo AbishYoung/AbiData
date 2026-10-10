@@ -10,8 +10,8 @@ import (
 // HTTP handlers call). These document that form-level rules are UX, not
 // authorization: they pass today and describe current behaviour.
 
-// The two-phase confirm is not bound to a server-issued continuation: any
-// member may invoke any global function of the form module by sending
+// L1 (fixed; regression): the two-phase confirm was not bound to a
+// server-issued continuation: any member could invoke any global function of the form module by sending
 // event="confirm" with continuation=<name> and answer=true, skipping the click
 // handler's checks. Here the click handler would refuse (no approver), but the
 // editor calls do_ship directly and the order is shipped.
@@ -22,16 +22,16 @@ func TestSecReviewConfirmContinuationIsCallerChosen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.Event(f.ctx, f.l, f.editor, orderForm.ID, EventRequest{Event: "confirm", Continuation: "do_ship", Answer: yes(true),
-		RecordID: order.ID, RecordVersion: order.Version, Record: order.Fields}); err != nil {
-		t.Fatal(err)
+	for _, cont := range []string{"do_ship", "before_update", "do_ship.9999999999.forged"} {
+		if _, err := f.svc.Event(f.ctx, f.l, f.editor, orderForm.ID, EventRequest{Event: "confirm", Continuation: cont, Answer: yes(true),
+			RecordID: order.ID, RecordVersion: order.Version, Record: order.Fields}); err == nil {
+			t.Fatalf("continuation %q was accepted", cont)
+		}
 	}
 	cur, _ := f.svc.Records.Get(f.ctx, f.l, f.orders.ID, order.ID)
-	t.Logf("status after direct continuation call: %v", cur.Fields[col(f.orders, "Status")])
-	// Lifecycle handlers are also reachable this way (Event refuses event="before_update" but not continuation="before_update").
-	resp, err := f.svc.Event(f.ctx, f.l, f.viewer, orderForm.ID, EventRequest{Event: "confirm", Continuation: "before_update", Answer: yes(true),
-		RecordID: order.ID, RecordVersion: cur.Version, Record: cur.Fields})
-	t.Logf("viewer invoking before_update via continuation: err=%v record=%v", err, resp)
+	if cur.Fields[col(f.orders, "Status")] == "Shipped" {
+		t.Fatal("the order was shipped through a caller-chosen continuation")
+	}
 }
 
 // Form saves accept any column of the source table (hidden, locked, unbound),

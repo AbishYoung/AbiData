@@ -135,14 +135,11 @@ func normalize(v any) any {
 	return v
 }
 
-func (s *Service) handlerFor(p *prepared, req EventRequest) (string, error) {
+func (s *Service) handlerFor(l *workspace.Lease, c Caller, p *prepared, req EventRequest) (string, error) {
 	f := p.form
 	switch {
 	case req.Event == "confirm":
-		if !identRe.MatchString(req.Continuation) {
-			return "", fault.New(fault.BadRequest, "A confirm event needs the continuation handler name.")
-		}
-		return req.Continuation, nil
+		return openContinuation(l, c, p.form.ID, req.Continuation, time.Now())
 	case req.Control != "":
 		for _, c := range f.Layout.AllControls() {
 			if c.Name == req.Control {
@@ -277,15 +274,18 @@ func (s *Service) Event(ctx context.Context, l *workspace.Lease, c Caller, formI
 	if err != nil {
 		return nil, err
 	}
-	handler, err := s.handlerFor(p, req)
+	handler, err := s.handlerFor(l, c, p, req)
 	if err != nil {
 		return nil, err
+	}
+	if req.Event == "confirm" {
+		p.session.Continuation = handler // scripts see the name, not the token
 	}
 	resp := newResponse()
 	if err := s.runHandler(ctx, l, c, p, handler, resp); err != nil {
 		return nil, err
 	}
-	p.fold(resp)
+	s.fold(l, c, p, resp)
 	switch req.Event {
 	case "load", "current", "after_update", "change", "confirm", "click":
 		s.computeCalc(ctx, l, c, p, resp)
@@ -333,7 +333,7 @@ func (s *Service) Save(ctx context.Context, l *workspace.Lease, c Caller, formID
 	if err := s.runHandler(ctx, l, c, p, f.Layout.Events[ev], resp); err != nil {
 		return nil, err
 	}
-	p.fold(resp)
+	s.fold(l, c, p, resp)
 	if resp.Cancel != nil {
 		return resp, nil
 	}
@@ -365,7 +365,7 @@ func (s *Service) Save(ctx context.Context, l *workspace.Lease, c Caller, formID
 		resp.Notifications = append(resp.Notifications, host.Notification{Kind: "alert", Level: "error",
 			Text: "The record was saved, but the after-update script failed: " + fault.Classify(err).DisplayMessage()})
 	} else {
-		p.fold(resp)
+		s.fold(l, c, p, resp)
 	}
 	s.computeCalc(ctx, l, c, p, resp)
 	return resp, nil
@@ -412,7 +412,7 @@ func (s *Service) DeleteRecord(ctx context.Context, l *workspace.Lease, c Caller
 	if err := s.runHandler(ctx, l, c, p, p.form.Layout.Events["before_delete"], resp); err != nil {
 		return nil, err
 	}
-	p.fold(resp)
+	s.fold(l, c, p, resp)
 	if resp.Cancel != nil {
 		return resp, nil
 	}
@@ -421,7 +421,7 @@ func (s *Service) DeleteRecord(ctx context.Context, l *workspace.Lease, c Caller
 	}
 	p.session.Event = "after_delete"
 	if err := s.runHandler(ctx, l, c, p, p.form.Layout.Events["after_delete"], resp); err == nil {
-		p.fold(resp)
+		s.fold(l, c, p, resp)
 	}
 	return resp, nil
 }

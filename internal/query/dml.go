@@ -73,6 +73,12 @@ func CheckDML(sql string) error {
 		switch t {
 		case "INSERT":
 			insert = true
+		case "VACUUM", "REINDEX", "ANALYZE":
+			// Whole-database maintenance rewrites or locks every table; the
+			// platform runs it (maintenance window), never scripts.
+			if i == 0 {
+				return fault.Newf(fault.SQLNotAllowed, "Not allowed: %s is run by the platform's maintenance.", t)
+			}
 		case "REPLACE":
 			// REPLACE INTO …, INSERT OR REPLACE …, ON CONFLICT REPLACE; a
 			// replace(…) function call is followed by "(" which the lexer drops,

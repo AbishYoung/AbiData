@@ -186,6 +186,7 @@ func TestCheckDML(t *testing.T) {
 		`REPLACE INTO Items(id, Name) VALUES (1, 'x')`,
 		`insert into Items("_version", Name) values (5, 'x')`,
 		`INSERT INTO Items(Name) VALUES ('a') ON CONFLICT REPLACE`,
+		`VACUUM`, `vacuum main`, `REINDEX`, `ANALYZE Items`,
 	} {
 		if CheckDML(bad) == nil {
 			t.Errorf("accepted %s", bad)
