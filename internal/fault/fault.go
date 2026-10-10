@@ -174,10 +174,27 @@ func Classify(err error) *Error {
 	if errors.As(err, &fe) {
 		return fe
 	}
+	// The driver reports most failures as *sqlite3.Error, but some paths (e.g.
+	// SQLITE_FULL from a page-count limit during commit) return bare codes.
+	var (
+		code  sqlite3.ErrorCode
+		ext   sqlite3.ExtendedErrorCode
+		msg   string
+		isSQL bool
+	)
 	var se *sqlite3.Error
-	if errors.As(err, &se) {
-		msg := se.Error()
-		switch se.ExtendedCode() {
+	var sec sqlite3.ErrorCode
+	var sext sqlite3.ExtendedErrorCode
+	switch {
+	case errors.As(err, &se):
+		code, ext, msg, isSQL = se.Code(), se.ExtendedCode(), se.Error(), true
+	case errors.As(err, &sext):
+		code, ext, msg, isSQL = sqlite3.ErrorCode(sext), sext, sext.Error(), true
+	case errors.As(err, &sec):
+		code, ext, msg, isSQL = sec, sqlite3.ExtendedErrorCode(sec), sec.Error(), true
+	}
+	if isSQL {
+		switch ext {
 		case sqlite3.CONSTRAINT_UNIQUE, sqlite3.CONSTRAINT_PRIMARYKEY:
 			d := map[string]any{}
 			if m := uniqueRe.FindStringSubmatch(msg); m != nil {
@@ -204,7 +221,7 @@ func Classify(err error) *Error {
 		case sqlite3.CONSTRAINT_DATATYPE:
 			return &Error{Code: ValidationFailed, Message: "A value has the wrong type for its field. Nothing was saved.", Cause: err}
 		}
-		switch se.Code() {
+		switch code {
 		case sqlite3.BUSY, sqlite3.LOCKED:
 			return &Error{Code: WorkspaceBusy, Cause: err}
 		case sqlite3.FULL:
