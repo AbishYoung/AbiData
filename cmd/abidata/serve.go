@@ -49,7 +49,7 @@ func serve() error {
 	}
 	metrics := obs.NewMetrics()
 	// Records at info and above also feed the admin console's live log stream.
-	logBus := events.NewBus(2000)
+	logBus := events.NewBus(5000)
 	log := obs.NewLogger(os.Stdout, cfg.LogLevel, obs.NewBusHandler(logBus, slog.LevelInfo))
 	slog.SetDefault(log)
 	if cfg.MaxMemoryMB > 0 {

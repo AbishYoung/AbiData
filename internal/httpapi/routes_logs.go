@@ -14,7 +14,7 @@ import (
 
 // logsHandler streams server log records to platform admins as SSE (plain chi
 // route). Last-Event-ID resumes within the ring; an older ID gets "reset".
-// ?level=warn|error filters the stream.
+// ?level=info|warn|error, ?subsystem= and ?workspace= filter the stream.
 func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 	if s.deps.Logs == nil {
 		writeError(w, r, s.log, errNotFound)
@@ -43,6 +43,8 @@ func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 	case "error":
 		min = slog.LevelError
 	}
+	q := r.URL.Query()
+	sub, ws := q.Get("subsystem"), q.Get("workspace")
 	events.Stream(w, r, s.deps.Logs, events.StreamOptions{
 		Authorize: func(ctx context.Context) error {
 			p2, err := s.deps.Auth.Authenticate(ctx, c.Value)
@@ -53,18 +55,21 @@ func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Recheck: time.Minute,
 		Filter: func(ev events.Event) bool {
-			if min == slog.LevelDebug {
+			if min == slog.LevelDebug && sub == "" && ws == "" {
 				return true
 			}
 			var rec obs.LogRecord
 			if json.Unmarshal(ev.Data, &rec) != nil {
-				return true
+				return false
 			}
 			var l slog.Level
-			if l.UnmarshalText([]byte(rec.Level)) != nil {
-				return true
+			if l.UnmarshalText([]byte(rec.Level)) == nil && l < min {
+				return false
 			}
-			return l >= min
+			if sub != "" && rec.Attrs["subsystem"] != sub {
+				return false
+			}
+			return ws == "" || rec.Attrs["workspace_id"] == ws
 		},
 	})
 }

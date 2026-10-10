@@ -93,11 +93,18 @@ func TestLogStream(t *testing.T) {
 	if len(evs) != 1 || evs[0].typ != "reset" {
 		t.Fatalf("expected reset, got %v", evs)
 	}
-	// Level filter: only errors.
+	// Filters: level, subsystem, workspace.
 	logger.Info("quiet")
 	logger.Error("loud")
-	_, evs = readSSE(t, root, path+"?level=error", strconv.FormatUint(prev+150, 10), 1)
+	logger.Info("job ran", "subsystem", "jobs", "workspace_id", "W1")
+	logger.Info("job ran", "subsystem", "jobs", "workspace_id", "W2")
+	from := strconv.FormatUint(prev+150, 10)
+	_, evs = readSSE(t, root, path+"?level=error", from, 1)
 	if len(evs) != 1 || !strings.Contains(evs[0].data, `"loud"`) {
 		t.Fatalf("level filter: %v", evs)
+	}
+	_, evs = readSSE(t, root, path+"?subsystem=jobs&workspace=W2", from, 1)
+	if len(evs) != 1 || !strings.Contains(evs[0].data, `"W2"`) {
+		t.Fatalf("subsystem/workspace filter: %v", evs)
 	}
 }
