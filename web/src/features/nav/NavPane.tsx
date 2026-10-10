@@ -17,6 +17,7 @@ import { useTabs, useWorkspaceTabs, type TableView } from "@/app/tabs";
 import { useSchema, type Table } from "@/lib/schema";
 import { DeleteTableDialog, RenameTableDialog } from "./TableCrudDialogs";
 import { ScriptsGroupBody } from "./ScriptNavItem";
+import { FormsGroupBody } from "./FormNavItem";
 import { TableNavItem, tableActions } from "./TableNavItem";
 import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
@@ -98,6 +99,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
     while (tabs.some((t) => t.key === `script:new:${n}`)) n++;
     openTab(ws, { key: `script:new:${n}`, kind: "script", objectId: null, view: "design", title: n === 1 ? "New script" : `New script ${n}` });
   }
+
+  function newForm(): void {
+    let n = 1;
+    while (tabs.some((t) => t.key === `form:new:${n}`)) n++;
+    openTab(ws, { key: `form:new:${n}`, kind: "form", objectId: null, view: "design", title: n === 1 ? "New form" : `New form ${n}` });
+  }
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
   function toggle(id: string) {
@@ -170,6 +177,17 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
                   >
                     <SquareTerminal size={16} aria-hidden="true" />
+                  </button>
+                )}
+                {g.id === "forms" && design && (
+                  <button
+                    type="button"
+                    onClick={newForm}
+                    aria-label="New form"
+                    title="New form"
+                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                  >
+                    <Plus size={16} aria-hidden="true" />
                   </button>
                 )}
                 {(g.id === "tables" || g.id === "scripts") && design && (
@@ -252,7 +270,10 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
               {open && g.id === "scripts" && (
                 <ScriptsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} />
               )}
-              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && (
+              {open && g.id === "forms" && (
+                <FormsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} design={design} />
+              )}
+              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && g.id !== "forms" && (
                 <p id={panelId} className="px-9 py-1 text-sm text-fg-muted">
                   {searching ? `No ${g.noun} match “${query.trim()}”` : `No ${g.noun} yet`}
                 </p>
