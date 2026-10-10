@@ -27,6 +27,7 @@ import (
 	"abidata/internal/obs"
 	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/reports"
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
@@ -125,14 +126,15 @@ func serve() error {
 	querySvc := &query.Service{Schemas: schemas, Events: hub}
 	scriptSvc := &scripts.Service{Events: hub}
 	runner := script.NewRunner(2*runtime.GOMAXPROCS(0), 0)
-	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator, reports.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
 	api := httpapi.New(httpapi.Deps{Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
-		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub}, Version: version, SPA: spa})
+		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
+		Forms:   &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub}, Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
 		BaseContext: func(net.Listener) context.Context { return context.Background() }}

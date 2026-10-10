@@ -23,6 +23,7 @@ import (
 	"abidata/internal/ids"
 	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/reports"
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
@@ -73,14 +74,15 @@ func newEnv(t *testing.T) *env {
 	scriptSvc := &scripts.Service{Events: hub}
 	schemas := catalog.NewCache()
 	recSvc.Schemas, querySvc.Schemas = schemas, schemas
-	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator, reports.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
 	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
 		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
 		Queries: querySvc, Scripts: scriptSvc,
-		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub}})
+		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub},
+		Forms:   &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub}})
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
 	return &env{t: t, srv: srv, s: s, ad: ad, au: au}
@@ -370,3 +372,12 @@ func TestBootstrapSetupFlow(t *testing.T) {
 type rawJSON string
 
 func urlEscape(s string) string { return url.QueryEscape(s) }
+
+// Every registered schema must have a unique name (huma panics lazily otherwise).
+func TestOpenAPIDocumentBuilds(t *testing.T) {
+	e := newEnv(t)
+	b, err := json.Marshal(e.s.API().OpenAPI())
+	if err != nil || len(b) < 1000 {
+		t.Fatalf("%d bytes, %v", len(b), err)
+	}
+}

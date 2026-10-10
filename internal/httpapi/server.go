@@ -28,6 +28,7 @@ import (
 	"abidata/internal/obs"
 	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/reports"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
 )
@@ -46,6 +47,7 @@ type Deps struct {
 	Queries    *query.Service
 	Forms      *forms.Service
 	Scripts    *scripts.Service
+	Reports    *reports.Service
 	Events     *events.Hub
 	Version    string
 	SPA        fs.FS // contents of web/dist; nil serves nothing
@@ -92,6 +94,7 @@ func New(deps Deps) *Server {
 	s.registerData(api)
 	s.registerQueries(api)
 	s.registerForms(api)
+	s.registerReports(api)
 
 	r.NotFound(s.notFound)
 	return s
