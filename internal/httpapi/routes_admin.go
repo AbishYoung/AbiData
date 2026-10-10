@@ -150,6 +150,15 @@ func (s *Server) registerAdmin(api huma.API) {
 		if err := s.deps.Admin.UpdateWorkspace(ctx, id, patch); err != nil {
 			return nil, mapAdminErr(err)
 		}
+		if patch.Status != nil && *patch.Status == admin.StatusSuspended {
+			// Suspension stops what is already running, not only new requests.
+			if s.deps.Jobs != nil && s.deps.Jobs.Scheduler != nil {
+				s.deps.Jobs.Scheduler.CancelWorkspace(id)
+			}
+			if s.deps.Ops != nil {
+				s.deps.Ops.CancelWorkspace(id)
+			}
+		}
 		if in.Body.Quota != nil {
 			if err := s.deps.Workspaces.ReapplyQuota(detached(ctx), id); err != nil {
 				return nil, err

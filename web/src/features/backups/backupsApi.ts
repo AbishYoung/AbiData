@@ -33,6 +33,12 @@ export async function restoreBackup(ws: string, id: string): Promise<void> {
   });
 }
 
+export async function deleteBackup(ws: string, id: string): Promise<void> {
+  await api.request((c, init) => c.DELETE("/api/v1/w/{ws}/backups/{id}", { ...init, params: { path: { ws, id } } }), {
+    label: "Deleting backup",
+  });
+}
+
 export async function restoreBackupAsNew(ws: string, id: string, name: string): Promise<WorkspaceSummary> {
   return api.requestData(
     (c, init) => c.POST("/api/v1/w/{ws}/backups/{id}/restore-as-new", { ...init, params: { path: { ws, id } }, body: { name } }),

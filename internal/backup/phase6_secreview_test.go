@@ -1,131 +1,77 @@
 package backup
 
-// Phase 6 security review: repro tests. Each asserts the vulnerable behaviour
-// (it passes today and fails once the issue is fixed). Gated by ABIDATA_SECREVIEW.
+// Phase 6 security review: regression tests (each finding is fixed).
 
 import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"abidata/internal/admin"
-	"abidata/internal/workspace"
+	"abidata/internal/fault"
 )
 
-func secreview(t *testing.T) {
-	t.Helper()
-	if os.Getenv("ABIDATA_SECREVIEW") == "" {
-		t.Skip("set ABIDATA_SECREVIEW=1 to run security-review repros")
-	}
-}
-
-// H1: Restore's "already in progress" check (backup.go:614) is a bare
-// fileExists on the journal, taken before the slow prepare and not under any
-// lock. Two restores of one workspace (owner double-click, two tabs, two
-// owners) are both admitted. The loser's Exclusive fails (WORKSPACE_MAINTENANCE)
-// and its error path runs recoverOne, which reads and then DELETES the shared
-// journal while the winner is inside Exclusive. If the process then dies after
-// the winner moved ws.db aside but before it rewrote the journal, startup
-// Recover finds no journal: the workspace file is gone and the old database is
-// stranded in .pre-restore (never "fully old or fully new").
+// H1 (fixed): two restores of one workspace were both admitted; they shared the
+// journal and the loser's cleanup undid the winner's, which could leave the
+// workspace without its database after a crash. Now the second is refused, and
+// a crash mid-restore still recovers to the old database.
 func TestSecReview_ConcurrentRestoreDeletesWinnersJournal(t *testing.T) {
-	secreview(t)
-	for attempt := 0; attempt < 5; attempt++ {
-		if concurrentRestoreAttempt(t) {
-			return
-		}
-	}
-	t.Fatal("no attempt left the workspace without its database file (fixed?)")
-}
-
-func concurrentRestoreAttempt(t *testing.T) bool {
 	e := newEnv(t)
 	e.seed(e.ws)
 	b1 := e.snapshot(e.ws, admin.BackupManual)
 	b2 := e.snapshot(e.ws, admin.BackupManual)
+	before := e.fingerprint(e.ws)
 
-	var arrivals atomic.Int32
-	second := make(chan struct{})
-	loserDone := make(chan struct{})
-	var journalGone, statusActive atomic.Bool
+	inside := make(chan struct{})
+	release := make(chan struct{})
 	e.svc.hook = func(step string) error {
 		switch step {
 		case "prepared":
-			if arrivals.Add(1) == 1 {
-				select {
-				case <-second:
-				case <-time.After(5 * time.Second):
-				}
-			} else {
-				close(second)
-			}
-		case "restoring":
-			// Only the restore that won the drain gets here.
-			select {
-			case <-loserDone:
-			case <-time.After(10 * time.Second):
-			}
-			j, _ := e.svc.readJournal(e.ws)
-			journalGone.Store(j == nil)
-			w, _ := e.ad.GetWorkspace(e.ctx, e.ws)
-			statusActive.Store(w.Status == admin.StatusActive)
+			close(inside)
+			<-release
 		case "move:.db":
 			return errCrash // the process dies right after ws.db was moved aside
 		}
 		return nil
 	}
-	errs := make(chan error, 2)
-	for _, b := range []admin.Backup{b1, b2} {
-		go func() { errs <- e.svc.Restore(e.ctx, e.ws, b.ID, e.owner) }()
+	first := make(chan error, 1)
+	go func() { first <- e.svc.Restore(e.ctx, e.ws, b1.ID, e.owner) }()
+	<-inside
+	err := e.svc.Restore(e.ctx, e.ws, b2.ID, e.owner)
+	if fault.Classify(err).Code != fault.WorkspaceBusy {
+		t.Fatalf("second restore: %v", err)
 	}
-	first := <-errs
-	close(loserDone)
-	secondErr := <-errs
-	t.Logf("arrivals at prepared: %d; first: %v; second: %v", arrivals.Load(), first, secondErr)
-	if !errors.Is(first, errCrash) && !errors.Is(secondErr, errCrash) {
-		return false // nobody reached the simulated crash; retry
-	}
-	if arrivals.Load() == 2 {
-		t.Logf("journal deleted under the winner: %v; status active mid-restore: %v", journalGone.Load(), statusActive.Load())
-	} else {
-		t.Log("both admitted; their journal writes collided on the shared <ws>.json.partial")
+	close(release)
+	if err := <-first; !errors.Is(err, errCrash) {
+		t.Fatalf("first restore: %v", err)
 	}
 	e.svc.hook = nil
 	e.restart()
 	if err := e.svc.Recover(e.ctx); err != nil {
-		t.Logf("recover: %v", err)
+		t.Fatal(err)
 	}
 	p, _ := e.wm.PathsFor(e.ws)
-	if _, err := os.Stat(p.DB); !errors.Is(err, os.ErrNotExist) {
-		t.Logf("workspace file present after recovery this attempt: %v", err)
-		return false
+	if _, err := os.Stat(p.DB); err != nil {
+		t.Fatalf("workspace file missing after recovery: %v", err)
 	}
-	if _, err := e.wm.Acquire(e.ctx, e.ws); !errors.Is(err, workspace.ErrNotExist) {
-		t.Fatalf("acquire: %v", err)
+	if got := e.fingerprint(e.ws); len(got) != len(before) {
+		t.Fatalf("not the old database after recovery: %v vs %v", got, before)
 	}
-	stranded, _ := filepath.Glob(filepath.Join(e.svc.asideRoot(), "*", string(e.ws)+".db"))
-	if len(stranded) != 1 {
-		t.Fatalf("expected the live DB stranded in .pre-restore, got %v", stranded)
+	w, _ := e.ad.GetWorkspace(e.ctx, e.ws)
+	if w.Status != admin.StatusActive {
+		t.Fatalf("status %s", w.Status)
 	}
-	t.Logf("workspace file missing after recovery; old DB stranded at %s", stranded[0])
-	return true
 }
 
-// M2: an admin suspension made while a restore is preparing is silently undone:
-// finish (backup.go:741) and recoverOne (backup.go:871) set the status to
-// active unconditionally instead of restoring the pre-restore status.
+// M2 (fixed): a suspension made while a restore was preparing was undone.
 func TestSecReview_RestoreUndoesSuspension(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	e.seed(e.ws)
 	b := e.snapshot(e.ws, admin.BackupManual)
 	e.svc.hook = func(step string) error {
 		if step == "prepared" {
-			// What PATCH /admin/workspaces/{id} {"status":"suspended"} does; it
-			// is allowed because the status is still "active" here.
 			st := admin.StatusSuspended
 			return e.ad.UpdateWorkspace(e.ctx, e.ws, admin.WorkspacePatch{Status: &st})
 		}
@@ -136,69 +82,79 @@ func TestSecReview_RestoreUndoesSuspension(t *testing.T) {
 	}
 	e.waitAside()
 	w, _ := e.ad.GetWorkspace(e.ctx, e.ws)
-	if w.Status != admin.StatusActive {
-		t.Fatalf("suspension kept (fixed?): %s", w.Status)
+	if w.Status != admin.StatusSuspended {
+		t.Fatalf("suspension lost: %s", w.Status)
 	}
-	t.Log("suspended workspace is active again after the restore")
 }
 
-// M3: manual backups are never pruned (keepSet, backup.go:988) and nothing
-// caps their number or bytes per workspace or counts them against the
-// workspace quota; POST /backups is synchronous with a detached context. An
-// owner can loop it until the backup volume is full (likewise pre_restore
-// backups: one full copy per restore, kept 7 days, uncapped).
+// M3 (fixed): manual backups are capped per workspace, one runs at a time, and
+// retention keeps at most MaxPreRestore pre_restore backups.
 func TestSecReview_ManualBackupsUnbounded(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	e.seed(e.ws)
-	const n = 25
-	for range n {
-		e.snapshot(e.ws, admin.BackupManual)
+	l := e.lease(e.ws)
+	defer l.Release()
+	for i := range MaxManualBackups {
+		if _, err := e.svc.Manual(e.ctx, l, e.owner); err != nil {
+			t.Fatalf("backup %d: %v", i, err)
+		}
 	}
-	if err := e.svc.ApplyRetention(e.ctx, e.ws); err != nil {
-		t.Fatal(err)
+	if _, err := e.svc.Manual(e.ctx, l, e.owner); fault.Classify(err).Code != fault.QuotaExceeded {
+		t.Fatalf("over the cap: %v", err)
 	}
-	all, err := e.ad.ListBackups(e.ctx, e.ws)
-	if err != nil {
-		t.Fatal(err)
+	if !e.svc.claim("backup:" + string(e.ws)) {
+		t.Fatal("claim")
 	}
-	var bytes int64
-	for _, b := range all {
-		bytes += b.GzBytes
+	if _, err := e.svc.Manual(e.ctx, l, e.owner); fault.Classify(err).Code != fault.WorkspaceBusy {
+		t.Fatalf("concurrent backup: %v", err)
 	}
-	if len(all) < n {
-		t.Fatalf("retention capped manual backups at %d (fixed?)", len(all))
+	e.svc.unclaim("backup:" + string(e.ws))
+
+	now := time.Now().UTC()
+	var all []admin.Backup
+	for i := range 6 {
+		all = append(all, admin.Backup{ID: string(rune('a' + i)), Kind: admin.BackupPreRestore, CreatedAt: now.Add(-time.Duration(i) * time.Hour)})
 	}
-	t.Logf("%d manual backups kept (%d gz bytes), no cap", len(all), bytes)
+	if keep := keepSet(all, DefaultRetention, now); len(keep) != MaxPreRestore {
+		t.Fatalf("kept %d pre_restore backups", len(keep))
+	}
 }
 
-// L1: leftovers of interrupted work are never swept. A crash during prepare
-// (before the journal exists) leaves a full decompressed copy in
-// workspaces/.restore/, and a crash or failure after finish deleted the journal
-// but before keepAside archived the old files (keepAside runs in a goroutine,
-// backup.go:751) leaves the whole old database in .pre-restore/. Recover only
-// walks journals, so both stay forever.
+// L1 (fixed): Recover sweeps leftovers of interrupted work: restore copies are
+// deleted and moved-aside databases are archived as pre_restore backups.
 func TestSecReview_RecoverNeverSweepsOrphans(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	e.seed(e.ws)
 	orphanRestore := filepath.Join(e.svc.restoreDir(), string(e.ws)+"-orphan.db")
-	orphanAside := filepath.Join(e.svc.asideRoot(), string(e.ws)+"-1", string(e.ws)+".db")
-	for _, p := range []string{orphanRestore, orphanAside} {
-		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, make([]byte, 1<<20), 0o600); err != nil {
-			t.Fatal(err)
-		}
+	asideDir := filepath.Join(e.svc.asideRoot(), string(e.ws)+"-1")
+	if err := os.MkdirAll(filepath.Dir(orphanRestore), 0o700); err != nil {
+		t.Fatal(err)
 	}
-	e.restart()
+	if err := os.WriteFile(orphanRestore, make([]byte, 1<<20), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.restart() // closes the workspace, so its file can be copied as an orphan
+	p, _ := e.wm.PathsFor(e.ws)
+	raw, err := os.ReadFile(p.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(asideDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(asideDir, string(e.ws)+".db"), raw, 0o600); err != nil { //nolint:gosec // test temp dir
+		t.Fatal(err)
+	}
 	if err := e.svc.Recover(e.ctx); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{orphanRestore, orphanAside} {
-		if _, err := os.Stat(p); err != nil {
-			t.Fatalf("%s was swept (fixed?): %v", p, err)
+	for _, p := range []string{orphanRestore, asideDir} {
+		if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s not swept: %v", p, err)
 		}
+	}
+	all, _ := e.ad.ListBackups(e.ctx, e.ws)
+	if len(all) != 1 || all[0].Kind != admin.BackupPreRestore {
+		t.Fatalf("orphan not archived: %+v", all)
 	}
 }

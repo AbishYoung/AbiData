@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"abidata/internal/admin"
@@ -98,6 +99,67 @@ type Service struct {
 	// the operation right there without any cleanup, simulating a crash.
 	hook func(step string) error
 	now  func() time.Time
+
+	mu   sync.Mutex
+	busy map[string]bool // in-flight restores and manual backups, by claim key
+	bg   sync.WaitGroup  // background pre_restore archiving
+}
+
+// Wait blocks until background archiving has finished (shutdown and tests).
+func (s *Service) Wait() { s.bg.Wait() }
+
+// Caps on what a workspace owner can pile up (Phase 6 review M3).
+const (
+	// MaxManualBackups is how many manual backups a workspace may hold;
+	// retention never deletes them, so the owner deletes old ones first.
+	MaxManualBackups = 20
+	// MaxPreRestore is how many pre_restore backups retention keeps (within
+	// the age limit), so repeated restores cannot fill the backup volume.
+	MaxPreRestore = 3
+)
+
+// claim marks key in flight; it reports false when it already was.
+func (s *Service) claim(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.busy[key] {
+		return false
+	}
+	if s.busy == nil {
+		s.busy = map[string]bool{}
+	}
+	s.busy[key] = true
+	return true
+}
+
+func (s *Service) unclaim(key string) {
+	s.mu.Lock()
+	delete(s.busy, key)
+	s.mu.Unlock()
+}
+
+// Manual takes an owner-requested backup: one at a time per workspace, and at
+// most MaxManualBackups kept.
+func (s *Service) Manual(ctx context.Context, l *workspace.Lease, by string) (admin.Backup, error) {
+	key := "backup:" + string(l.ID())
+	if !s.claim(key) {
+		return admin.Backup{}, fault.New(fault.WorkspaceBusy, "A backup of this workspace is already running.")
+	}
+	defer s.unclaim(key)
+	all, err := s.Admin.ListBackups(ctx, l.ID())
+	if err != nil {
+		return admin.Backup{}, err
+	}
+	n := 0
+	for _, b := range all {
+		if b.Kind == admin.BackupManual {
+			n++
+		}
+	}
+	if n >= MaxManualBackups {
+		return admin.Backup{}, fault.Newf(fault.QuotaExceeded, "This workspace already has %d manual backups. Delete an old one first.", MaxManualBackups)
+	}
+	return s.Snapshot(ctx, l, admin.BackupManual, by)
 }
 
 func (s *Service) clock() time.Time {
@@ -564,13 +626,16 @@ const (
 )
 
 type journal struct {
-	State       string    `json:"state"`
-	WorkspaceID string    `json:"workspace_id"`
-	BackupID    string    `json:"backup_id"`
-	RestorePath string    `json:"restore_path"`
-	AsideDir    string    `json:"aside_dir"`
-	By          string    `json:"by"`
-	At          time.Time `json:"at"`
+	State       string `json:"state"`
+	WorkspaceID string `json:"workspace_id"`
+	BackupID    string `json:"backup_id"`
+	RestorePath string `json:"restore_path"`
+	AsideDir    string `json:"aside_dir"`
+	// PrevStatus is the workspace status before the restore, put back at the
+	// end (an admin suspension must survive a restore). Empty means active.
+	PrevStatus admin.WorkspaceStatus `json:"prev_status,omitempty"`
+	By         string                `json:"by"`
+	At         time.Time             `json:"at"`
 }
 
 func (s *Service) writeJournal(j journal) error {
@@ -611,6 +676,13 @@ func (s *Service) Restore(ctx context.Context, ws ids.WorkspaceID, backupID, by 
 	if b.WorkspaceID != ws {
 		return fault.New(fault.BadRequest, "This backup belongs to another workspace; restore it as a new workspace instead.")
 	}
+	// One restore per workspace at a time: two would share the journal and
+	// the loser's cleanup would undo the winner's (Phase 6 review H1).
+	key := "restore:" + string(ws)
+	if !s.claim(key) {
+		return fault.New(fault.WorkspaceBusy, "A restore of this workspace is already in progress.")
+	}
+	defer s.unclaim(key)
 	if p, _ := s.journalPath(ws); fileExists(p) {
 		return fault.New(fault.WorkspaceBusy, "A restore of this workspace is already in progress.")
 	}
@@ -627,7 +699,7 @@ func (s *Service) Restore(ctx context.Context, ws ids.WorkspaceID, backupID, by 
 	}
 	defer release()
 
-	tmp, _, err := s.prepare(ctx, b, ws, string(ws)+"-"+backupID+".db")
+	tmp, _, err := s.prepare(ctx, b, ws, fmt.Sprintf("%s-%s-%d.db", ws, backupID, s.clock().UnixNano()))
 	if err != nil {
 		return err
 	}
@@ -643,6 +715,19 @@ func (s *Service) Restore(ctx context.Context, ws ids.WorkspaceID, backupID, by 
 
 	var swapErr error
 	exErr := l.Exclusive(ctx, 30*time.Second, func(p workspace.Paths) error {
+		// Record the status (an admin may have suspended the workspace while
+		// the copy was prepared) before replacing it with restoring.
+		cur, err := s.Admin.GetWorkspace(context.WithoutCancel(ctx), ws)
+		if err != nil {
+			return err
+		}
+		if cur.Status != admin.StatusActive && cur.Status != admin.StatusSuspended {
+			return fault.Newf(fault.BadRequest, "A %s workspace cannot be restored.", cur.Status)
+		}
+		j.PrevStatus = cur.Status
+		if err := s.writeJournal(j); err != nil {
+			return err
+		}
 		st := admin.StatusRestoring
 		if err := s.Admin.UpdateWorkspace(context.WithoutCancel(ctx), ws, admin.WorkspacePatch{Status: &st}); err != nil {
 			return err
@@ -738,8 +823,7 @@ func (s *Service) finish(ctx context.Context, ws ids.WorkspaceID, j journal) err
 	if s.AfterRestore != nil {
 		s.AfterRestore(ctx, ws)
 	}
-	st := admin.StatusActive
-	if err := s.Admin.UpdateWorkspace(ctx, ws, admin.WorkspacePatch{Status: &st}); err != nil {
+	if err := s.putBackStatus(ctx, ws, &j); err != nil {
 		return err
 	}
 	if err := s.deleteJournal(ws); err != nil {
@@ -747,13 +831,21 @@ func (s *Service) finish(ctx context.Context, ws ids.WorkspaceID, j journal) err
 	}
 	_ = s.Admin.Audit(ctx, admin.AuditEntry{At: s.clock(), UserID: j.By, Action: "workspace.restore", ObjectKind: "workspace",
 		ObjectID: string(ws), Details: map[string]any{"backup_id": j.BackupID}})
-	// Keep the replaced files as a pre_restore backup (best effort, in the background).
-	go s.keepAside(context.WithoutCancel(ctx), ws, j)
+	// Keep the replaced files as a pre_restore backup (best effort, in the
+	// background; if the process dies first, Recover archives them at startup).
+	s.bg.Go(func() { s.keepAside(context.WithoutCancel(ctx), ws, j) })
 	return nil
 }
 
 // keepAside archives the moved-aside files as a pre_restore backup, then removes them.
 func (s *Service) keepAside(ctx context.Context, ws ids.WorkspaceID, j journal) {
+	if !s.claim("aside:" + j.AsideDir) {
+		return // already being archived (finish's goroutine vs Recover's sweep)
+	}
+	defer s.unclaim("aside:" + j.AsideDir)
+	if !fileExists(j.AsideDir) {
+		return
+	}
 	db := filepath.Join(j.AsideDir, string(ws)+".db")
 	if !fileExists(db) {
 		_ = os.RemoveAll(j.AsideDir)
@@ -814,6 +906,7 @@ func (s *Service) Recover(ctx context.Context) error {
 	dir := filepath.Join(s.DataDir, "system", "restore-journal")
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
+		s.sweep(ctx)
 		return nil
 	}
 	if err != nil {
@@ -833,7 +926,35 @@ func (s *Service) Recover(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("workspace %s: %w", ws, err))
 		}
 	}
+	s.sweep(ctx)
 	return errors.Join(errs...)
+}
+
+// sweep handles what interrupted work left behind with no journal (Phase 6
+// review L1): restore copies (a crash during prepare) are deleted, and
+// moved-aside files whose archiving never finished become pre_restore backups.
+// Only Recover calls it, at startup, when nothing is in flight.
+func (s *Service) sweep(ctx context.Context) {
+	if entries, err := os.ReadDir(s.restoreDir()); err == nil {
+		for _, e := range entries {
+			_ = os.RemoveAll(filepath.Join(s.restoreDir(), e.Name()))
+		}
+	}
+	entries, err := os.ReadDir(s.asideRoot())
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		dir := filepath.Join(s.asideRoot(), e.Name())
+		ws, _, ok := strings.Cut(e.Name(), "-")
+		if !e.IsDir() || !ok || !ids.Valid(ws) {
+			continue
+		}
+		if p, _ := s.journalPath(ids.WorkspaceID(ws)); fileExists(p) {
+			continue // a journal recovery could not finish still needs these files
+		}
+		s.keepAside(ctx, ids.WorkspaceID(ws), journal{WorkspaceID: ws, AsideDir: dir, By: "system"})
+	}
 }
 
 // recoverOne applies the journal rules: prepared → drop temps; moved_aside →
@@ -868,11 +989,31 @@ func (s *Service) recoverOne(ctx context.Context, ws ids.WorkspaceID) error {
 	default:
 		return fmt.Errorf("unknown restore journal state %q", j.State)
 	}
-	st := admin.StatusActive
-	if err := s.Admin.UpdateWorkspace(ctx, ws, admin.WorkspacePatch{Status: &st}); err != nil {
+	if err := s.putBackStatus(ctx, ws, j); err != nil {
 		return err
 	}
 	return s.deleteJournal(ws)
+}
+
+// putBackStatus ends the restoring status with the status from before the
+// restore. A status someone else set meanwhile (needs_repair from the reopen)
+// is left alone.
+func (s *Service) putBackStatus(ctx context.Context, ws ids.WorkspaceID, j *journal) error {
+	cur, err := s.Admin.GetWorkspace(ctx, ws)
+	if err != nil {
+		return err
+	}
+	if cur.Status != admin.StatusRestoring && cur.Status != admin.StatusActive {
+		return nil
+	}
+	st := j.PrevStatus
+	if st == "" || st == admin.StatusRestoring {
+		st = admin.StatusActive
+	}
+	if st == cur.Status {
+		return nil
+	}
+	return s.Admin.UpdateWorkspace(ctx, ws, admin.WorkspacePatch{Status: &st})
 }
 
 // moveBack restores the moved-aside files over whatever is in place (which can
@@ -916,36 +1057,41 @@ func (s *Service) revertSwapped(ctx context.Context, ws ids.WorkspaceID, j journ
 		return err
 	}
 	_ = os.RemoveAll(j.AsideDir)
-	st := admin.StatusActive
-	if err := s.Admin.UpdateWorkspace(ctx, ws, admin.WorkspacePatch{Status: &st}); err != nil {
+	if err := s.putBackStatus(ctx, ws, &j); err != nil {
 		return err
 	}
 	return s.deleteJournal(ws)
 }
 
-// RestoreAsNew creates a new workspace from a backup of any workspace. The
-// caller creates the admin record (name, owner) with create, which receives the
-// new id after the file is in place.
+// RestoreAsNew creates a new workspace from a backup of any workspace. create
+// inserts the admin record (name, owner) for the new id first, with status
+// restoring, so a name conflict fails before any file exists; the workspace is
+// set active once its file is in place, or its record dropped on failure.
 func (s *Service) RestoreAsNew(ctx context.Context, backupID string, create func(id ids.WorkspaceID) error) (ids.WorkspaceID, error) {
 	b, err := s.Admin.GetBackup(ctx, backupID)
 	if err != nil {
 		return "", fault.New(fault.NotFound, "Backup not found.")
 	}
 	id := ids.NewWorkspaceID()
+	if err := create(id); err != nil {
+		return "", err
+	}
+	fail := func(err error) (ids.WorkspaceID, error) {
+		if derr := s.Admin.DropWorkspace(context.WithoutCancel(ctx), id); derr != nil {
+			return "", errors.Join(err, derr)
+		}
+		return "", err
+	}
 	tmp, _, err := s.prepare(ctx, b, id, string(id)+"-"+backupID+".db")
 	if err != nil {
-		return "", err
+		return fail(err)
 	}
 	if err := s.Workspaces.Adopt(ctx, id, tmp); err != nil {
 		_ = os.Remove(tmp)
-		return "", err
+		return fail(err)
 	}
-	if err := create(id); err != nil {
-		if p, perr := s.Workspaces.PathsFor(id); perr == nil {
-			_ = os.Remove(p.DB)
-			_ = os.Remove(p.WAL)
-			_ = os.Remove(p.SHM)
-		}
+	st := admin.StatusActive
+	if err := s.Admin.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st}); err != nil {
 		return "", err
 	}
 	if s.AfterRestore != nil {
@@ -980,7 +1126,7 @@ func (s *Service) ApplyRetention(ctx context.Context, ws ids.WorkspaceID) error 
 func keepSet(all []admin.Backup, r Retention, now time.Time) map[string]bool {
 	keep := map[string]bool{}
 	days, weeks := map[string]bool{}, map[string]bool{}
-	points := 0
+	points, preRestore := 0, 0
 	sorted := append([]admin.Backup(nil), all...)
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].CreatedAt.After(sorted[j].CreatedAt) })
 	for _, b := range sorted {
@@ -993,8 +1139,9 @@ func keepSet(all []admin.Backup, r Retention, now time.Time) map[string]bool {
 				points++
 			}
 		case admin.BackupPreRestore:
-			if now.Sub(b.CreatedAt) < r.PreRestore {
+			if now.Sub(b.CreatedAt) < r.PreRestore && preRestore < MaxPreRestore {
 				keep[b.ID] = true
+				preRestore++
 			}
 		case admin.BackupScheduled:
 			day := b.CreatedAt.UTC().Format("2006-01-02")

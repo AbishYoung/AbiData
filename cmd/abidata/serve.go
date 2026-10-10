@@ -136,10 +136,6 @@ func serve() error {
 
 	backups := &backup.Service{DataDir: cfg.DataDir, BackupDir: cfg.BackupDir, Admin: adm, Workspaces: wm,
 		Key: keys.Manifest, AppVersion: version, Log: obs.Subsystem(log, "backup")}
-	// Complete or undo interrupted restores before any workspace is opened.
-	if err := backups.Recover(ctx); err != nil {
-		log.Error("restore recovery", "subsystem", "backup", "err", err)
-	}
 
 	docContent, err := fs.Sub(docs.Content, "content")
 	if err != nil {
@@ -207,7 +203,11 @@ func serve() error {
 	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts, Ingest: ingestSvc}
 	sched := jobs.New(jobs.Config{Store: jobStore, Executor: executor, Workers: cfg.JobWorkers, Log: obs.Subsystem(log, "jobs"),
 		PerWorkspace: func(id ids.WorkspaceID) int { return quota(id).MaxConcurrentJobs },
-		Publish:      func(id ids.WorkspaceID, r jobs.Run) { hub.Publish(string(id), events.JobRun, r) }})
+		Publish:      func(id ids.WorkspaceID, r jobs.Run) { hub.Publish(string(id), events.JobRun, r) },
+		Active: func(ctx context.Context, id ids.WorkspaceID) bool {
+			w, err := adm.GetWorkspace(ctx, id)
+			return err == nil && w.Status == admin.StatusActive
+		}})
 	jobSvc.Scheduler = sched
 	enqueue := func(ctx context.Context, l *workspace.Lease, name, by string, args map[string]any, fromForm bool) (string, error) {
 		return jobSvc.Enqueue(ctx, l, name, by, args, fromForm)
@@ -234,6 +234,12 @@ func serve() error {
 		if err := sched.Rebuild(ctx, id); err != nil {
 			wsLog.Warn("rebuild job index", "workspace_id", id, "err", err)
 		}
+	}
+	// Complete or undo interrupted restores before any workspace is opened
+	// (here, once afterOpen is set, so a recovered workspace's job index is
+	// rebuilt when it reopens).
+	if err := backups.Recover(ctx); err != nil {
+		log.Error("restore recovery", "subsystem", "backup", "err", err)
 	}
 	if err := sched.Recover(ctx); err != nil {
 		log.Error("job recovery", "subsystem", "jobs", "err", err)
@@ -302,6 +308,7 @@ func serve() error {
 	if err := opsSvc.Shutdown(shutCtx); err != nil {
 		log.Warn("operations did not stop in time", "err", err)
 	}
+	backups.Wait()
 	wsCtx, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel2()
 	if err := wm.Shutdown(wsCtx); err != nil {

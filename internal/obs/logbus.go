@@ -2,7 +2,9 @@ package obs
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"abidata/internal/events"
@@ -41,7 +43,7 @@ func (h *BusHandler) Handle(_ context.Context, r slog.Record) error {
 		if rec.Attrs == nil {
 			rec.Attrs = map[string]any{}
 		}
-		rec.Attrs[prefix+a.Key] = a.Value.Resolve().Any()
+		rec.Attrs[prefix+a.Key] = busValue(a)
 	}
 	for _, a := range h.attrs {
 		add("", a)
@@ -52,6 +54,23 @@ func (h *BusHandler) Handle(_ context.Context, r slog.Record) error {
 	})
 	_, err := h.bus.Publish(LogEvent, rec)
 	return err
+}
+
+// busValue renders an attribute for the stream: errors as their text (they
+// would otherwise encode as {}), and secrets (keys ending in "token") redacted,
+// since the stream is replayable for as long as the record stays in the ring.
+func busValue(a slog.Attr) any {
+	if strings.HasSuffix(strings.ToLower(a.Key), "token") {
+		return "[redacted]"
+	}
+	v := a.Value.Resolve().Any()
+	switch x := v.(type) {
+	case error:
+		return x.Error()
+	case fmt.Stringer:
+		return x.String()
+	}
+	return v
 }
 
 func (h *BusHandler) WithAttrs(as []slog.Attr) slog.Handler {

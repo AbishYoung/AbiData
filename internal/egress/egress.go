@@ -333,7 +333,7 @@ func (g *Gateway) Do(ctx context.Context, ws ids.WorkspaceID, req Request) (*Res
 	if resp != nil {
 		status = resp.Status
 	}
-	g.cfg.Log.LogAttrs(ctx, slog.LevelInfo, "egress", slog.String("subsystem", "egress"), slog.String("workspace", string(ws)),
+	g.cfg.Log.LogAttrs(ctx, slog.LevelInfo, "egress", slog.String("subsystem", "egress"), slog.String("workspace_id", string(ws)),
 		slog.String("host", host), slog.Int("status", status), slog.Int64("bytes", n),
 		slog.Int64("ms", g.cfg.Now().Sub(start).Milliseconds()), slog.Bool("ok", err == nil))
 	return resp, err

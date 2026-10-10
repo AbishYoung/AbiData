@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, DatabaseBackup, History, TriangleAlert } from "lucide-react";
+import { Copy, DatabaseBackup, History, Trash2, TriangleAlert } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { ME_KEY } from "@/lib/session";
 import { useTabs } from "@/app/tabs";
@@ -10,6 +10,7 @@ import { alertBox, btn, btnPrimary, input, label } from "@/components/styles";
 import {
   backupKeys,
   createBackup,
+  deleteBackup,
   listBackups,
   listMemberNames,
   restoreBackup,
@@ -35,6 +36,36 @@ function explain(e: unknown, fallback: string): string {
     return e.message;
   }
   return fallback;
+}
+
+function DeleteDialog({ ws, backup, onClose, onDone }: { ws: string; backup: Backup; onClose: () => void; onDone: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const del = useMutation({
+    meta: { inline: true },
+    mutationFn: () => deleteBackup(ws, backup.id),
+    onSuccess: onDone,
+    onError: (e) => setError(explain(e, "The backup could not be deleted.")),
+  });
+  return (
+    <Modal title="Delete this backup?" onClose={() => (del.isPending ? undefined : onClose())}>
+      <div className="flex flex-col gap-3">
+        <p className="m-0">The manual backup from {absoluteTime(backup.created_at)} will be deleted permanently. It cannot be restored afterwards.</p>
+        {error && (
+          <div role="alert" className={alertBox}>
+            {error}
+          </div>
+        )}
+        <div className="flex justify-end gap-2">
+          <button type="button" className={btn} onClick={onClose} disabled={del.isPending}>
+            Cancel
+          </button>
+          <button type="button" className={btnPrimary} onClick={() => del.mutate()} disabled={del.isPending} aria-busy={del.isPending}>
+            {del.isPending ? "Deleting…" : "Delete backup"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 function RestoreDialog({ ws, backup, workspaceName, onClose, onRestore }: { ws: string; backup: Backup; workspaceName: string; onClose: () => void; onRestore: () => void }) {
@@ -178,6 +209,7 @@ export function BackupsPanel({ ws }: { ws: string }) {
   const qc = useQueryClient();
   const [restoring, setRestoring] = useState<Backup | null>(null);
   const [cloning, setCloning] = useState<Backup | null>(null);
+  const [deleting, setDeleting] = useState<Backup | null>(null);
   const [status, setStatus] = useState<{ text: string; open?: { id: string; name: string } } | null>(null);
 
   const workspace = useQuery({
@@ -301,6 +333,12 @@ export function BackupsPanel({ ws }: { ws: string }) {
                         <Copy size={14} aria-hidden="true" />
                         Restore as new workspace…
                       </button>
+                      {b.kind === "manual" && (
+                        <button type="button" className={btn} onClick={() => setDeleting(b)} aria-label={`Delete backup from ${abs}`}>
+                          <Trash2 size={14} aria-hidden="true" />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -317,6 +355,18 @@ export function BackupsPanel({ ws }: { ws: string }) {
           ))}
         </ul>
       </section>
+      {deleting && (
+        <DeleteDialog
+          ws={ws}
+          backup={deleting}
+          onClose={() => setDeleting(null)}
+          onDone={() => {
+            setDeleting(null);
+            void qc.invalidateQueries({ queryKey: backupKeys.list(ws) });
+            setStatus({ text: "Backup deleted." });
+          }}
+        />
+      )}
       {restoring && <RestoreDialog ws={ws} backup={restoring} workspaceName={workspaceName} onClose={() => setRestoring(null)} onRestore={afterRestore} />}
       {cloning && (
         <RestoreAsNewDialog

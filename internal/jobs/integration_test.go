@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ type env struct {
 	svc   *jobs.Service
 	arts  *artifacts.Store
 	l     *workspace.Lease
+	// inactive makes Config.Active report the workspace as suspended.
+	inactive atomic.Bool
 }
 
 func setup(t *testing.T) *env {
@@ -68,7 +71,8 @@ func setup(t *testing.T) *env {
 	e := &env{ctx: ctx, ws: ws, wm: wm, store: store, arts: arts, l: l}
 	exec := &jobs.LuaExecutor{Workspaces: wm, Scripts: sc, Runner: script.NewRunner(4, 2), Schemas: cache,
 		Records: &records.Service{Schemas: cache}, Artifacts: arts}
-	e.sched = jobs.New(jobs.Config{Store: store, Executor: exec, Workers: 2})
+	e.sched = jobs.New(jobs.Config{Store: store, Executor: exec, Workers: 2,
+		Active: func(context.Context, ids.WorkspaceID) bool { return !e.inactive.Load() }})
 	e.svc = &jobs.Service{Scripts: sc, Scheduler: e.sched}
 	exec.Enqueue = func(ctx context.Context, ws ids.WorkspaceID, name, by string, args map[string]any, fromForm bool) (string, error) {
 		l, err := wm.Acquire(ctx, ws)

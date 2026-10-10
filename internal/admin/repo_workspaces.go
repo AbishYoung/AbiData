@@ -48,6 +48,15 @@ func (s *Store) CreateWorkspace(ctx context.Context, w Workspace, owner string) 
 	})
 }
 
+// DropWorkspace deletes a workspace row outright (with its memberships). Only
+// for a workspace whose creation failed before it was ever used.
+func (s *Store) DropWorkspace(ctx context.Context, id ids.WorkspaceID) error {
+	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM _adm_workspaces WHERE id = ?`, string(id))
+		return wrapWrite(err, "drop workspace")
+	})
+}
+
 func (s *Store) GetWorkspace(ctx context.Context, id ids.WorkspaceID) (Workspace, error) {
 	var w Workspace
 	err := s.Read(ctx, func(c *sqlitex.Conn) error {

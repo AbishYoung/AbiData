@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Gates 3, 4 and 5 PASSED (2026-10-10). Phase 6 in progress: backend core, Gate 6 server tests done; UI (backups, admin console) and Phase 6 review remaining.
+Gates 3–6 PASSED (2026-10-10). Phase 7 in progress: graceful shutdown done; docs content + docs panel packet running.
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
@@ -75,7 +75,17 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 ## Phase 6 — Backup, Restore, Admin
 - `internal/backup`: snapshot (VACUUM INTO → integrity check → gzip with raw/gz SHA-256 → HMAC manifest → admin row → retention), restore journal (prepared → moved_aside → swapped → reverted) with startup recovery, restore-as-new, retention (7 daily / 4 weekly / 5 restore points / pre_restore 7 days; manual never auto-deleted), daily scheduled backups (`backup_policy` setting, default 02:00 UTC).
 - Gate 6 server tests: logical parity (schema SQL + per-table row hashes), under load (running-total invariant across 3 snapshots with 7k concurrent writes), tamper (gz byte, truncation, manifest edit, re-signed with another key → BACKUP_INVALID, live DB untouched), crash matrix at all 9 restore steps (fully old before swap, fully new after, never mixed; stale -wal never applied), quota (QUOTA_EXCEEDED and still usable — fixed `fault.Classify` for bare SQLite codes), log stream (replay/no gaps, reset when too old, non-admin 403, level/subsystem/workspace filters).
-- Routes: `GET,POST /w/{ws}/backups`, `POST .../{id}/restore`, `.../{id}/restore-as-new` (owner; other workspaces' backups 404); `GET /admin/logs/stream` (5,000-record ring). Wiring: Recover before any workspace opens; restore points for destructive schema changes and large chunked replaces; restore drops schema cache and sends `reset`.
+- Routes: `GET,POST /w/{ws}/backups`, `DELETE .../{id}` (manual only), `POST .../{id}/restore`, `.../{id}/restore-as-new` (owner; other workspaces' backups 404); `GET /admin/logs/stream` (5,000-record ring). Wiring: Recover before any workspace opens; restore points for destructive schema changes and large chunked replaces; restore drops schema cache and sends `reset`.
+- UI: backups panel in owner workspace settings (back up, restore with typed-name confirm, restore-as-new, delete manual); admin console `/admin` (overview, workspaces, users, settings incl. backup policy, live logs). e2e `backups-admin.spec.ts`, axe clean.
+- Phase 6 security review (fresh Opus) fixed, repros inverted (`internal/backup/phase6_secreview_test.go`, `internal/httpapi/phase6_secreview_test.go`):
+  - H1 concurrent restores of one workspace: per-workspace in-process claim, unique tmp names.
+  - M1 restore-as-new for owners capped at 3 created workspaces (admins uncapped); admin row first, dropped on failure (also L3). ADR 0007 (name-conflict oracle accepted).
+  - M2 restore keeps the pre-restore status (`prev_status` in journal); M3 manual backups ≤ 20 and one at a time, pre_restore ≤ 3; M4 suspended workspaces run no jobs (`jobs.Config.Active`) and suspension cancels running runs/operations.
+  - L1 Recover sweeps `.restore/` and archives orphaned `.pre-restore/` dirs; L2 Recover runs after afterOpen is wired; L4 supplied keys ≥ 32 bytes; log stream redacts `*token` attrs and renders errors as text; log key `workspace_id` everywhere.
+- Gate 6 PASSED: go test -race, lint, vitest 298, e2e 70/70.
+
+## Phase 7 — Hardening, docs
+- Graceful shutdown: scheduler stops, running runs get 30 s then are cancelled as `interrupted`; SSE hubs/log bus closed so streams end; HTTP drain 15 s; ops; background backup archiving; workspaces.
 
 ## Phase 5 — Ingest backend (imports, exports, Lua `staging`)
 - `internal/ingest`: streamed upload (100 MiB) -> staging SQLite (`c1..cN`, meta table) for CSV (delimiter/BOM/UTF-16/cp1252 sniffing, record caps), XLSX (archive pre-scan + excelize limits), JSON/NDJSON (depth cap); inference on the first 1,000 non-empty values; mapping validated against the catalog; validation pass (first 100 row errors + count); commit as operation `import` (2,000-row background chunks; append/upsert/replace; chunked or all_or_nothing); exports as operation `export` (keyset pages; csv/xlsx/json -> artifact). Janitor sweeps staging after 24 h.
@@ -85,11 +95,10 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Import wizard / export UI merged: modal 4-step wizard (`web/src/features/imports`), Export dialog on table/query menus and the datasheet toolbar; e2e `import-export.spec.ts`.
 
 ## Next (resume here)
-Nothing in flight.
-1. Phase 6 UI packet: backups list/create/restore/restore-as-new (owner), admin console (workspaces, users, quotas, settings incl. backup policy + platform egress, live logs, stats).
-2. Admin backend gaps: PUT /admin/settings (backup_policy), richer /admin/stats (metrics summary).
-3. Phase 6 security review (fresh Opus) → fix → Gate 6.
-4. Phase 7 per the brief.
+In flight: docs content + docs panel packet (Sonnet, port 18092).
+1. Merge docs packet (error dialogs link to /docs/reference/errors#code).
+2. Axe on every route; perf budgets re-verified; Phase 7 security review; Docker/compose verification in CI.
+3. Follow-up: OpenAPI `LogEntry` schema should match the stream payload `{time, level, msg, attrs}`.
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
 ## Notes / decisions taken without asking (per working agreement)

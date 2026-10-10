@@ -37,6 +37,9 @@ func LoadKeys(dir string, session, manifest []byte) (Keys, error) {
 
 func loadOrCreate(path string, supplied []byte) ([]byte, error) {
 	if len(supplied) > 0 {
+		if len(supplied) < 32 {
+			return nil, fmt.Errorf("auth: supplied key for %s is shorter than 32 bytes", filepath.Base(path))
+		}
 		return supplied, nil
 	}
 	if fi, err := os.Stat(path); err == nil && fi.Mode().Perm()&0o077 != 0 {

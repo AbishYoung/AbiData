@@ -58,7 +58,7 @@ test("owner backs up, changes data, restores, and the new row is gone", async ({
   await page.reload();
 
   const panel = await openBackupsPanel(page);
-  await expect(panel.getByText("Manual backups: kept until deleted.")).toBeVisible();
+  await expect(panel.getByText("Manual backups: kept until deleted, up to 20 per workspace.")).toBeVisible();
   await expect(panel.getByText("Scheduled backups: the last 7 daily and 4 weekly are kept.")).toBeVisible();
   await panel.getByRole("button", { name: "Back up now" }).click();
   await expect(panel.getByText("Backup created.")).toBeVisible();
@@ -284,4 +284,23 @@ test("axe is clean on every admin section", async ({ page }) => {
     await expect(page.getByRole("tab", { name: section })).toHaveAttribute("aria-selected", "true");
     await expectNoAxeViolations(page);
   }
+});
+
+test("owner deletes a manual backup after confirming", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(`^${WS}`) }).first().click();
+  await expect(page.getByRole("heading", { name: WS, exact: true })).toBeVisible();
+  const panel = await openBackupsPanel(page);
+  await panel.getByRole("button", { name: "Back up now" }).click();
+  await expect(panel.getByText("Backup created.")).toBeVisible();
+  const manual = panel.locator('tr[data-kind="manual"]');
+  const before = await manual.count();
+  // Only manual backups can be deleted.
+  await expect(panel.locator('tr[data-kind="pre_restore"]').first().getByRole("button", { name: /^Delete backup/ })).toHaveCount(0);
+  await manual.first().getByRole("button", { name: /^Delete backup from/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete this backup?" });
+  await expectNoAxeViolations(page);
+  await dialog.getByRole("button", { name: "Delete backup" }).click();
+  await expect(panel.getByText("Backup deleted.")).toBeVisible();
+  await expect(manual).toHaveCount(before - 1);
 });

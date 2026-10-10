@@ -152,6 +152,10 @@ type Config struct {
 	Publish func(ws ids.WorkspaceID, r Run)
 	Log     *slog.Logger
 	NewID   func() string
+	// Active reports whether a workspace may run jobs (not suspended or being
+	// restored); nil means always. Scheduled fires of an inactive workspace
+	// are skipped and its queued runs are cancelled when they would start.
+	Active func(ctx context.Context, ws ids.WorkspaceID) bool
 }
 
 // Scheduler fires due jobs and runs them on a bounded worker pool.
@@ -245,7 +249,7 @@ func (s *Scheduler) Recover(ctx context.Context) error {
 			}
 			r, err := s.cfg.Store.GetRun(ctx, e.WS, id)
 			if err != nil {
-				s.cfg.Log.Warn("job recovery: run not found", "subsystem", "jobs", "workspace", string(e.WS), "run", id, "err", err)
+				s.cfg.Log.Warn("job recovery: run not found", "subsystem", "jobs", "workspace_id", string(e.WS), "run", id, "err", err)
 				continue
 			}
 			if r.Status == StatusRunning || r.Status == StatusQueued {
@@ -300,7 +304,7 @@ func (s *Scheduler) Rebuild(ctx context.Context, ws ids.WorkspaceID) error {
 				if sch, err := ParseSchedule(j.Schedule, j.Timezone); err == nil {
 					e.NextRunAt = sch.Next(now)
 				} else {
-					s.cfg.Log.Warn("job has an invalid schedule", "subsystem", "jobs", "workspace", string(ws), "job", j.ID, "err", err)
+					s.cfg.Log.Warn("job has an invalid schedule", "subsystem", "jobs", "workspace_id", string(ws), "job", j.ID, "err", err)
 				}
 			}
 		}
@@ -415,7 +419,7 @@ func (s *Scheduler) tick(ctx context.Context, wait bool) error {
 						errs = append(errs, err)
 						mu.Unlock()
 					} else if ctx.Err() == nil {
-						s.cfg.Log.Error("job fire", "subsystem", "jobs", "workspace", string(ws), "job", id, "err", err)
+						s.cfg.Log.Error("job fire", "subsystem", "jobs", "workspace_id", string(ws), "job", id, "err", err)
 					}
 				}
 			}
@@ -442,8 +446,12 @@ func (s *Scheduler) fire(ctx context.Context, ws ids.WorkspaceID, jobID string, 
 		}
 		return err
 	}
+	active := s.active(ctx, ws)
 
-	// A pending retry.
+	// A pending retry (dropped while the workspace is inactive).
+	if !e.RetryAt.IsZero() && !e.RetryAt.After(now) && !active {
+		e.RetryAt, e.RetryAttempt = time.Time{}, 0
+	}
 	if !e.RetryAt.IsZero() && !e.RetryAt.After(now) {
 		attempt := e.RetryAttempt
 		e.RetryAt, e.RetryAttempt = time.Time{}, 0
@@ -465,7 +473,7 @@ func (s *Scheduler) fire(ctx context.Context, ws ids.WorkspaceID, jobID string, 
 			next = sch.Next(now)
 		}
 		e.NextRunAt = next
-		if !late || job.MisfirePolicy != "skip" {
+		if active && (!late || job.MisfirePolicy != "skip") {
 			if _, err := s.trigger(ctx, &e, job, TriggerSchedule, 1, "", nil); err != nil && !isBusy(err) {
 				return err
 			}
@@ -592,12 +600,31 @@ func (s *Scheduler) dropQueued(ctx context.Context, ws ids.WorkspaceID, run Run,
 	now := s.cfg.Clock.Now()
 	run.Status, run.FinishedAt, run.ErrorCode, run.ErrorMessage = StatusCancelled, &now, "CANCELLED", msg
 	if err := s.cfg.Store.PutRun(ctx, ws, run); err != nil {
-		s.cfg.Log.Error("job run cancel", "subsystem", "jobs", "workspace", string(ws), "run", run.ID, "err", err)
+		s.cfg.Log.Error("job run cancel", "subsystem", "jobs", "workspace_id", string(ws), "run", run.ID, "err", err)
 	}
 	s.publish(ws, run)
 }
 
 func cancelKey(ws ids.WorkspaceID, runID string) string { return string(ws) + "/" + runID }
+
+func (s *Scheduler) active(ctx context.Context, ws ids.WorkspaceID) bool {
+	return s.cfg.Active == nil || s.cfg.Active(ctx, ws)
+}
+
+// CancelWorkspace stops every started run of ws (workspace suspended).
+func (s *Scheduler) CancelWorkspace(ws ids.WorkspaceID) int {
+	prefix := string(ws) + "/"
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for k, cancel := range s.cancel {
+		if strings.HasPrefix(k, prefix) {
+			cancel()
+			n++
+		}
+	}
+	return n
+}
 
 // Cancel stops a started run of workspace ws (its status becomes cancelled).
 // Run IDs are only unique within a workspace (a restored copy shares them).
@@ -660,11 +687,16 @@ func (s *Scheduler) start(ws ids.WorkspaceID, job Job, run Run) {
 			}
 		}
 		defer release()
+		if !s.active(ctx, ws) {
+			release()
+			s.finish(ws, job, run, Result{Status: StatusCancelled, ErrorCode: "CANCELLED", ErrorMessage: "The workspace is not active."})
+			return
+		}
 
 		started := s.cfg.Clock.Now()
 		run.Status, run.StartedAt = StatusRunning, &started
 		if err := s.cfg.Store.PutRun(context.WithoutCancel(ctx), ws, run); err != nil {
-			s.cfg.Log.Error("job run start", "subsystem", "jobs", "workspace", string(ws), "run", run.ID, "err", err)
+			s.cfg.Log.Error("job run start", "subsystem", "jobs", "workspace_id", string(ws), "run", run.ID, "err", err)
 		}
 		s.publish(ws, run)
 
@@ -722,7 +754,7 @@ func (s *Scheduler) finish(ws ids.WorkspaceID, job Job, run Run, res Result) {
 	run.ErrorCode, run.ErrorMessage, run.Log = res.ErrorCode, res.ErrorMessage, TailLog(res.Log)
 	run.RowsRead, run.RowsWritten = res.RowsRead, res.RowsWritten
 	if err := s.cfg.Store.PutRun(ctx, ws, run); err != nil {
-		s.cfg.Log.Error("job run finish", "subsystem", "jobs", "workspace", string(ws), "run", run.ID, "err", err)
+		s.cfg.Log.Error("job run finish", "subsystem", "jobs", "workspace_id", string(ws), "run", run.ID, "err", err)
 	}
 	s.publish(ws, run)
 
@@ -768,7 +800,7 @@ func (s *Scheduler) finish(ws ids.WorkspaceID, job Job, run Run, res Result) {
 		return
 	}
 	if err := s.cfg.Store.PutEntry(ctx, e); err != nil {
-		s.cfg.Log.Error("job index update", "subsystem", "jobs", "workspace", string(ws), "err", err)
+		s.cfg.Log.Error("job index update", "subsystem", "jobs", "workspace_id", string(ws), "err", err)
 	}
 	s.Wake()
 }

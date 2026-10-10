@@ -358,6 +358,20 @@ func (s *Service) Cancel(ws ids.WorkspaceID, id string) bool {
 	return true
 }
 
+// CancelWorkspace stops every running operation of ws (workspace suspended).
+func (s *Service) CancelWorkspace(ws ids.WorkspaceID) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, r := range s.active {
+		if r.ws == ws {
+			r.cancel()
+			n++
+		}
+	}
+	return n
+}
+
 // Reconcile marks operations of a workspace that are recorded as running but
 // are not running in this process as failed (the process that ran them died).
 // Call it when a workspace is opened.

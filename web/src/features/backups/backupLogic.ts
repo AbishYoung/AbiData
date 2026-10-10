@@ -11,8 +11,8 @@ export const KIND_LABEL: Record<Backup["kind"], string> = {
 export const RETENTION_POLICY = [
   "Scheduled backups: the last 7 daily and 4 weekly are kept.",
   "Restore points (taken before risky changes): the last 5 are kept.",
-  "Before-restore copies: kept for 7 days.",
-  "Manual backups: kept until deleted.",
+  "Before-restore copies: the last 3 are kept, for up to 7 days.",
+  "Manual backups: kept until deleted, up to 20 per workspace.",
 ] as const;
 
 /**
