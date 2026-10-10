@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Gates 3–6 PASSED (2026-10-10). Gate 7 PASSED locally (2026-10-10); the CI run of the container-smoke job is still to be observed. Post-brief additions in progress: table-design indexes UI (merging), row history viewer (agent running).
+Gates 3–6 PASSED (2026-10-10). Gate 7 PASSED locally (2026-10-10); the CI run of the container-smoke job is still to be observed. Table Design now creates/drops indexes (per-field Indexed property + Indexes dialog; e2e `tabledesign-indexes.spec.ts`). Row history viewer (beyond the brief, user-approved) in progress.
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
