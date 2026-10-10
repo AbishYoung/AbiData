@@ -159,9 +159,14 @@ type Scheduler struct {
 	wake chan struct{}
 
 	global chan struct{}
-	mu     sync.Mutex // guards the fields below and serializes index read-modify-write
-	perWS  map[ids.WorkspaceID]chan struct{}
-	cancel map[string]context.CancelFunc // run id → cancel
+	// mu guards the maps below; it is never held across store I/O. Index
+	// read-modify-write is serialized per workspace (wsLock), so one workspace
+	// whose database is slow or busy cannot stall scheduling for the others.
+	mu      sync.Mutex
+	perWS   map[ids.WorkspaceID]chan struct{}
+	wsLocks map[ids.WorkspaceID]*sync.Mutex
+	firing  map[ids.WorkspaceID]bool
+	cancel  map[string]context.CancelFunc // run id → cancel
 	// queuedArgs holds the arguments of queued runs until they start (not persisted:
 	// a queued run that survives a restart is marked interrupted).
 	queuedArgs map[string]map[string]any
@@ -188,10 +193,25 @@ func New(cfg Config) *Scheduler {
 	}
 	return &Scheduler{
 		cfg: cfg, wake: make(chan struct{}, 1), global: make(chan struct{}, cfg.Workers),
-		perWS: map[ids.WorkspaceID]chan struct{}{}, cancel: map[string]context.CancelFunc{}, queuedArgs: map[string]map[string]any{},
+		perWS: map[ids.WorkspaceID]chan struct{}{}, wsLocks: map[ids.WorkspaceID]*sync.Mutex{}, firing: map[ids.WorkspaceID]bool{}, cancel: map[string]context.CancelFunc{}, queuedArgs: map[string]map[string]any{},
 		base: context.Background(),
 	}
 }
+
+// wsLock returns the mutex serializing ws's index updates.
+func (s *Scheduler) wsLock(ws ids.WorkspaceID) *sync.Mutex {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.wsLocks[ws]
+	if !ok {
+		m = &sync.Mutex{}
+		s.wsLocks[ws] = m
+	}
+	return m
+}
+
+// FireTimeout bounds one workspace's firing pass (its database may be busy).
+const FireTimeout = 30 * time.Second
 
 // Wake makes the loop re-read the index (after a job save, delete or restore).
 func (s *Scheduler) Wake() {
@@ -248,8 +268,9 @@ func (s *Scheduler) Rebuild(ctx context.Context, ws ids.WorkspaceID) error {
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	l := s.wsLock(ws)
+	l.Lock()
+	defer l.Unlock()
 	entries, err := s.cfg.Store.Entries(ctx, ws)
 	if err != nil {
 		return err
@@ -302,12 +323,13 @@ func (s *Scheduler) Start(ctx context.Context) {
 	s.base = ctx
 	s.mu.Unlock()
 	for {
-		if err := s.Tick(ctx); err != nil && ctx.Err() == nil {
+		if err := s.tick(ctx, false); err != nil && ctx.Err() == nil {
 			s.cfg.Log.Error("scheduler tick", "subsystem", "jobs", "err", err)
 		}
 		var timer <-chan time.Time
 		if at, ok, err := s.cfg.Store.NextWake(ctx); err == nil && ok {
-			timer = s.cfg.Clock.After(max(0, at.Sub(s.cfg.Clock.Now())))
+			// A workspace still firing keeps its entries due; don't spin on it.
+			timer = s.cfg.Clock.After(max(250*time.Millisecond, at.Sub(s.cfg.Clock.Now())))
 		} else if err != nil {
 			timer = s.cfg.Clock.After(10 * time.Second)
 		}
@@ -324,25 +346,72 @@ func (s *Scheduler) Start(ctx context.Context) {
 // Wait blocks until all started runs have finished (tests and shutdown).
 func (s *Scheduler) Wait() { s.wg.Wait() }
 
-// Tick fires everything due now. Start calls it; tests call it directly.
-func (s *Scheduler) Tick(ctx context.Context) error {
+// Tick fires everything due now and waits for it (tests call it directly).
+func (s *Scheduler) Tick(ctx context.Context) error { return s.tick(ctx, true) }
+
+// tick fires each workspace's due jobs concurrently, each pass bounded by
+// FireTimeout. Without wait (the loop), a workspace whose previous pass is
+// still running is skipped and errors are logged.
+func (s *Scheduler) tick(ctx context.Context, wait bool) error {
 	now := s.cfg.Clock.Now()
 	due, err := s.cfg.Store.Due(ctx, now)
 	if err != nil {
 		return err
 	}
-	var errs []error
+	byWS := map[ids.WorkspaceID][]string{}
+	var order []ids.WorkspaceID
 	for _, e := range due {
-		if err := s.fire(ctx, e.WS, e.JobID, now); err != nil {
-			errs = append(errs, err)
+		if _, ok := byWS[e.WS]; !ok {
+			order = append(order, e.WS)
 		}
+		byWS[e.WS] = append(byWS[e.WS], e.JobID)
+	}
+	var mu sync.Mutex
+	var errs []error
+	var wg sync.WaitGroup
+	for _, ws := range order {
+		s.mu.Lock()
+		busy := s.firing[ws]
+		if !busy {
+			s.firing[ws] = true
+		}
+		s.mu.Unlock()
+		if busy {
+			continue
+		}
+		wg.Add(1)
+		go func(ws ids.WorkspaceID, jobIDs []string) {
+			defer wg.Done()
+			defer func() {
+				s.mu.Lock()
+				delete(s.firing, ws)
+				s.mu.Unlock()
+			}()
+			fctx, cancel := context.WithTimeout(ctx, FireTimeout)
+			defer cancel()
+			for _, id := range jobIDs {
+				if err := s.fire(fctx, ws, id, now); err != nil {
+					if wait {
+						mu.Lock()
+						errs = append(errs, err)
+						mu.Unlock()
+					} else if ctx.Err() == nil {
+						s.cfg.Log.Error("job fire", "subsystem", "jobs", "workspace", string(ws), "job", id, "err", err)
+					}
+				}
+			}
+		}(ws, byWS[ws])
+	}
+	if wait {
+		wg.Wait()
 	}
 	return errors.Join(errs...)
 }
 
 func (s *Scheduler) fire(ctx context.Context, ws ids.WorkspaceID, jobID string, now time.Time) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	l := s.wsLock(ws)
+	l.Lock()
+	defer l.Unlock()
 	e, ok, err := s.entry(ctx, ws, jobID)
 	if err != nil || !ok || !e.Enabled {
 		return err
@@ -404,7 +473,7 @@ var errBusy = errors.New("jobs: already running")
 func isBusy(err error) bool { return errors.Is(err, errBusy) }
 
 // trigger applies the overlap policy and creates (and starts or queues) a run.
-// The caller holds s.mu and persists e afterwards.
+// The caller holds ws's lock and persists e afterwards.
 func (s *Scheduler) trigger(ctx context.Context, e *IndexEntry, job Job, kind string, attempt int, by string, args map[string]any) (Run, error) {
 	now := s.cfg.Clock.Now()
 	run := Run{ID: s.cfg.NewID(), JobID: job.ID, TriggerKind: kind, Status: StatusQueued, Attempt: attempt, TriggeredBy: by, QueuedAt: now, Args: mergeArgs(job.Args, args)}
@@ -417,7 +486,9 @@ func (s *Scheduler) trigger(ctx context.Context, e *IndexEntry, job Job, kind st
 			return Run{}, err
 		}
 		e.QueuedRunID = run.ID
+		s.mu.Lock()
 		s.queuedArgs[run.ID] = args
+		s.mu.Unlock()
 		s.publish(e.WS, run)
 		return run, nil
 	}
@@ -442,11 +513,17 @@ func mergeArgs(base, extra map[string]any) map[string]any {
 
 // RunNow starts (or queues, per overlap policy) a manual or enqueued run.
 func (s *Scheduler) RunNow(ctx context.Context, ws ids.WorkspaceID, jobID, kind, by string, args map[string]any) (Run, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	l := s.wsLock(ws)
+	l.Lock()
+	defer l.Unlock()
 	job, err := s.cfg.Store.Job(ctx, ws, jobID)
 	if err != nil {
 		return Run{}, err
+	}
+	// A disabled job still runs when someone presses Run now, but never from
+	// jobs.enqueue (so disabling stops a self-enqueuing chain).
+	if !job.Enabled && kind != TriggerManual {
+		return Run{}, fault.Newf(fault.BadRequest, "Job %q is disabled.", job.Name)
 	}
 	e, ok, err := s.entry(ctx, ws, jobID)
 	if err != nil {
@@ -470,10 +547,44 @@ func (s *Scheduler) RunNow(ctx context.Context, ws ids.WorkspaceID, jobID, kind,
 	return run, s.cfg.Store.PutEntry(ctx, e)
 }
 
-// Cancel stops a running run (its status becomes cancelled).
-func (s *Scheduler) Cancel(runID string) bool {
+// CancelQueued cancels a run of ws that is queued behind a running one.
+func (s *Scheduler) CancelQueued(ctx context.Context, ws ids.WorkspaceID, jobID, runID string) (bool, error) {
+	l := s.wsLock(ws)
+	l.Lock()
+	defer l.Unlock()
+	e, ok, err := s.entry(ctx, ws, jobID)
+	if err != nil || !ok || e.QueuedRunID != runID {
+		return false, err
+	}
+	run, err := s.cfg.Store.GetRun(ctx, ws, runID)
+	if err != nil {
+		return false, err
+	}
+	e.QueuedRunID = ""
+	s.dropQueued(ctx, ws, run, "Cancelled before it started.")
+	return true, s.cfg.Store.PutEntry(ctx, e)
+}
+
+// dropQueued records a queued run as cancelled without starting it.
+func (s *Scheduler) dropQueued(ctx context.Context, ws ids.WorkspaceID, run Run, msg string) {
 	s.mu.Lock()
-	c, ok := s.cancel[runID]
+	delete(s.queuedArgs, run.ID)
+	s.mu.Unlock()
+	now := s.cfg.Clock.Now()
+	run.Status, run.FinishedAt, run.ErrorCode, run.ErrorMessage = StatusCancelled, &now, "CANCELLED", msg
+	if err := s.cfg.Store.PutRun(ctx, ws, run); err != nil {
+		s.cfg.Log.Error("job run cancel", "subsystem", "jobs", "workspace", string(ws), "run", run.ID, "err", err)
+	}
+	s.publish(ws, run)
+}
+
+func cancelKey(ws ids.WorkspaceID, runID string) string { return string(ws) + "/" + runID }
+
+// Cancel stops a started run of workspace ws (its status becomes cancelled).
+// Run IDs are only unique within a workspace (a restored copy shares them).
+func (s *Scheduler) Cancel(ws ids.WorkspaceID, runID string) bool {
+	s.mu.Lock()
+	c, ok := s.cancel[cancelKey(ws, runID)]
 	s.mu.Unlock()
 	if ok {
 		c()
@@ -494,11 +605,13 @@ func (s *Scheduler) slot(ws ids.WorkspaceID) chan struct{} {
 	return ch
 }
 
-// start runs the run on the pool. The caller holds s.mu.
+// start runs the run on the pool. The caller holds ws's lock.
 func (s *Scheduler) start(ws ids.WorkspaceID, job Job, run Run) {
+	s.mu.Lock()
 	ctx, cancel := context.WithCancel(s.base)
-	s.cancel[run.ID] = cancel
+	s.cancel[cancelKey(ws, run.ID)] = cancel
 	slot := s.slot(ws)
+	s.mu.Unlock()
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -510,14 +623,24 @@ func (s *Scheduler) start(ws ids.WorkspaceID, job Job, run Run) {
 			s.finish(ws, job, run, Result{Status: StatusCancelled, ErrorCode: "CANCELLED", ErrorMessage: "Cancelled before it started."})
 			return
 		}
-		defer func() { <-slot }()
 		select {
 		case s.global <- struct{}{}:
 		case <-ctx.Done():
+			<-slot
 			s.finish(ws, job, run, Result{Status: StatusCancelled, ErrorCode: "CANCELLED", ErrorMessage: "Cancelled before it started."})
 			return
 		}
-		defer func() { <-s.global }()
+		// Slots are returned before finish records the outcome, so a slow
+		// workspace write never holds a worker.
+		released := false
+		release := func() {
+			if !released {
+				released = true
+				<-s.global
+				<-slot
+			}
+		}
+		defer release()
 
 		started := s.cfg.Clock.Now()
 		run.Status, run.StartedAt = StatusRunning, &started
@@ -548,6 +671,7 @@ func (s *Scheduler) start(ws ids.WorkspaceID, job Job, run Run) {
 		case res.Status == "":
 			res.Status = StatusSucceeded
 		}
+		release()
 		s.finish(ws, job, run, res)
 	}()
 }
@@ -582,8 +706,11 @@ func (s *Scheduler) finish(ws ids.WorkspaceID, job Job, run Run, res Result) {
 	s.publish(ws, run)
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.cancel, run.ID)
+	delete(s.cancel, cancelKey(ws, run.ID))
+	s.mu.Unlock()
+	l := s.wsLock(ws)
+	l.Lock()
+	defer l.Unlock()
 	e, ok, err := s.entry(ctx, ws, job.ID)
 	if err != nil || !ok {
 		return
@@ -598,14 +725,20 @@ func (s *Scheduler) finish(ws ids.WorkspaceID, job Job, run Run, res Result) {
 	}
 	if e.QueuedRunID != "" && e.RunningRunID == "" {
 		queued, err := s.cfg.Store.GetRun(ctx, ws, e.QueuedRunID)
+		s.mu.Lock()
 		args := s.queuedArgs[e.QueuedRunID]
 		delete(s.queuedArgs, e.QueuedRunID)
+		s.mu.Unlock()
 		e.QueuedRunID = ""
 		if err == nil && queued.Status == StatusQueued {
-			if cur, err := s.cfg.Store.Job(ctx, ws, job.ID); err == nil {
+			cur, err := s.cfg.Store.Job(ctx, ws, job.ID)
+			switch {
+			case err == nil && (cur.Enabled || queued.TriggerKind == TriggerManual):
 				queued.Args = mergeArgs(cur.Args, args)
 				e.RunningRunID = queued.ID
 				s.start(ws, cur, queued)
+			case err == nil:
+				s.dropQueued(ctx, ws, queued, "The job was disabled before this run started.")
 			}
 		}
 	}

@@ -269,10 +269,13 @@ func (s *Server) registerJobs(api huma.API) {
 			if r.FinishedAt != nil {
 				return nil, fault.New(fault.BadRequest, "The run has already finished.")
 			}
-			if !s.deps.Jobs.Scheduler.Cancel(r.ID) {
-				return nil, fault.New(fault.BadRequest, "The run is not running on this server.")
+			if s.deps.Jobs.Scheduler.Cancel(l.ID(), r.ID) {
+				return nil, nil
 			}
-			return nil, nil
+			if ok, err := s.deps.Jobs.Scheduler.CancelQueued(ctx, l.ID(), r.JobID, r.ID); err != nil || ok {
+				return nil, err
+			}
+			return nil, fault.New(fault.BadRequest, "The run is not running on this server.")
 		})
 	huma.Register(api, huma.Operation{OperationID: "getRunArtifact", Method: http.MethodGet, Path: "/api/v1/w/{ws}/runs/{run}/artifacts/{name}", Tags: tags, Metadata: builder,
 		Summary: "Download a run artifact", Errors: []int{401, 403, 404}},

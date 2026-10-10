@@ -39,6 +39,9 @@ func TestPragmasPerKind(t *testing.T) {
 	check := func(c *Conn, want map[string]string) {
 		t.Helper()
 		for k, v := range common {
+			if _, ok := want[k]; ok {
+				continue // overridden for this kind
+			}
 			if got := pragma(t, c, k); got != v {
 				t.Errorf("%s: %s = %s, want %s", c.Kind(), k, got, v)
 			}
@@ -81,7 +84,7 @@ func TestPragmasPerKind(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	check(s, map[string]string{"journal_mode": "off", "synchronous": "0"})
+	check(s, map[string]string{"journal_mode": "off", "synchronous": "0", "temp_store": "1"}) // sorts spill to disk
 
 	// Readers cannot create the file (open the writer first).
 	if _, err := Open(ctx, filepath.Join(dir, "missing.db"), Options{Kind: Reader}); err == nil {

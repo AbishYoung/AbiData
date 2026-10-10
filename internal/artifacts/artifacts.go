@@ -32,7 +32,7 @@ var nameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$`)
 
 // ValidName reports whether name is an acceptable artifact file name.
 func ValidName(name string) bool {
-	return nameRe.MatchString(name) && !strings.Contains(name, "..") && !strings.HasSuffix(name, ".meta.json")
+	return nameRe.MatchString(name) && !strings.Contains(name, "..") && !strings.HasSuffix(strings.ToLower(name), ".meta.json") // case-insensitive filesystems
 }
 
 // Info describes a stored artifact.

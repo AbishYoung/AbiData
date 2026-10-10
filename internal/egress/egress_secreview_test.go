@@ -1,24 +1,20 @@
 package egress
 
-// Phase 5 security review repros (assert current, vulnerable behaviour).
+// Phase 5 security review: regression tests.
 
 import (
 	"context"
 	"net/http"
 	"net/netip"
-	"os"
 	"sync/atomic"
 	"testing"
 )
 
-// On a redirect to a different allowlisted host, net/http drops only
+// I1 (fixed): on a redirect to a different allowlisted host, net/http drops only
 // Authorization/Cookie/WWW-Authenticate; any other credential header a job set
 // (X-Api-Key, a bearer token in a custom header) is replayed to the new host.
 // One rate-limit token also pays for the whole redirect chain (up to 6 requests).
 func TestSecReview_RedirectForwardsCustomCredentialHeaders(t *testing.T) {
-	if os.Getenv("ABIDATA_SECREVIEW") == "" {
-		t.Skip("security review repro; set ABIDATA_SECREVIEW=1")
-	}
 	e := newEnv(t)
 	var leaked atomic.Value
 	port2, _ := server(t, func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +33,7 @@ func TestSecReview_RedirectForwardsCustomCredentialHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := leaked.Load().(string)
-	if got != "secret-key|" || hits1.Load() != 1 {
-		t.Fatalf("expected X-Api-Key (but not Authorization) to reach the redirect target, got %q", got)
+	if got != "|" || hits1.Load() != 1 {
+		t.Fatalf("credential headers reached the redirect target: %q", got)
 	}
 }

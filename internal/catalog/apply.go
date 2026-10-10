@@ -33,6 +33,9 @@ type ApplyOptions struct {
 	Force       bool   // builder acknowledged breaking issues (never overrides constraint violations)
 	UserID      string // for audit and updated_by
 	BaseVersion int64  // if > 0, the schema_version the client designed against (optimistic lock)
+	// SkipRestorePoint is for internal callers undoing their own change (e.g. an
+	// import dropping the empty table it just created). Never set from requests.
+	SkipRestorePoint bool
 }
 
 // Validator inspects the changed schema inside the transaction (saved queries,
@@ -67,7 +70,7 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 	for _, op := range ops {
 		destructive = destructive || op.Destructive()
 	}
-	if mode == Apply && destructive && e.RestorePoint != nil {
+	if mode == Apply && destructive && e.RestorePoint != nil && !opt.SkipRestorePoint {
 		if err := e.RestorePoint(ctx, l); err != nil {
 			return ImpactReport{}, fmt.Errorf("restore point: %w", err)
 		}

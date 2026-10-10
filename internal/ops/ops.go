@@ -54,9 +54,14 @@ type Service struct {
 	Log        *slog.Logger
 	// MinInterval throttles progress writes and events (default 250 ms).
 	MinInterval time.Duration
+	// PerUser and PerWorkspace cap concurrently running operations (defaults
+	// 2 and 4): exports and imports hold memory and fill the artifact quota.
+	PerUser, PerWorkspace int
 
 	mu     sync.Mutex
 	active map[string]*running
+	byWS   map[ids.WorkspaceID]int
+	byUser map[string]int
 	wg     sync.WaitGroup
 	closed bool
 }
@@ -79,8 +84,35 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 	}
 	if s.active == nil {
 		s.active = map[string]*running{}
+		s.byWS = map[ids.WorkspaceID]int{}
+		s.byUser = map[string]int{}
 	}
+	ws, ukey := l.ID(), string(l.ID())+"/"+by
+	perUser, perWS := s.PerUser, s.PerWorkspace
+	if perUser <= 0 {
+		perUser = 2
+	}
+	if perWS <= 0 {
+		perWS = 4
+	}
+	if s.byUser[ukey] >= perUser || s.byWS[ws] >= perWS {
+		s.mu.Unlock()
+		return Op{}, &fault.Error{Code: fault.WorkspaceBusy, RetryAfter: 5 * time.Second,
+			Message: "Too many imports or exports are running. Wait for one to finish, then try again."}
+	}
+	s.byUser[ukey]++
+	s.byWS[ws]++
 	s.mu.Unlock()
+	reserved := true
+	unreserve := func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if reserved {
+			reserved = false
+			s.byUser[ukey]--
+			s.byWS[ws]--
+		}
+	}
 
 	op := Op{ID: ids.New(), Kind: kind, Status: Running, CreatedBy: by, CreatedAt: time.Now().UTC()}
 	if err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
@@ -88,10 +120,12 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 			op.ID, kind, Running, by, sqlitex.FormatTime(op.CreatedAt))
 		return err
 	}); err != nil {
+		unreserve()
 		return Op{}, err
 	}
 	own, err := s.Workspaces.Acquire(context.WithoutCancel(ctx), l.ID())
 	if err != nil {
+		unreserve()
 		return Op{}, err
 	}
 	octx, cancel := context.WithCancel(context.Background())
@@ -104,6 +138,7 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		defer unreserve()
 		defer own.Release()
 		defer cancel()
 		p := &Progress{s: s, l: own, op: &op, r: r}

@@ -1,16 +1,15 @@
 package jobs_test
 
-// Phase 5 security review repros (assert current, vulnerable behaviour).
+// Phase 5 security review: regression tests.
 
 import (
-	"os"
 	"testing"
 	"time"
 
 	"abidata/internal/jobs"
 )
 
-// A job that enqueues itself (overlap_policy=queue) runs back to back forever:
+// L2 (fixed): a job that enqueued itself (overlap_policy=queue) ran back to back forever:
 // finish() starts the queued run without checking job.Enabled and RunNow /
 // Enqueue never look at it either, there is no enqueue depth or rate limit, and
 // queued runs cannot be cancelled (Scheduler.Cancel only knows started runs).
@@ -18,9 +17,6 @@ import (
 // adds a _sys_job_runs row, so the chain also grows the workspace file until
 // QUOTA_EXCEEDED.
 func TestSecReview_SelfEnqueueSurvivesDisable(t *testing.T) {
-	if os.Getenv("ABIDATA_SECREVIEW") == "" {
-		t.Skip("security review repro; set ABIDATA_SECREVIEW=1")
-	}
 	e := setup(t)
 	sid := e.script(t, "Loop", `pcall(jobs.enqueue, "Loop")`)
 	job, err := e.svc.Put(e.ctx, e.l, "", 0, jobs.JobInput{Name: "Loop", ScriptID: sid, OverlapPolicy: "queue"}, "u1")
@@ -39,24 +35,11 @@ func TestSecReview_SelfEnqueueSurvivesDisable(t *testing.T) {
 		runs, _ := e.svc.Runs(e.ctx, e.l, job.ID, 200, time.Time{})
 		return len(runs)
 	}
-	before := count()
-	deadline := time.Now().Add(5 * time.Second)
-	for count() < before+10 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	// After at most the in-flight run and its queued successor, the chain stops.
+	time.Sleep(300 * time.Millisecond)
+	settled := count()
+	time.Sleep(500 * time.Millisecond)
+	if after := count(); after != settled {
+		t.Fatalf("the disabled job kept re-running itself: %d -> %d", settled, after)
 	}
-	after := count()
-	// Stop the chain: deleting the job is the only lever.
-	for i := 0; i < 50; i++ {
-		j, err := e.svc.Get(e.ctx, e.l, job.ID)
-		if err != nil {
-			break
-		}
-		if e.svc.Delete(e.ctx, e.l, j.ID, j.Version) == nil {
-			break
-		}
-	}
-	if after < before+10 {
-		t.Fatalf("expected the disabled job to keep re-running itself; runs %d -> %d", before, after)
-	}
-	t.Logf("disabled job ran %d more times within the window", after-before)
 }

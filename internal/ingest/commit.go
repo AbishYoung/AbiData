@@ -123,6 +123,23 @@ func (s *Service) runImport(ctx context.Context, l *workspace.Lease, id, by stri
 			em.Columns = append(em.Columns, ColumnMap{Source: p.Cols[i].Src, ColumnID: c.ID})
 		}
 		p.NewSpec = nil
+		origMapping := *meta.Mapping
+		defer func() {
+			// An import that wrote nothing (all-or-nothing rollback, or failure
+			// before the first chunk) removes the table it created, so it
+			// rolls back fully and a retry creates the table again.
+			if err == nil || res.Inserted+res.Updated > 0 {
+				return
+			}
+			dctx := context.WithoutCancel(ctx)
+			if _, derr := s.Catalog.Run(dctx, l, []catalog.Op{{Kind: catalog.OpDropTable, TableID: t.ID}}, catalog.Apply,
+				catalog.ApplyOptions{UserID: by, Force: true, SkipRestorePoint: true}); derr != nil {
+				return
+			}
+			res.TableCreated = false
+			meta.Mapping = &origMapping
+			_ = saveMeta(dctx, src, meta)
+		}()
 		meta.Mapping = &em
 		_ = saveMeta(ctx, src, meta)
 	}

@@ -556,7 +556,7 @@ func TestTimeoutAndCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.waitStarted(2)
-	if !r.s.Cancel(run.ID) {
+	if !r.s.Cancel(ws, run.ID) {
 		t.Fatal("cancel")
 	}
 	r.settle()

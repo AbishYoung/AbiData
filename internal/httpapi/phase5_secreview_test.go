@@ -1,10 +1,9 @@
 package httpapi
 
-// Phase 5 security review repros (assert current, vulnerable behaviour).
+// Phase 5 security review: regression tests.
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -13,21 +12,13 @@ import (
 	"abidata/internal/jobs"
 )
 
-func secreview(t *testing.T) {
-	t.Helper()
-	if os.Getenv("ABIDATA_SECREVIEW") == "" {
-		t.Skip("security review repro; set ABIDATA_SECREVIEW=1")
-	}
-}
-
-// POST /exports has no role metadata (viewer and up) and the operations service
-// has no per-user or per-workspace concurrency limit. Every export runs at once
+// M4 (fixed): POST /exports is open to viewers and the operations service had
+// no per-user or per-workspace concurrency limit. Every export runs at once
 // in its own goroutine (a saved-query export buffers up to 64 MiB of rows) and
 // every result is charged to the workspace's shared artifact quota for 30 days,
 // so a viewer can exhaust memory/CPU and fill the quota that builders' job
 // artifacts.save calls need.
 func TestSecReview_ViewerUnboundedExports(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	ws, _, owner, _, _, _ := roles(t, e)
 	e.user("v@example.com", false)
@@ -57,22 +48,19 @@ func TestSecReview_ViewerUnboundedExports(t *testing.T) {
 			break
 		}
 	}
-	if accepted < 40 {
-		t.Fatalf("expected no export limit for viewers, %d accepted", accepted)
+	if accepted >= 40 {
+		t.Fatalf("a viewer started %d concurrent exports", accepted)
 	}
-	time.Sleep(200 * time.Millisecond)
-	used, _ := e.s.deps.Artifacts.Usage(wsID)
-	t.Logf("viewer started %d exports; workspace artifact usage now %d bytes", accepted, used)
+	t.Logf("viewer was limited after %d concurrent exports", accepted)
 }
 
-// Scheduler.Cancel is keyed by run id only. cancelJobRun checks that the run id
+// L1 (fixed): Scheduler.Cancel was keyed by run id only. cancelJobRun checks that the run id
 // exists in the caller's workspace DB and then cancels whatever live run has
 // that id, in any workspace. Run ids are copied verbatim when a workspace file
 // is duplicated (restore-as-new, Phase 6), so a member of the copy can cancel
 // the original's live runs. ops.Cancel already checks the workspace; the job
 // path does not.
 func TestSecReview_CrossWorkspaceRunCancel(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	ws1, _, _, b, _, _ := roles(t, e)
 	base1 := "/api/v1/w/" + ws1
@@ -99,22 +87,14 @@ func TestSecReview_CrossWorkspaceRunCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if st, body, _ := other.do("POST", base2+"/runs/"+rid+"/cancel", nil); st != 202 {
-		t.Fatalf("expected the foreign cancel to be accepted, got %d %v", st, body)
+	if st, _, _ := other.do("POST", base2+"/runs/"+rid+"/cancel", nil); st == 202 {
+		t.Fatal("tenant 2's cancel was accepted")
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		_, d, _ := b.do("GET", base1+"/runs/"+rid, nil)
-		if d["finished_at"] != nil {
-			if d["status"] != "cancelled" {
-				t.Fatalf("tenant 1 run ended %v", d["status"])
-			}
-			t.Log("tenant 2 cancelled tenant 1's running job")
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("tenant 1 run was not cancelled")
-		}
-		time.Sleep(20 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
+	if _, d, _ := b.do("GET", base1+"/runs/"+rid, nil); d["finished_at"] != nil {
+		t.Fatalf("tenant 1's run was stopped: %v", d["status"])
+	}
+	if st, _, _ := b.do("POST", base1+"/runs/"+rid+"/cancel", nil); st != 202 {
+		t.Fatalf("own cancel %d", st)
 	}
 }

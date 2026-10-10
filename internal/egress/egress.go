@@ -413,9 +413,20 @@ func (g *Gateway) do(ctx context.Context, ws ids.WorkspaceID, u *url.URL, req Re
 
 	client := &http.Client{
 		Transport: &policyRT{g: g, global: global, allow: allow},
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+		CheckRedirect: func(next *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
 				return fault.New(fault.EgressFailed, "Too many redirects.")
+			}
+			// Each hop is a request: it costs a rate-limit token.
+			if !g.allow(ws) {
+				return fault.New(fault.RateLimited, "Too many outbound requests from this workspace; try again in a minute.")
+			}
+			// Script-set headers (API keys, tokens) never follow a redirect to
+			// another host; net/http only strips Authorization and Cookie.
+			if !strings.EqualFold(next.URL.Host, via[0].URL.Host) {
+				ua := next.Header.Get("User-Agent")
+				next.Header = http.Header{} //nolint:gosec // G119 false positive: this clears headers on a cross-host hop
+				next.Header.Set("User-Agent", ua)
 			}
 			return nil
 		},

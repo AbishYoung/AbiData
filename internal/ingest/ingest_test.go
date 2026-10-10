@@ -872,3 +872,33 @@ func TestSweep(t *testing.T) {
 }
 
 var _ = errors.Is
+
+// Phase 5 review I2: an all_or_nothing import into a new table that fails
+// leaves no table behind, and a retry creates it again.
+func TestAllOrNothingNewTableRollsBack(t *testing.T) {
+	e := newEnv(t)
+	m := e.upload("n.csv", "a,n\nx,1\ny,oops\n", UploadOptions{})
+	mp := ImportMapping{Mode: ModeAppend, Transaction: TxAllOrNothing, NewTable: &NewTable{Name: "Fresh", Columns: []NewColumn{
+		{Source: 0, Name: "A", Type: catalog.ShortText}, {Source: 1, Name: "N", Type: catalog.Integer}}}}
+	if _, err := e.svc.SetMapping(e.ctx, e.l, m.ID, mp); err != nil {
+		t.Fatal(err)
+	}
+	op := e.commit(m.ID)
+	if op.Status != ops.Failed {
+		t.Fatalf("%+v", op)
+	}
+	sch, err := e.svc.Schemas.Get(e.ctx, e.l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tb := range sch.Tables {
+		if tb.DisplayName == "Fresh" {
+			t.Fatal("the failed import left its new table behind")
+		}
+	}
+	// The stored mapping still creates the table, so fixing the data and retrying works.
+	view, err := e.svc.Get(e.ctx, e.ws, m.ID)
+	if err != nil || view.Mapping == nil || view.Mapping.NewTable == nil {
+		t.Fatalf("mapping after rollback: %+v %v", view.Mapping, err)
+	}
+}

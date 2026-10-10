@@ -95,3 +95,14 @@ func TestSweep(t *testing.T) {
 		t.Fatal("new run swept")
 	}
 }
+
+func TestValidNameRejectsMetaSidecarAnyCase(t *testing.T) {
+	for _, n := range []string{"x.meta.json", "x.META.JSON", "x.Meta.Json"} {
+		if ValidName(n) {
+			t.Errorf("%q accepted", n)
+		}
+	}
+	if !ValidName("report.json") {
+		t.Error("report.json rejected")
+	}
+}
