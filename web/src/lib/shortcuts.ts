@@ -66,7 +66,7 @@ export interface Shortcut {
 
 export const SHORTCUTS: readonly Shortcut[] = [
   { id: "palette", action: "Open the command palette", keys: "Mod+K", scope: "Everywhere" },
-  { id: "docs", action: "Open the documentation", keys: "?", scope: "Everywhere, except while typing in a field" },
+  { id: "docs", action: "Open the documentation", keys: "?", scope: "Everywhere, except in text fields, editors and datasheets" },
   { id: "tab.close", action: "Close the focused tab", keys: "Delete", scope: "Tab strip" },
   { id: "design.save", action: "Save the design", keys: "Mod+S", scope: "Table design, queries, forms, reports, scripts, jobs" },
 

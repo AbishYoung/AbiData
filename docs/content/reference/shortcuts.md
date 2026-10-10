@@ -11,7 +11,7 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 | Action | Mac | Windows / Linux | Where it applies |
 |---|---|---|---|
 | Open the command palette | `⌘ K` | `Ctrl+K` | Everywhere |
-| Open the documentation | `?` | `?` | Everywhere, except while typing in a field |
+| Open the documentation | `?` | `?` | Everywhere, except in text fields, editors and datasheets |
 | Close the focused tab | `Delete` | `Delete` | Tab strip |
 | Save the design | `⌘ S` | `Ctrl+S` | Table design, queries, forms, reports, scripts, jobs |
 | Move between cells and records | `Arrow keys` | `Arrow keys` | Datasheet |
