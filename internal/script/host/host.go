@@ -37,10 +37,25 @@ type Data struct {
 	// the run has no network access).
 	Fetch func(ctx context.Context, req egress.Request) (*egress.Response, error)
 
+	// Enqueue queues a run of the named job (jobs.enqueue; ui_event and job contexts).
+	Enqueue func(ctx context.Context, jobName string, args map[string]any) (runID string, err error)
+
+	// Job describes the running job (job context only).
+	Job *JobRun
+
 	// UI holds form-event state (ui_event context only).
 	UI *UISession
 	// Extra carries context-specific values (job args, run id, …).
 	Extra map[string]any
+}
+
+// JobRun is the job-context binding: the run's identity and arguments, and
+// artifact storage for the run.
+type JobRun struct {
+	JobID, JobName, RunID string
+	Args                  map[string]any
+	// SaveArtifact stores content as a named artifact of this run and returns its size.
+	SaveArtifact func(name, mime string, content []byte) (int64, error)
 }
 
 // Tx returns the active db.transaction, if any.

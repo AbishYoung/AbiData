@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -28,12 +27,19 @@ func fmtT(t time.Time) any {
 	return sqlitex.FormatTime(t)
 }
 
-func parseT(s sql.NullString) time.Time {
-	if !s.Valid || s.String == "" {
+func parseT(s *string) time.Time {
+	if s == nil || *s == "" {
 		return time.Time{}
 	}
-	t, _ := sqlitex.ParseTime(s.String)
+	t, _ := sqlitex.ParseTime(*s)
 	return t
+}
+
+func str(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 const indexCols = `workspace_id, job_id, spec, next_run_at, retry_at, retry_attempt, enabled, running_run_id, queued_run_id, last_status`
@@ -44,13 +50,13 @@ func scanEntries(rows *sqlitex.Rows) ([]IndexEntry, error) {
 	for rows.Next() {
 		var e IndexEntry
 		var ws string
-		var next, retry, running, queued, last sql.NullString
+		var next, retry, running, queued, last *string
 		var enabled int
 		if err := rows.Scan(&ws, &e.JobID, &e.Spec, &next, &retry, &e.RetryAttempt, &enabled, &running, &queued, &last); err != nil {
 			return nil, err
 		}
 		e.WS, e.NextRunAt, e.RetryAt, e.Enabled = ids.WorkspaceID(ws), parseT(next), parseT(retry), enabled == 1
-		e.RunningRunID, e.QueuedRunID, e.LastStatus = running.String, queued.String, last.String
+		e.RunningRunID, e.QueuedRunID, e.LastStatus = str(running), str(queued), str(last)
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -71,7 +77,7 @@ func (s *SQLStore) Due(ctx context.Context, now time.Time) ([]IndexEntry, error)
 }
 
 func (s *SQLStore) NextWake(ctx context.Context) (time.Time, bool, error) {
-	var v sql.NullString
+	var v *string
 	err := s.Admin.Read(ctx, func(c *sqlitex.Conn) error {
 		return c.QueryRow(ctx, `SELECT min(t) FROM (
 			SELECT min(next_run_at) AS t FROM _adm_job_index WHERE enabled = 1
@@ -154,14 +160,14 @@ const JobCols = `id, name, script_id, schedule, timezone, enabled, timeout_secon
 // ScanJob scans one _sys_jobs row selected with JobCols.
 func ScanJob(rows *sqlitex.Rows) (Job, error) {
 	var j Job
-	var schedule sql.NullString
+	var schedule *string
 	var enabled int
 	var args, updated string
 	if err := rows.Scan(&j.ID, &j.Name, &j.ScriptID, &schedule, &j.Timezone, &enabled, &j.TimeoutSeconds, &j.OverlapPolicy,
 		&j.MisfirePolicy, &j.MaxRetries, &j.RetryBackoff, &args, &j.Version, &updated, &j.UpdatedBy); err != nil {
 		return Job{}, err
 	}
-	j.Schedule, j.Enabled = schedule.String, enabled == 1
+	j.Schedule, j.Enabled = str(schedule), enabled == 1
 	j.UpdatedAt, _ = sqlitex.ParseTime(updated)
 	if err := json.Unmarshal([]byte(args), &j.Args); err != nil {
 		return Job{}, err
@@ -225,13 +231,13 @@ const RunCols = `id, job_id, trigger_kind, status, attempt, triggered_by, queued
 // ScanRun scans one _sys_job_runs row selected with RunCols.
 func ScanRun(rows *sqlitex.Rows) (Run, error) {
 	var r Run
-	var by, started, finished, code, msg sql.NullString
+	var by, started, finished, code, msg *string
 	var queued string
 	if err := rows.Scan(&r.ID, &r.JobID, &r.TriggerKind, &r.Status, &r.Attempt, &by, &queued, &started, &finished,
 		&r.RowsRead, &r.RowsWritten, &code, &msg, &r.Log); err != nil {
 		return Run{}, err
 	}
-	r.TriggeredBy, r.ErrorCode, r.ErrorMessage = by.String, code.String, msg.String
+	r.TriggeredBy, r.ErrorCode, r.ErrorMessage = str(by), str(code), str(msg)
 	r.QueuedAt, _ = sqlitex.ParseTime(queued)
 	if t := parseT(started); !t.IsZero() {
 		r.StartedAt = &t

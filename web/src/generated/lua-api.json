@@ -1,5 +1,42 @@
 [
   {
+    "name": "artifacts",
+    "doc": "Files a job run produces, downloadable from the run's history.",
+    "contexts": [
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "save",
+        "signature": "artifacts.save(name, content, {mime}?) → {name, size}",
+        "params": [
+          {
+            "name": "name",
+            "type": "string",
+            "doc": "File name: letters, digits, spaces, '.', '_' or '-' (at most 128 characters). Saving the same name again replaces it."
+          },
+          {
+            "name": "content",
+            "type": "string",
+            "doc": "File content (at most 16 MiB)."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "mime: the media type (default from the file extension).",
+            "optional": true
+          }
+        ],
+        "errors": [
+          "BAD_REQUEST: invalid name",
+          "QUOTA_EXCEEDED: artifact storage full or too many artifacts in this run"
+        ],
+        "doc": "Saves a file for this run, within the workspace's artifact quota.",
+        "example": "artifacts.save(\"summary.csv\", csv.encode(rows, {columns = {\"id\", \"total\"}}))"
+      }
+    ]
+  },
+  {
     "name": "csv",
     "doc": "CSV parsing and writing (RFC 4180 quoting). All cell values are strings when parsing; a leading UTF-8 byte-order mark is ignored. Rows may have differing lengths. Unknown option names raise an error.",
     "contexts": [
@@ -493,6 +530,72 @@
       }
     ],
     "global": true
+  },
+  {
+    "name": "job",
+    "doc": "The running job.",
+    "contexts": [
+      "job"
+    ],
+    "functions": null,
+    "values": [
+      {
+        "name": "id",
+        "type": "string",
+        "doc": "Job id."
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "doc": "Job name."
+      },
+      {
+        "name": "run_id",
+        "type": "string",
+        "doc": "This run's id."
+      },
+      {
+        "name": "args",
+        "type": "table",
+        "doc": "The job's args, with any enqueue args merged over them."
+      }
+    ],
+    "global": true
+  },
+  {
+    "name": "jobs",
+    "doc": "Starts background jobs.",
+    "contexts": [
+      "ui_event",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "enqueue",
+        "signature": "jobs.enqueue(name, args?) → run_id",
+        "params": [
+          {
+            "name": "name",
+            "type": "string",
+            "doc": "Job name."
+          },
+          {
+            "name": "args",
+            "type": "table",
+            "doc": "Arguments merged over the job's own args (string keys; JSON-compatible values).",
+            "optional": true
+          }
+        ],
+        "returns": "The new run's id. The run starts as soon as a worker is free, following the job's overlap policy.",
+        "errors": [
+          "NOT_FOUND: no job with that name",
+          "FORBIDDEN: the job does not allow enqueue from forms",
+          "WORKSPACE_BUSY: the job is already running (overlap policy)"
+        ],
+        "doc": "Queues a run of a job. From a form, the user must be an editor or above and the job's args must contain allow_enqueue = true.",
+        "example": "local run = jobs.enqueue(\"Send invoices\", {customer = record.id})"
+      }
+    ]
   },
   {
     "name": "json",
