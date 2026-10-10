@@ -19,6 +19,7 @@ import { DeleteTableDialog, RenameTableDialog } from "./TableCrudDialogs";
 import { ScriptsGroupBody } from "./ScriptNavItem";
 import { ReportsGroupBody } from "./ReportNavItem";
 import { FormsGroupBody } from "./FormNavItem";
+import { JobsGroupBody } from "./JobNavItem";
 import { TableNavItem, tableActions } from "./TableNavItem";
 import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
@@ -101,6 +102,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
     openTab(ws, { key: `script:new:${n}`, kind: "script", objectId: null, view: "design", title: n === 1 ? "New script" : `New script ${n}` });
   }
 
+  function newJob(): void {
+    let n = 1;
+    while (tabs.some((t) => t.key === `job:new:${n}`)) n++;
+    openTab(ws, { key: `job:new:${n}`, kind: "job", objectId: null, view: "design", title: n === 1 ? "New job" : `New job ${n}` });
+  }
+
   function newForm(): void {
     let n = 1;
     while (tabs.some((t) => t.key === `form:new:${n}`)) n++;
@@ -138,7 +145,7 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1">
-        {GROUPS.filter((g) => g.id !== "scripts" || design).map((g) => {
+        {GROUPS.filter((g) => (g.id !== "scripts" && g.id !== "jobs") || design).map((g) => {
           const open = !collapsed.has(g.id);
           const Icon = g.icon;
           const panelId = `nav-group-${g.id}`;
@@ -186,6 +193,17 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={newForm}
                     aria-label="New form"
                     title="New form"
+                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                  </button>
+                )}
+                {g.id === "jobs" && design && (
+                  <button
+                    type="button"
+                    onClick={newJob}
+                    aria-label="New job"
+                    title="New job"
                     className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
                   >
                     <Plus size={16} aria-hidden="true" />
@@ -277,7 +295,8 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
               {open && g.id === "reports" && (
                 <ReportsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} design={design} />
               )}
-              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && g.id !== "forms" && g.id !== "reports" && (
+              {open && g.id === "jobs" && <JobsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} />}
+              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && g.id !== "forms" && g.id !== "reports" && g.id !== "jobs" && (
                 <p id={panelId} className="px-9 py-1 text-sm text-fg-muted">
                   {searching ? `No ${g.noun} match “${query.trim()}”` : `No ${g.noun} yet`}
                 </p>

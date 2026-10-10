@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 /** A document tab in the workspace (brief: each object opens as a tab). */
-export type TabKind = "table" | "query" | "form" | "script" | "report";
-/** Views: tables datasheet/design; queries datasheet/design/sql; forms form/design; reports report/design; scripts design. */
+export type TabKind = "table" | "query" | "form" | "script" | "report" | "job" | "settings";
+/** Views: tables datasheet/design; queries datasheet/design/sql; forms form/design; reports report/design; scripts, jobs and settings design. */
 export type TableView = "datasheet" | "design" | "sql" | "form" | "report";
 
 export interface Tab {

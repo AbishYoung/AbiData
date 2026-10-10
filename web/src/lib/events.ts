@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { handleOperationProgress, useActiveOperationsStore } from "./operations";
 
 /** Connection state derived from the real EventSource (no decorative status). */
 export type LiveState = "live" | "reconnecting" | "offline";
@@ -18,6 +19,10 @@ export const keys = {
   rows: (ws: string, tableId: string) => ["rows", ws, tableId] as const,
   rowsAll: (ws: string) => ["rows", ws] as const,
   count: (ws: string, tableId: string) => ["count", ws, tableId] as const,
+  /** A job's run history pages (useInfiniteQuery). */
+  jobRuns: (ws: string, jobId: string) => ["jobs", ws, "runs", jobId] as const,
+  /** One run with its log and artifacts. */
+  jobRun: (ws: string, runId: string) => ["jobs", ws, "run", runId] as const,
 };
 
 interface RowsChanged {
@@ -36,7 +41,7 @@ function parse<T>(e: MessageEvent): T | null {
 }
 
 /** design.changed kind → query-key prefix of that object type's cache. */
-const DESIGN_PREFIX: Record<string, string> = { query: "queries", form: "forms", report: "reports", script: "scripts" };
+const DESIGN_PREFIX: Record<string, string> = { query: "queries", form: "forms", report: "reports", script: "scripts", job: "jobs" };
 
 export function handleEvent(qc: QueryClient, ws: string, type: string, e: MessageEvent): void {
   switch (type) {
@@ -60,7 +65,20 @@ export function handleEvent(qc: QueryClient, ws: string, type: string, e: Messag
       if (prefix) void qc.invalidateQueries({ queryKey: [prefix, ws] });
       break;
     }
+    case "job.run": {
+      // A run changed status: refresh that job's history and that run's detail.
+      const d = parse<{ id?: string; job_id?: string }>(e);
+      if (d?.job_id) void qc.invalidateQueries({ queryKey: keys.jobRuns(ws, d.job_id) });
+      else void qc.invalidateQueries({ queryKey: ["jobs", ws, "runs"] });
+      if (d?.id) void qc.invalidateQueries({ queryKey: keys.jobRun(ws, d.id) });
+      break;
+    }
+    case "operation.progress":
+      handleOperationProgress(qc, ws, parse<unknown>(e));
+      break;
     case "reset":
+      useActiveOperationsStore.getState().clear(ws);
+      void qc.invalidateQueries({ queryKey: ["operations", ws] });
       void qc.invalidateQueries({ queryKey: keys.schema(ws) });
       void qc.invalidateQueries({ queryKey: keys.rowsAll(ws) });
       void qc.invalidateQueries({ queryKey: ["count", ws] });

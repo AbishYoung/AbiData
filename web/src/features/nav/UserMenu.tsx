@@ -1,6 +1,6 @@
 import { DropdownMenu } from "radix-ui";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, LogOut, User } from "lucide-react";
+import { Check, ChevronDown, LogOut, Settings, User } from "lucide-react";
 import { queryClient } from "@/app/queryClient";
 import { useLogout, type Me } from "@/lib/session";
 import { isThemePref, useThemeStore } from "@/lib/theme";
@@ -9,7 +9,7 @@ import { btn } from "@/components/styles";
 const item =
   "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft";
 
-export function UserMenu({ me }: { me: Me }) {
+export function UserMenu({ me, onWorkspaceSettings }: { me: Me; onWorkspaceSettings?: () => void }) {
   const navigate = useNavigate();
   const pref = useThemeStore((s) => s.pref);
   const setPref = useThemeStore((s) => s.setPref);
@@ -28,6 +28,15 @@ export function UserMenu({ me }: { me: Me }) {
           sideOffset={4}
           className="z-50 min-w-48 rounded-md border border-border bg-surface p-1 text-fg shadow-lg"
         >
+          {onWorkspaceSettings && (
+            <>
+              <DropdownMenu.Item className={item} onSelect={onWorkspaceSettings}>
+                <Settings size={16} aria-hidden="true" />
+                Workspace settings
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className="my-1 h-px bg-border" />
+            </>
+          )}
           <DropdownMenu.Label className="px-2 py-1 text-xs text-fg-muted">Theme</DropdownMenu.Label>
           <DropdownMenu.RadioGroup
             value={pref}
