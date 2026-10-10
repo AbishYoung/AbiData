@@ -3,6 +3,7 @@ package all
 
 import (
 	_ "abidata/internal/script/modules/db"      // db
+	_ "abidata/internal/script/modules/fetch"   // fetch (jobs)
 	_ "abidata/internal/script/modules/records" // records
 	_ "abidata/internal/script/modules/ui"      // event, record, ui, notify, workspace
 )

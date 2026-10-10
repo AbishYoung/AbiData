@@ -53,6 +53,24 @@ type Run struct {
 	// hostErr is the classified error a host function raised; if the script does
 	// not catch it, the run fails with this error instead of SCRIPT_ERROR.
 	hostErr *fault.Error
+	// shared holds per-run values modules share with each other (see Shared).
+	shared map[string]any
+}
+
+// Shared returns the run-scoped value for key, creating it with mk on first use.
+// Modules use it to share state within one run (e.g. the JSON array/object
+// metatables, so values decoded by fetch re-encode correctly). Values never
+// outlive the run, so nothing leaks between runs on a pooled VM.
+func (r *Run) Shared(key string, mk func() any) any {
+	if v, ok := r.shared[key]; ok {
+		return v
+	}
+	if r.shared == nil {
+		r.shared = map[string]any{}
+	}
+	v := mk()
+	r.shared[key] = v
+	return v
 }
 
 // RaiseFault raises err (classified) as a Lua error. Scripts may catch it with

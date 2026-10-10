@@ -459,6 +459,42 @@
     "global": true
   },
   {
+    "name": "fetch",
+    "doc": "Makes an HTTP request from a job. Only https hosts in the workspace's egress allowlist (and the platform policy) are reachable; private and internal addresses are always refused, including after redirects (at most 5).",
+    "contexts": [
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "fetch",
+        "signature": "fetch(url, {method, headers, body, timeout_ms, max_bytes}?) → response",
+        "params": [
+          {
+            "name": "url",
+            "type": "string",
+            "doc": "Absolute https URL."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "method (default GET); headers (string → string); body (string); timeout_ms (default 10000, at most 30000); max_bytes (default 2 MiB, at most 10 MiB).",
+            "optional": true
+          }
+        ],
+        "returns": "{status, ok, headers, body, json()}: ok is true for 2xx; header names are lower-case; response:json() decodes the body like json.decode.",
+        "errors": [
+          "EGRESS_DENIED: host, port or address not allowed",
+          "EGRESS_RESPONSE_TOO_LARGE: body larger than max_bytes",
+          "EGRESS_FAILED: network error or timeout",
+          "RATE_LIMITED: too many requests from this workspace"
+        ],
+        "doc": "Sends the request and reads the whole response.",
+        "example": "local r = fetch(\"https://api.example.com/rates\", {headers = {Accept = \"application/json\"}})\nif r.ok then log.info(\"rates\", {count = #r:json().items}) end"
+      }
+    ],
+    "global": true
+  },
+  {
     "name": "json",
     "doc": "JSON encoding and decoding.\n\nEncoding rules: tables with keys exactly 1..n (n \u003e= 1) or marked with json.array become arrays; an empty unmarked table becomes {}; other tables become objects with sorted keys (keys must be strings or numbers). json.null and db.NULL become null; decimals become JSON strings. Integral numbers within +/-2^53 are written without a decimal point; NaN and infinity raise. Nesting deeper than 100 levels and cycles raise.\n\nDecoding maps objects to tables, arrays to tables marked as arrays (so they re-encode as arrays even when empty), null to json.null, and integers beyond +/-2^53 to strings to avoid precision loss.\n\njson.array and json.object mark a table by giving it a private metatable. Calling setmetatable on a marked table replaces the metatable and drops the mark.",
     "contexts": [

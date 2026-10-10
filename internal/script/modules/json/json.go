@@ -87,9 +87,36 @@ type mod struct {
 	nullDB   *lua.LUserData
 }
 
+// state returns the run's json module state (shared with Decode callers).
+func state(r *script.Run) *mod {
+	return r.Shared("json", func() any {
+		L := r.L
+		return &mod{r: r, arrayMT: L.NewTable(), objectMT: L.NewTable(), null: r.Sentinel(script.JSONNullName), nullDB: r.Sentinel(script.NullName)}
+	}).(*mod)
+}
+
+// Decode parses s as JSON into Lua values exactly like json.decode in the same run.
+func Decode(r *script.Run, s string) (lua.LValue, error) {
+	m := state(r)
+	dec := json.NewDecoder(strings.NewReader(s))
+	dec.UseNumber()
+	var v any
+	err := dec.Decode(&v)
+	if err == nil {
+		var extra any
+		if e2 := dec.Decode(&extra); !errors.Is(e2, io.EOF) {
+			err = errors.New("unexpected data after the top-level value")
+		}
+	}
+	if err != nil {
+		return lua.LNil, err
+	}
+	return (&decoder{m: m, L: r.L}).convert(v, 0)
+}
+
 func build(r *script.Run) lua.LValue {
 	L := r.L
-	m := &mod{r: r, arrayMT: L.NewTable(), objectMT: L.NewTable(), null: r.Sentinel(script.JSONNullName), nullDB: r.Sentinel(script.NullName)}
+	m := state(r)
 	t := L.NewTable()
 	t.RawSetString("null", m.null)
 	t.RawSetString("array", L.NewFunction(func(L *lua.LState) int { return m.mark(L, m.arrayMT) }))
@@ -373,24 +400,7 @@ type decoder struct {
 }
 
 func (m *mod) decode(L *lua.LState) int {
-	s := L.CheckString(1)
-	dec := json.NewDecoder(strings.NewReader(s))
-	dec.UseNumber()
-	var v any
-	err := dec.Decode(&v)
-	if err == nil {
-		var extra any
-		if e2 := dec.Decode(&extra); !errors.Is(e2, io.EOF) {
-			err = errors.New("unexpected data after the top-level value")
-		}
-	}
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
-	}
-	d := &decoder{m: m, L: L}
-	lv, err := d.convert(v, 0)
+	lv, err := Decode(m.r, L.CheckString(1))
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))

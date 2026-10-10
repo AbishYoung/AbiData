@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"abidata/internal/catalog"
+	"abidata/internal/egress"
 	"abidata/internal/records"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -31,6 +32,10 @@ type Data struct {
 
 	// afterCommit runs when the enclosing db.transaction commits (change feed).
 	afterCommit []func()
+
+	// Fetch performs an egress-checked HTTP request (job context only; nil when
+	// the run has no network access).
+	Fetch func(ctx context.Context, req egress.Request) (*egress.Response, error)
 
 	// UI holds form-event state (ui_event context only).
 	UI *UISession
