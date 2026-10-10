@@ -727,3 +727,76 @@ func PurgeIdempotency(ctx context.Context, l *workspace.Lease, now time.Time) er
 		return err
 	})
 }
+
+// ---- in-transaction variants (Lua db.transaction blocks) -------------------
+
+// TxResult is a row change made inside a caller-owned transaction; Publish
+// must be called only after that transaction commits.
+type TxResult struct {
+	Row     Row
+	Publish func()
+}
+
+func (s *Service) publisher(ws string, c *change) func() {
+	return func() {
+		if s.Events != nil {
+			s.publish(ws, c)
+		}
+	}
+}
+
+// InsertTx inserts within tx.
+func (s *Service) InsertTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *catalog.Schema, t *catalog.Table, fields map[string]any, actor Actor) (TxResult, error) {
+	cols, vals, err := decodeFields(t, fields)
+	if err != nil {
+		return TxResult{}, err
+	}
+	r, err := insertRow(ctx, tx, sch, t, cols, vals)
+	if err != nil {
+		return TxResult{}, translate(t, err)
+	}
+	if err := s.history(ctx, tx, t, r.ID, r.Version, "insert", actor, nil, &r); err != nil {
+		return TxResult{}, err
+	}
+	return TxResult{Row: r, Publish: s.publisher(ws, &change{tableID: t.ID, op: "insert", ids: []int64{r.ID}, versions: []int64{r.Version}})}, nil
+}
+
+// UpdateTx updates within tx (OCC on expectedVersion).
+func (s *Service) UpdateTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, fields map[string]any, actor Actor) (TxResult, error) {
+	cols, vals, err := decodeFields(t, fields)
+	if err != nil {
+		return TxResult{}, err
+	}
+	r, before, err := updateRow(ctx, tx, sch, t, id, expectedVersion, cols, vals, t.TrackHistory)
+	if err != nil {
+		return TxResult{}, translate(t, err)
+	}
+	if err := s.history(ctx, tx, t, r.ID, r.Version, "update", actor, before, &r); err != nil {
+		return TxResult{}, err
+	}
+	return TxResult{Row: r, Publish: s.publisher(ws, &change{tableID: t.ID, op: "update", ids: []int64{r.ID}, versions: []int64{r.Version}})}, nil
+}
+
+// DeleteTx deletes within tx (OCC on expectedVersion).
+func (s *Service) DeleteTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, actor Actor) (TxResult, error) {
+	if err := deleteRow(ctx, tx, sch, t, id, expectedVersion, s, actor); err != nil {
+		return TxResult{}, translate(t, err)
+	}
+	return TxResult{Publish: s.publisher(ws, &change{tableID: t.ID, op: "delete", ids: []int64{id}, versions: []int64{expectedVersion}})}, nil
+}
+
+// GetTx reads a row within tx.
+func GetTx(ctx context.Context, q sqlitex.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
+	return getRow(ctx, q, sch, t, id)
+}
+
+// PublishInvalidated announces that a table changed in ways the row API did
+// not track (raw SQL from scripts).
+func (s *Service) PublishInvalidated(ws string, tableIDs []string) {
+	if s.Events == nil {
+		return
+	}
+	for _, id := range tableIDs {
+		s.Events.Publish(ws, events.TableInvalidated, map[string]any{"table_id": id})
+	}
+}

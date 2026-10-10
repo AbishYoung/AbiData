@@ -7,11 +7,13 @@ import (
 	"math"
 	"runtime/debug"
 	"runtime/metrics"
+	"strings"
 	"sync"
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
 
+	"abidata/internal/fault"
 	"abidata/internal/ids"
 )
 
@@ -48,7 +50,22 @@ type Run struct {
 	mu     sync.Mutex
 	logs   []LogEntry
 	logLen int
+	// hostErr is the classified error a host function raised; if the script does
+	// not catch it, the run fails with this error instead of SCRIPT_ERROR.
+	hostErr *fault.Error
 }
+
+// RaiseFault raises err (classified) as a Lua error. Scripts may catch it with
+// pcall; if they do not, the run fails with err's code.
+func (r *Run) RaiseFault(err error) {
+	fe := fault.Classify(err)
+	r.hostErr = fe
+	r.L.RaiseError("%s: %s", fe.Code, fe.DisplayMessage())
+}
+
+// DecimalFactory converts a decimal string to the Lua decimal value. The
+// decimal module installs it; until then decimals are plain strings.
+var DecimalFactory = func(r *Run, s string) lua.LValue { return lua.LString(s) }
 
 // maxLogBytes caps a run's log (tail kept), per brief (256 KiB).
 const maxLogBytes = 256 << 10
@@ -250,6 +267,9 @@ func (rn *Runner) Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 		HostGlobals: hostGlobals(run), Entry: req.Entry, EntryArgs: args,
 	})
 	res := ExecResult{Logs: run.Logs(), Took: time.Since(start)}
+	if err != nil && run.hostErr != nil && strings.Contains(err.Error(), run.hostErr.DisplayMessage()) {
+		return res, run.hostErr
+	}
 	if err != nil {
 		if errors.Is(context.Cause(ctx), ErrMemory) {
 			vm.tainted = true

@@ -34,7 +34,13 @@ const (
 const maxExprLen = 4000
 
 // lexCheck enforces the lexical rules.
-func lexCheck(expr string) error {
+func lexCheck(expr string) error { return lexCheckOpt(expr, false) }
+
+// CheckExprAllowParams is CheckExpr but permits :name placeholders (for WHERE
+// fragments bound at run time, e.g. db.lookup).
+func CheckExprAllowParams(expr string) error { return lexCheckOpt(expr, true) }
+
+func lexCheckOpt(expr string, allowNamed bool) error {
 	bad := func(msg string) error { return fault.New(fault.BadRequest, "Invalid expression: "+msg) }
 	if strings.TrimSpace(expr) == "" {
 		return bad("it is empty.")
@@ -82,7 +88,12 @@ func lexCheck(expr string) error {
 			if i+1 < len(expr) && expr[i+1] == '*' {
 				return bad("comments are not allowed.")
 			}
-		case '?', ':', '@', '$':
+		case ':':
+			if allowNamed && i+1 < len(expr) && (expr[i+1] >= 'A' && expr[i+1] <= 'Z' || expr[i+1] >= 'a' && expr[i+1] <= 'z') {
+				continue
+			}
+			return bad("parameters are not allowed.")
+		case '?', '@', '$':
 			return bad("parameters are not allowed.")
 		case 0:
 			return bad("NUL characters are not allowed.")

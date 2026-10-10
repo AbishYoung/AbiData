@@ -29,6 +29,9 @@ type Data struct {
 	// txCtx is the transaction's context (bounded by the TxBlock budget).
 	txCtx context.Context
 
+	// afterCommit runs when the enclosing db.transaction commits (change feed).
+	afterCommit []func()
+
 	// UI holds form-event state (ui_event context only).
 	UI *UISession
 	// Extra carries context-specific values (job args, run id, …).
@@ -40,3 +43,24 @@ func (d *Data) Tx() (*sqlitex.Tx, context.Context, bool) { return d.tx, d.txCtx,
 
 // SetTx installs (or clears with nil) the active transaction.
 func (d *Data) SetTx(ctx context.Context, tx *sqlitex.Tx) { d.tx, d.txCtx = tx, ctx }
+
+// AfterCommit queues fn to run after the active transaction commits, or runs
+// it immediately when no transaction is active.
+func (d *Data) AfterCommit(fn func()) {
+	if d.tx == nil {
+		fn()
+		return
+	}
+	d.afterCommit = append(d.afterCommit, fn)
+}
+
+// FinishTx clears the transaction and runs (committed) or drops queued hooks.
+func (d *Data) FinishTx(committed bool) {
+	hooks := d.afterCommit
+	d.tx, d.txCtx, d.afterCommit = nil, nil, nil
+	if committed {
+		for _, fn := range hooks {
+			fn()
+		}
+	}
+}
