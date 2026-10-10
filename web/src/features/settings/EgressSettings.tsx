@@ -5,6 +5,7 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { alertBox, btn, btnPrimary, input } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { useDirtyGuard } from "@/lib/useDirtyGuard";
+import { BackupsPanel } from "@/features/backups/BackupsPanel";
 import { getEgress, putEgress, settingsKeys, type EgressEntry, type PlatformEgress } from "./settingsApi";
 
 interface FormValues {
@@ -219,6 +220,7 @@ export function EgressSettings({ ws }: { ws: string }) {
         </p>
       )}
       {q.data && <EgressForm ws={ws} initial={q.data.items} platform={q.data.platform} />}
+      <BackupsPanel ws={ws} />
     </div>
   );
 }

@@ -1,0 +1,75 @@
+import type { components } from "@/generated/api";
+import { api } from "@/lib/api";
+
+export type AdminStats = components["schemas"]["AdminStats"];
+export type AdminWorkspace = components["schemas"]["WorkspaceDTO"];
+export type AdminUser = components["schemas"]["AdminUserDTO"];
+export type Quota = components["schemas"]["Quota"];
+export type BackupPolicy = components["schemas"]["Policy"];
+export type PlatformEgress = components["schemas"]["Global"];
+
+export const adminKeys = {
+  stats: ["admin", "stats"] as const,
+  workspaces: ["admin", "workspaces"] as const,
+  users: ["admin", "users"] as const,
+  backupPolicy: ["admin", "settings", "backup"] as const,
+  egress: ["admin", "settings", "egress"] as const,
+  settings: ["admin", "settings", "all"] as const,
+};
+
+export async function getStats(): Promise<AdminStats> {
+  return api.requestData((c, init) => c.GET("/api/v1/admin/stats", init), { label: "Loading statistics" });
+}
+
+export async function listWorkspaces(): Promise<AdminWorkspace[]> {
+  const res = await api.requestData((c, init) => c.GET("/api/v1/admin/workspaces", init), { label: "Loading workspaces" });
+  return res.items ?? [];
+}
+
+export async function createWorkspace(body: { name: string; owner_email?: string; quota?: Quota }): Promise<AdminWorkspace> {
+  return api.requestData((c, init) => c.POST("/api/v1/admin/workspaces", { ...init, body }), { label: "Creating workspace" });
+}
+
+export async function updateWorkspace(
+  id: string,
+  body: { name?: string; status?: "active" | "suspended"; quota?: Quota },
+): Promise<AdminWorkspace> {
+  return api.requestData((c, init) => c.PATCH("/api/v1/admin/workspaces/{id}", { ...init, params: { path: { id } }, body }), {
+    label: "Saving workspace",
+  });
+}
+
+export async function listUsers(): Promise<AdminUser[]> {
+  const res = await api.requestData((c, init) => c.GET("/api/v1/admin/users", init), { label: "Loading users" });
+  return res.items ?? [];
+}
+
+export async function createUser(body: { email: string; display_name: string; password: string; is_platform_admin?: boolean }): Promise<AdminUser> {
+  return api.requestData((c, init) => c.POST("/api/v1/admin/users", { ...init, body }), { label: "Creating user" });
+}
+
+export async function updateUser(id: string, body: { disabled?: boolean; is_platform_admin?: boolean; display_name?: string }): Promise<AdminUser> {
+  return api.requestData((c, init) => c.PATCH("/api/v1/admin/users/{id}", { ...init, params: { path: { id } }, body }), {
+    label: "Saving user",
+  });
+}
+
+export async function getAllSettings(): Promise<Record<string, string>> {
+  return api.requestData((c, init) => c.GET("/api/v1/admin/settings", init), { label: "Loading settings" });
+}
+
+export async function getBackupPolicy(): Promise<BackupPolicy> {
+  return api.requestData((c, init) => c.GET("/api/v1/admin/settings/backup", init), { label: "Loading backup policy" });
+}
+
+export async function putBackupPolicy(body: BackupPolicy): Promise<BackupPolicy> {
+  return api.requestData((c, init) => c.PUT("/api/v1/admin/settings/backup", { ...init, body }), { label: "Saving backup policy" });
+}
+
+export async function getEgressPolicy(): Promise<PlatformEgress> {
+  return api.requestData((c, init) => c.GET("/api/v1/admin/settings/egress", init), { label: "Loading egress policy" });
+}
+
+export async function putEgressPolicy(body: PlatformEgress): Promise<PlatformEgress> {
+  return api.requestData((c, init) => c.PUT("/api/v1/admin/settings/egress", { ...init, body }), { label: "Saving egress policy" });
+}

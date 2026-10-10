@@ -12,6 +12,7 @@ import { ME_KEY, fetchMe, fetchSetupPending, type Me } from "@/lib/session";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SetupPage } from "@/features/auth/SetupPage";
 import { PickerPage } from "@/features/workspace/PickerPage";
+import { AdminPage } from "@/features/admin/AdminPage";
 import { WorkspaceShell } from "@/features/workspace/WorkspaceShell";
 import { alertBox, btn } from "@/components/styles";
 
@@ -104,10 +105,19 @@ const workspaceRoute = createRoute({
   },
 });
 
+const adminRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/admin",
+  component: function AdminRoutePage() {
+    const { me } = adminRoute.useRouteContext();
+    return <AdminPage me={me} />;
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   setupRoute,
-  authRoute.addChildren([indexRoute, workspaceRoute]),
+  authRoute.addChildren([indexRoute, workspaceRoute, adminRoute]),
 ]);
 
 export const router = createRouter({ routeTree, context: { queryClient } });
