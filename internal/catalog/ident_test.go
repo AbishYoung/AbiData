@@ -56,6 +56,7 @@ func TestRenameIdent(t *testing.T) {
 		{`'Qty' || Qty`, "Qty", "N", `'Qty' || "N"`},
 		{`length(Qty) > max(1, Qty2)`, "Qty", "N", `length("N") > max(1, Qty2)`},
 		{`Qty(1)`, "Qty", "N", `Qty(1)`},
+		{`CAST(text AS text)`, "text", "body", `CAST("body" AS text)`},
 	}
 	for _, c := range cases {
 		if got := renameIdent(c.in, c.old, c.new); got != c.want {

@@ -12,6 +12,7 @@ import (
 // Rows iterates a result set. It is not safe for concurrent use.
 type Rows struct {
 	st      *sqlite3.Stmt
+	conn    *Conn
 	ctx     context.Context
 	release func()
 	err     error
@@ -19,10 +20,18 @@ type Rows struct {
 }
 
 // Next advances to the next row.
-func (r *Rows) Next() bool {
+func (r *Rows) Next() (ok bool) {
 	if r.closed {
 		return false
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			r.conn.broken = true
+			r.err = errors.Join(errOOM, fmt.Errorf("sqlite: %v", p))
+			r.Close()
+			ok = false
+		}
+	}()
 	if r.st.Step() {
 		return true
 	}
@@ -220,4 +229,15 @@ func (c *stmtCache) closeAll() {
 		delete(c.stmts, k)
 	}
 	c.order = c.order[:0]
+}
+
+// SizeOf estimates the memory a scanned value occupies (for result byte caps).
+func SizeOf(v any) int {
+	switch x := v.(type) {
+	case string:
+		return len(x) + 16
+	case []byte:
+		return len(x) + 24
+	}
+	return 16
 }

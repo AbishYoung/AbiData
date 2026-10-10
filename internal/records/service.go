@@ -23,6 +23,7 @@ const (
 	MaxPage        = 500
 	CountCap       = 100000
 	MaxBatch       = 1000
+	maxPageBytes   = 64 << 20
 	coalesceIDs    = 500
 	idempotencyTTL = 24 * time.Hour
 )
@@ -180,7 +181,14 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 			return err
 		}
 		defer rows.Close()
+		size := 0
 		for rows.Next() {
+			for _, v := range rows.Values() {
+				size += sqlitex.SizeOf(v)
+			}
+			if size > maxPageBytes {
+				return fault.New(fault.BadRequest, "The rows on this page are too large to load at once; request fewer rows.")
+			}
 			r, err := scanRow(rows, data, lookups)
 			if err != nil {
 				return err

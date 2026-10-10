@@ -26,8 +26,9 @@ import (
 
 // Run limits (brief: 200,000 detail rows, 30 s).
 const (
-	MaxRows    = 200_000
-	MaxRunTime = 30 * time.Second
+	MaxRows        = 200_000
+	maxSourceBytes = 256 << 20
+	MaxRunTime     = 30 * time.Second
 )
 
 // Instance is one section instance in the run stream.
@@ -328,7 +329,14 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 				return err
 			}
 			defer rs.Close()
+			size := 0
 			for rs.Next() {
+				for _, v := range rs.Values() {
+					size += sqlitex.SizeOf(v)
+				}
+				if size > maxSourceBytes {
+					return fault.New(fault.BadRequest, "The report's data is too large; add criteria to the source.")
+				}
 				if len(rows) == MaxRows {
 					return fault.Newf(fault.BadRequest, "The report has more than %d detail rows; add criteria to the source.", MaxRows)
 				}

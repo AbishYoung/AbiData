@@ -136,7 +136,13 @@ func identTokens(expr string, fn func(start, end int, name string)) {
 			for k < len(expr) && expr[k] == ' ' {
 				k++
 			}
-			if k >= len(expr) || expr[k] != '(' {
+			// Words after AS (CAST(x AS text)) are type names, not columns.
+			p := i - 1
+			for p >= 0 && expr[p] == ' ' {
+				p--
+			}
+			afterAs := p >= 1 && strings.EqualFold(expr[p-1:p+1], "as") && (p < 2 || !isWordByte(expr[p-2]))
+			if (k >= len(expr) || expr[k] != '(') && !afterAs {
 				fn(i, j, expr[i:j])
 			}
 			i = j
@@ -180,4 +186,8 @@ func renameIdent(expr, old, new string) string {
 	})
 	b.WriteString(expr[last:])
 	return b.String()
+}
+
+func isWordByte(c byte) bool {
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
 }

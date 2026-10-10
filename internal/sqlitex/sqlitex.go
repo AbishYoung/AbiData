@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/ncruces/go-sqlite3"
+
+	"abidata/internal/fault"
 )
 
 // Kind selects the pragma profile for a connection.
@@ -31,6 +33,18 @@ func (k Kind) String() string {
 	return [...]string{"writer", "reader", "maintenance", "staging", "snapshot"}[k]
 }
 
+// Memory and size caps for connections that run user or script SQL. SQLite's
+// heap lives in a per-connection Wasm memory outside the Go heap (invisible to
+// GOMEMLIMIT and the script watchdog), so it is capped per connection; SQLite
+// reports exhaustion as NOMEM, which the driver raises as a panic that sqlitex
+// converts into QUOTA_EXCEEDED and a broken (never reused) connection.
+const (
+	ReaderMaxMemory = 64 << 20
+	WriterMaxMemory = 128 << 20
+	MaxValueLength  = 16 << 20 // SQLITE_LIMIT_LENGTH: largest string/blob
+	MaxSQLLength    = 4 << 20  // SQLITE_LIMIT_SQL_LENGTH
+)
+
 // Options configures Open.
 type Options struct {
 	Kind         Kind
@@ -44,11 +58,27 @@ var ErrNoRows = errors.New("sqlitex: no rows in result set")
 
 // Conn is one SQLite connection.
 type Conn struct {
-	c     *sqlite3.Conn
-	kind  Kind
-	path  string
-	cache *stmtCache
-	inTx  bool
+	c      *sqlite3.Conn
+	kind   Kind
+	path   string
+	cache  *stmtCache
+	inTx   bool
+	broken bool
+}
+
+// Broken reports whether the connection hit an unrecoverable condition (SQLite
+// out of memory) and must be closed rather than reused.
+func (c *Conn) Broken() bool { return c.broken }
+
+// errOOM is returned after a recovered SQLite out-of-memory panic.
+var errOOM = &fault.Error{Code: fault.QuotaExceeded, Message: "The operation needed more memory than a workspace query may use. Nothing was saved."}
+
+// guard converts driver panics (NOMEM) into errors and marks c broken.
+func (c *Conn) guard(err *error) {
+	if p := recover(); p != nil {
+		c.broken = true
+		*err = errors.Join(errOOM, fmt.Errorf("sqlite: %v", p))
+	}
 }
 
 // Open opens path with the profile for opts.Kind. The writer is the only kind that
@@ -67,7 +97,14 @@ func Open(ctx context.Context, path string, opts Options) (*Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	raw, err := sqlite3.OpenFlags(uri, flags)
+	octx := context.Background()
+	switch opts.Kind {
+	case Reader, Snapshot:
+		octx = sqlite3.WithMaxMemory(octx, ReaderMaxMemory)
+	case Writer:
+		octx = sqlite3.WithMaxMemory(octx, WriterMaxMemory)
+	}
+	raw, err := openFlagsContext(octx, uri, flags)
 	if err != nil {
 		return nil, fmt.Errorf("sqlitex: open %s (%s): %w", path, opts.Kind, err)
 	}
@@ -94,6 +131,8 @@ func (c *Conn) configure(opts Options) error {
 	// the default, because VACUUM INTO attaches its target database internally.
 	if opts.Kind != Maintenance {
 		c.c.Limit(sqlite3.LIMIT_ATTACHED, 0)
+		c.c.Limit(sqlite3.LIMIT_LENGTH, MaxValueLength)
+		c.c.Limit(sqlite3.LIMIT_SQL_LENGTH, MaxSQLLength)
 	}
 	// Defensive mode blocks writable_schema, sqlite_dbpage writes and similar
 	// corruption vectors. Staging needs journal_mode=OFF, which defensive mode
@@ -205,7 +244,8 @@ type Named struct {
 
 // ExecScript runs a trusted multi-statement script (migrations, internal DDL).
 // Never pass user-supplied SQL here.
-func (c *Conn) ExecScript(ctx context.Context, sql string) error {
+func (c *Conn) ExecScript(ctx context.Context, sql string) (err error) {
+	defer c.guard(&err)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -214,7 +254,8 @@ func (c *Conn) ExecScript(ctx context.Context, sql string) error {
 }
 
 // Exec runs exactly one statement.
-func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (Result, error) {
+func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (_ Result, err error) {
+	defer c.guard(&err)
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -234,7 +275,8 @@ func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (Result, error
 }
 
 // Query runs a statement and returns its rows. Rows must be closed.
-func (c *Conn) Query(ctx context.Context, sql string, args ...any) (*Rows, error) {
+func (c *Conn) Query(ctx context.Context, sql string, args ...any) (_ *Rows, err error) {
+	defer c.guard(&err)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -249,7 +291,7 @@ func (c *Conn) Query(ctx context.Context, sql string, args ...any) (*Rows, error
 		restore()
 		return nil, err
 	}
-	return &Rows{st: st, ctx: ctx, release: func() { release(); restore() }}, nil
+	return &Rows{st: st, ctx: ctx, conn: c, release: func() { release(); restore() }}, nil
 }
 
 // QueryRow runs a query expected to return at most one row.
@@ -261,6 +303,7 @@ func (c *Conn) QueryRow(ctx context.Context, sql string, args ...any) *Row {
 // Prepare compiles sql without executing it (used to validate saved queries and
 // expressions). The statement is not cached.
 func (c *Conn) Prepare(ctx context.Context, sql string) (columns []string, err error) {
+	defer c.guard(&err)
 	defer c.bindCtx(ctx)()
 	st, tail, err := c.c.Prepare(sql)
 	if err != nil {
@@ -397,7 +440,8 @@ type Statement struct {
 }
 
 // Describe prepares sql (one statement) and reports its shape.
-func (c *Conn) Describe(ctx context.Context, sql string) (Statement, error) {
+func (c *Conn) Describe(ctx context.Context, sql string) (_ Statement, err error) {
+	defer c.guard(&err)
 	defer c.bindCtx(ctx)()
 	st, tail, err := c.c.Prepare(sql)
 	if err != nil {
@@ -423,4 +467,18 @@ func (c *Conn) Describe(ctx context.Context, sql string) (Statement, error) {
 	}
 	d.ReadOnly = st.ReadOnly()
 	return d, nil
+}
+
+// openFlagsContext opens with a context carrying driver configuration. The
+// driver's context-aware open always passes READWRITE|CREATE|URI, so the
+// requested access is expressed through the URI mode parameter instead.
+func openFlagsContext(ctx context.Context, uri string, flags sqlite3.OpenFlag) (*sqlite3.Conn, error) {
+	mode := "rw"
+	switch {
+	case flags&sqlite3.OPEN_READONLY != 0:
+		mode = "ro"
+	case flags&sqlite3.OPEN_CREATE != 0:
+		mode = "rwc"
+	}
+	return sqlite3.OpenContext(ctx, uri+"?mode="+mode)
 }

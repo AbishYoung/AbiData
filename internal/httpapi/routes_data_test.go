@@ -212,6 +212,12 @@ func TestQueriesOverHTTP(t *testing.T) {
 	if st, _, _ := ed.do("POST", base+"/sql/run", map[string]any{"sql": "SELECT 1"}); st != 403 {
 		t.Fatalf("editor used SQL console: %d", st)
 	}
+	// Regression (Phase 2 review #3): editors cannot smuggle SQL through expr_sql.
+	exprModel := map[string]any{"sources": []any{map[string]any{"alias": "p", "table_id": tid, "x": 0, "y": 0}},
+		"fields": []any{map[string]any{"expr_sql": "(SELECT group_concat(Kind) FROM Pets)", "output_name": "x"}}}
+	if st, b, _ := ed.do("POST", base+"/queries/run", map[string]any{"model": exprModel}); st != 403 {
+		t.Fatalf("editor ran expr_sql: %d %v", st, b)
+	}
 	st, q, h := root.do("POST", base+"/queries", map[string]any{"name": "Counts", "kind": "visual", "visual_model": model})
 	if st != 201 || h.Get("ETag") != `"1"` {
 		t.Fatalf("save %d %v", st, q)

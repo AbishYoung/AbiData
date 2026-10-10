@@ -156,6 +156,16 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 	if opts.ForeignKeysOff || opts.Setup != nil {
 		w.ClearStmtCache() // DDL may have changed what cached statements refer to
 	}
+	if w.Broken() {
+		// SQLite ran out of memory on the writer: replace the connection. We
+		// still hold the gate, so no other writer can observe the swap.
+		_ = w.Close()
+		nw, rerr := l.m.openWriter(context.WithoutCancel(ctx), l.h.id, l.h.paths)
+		if rerr != nil {
+			return errors.Join(err, rerr)
+		}
+		l.h.writer = nw
+	}
 	return err
 }
 

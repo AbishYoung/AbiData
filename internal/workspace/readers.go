@@ -51,7 +51,7 @@ func (p *readerPool) get(ctx context.Context) (*sqlitex.Conn, error) {
 
 func (p *readerPool) put(c *sqlitex.Conn) {
 	p.mu.Lock()
-	if p.shut {
+	if p.shut || c.Broken() {
 		p.mu.Unlock()
 		_ = c.Close()
 	} else {

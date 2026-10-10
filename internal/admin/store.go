@@ -91,7 +91,15 @@ func (s *Store) migrate(ctx context.Context) error {
 func (s *Store) Read(ctx context.Context, fn func(c *sqlitex.Conn) error) error {
 	select {
 	case c := <-s.readers:
-		defer func() { s.readers <- c }()
+		defer func() {
+			if c.Broken() {
+				_ = c.Close()
+				if nc, err := sqlitex.Open(context.Background(), s.path, sqlitex.Options{Kind: sqlitex.Reader}); err == nil {
+					c = nc
+				}
+			}
+			s.readers <- c
+		}()
 		return fn(c)
 	case <-ctx.Done():
 		return ctx.Err()

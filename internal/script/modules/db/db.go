@@ -22,8 +22,11 @@ import (
 	"abidata/internal/workspace"
 )
 
-// MaxRows caps rows returned by db.query.
-const MaxRows = 10000
+// MaxRows and MaxBytes cap results returned by db.query.
+const (
+	MaxRows  = 10000
+	MaxBytes = 32 << 20
+)
 
 var allCtx = []script.Context{script.UIEvent, script.Report, script.Job}
 
@@ -261,13 +264,18 @@ func readRows(r *script.Run, L *lua.LState, sql string, args []any, limit int) [
 		}
 		defer rows.Close()
 		cols := rows.Columns()
+		size := 0
 		for rows.Next() {
 			if len(out) >= limit {
 				break
 			}
 			t := L.CreateTable(0, len(cols))
 			for i, v := range rows.Values() {
+				size += sqlitex.SizeOf(v)
 				t.RawSetString(cols[i], toLua(r, v))
+			}
+			if size > MaxBytes {
+				r.RaiseLimit(fmt.Sprintf("query result exceeds %d MiB", MaxBytes>>20))
 			}
 			out = append(out, t)
 		}
@@ -309,6 +317,9 @@ func checkWrite(r *script.Run, L *lua.LState) *host.Data {
 
 func execSQL(r *script.Run, L *lua.LState, sql string, args []any) sqlitex.Result {
 	d := checkWrite(r, L)
+	if err := query.CheckDML(sql); err != nil {
+		r.RaiseFault(err)
+	}
 	var res sqlitex.Result
 	var touched []string
 	withConn(r, L, true, func(ctx context.Context, c *sqlitex.Conn) error {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -146,5 +147,57 @@ func TestRunawayQueryStops(t *testing.T) {
 	_, err := Run(ctx, f.l, Policy{}, `WITH RECURSIVE r(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM r) SELECT count(*) FROM r`, nil, 0)
 	if err == nil || time.Since(start) > 2*time.Second {
 		t.Fatalf("runaway query: %v after %v", err, time.Since(start))
+	}
+}
+
+// Regressions (Phase 2 review #1, #2): oversized results and SQLite OOM are bounded
+// errors; the server survives and the connection is not reused.
+func TestMemoryExhaustionBounded(t *testing.T) {
+	f := setup(t)
+	r, err := Run(f.ctx, f.l, Policy{Builder: true}, `SELECT printf('%.*c', 1000000, 'x') FROM generate_series(1, 50000)`, nil, 0)
+	if err != nil || !r.Truncated || len(r.Rows) >= 50000 {
+		t.Fatalf("byte cap: rows=%d truncated=%v err=%v", len(r.Rows), r.Truncated, err)
+	}
+	for _, sql := range []string{`SELECT length(randomblob(500000000))`, `SELECT length(printf('%.*c', 200000000, 'x'))`,
+		`SELECT length(zeroblob(100000000))`} {
+		_, err := Run(f.ctx, f.l, Policy{Builder: true}, sql, nil, 0)
+		if err == nil {
+			t.Errorf("%s: expected an error", sql)
+		}
+	}
+	// Concurrent memory hogs do not crash the process and readers keep working.
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = Run(f.ctx, f.l, Policy{Builder: true}, `SELECT group_concat(printf('%.*c', 100000, 'x')) FROM generate_series(1, 2000)`, nil, 0)
+		}()
+	}
+	wg.Wait()
+	if r, err := Run(f.ctx, f.l, Policy{}, `SELECT count(*) FROM Items`, nil, 0); err != nil || r.Rows[0][0] != int64(2) {
+		t.Fatalf("after OOMs: %+v %v", r, err)
+	}
+}
+
+func TestCheckDML(t *testing.T) {
+	for _, bad := range []string{
+		`INSERT OR REPLACE INTO Items(id, _version, Name) VALUES (1, 1, 'x')`,
+		`REPLACE INTO Items(id, Name) VALUES (1, 'x')`,
+		`insert into Items("_version", Name) values (5, 'x')`,
+		`INSERT INTO Items(Name) VALUES ('a') ON CONFLICT REPLACE`,
+	} {
+		if CheckDML(bad) == nil {
+			t.Errorf("accepted %s", bad)
+		}
+	}
+	for _, ok := range []string{
+		`UPDATE Items SET Name = replace(Name, 'a', 'b') WHERE id = 1 AND _version = 3`,
+		`INSERT INTO Items(Name) VALUES ('INSERT OR REPLACE _version')`,
+		`DELETE FROM Items WHERE id = 2`,
+	} {
+		if err := CheckDML(ok); err != nil {
+			t.Errorf("rejected %s: %v", ok, err)
+		}
 	}
 }

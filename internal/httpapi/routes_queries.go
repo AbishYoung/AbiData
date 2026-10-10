@@ -189,6 +189,9 @@ func (s *Server) registerQueries(api huma.API) {
 			if m == nil {
 				m = &in.Body.Model
 			}
+			if err := s.requireBuilderForExpr(ctx, *m); err != nil {
+				return nil, err
+			}
 			l, err := s.lease(ctx)
 			if err != nil {
 				return nil, err
@@ -238,6 +241,9 @@ func (s *Server) registerQueries(api huma.API) {
 			}
 			if m == nil {
 				return nil, errBadf("Send a visual model to run.")
+			}
+			if err := s.requireBuilderForExpr(ctx, *m); err != nil {
+				return nil, err
 			}
 			l, err := s.lease(ctx)
 			if err != nil {
@@ -309,3 +315,12 @@ func (s *Server) registerQueries(api huma.API) {
 }
 
 func errBadf(msg string) error { return fault.New(fault.BadRequest, msg) }
+
+// requireBuilderForExpr: expression fields are builder-authored SQL (editors may
+// run visual models built from tables, columns and criteria only).
+func (s *Server) requireBuilderForExpr(ctx context.Context, m query.Model) error {
+	if mem, _ := MembershipFrom(ctx); !mem.Role.AtLeast(admin.RoleBuilder) && m.HasExpressions() {
+		return fault.New(fault.Forbidden, "Expression fields can only be used by builders.")
+	}
+	return nil
+}

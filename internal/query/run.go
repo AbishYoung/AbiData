@@ -17,8 +17,10 @@ import (
 	"abidata/internal/workspace"
 )
 
-// Limits for user SQL (brief: 10 s cap, 50,000-row page cap).
+// Limits for user SQL (brief: 10 s cap, 50,000-row page cap; plus a byte cap
+// so a result cannot exhaust server memory).
 const (
+	MaxBytes    = 64 << 20
 	MaxRows     = 50000
 	MaxDuration = 10 * time.Second
 	MaxSQLLen   = 100_000
@@ -71,13 +73,15 @@ func Run(ctx context.Context, l *workspace.Lease, p Policy, sql string, params P
 			defer rows.Close()
 			res.Columns = rows.Columns()
 			res.Rows = [][]any{}
+			size := 0
 			for rows.Next() {
-				if len(res.Rows) == maxRows {
+				if len(res.Rows) == maxRows || size > MaxBytes {
 					res.Truncated = true
 					break
 				}
 				vals := rows.Values()
 				for i, v := range vals {
+					size += sqlitex.SizeOf(v)
 					vals[i] = jsonSafe(v)
 				}
 				res.Rows = append(res.Rows, vals)
