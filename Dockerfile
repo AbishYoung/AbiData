@@ -14,6 +14,8 @@ ARG VERSION=dev
 ENV CGO_ENABLED=0
 WORKDIR /src
 COPY go.mod go.sum ./
+# go.mod replaces gopher-lua with this vendored fork, which must exist before `go mod download`.
+COPY third_party/ ./third_party/
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist

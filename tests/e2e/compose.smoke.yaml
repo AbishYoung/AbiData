@@ -1,0 +1,10 @@
+# Override used only by scripts/container-smoke.sh: publish the app port on loopback and
+# give the container a bootstrap admin address. Caddy is not started for the smoke.
+services:
+  abidata:
+    image: abidata:smoke
+    ports:
+      - "127.0.0.1:${ABIDATA_SMOKE_PORT:-18094}:8080"
+    environment:
+      ABIDATA_PUBLIC_URL: http://127.0.0.1:${ABIDATA_SMOKE_PORT:-18094}
+      ABIDATA_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
