@@ -21,14 +21,21 @@ func (p Priority) String() string {
 }
 
 // gate is a two-level priority mutex: when released it hands off to the oldest
-// interactive waiter, else the oldest background waiter. Waiters that give up
-// (ctx done) leave the queue; a waiter granted the gate concurrently with its
-// cancellation passes it on, so the gate is never lost.
+// interactive waiter, else the oldest background waiter. So that a steady stream
+// of interactive writes cannot starve background work (imports, jobs), a
+// waiting background writer is served after at most maxInteractiveStreak
+// consecutive interactive grants. Waiters that give up (ctx done) leave the
+// queue; a waiter granted the gate concurrently with its cancellation passes
+// it on, so the gate is never lost.
 type gate struct {
 	mu     sync.Mutex
 	held   bool
 	queues [2][]*waiter
+	streak int // consecutive interactive grants while background waiters queued
 }
+
+// maxInteractiveStreak bounds how long background writers wait behind interactive ones.
+const maxInteractiveStreak = 8
 
 type waiter struct {
 	ch      chan struct{}
@@ -71,12 +78,23 @@ func (g *gate) acquire(ctx context.Context, p Priority) error {
 func (g *gate) release() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	for p := range g.queues {
+	order := [2]Priority{Interactive, Background}
+	if len(g.queues[Background]) == 0 {
+		g.streak = 0
+	} else if g.streak >= maxInteractiveStreak {
+		order = [2]Priority{Background, Interactive}
+	}
+	for _, p := range order {
 		if q := g.queues[p]; len(q) > 0 {
 			w := q[0]
 			g.queues[p] = q[1:]
 			w.granted = true
 			close(w.ch)
+			if p == Interactive {
+				g.streak++
+			} else {
+				g.streak = 0
+			}
 			return
 		}
 	}

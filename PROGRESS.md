@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Gates 3 and 4 PASSED (2026-10-10). Phase 5 in progress (ingest backend in flight; import UI, egress review remaining). Phase 6 core started.
+Gates 3 and 4 PASSED (2026-10-10). Phase 5 in progress (ingest backend merged; import UI, egress review remaining). Phase 6 core started.
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
@@ -64,17 +64,17 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 ## Phase 5 — Jobs, Egress, Ingest
 - Done (Opus): `internal/egress` (policy ∩ allowlist per hop, SSRF-safe dial with own resolution + Control re-check, caps, gzip-bomb guard, per-ws token bucket; Gate 5 SSRF list tested), Lua `fetch` (job-only), `internal/jobs` (cron with pinned robfig DST semantics: spring-forward gap skipped, fall-back repeat fires twice; scheduler: overlap skip/queue, misfire run_once/skip, retry backoff × attempt, Recover → interrupted, per-ws quota; fake-clock tests; SQL store over `_adm_job_index` (+ migration 0002) and workspace tables; Lua executor; jobs service CRUD/OCC/enqueue), `job`/`jobs`/`artifacts` Lua modules, forms → `jobs.enqueue` for editors on opted-in jobs, `internal/artifacts` (quota, safe names, sweep), `internal/ops` (operations, progress events, cancel, reconcile on open, shutdown), routes (jobs/runs/artifacts/operations/egress settings incl. admin policy), serve wiring + janitor.
 - Merged: jobs UI (nav group, job tab, live run history, run detail log/artifacts/cancel), workspace egress settings tab, operations client + status-bar popover. Follow-ups: admin platform-egress UI (no admin area yet), `next_run` in Job API, cancel of a queued run returns 400, unused `useActivityStore.operations`.
-- In flight (Sonnet): ingest backend (imports/exports/staging module, Gate 5 import perf + rollback tests).
+- Ingest backend merged (below): 200k-row upsert 0.96 s with interactive p99 8 ms.
 - Remaining: import wizard/export UI packet (after ingest backend), egress/SSRF Opus security review, Gate 5.
 
 ## Phase 5 — Ingest backend (imports, exports, Lua `staging`)
 - `internal/ingest`: streamed upload (100 MiB) -> staging SQLite (`c1..cN`, meta table) for CSV (delimiter/BOM/UTF-16/cp1252 sniffing, record caps), XLSX (archive pre-scan + excelize limits), JSON/NDJSON (depth cap); inference on the first 1,000 non-empty values; mapping validated against the catalog; validation pass (first 100 row errors + count); commit as operation `import` (2,000-row background chunks; append/upsert/replace; chunked or all_or_nothing); exports as operation `export` (keyset pages; csv/xlsx/json -> artifact). Janitor sweeps staging after 24 h.
 - Lua `staging` module (job context): `internal/script/modules/staging`, host binding `host.StagingStore`, per-run files `staging/<ws>/run-<run>-<n>.db` removed by `jobs.LuaExecutor`.
-- Known behaviours: bulk imports do not write `_sys_row_history`; replace of more than 50k rows is chunked (table is emptied with the first chunk; restore-point hook arrives in Phase 6); the workspace write gate is strict-priority, so a saturated interactive load can starve a background import.
+- Known behaviours: bulk imports do not write `_sys_row_history`; replace of more than 50k rows is chunked (table is emptied with the first chunk; restore-point hook arrives in Phase 6); the workspace write gate was strict-priority (a saturated interactive load could starve a background import) — fixed: a waiting background writer is served after at most 8 consecutive interactive grants (`gate_test.go`). Deviations: oversize upload → 400 (no 413 code); XLSX values read as formatted text; query exports capped at 50k rows; CSV export neutralises formula prefixes.
 
 ## Next (resume here)
-In flight: ingest backend (Sonnet, worktree agent-ac187d861cc171844).
-1. Ingest backend merge → import wizard/export UI packet → egress/SSRF Opus review → Gate 5.
+Nothing in flight.
+1. Import wizard/export UI packet → egress/SSRF Opus review → Gate 5.
 2. Phase 6: backup tests (parity, under load, tamper, crash matrix via hook), backup routes, RestorePoint wiring, scheduled backups + Recover at startup, admin console, live log stream, quotas, Phase 6 review.
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
