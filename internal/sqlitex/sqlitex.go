@@ -49,7 +49,7 @@ const (
 type Options struct {
 	Kind         Kind
 	Synchronous  string // "NORMAL" (default) or "FULL"; writer only
-	MaxPageCount int64  // 0 = unlimited; writer only
+	MaxPageCount int64  // 0 = unlimited; writer and staging only
 	BusyTimeout  time.Duration
 	// MustExist makes a writer refuse to create a missing file (reopening an
 	// existing workspace must never silently start an empty one).
@@ -105,7 +105,8 @@ func Open(ctx context.Context, path string, opts Options) (*Conn, error) {
 	}
 	octx := context.Background()
 	switch opts.Kind {
-	case Reader, Snapshot:
+	case Reader, Snapshot, Staging:
+		// Staging runs builder SQL (staging:query) like a reader does.
 		octx = sqlite3.WithMaxMemory(octx, ReaderMaxMemory)
 	case Writer:
 		octx = sqlite3.WithMaxMemory(octx, WriterMaxMemory)
@@ -149,10 +150,16 @@ func (c *Conn) configure(opts Options) error {
 		}
 	}
 
+	tempStore := "MEMORY"
+	if opts.Kind == Staging {
+		// Large sorts over staging data spill to disk (bounded by the page cap)
+		// instead of the connection's memory.
+		tempStore = "FILE"
+	}
 	stmts := []string{
 		fmt.Sprintf("PRAGMA busy_timeout=%d", bt.Milliseconds()),
 		"PRAGMA trusted_schema=OFF",
-		"PRAGMA temp_store=MEMORY",
+		"PRAGMA temp_store=" + tempStore,
 		"PRAGMA cache_size=-4096",
 	}
 	switch opts.Kind {
@@ -175,6 +182,9 @@ func (c *Conn) configure(opts Options) error {
 		stmts = append(stmts, "PRAGMA foreign_keys=ON")
 	case Staging:
 		stmts = append(stmts, "PRAGMA foreign_keys=ON", "PRAGMA journal_mode=OFF", "PRAGMA synchronous=OFF")
+		if opts.MaxPageCount > 0 {
+			stmts = append(stmts, fmt.Sprintf("PRAGMA max_page_count=%d", opts.MaxPageCount))
+		}
 	case Snapshot:
 		stmts = append(stmts, "PRAGMA query_only=ON")
 	}

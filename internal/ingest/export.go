@@ -53,17 +53,15 @@ type sink interface {
 	finish() error
 }
 
-// csvCell formats a value as the rows API represents it, as text. Text that a
-// spreadsheet would run as a formula is prefixed with an apostrophe.
-func csvCell(v any, textual bool) string {
+// csvCell formats a value as the rows API represents it, as text. Any text a
+// spreadsheet would run as a formula is prefixed with an apostrophe, whatever
+// the column's type (calculated fields and query columns are text too).
+func csvCell(v any, _ bool) string {
 	switch x := v.(type) {
 	case nil:
 		return ""
 	case string:
-		if textual && x != "" && strings.ContainsRune("=+-@\t\r", rune(x[0])) {
-			return "'" + x
-		}
-		return x
+		return csvSafe(x)
 	case int64:
 		return strconv.FormatInt(x, 10)
 	case float64:
@@ -74,9 +72,27 @@ func csvCell(v any, textual bool) string {
 	return fmt.Sprint(v)
 }
 
+// csvSafe neutralises formula-looking text. Plain numbers ("-12.50" from a
+// decimal or currency field) are left alone: they are not formulas.
+func csvSafe(x string) string {
+	if x == "" || !strings.ContainsRune("=+-@\t\r", rune(x[0])) {
+		return x
+	}
+	if _, err := strconv.ParseFloat(x, 64); err == nil {
+		return x
+	}
+	return "'" + x
+}
+
 type csvSink struct{ w *csv.Writer }
 
-func (c *csvSink) header(cols []string) error { return c.w.Write(cols) }
+func (c *csvSink) header(cols []string) error {
+	safe := make([]string, len(cols))
+	for i, h := range cols {
+		safe[i] = csvSafe(h)
+	}
+	return c.w.Write(safe)
+}
 func (c *csvSink) row(vals []any, textual []bool) error {
 	rec := make([]string, len(vals))
 	for i, v := range vals {

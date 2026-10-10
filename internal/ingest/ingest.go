@@ -42,6 +42,11 @@ const (
 	// transaction (delete and the first chunk commit together, later chunks follow).
 	ReplaceChunkedAbove = 50_000
 
+	// MaxPendingImports and MaxWorkspaceStagingBytes bound a workspace's
+	// staging directory (pending imports plus job run staging).
+	MaxPendingImports        = 20
+	MaxWorkspaceStagingBytes = 2 << 30
+
 	maxFieldBytes  = 1 << 20
 	maxRecordBytes = 4 << 20
 	maxJSONDepth   = 32
@@ -194,12 +199,48 @@ func (s *Service) Sweep(maxAge time.Duration, now time.Time) (removed int, err e
 	return removed, nil
 }
 
+// MaxImportStagingBytes caps one import's staging database: decoded data
+// (e.g. XLSX shared strings referenced by many cells) may not expand past it.
+// A variable so tests can lower it.
+var MaxImportStagingBytes int64 = 512 << 20
+
 // openStaging opens an existing staging database.
 func openStaging(ctx context.Context, path string) (*sqlitex.Conn, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, errImportNotFound
 	}
-	return sqlitex.Open(ctx, path, sqlitex.Options{Kind: sqlitex.Staging})
+	return sqlitex.Open(ctx, path, sqlitex.Options{Kind: sqlitex.Staging, MaxPageCount: MaxImportStagingBytes / stagingPageSize})
+}
+
+// checkStagingQuota refuses a new import when the workspace already has too
+// many pending imports or too much staged data.
+func checkStagingQuota(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var pending int
+	var total int64
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		total += info.Size()
+		if strings.HasSuffix(e.Name(), ".db") && !strings.HasPrefix(e.Name(), "run-") && !strings.HasPrefix(e.Name(), "bk-") {
+			pending++
+		}
+	}
+	if pending >= MaxPendingImports {
+		return fault.Newf(fault.QuotaExceeded, "This workspace has %d unfinished imports. Finish or cancel some before starting another.", pending)
+	}
+	if total >= MaxWorkspaceStagingBytes {
+		return fault.Newf(fault.QuotaExceeded, "This workspace's import staging area is full (%d MiB). Finish or cancel imports first.", total>>20)
+	}
+	return nil
 }
 
 func stagingCol(i int) string { return fmt.Sprintf("c%d", i+1) }

@@ -69,6 +69,9 @@ func (s *Service) Upload(ctx context.Context, ws ids.WorkspaceID, by string, opt
 	if err != nil {
 		return ImportMeta{}, err
 	}
+	if err := checkStagingQuota(dir); err != nil {
+		return ImportMeta{}, err
+	}
 	id := ids.New()
 	ext := map[string]string{"csv": "csv", "xlsx": "xlsx", "json": "json", "ndjson": "ndjson"}[format]
 	srcPath, err := ids.SafeJoin(dir, id+"."+ext)
@@ -113,7 +116,7 @@ func (s *Service) Upload(ctx context.Context, ws ids.WorkspaceID, by string, opt
 	for i := range stage {
 		stage[i] = stagingCol(i)
 	}
-	c, err := sqlitex.Open(ctx, dbPath, sqlitex.Options{Kind: sqlitex.Staging})
+	c, err := sqlitex.Open(ctx, dbPath, sqlitex.Options{Kind: sqlitex.Staging, MaxPageCount: MaxImportStagingBytes / stagingPageSize})
 	if err != nil {
 		return ImportMeta{}, err
 	}
@@ -129,6 +132,9 @@ func (s *Service) Upload(ctx context.Context, ws ids.WorkspaceID, by string, opt
 			}
 		}
 	}, src.next)
+	if err != nil && fault.Classify(err).Code == fault.QuotaExceeded {
+		return ImportMeta{}, fault.Newf(fault.QuotaExceeded, "The file's data expands to more than %d MiB; split it into smaller files.", MaxImportStagingBytes>>20)
+	}
 	if err != nil {
 		return ImportMeta{}, err
 	}

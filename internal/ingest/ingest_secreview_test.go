@@ -1,8 +1,7 @@
 package ingest
 
-// Phase 5 security review repros. Each test asserts the CURRENT (vulnerable)
-// behaviour: it passes today and is expected to fail once the issue is fixed,
-// at which point it should be inverted into a regression test.
+// Phase 5 security review: regression tests (each comment describes the
+// original finding; the assertions pin the fix).
 
 import (
 	"bytes"
@@ -19,24 +18,17 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"abidata/internal/catalog"
+	"abidata/internal/fault"
 	"abidata/internal/query"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
-
-func secreview(t *testing.T) {
-	t.Helper()
-	if os.Getenv("ABIDATA_SECREVIEW") == "" {
-		t.Skip("security review repro; set ABIDATA_SECREVIEW=1")
-	}
-}
 
 // An XLSX whose cells all reference one large shared string is tiny on the wire,
 // but every reference is materialised as a separate value in the staging
 // database. Nothing bounds the staging file size (no per-workspace staging
 // quota, no output-size cap), so a builder can fill the node's disk.
 func TestSecReview_XLSXSharedStringAmplification(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	big := strings.Repeat("A", 64<<10) // 64 KiB, well under maxFieldBytes
 	f := excelize.NewFile()
@@ -59,33 +51,32 @@ func TestSecReview_XLSXSharedStringAmplification(t *testing.T) {
 	if err := f.Write(&b); err != nil {
 		t.Fatal(err)
 	}
-	upload := b.Len()
-	m := e.upload("bomb.xlsx", b.String(), UploadOptions{})
-	dir, _ := e.svc.stagingDir(e.ws)
-	fi, err := os.Stat(filepath.Join(dir, m.ID+".db"))
-	if err != nil {
-		t.Fatal(err)
+	// The staging database is capped (lowered here): the import is refused
+	// and nothing is left behind.
+	old := MaxImportStagingBytes
+	MaxImportStagingBytes = 8 << 20
+	defer func() { MaxImportStagingBytes = old }()
+	_, err := e.svc.Upload(e.ctx, e.ws, "u", UploadOptions{Filename: "bomb.xlsx"}, bytes.NewReader(b.Bytes()))
+	if fault.Classify(err).Code != fault.QuotaExceeded {
+		t.Fatalf("expected QUOTA_EXCEEDED, got %v", err)
 	}
-	ratio := float64(fi.Size()) / float64(upload)
-	t.Logf("upload %d bytes -> staging %d bytes (x%.0f)", upload, fi.Size(), ratio)
-	if ratio < 100 {
-		t.Fatalf("expected >100x amplification, got x%.1f", ratio)
+	dir, _ := e.svc.stagingDir(e.ws)
+	if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+		t.Fatalf("staging files left: %v", ents)
 	}
 }
 
 // Nothing limits how many pending imports a workspace may hold: every upload
 // keeps its source file and staging DB on disk for 24 h.
 func TestSecReview_UnboundedPendingImports(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	data := "a,b\n" + strings.Repeat("xxxxxxxxxx,yyyyyyyyyy\n", 5000)
-	for i := 0; i < 30; i++ {
+	for i := 0; i < MaxPendingImports; i++ {
 		e.upload(fmt.Sprintf("f%d.csv", i), data, UploadOptions{})
 	}
-	dir, _ := e.svc.stagingDir(e.ws)
-	ents, _ := os.ReadDir(dir)
-	if len(ents) < 60 { // source + staging db per import
-		t.Fatalf("expected all 30 imports to be kept, found %d files", len(ents))
+	_, err := e.svc.Upload(e.ctx, e.ws, "u", UploadOptions{Filename: "more.csv"}, strings.NewReader(data))
+	if fault.Classify(err).Code != fault.QuotaExceeded {
+		t.Fatalf("expected the pending-import cap, got %v", err)
 	}
 }
 
@@ -95,7 +86,6 @@ func TestSecReview_UnboundedPendingImports(t *testing.T) {
 // upload keeps burning a core after the client disconnects. A 100 MiB file holds
 // ~7M keys: on the order of 10^13 comparisons.
 func TestSecReview_JSONKeyDedupQuadratic(t *testing.T) {
-	secreview(t)
 	dir := t.TempDir()
 	write := func(n int) string {
 		var b strings.Builder
@@ -119,12 +109,14 @@ func TestSecReview_JSONKeyDedupQuadratic(t *testing.T) {
 		_ = readJSONObjects(p, true, func([]string, []json.RawMessage) error { return nil })
 		return time.Since(start)
 	}
-	small, large := measure(5000), measure(40000) // 8x the keys
-	ratio := float64(large) / float64(max(small, time.Microsecond))
-	t.Logf("5k keys %v, 40k keys %v (x%.1f; linear would be ~x8, quadratic ~x64)", small, large, ratio)
-	if ratio < 20 {
-		t.Fatalf("expected super-linear key de-duplication, ratio x%.1f", ratio)
+	// A too-wide object now fails as soon as it passes MaxColumns keys.
+	p := write(40000)
+	start := time.Now()
+	err := readJSONObjects(p, true, func([]string, []json.RawMessage) error { return nil })
+	if err == nil || time.Since(start) > time.Second {
+		t.Fatalf("wide object: %v after %v", err, time.Since(start))
 	}
+	_ = measure
 }
 
 // Run-staging connections are opened without sqlite3.WithMaxMemory, so they get
@@ -135,7 +127,6 @@ func TestSecReview_JSONKeyDedupQuadratic(t *testing.T) {
 // out of memory by a few builders. This query needs more than a reader may use
 // and succeeds on staging.
 func TestSecReview_StagingQueryMemoryCapLooserThanReaders(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	rs := e.fresh()
 	h, err := rs.Create(context.Background(), []string{"a"})
@@ -148,19 +139,17 @@ func TestSecReview_StagingQueryMemoryCapLooserThanReaders(t *testing.T) {
 	// ~100+ MiB of sorter data, all of it in memory (temp_store=MEMORY).
 	const q = `WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100000)
 		SELECT count(*) AS n FROM (SELECT x, randomblob(1024) AS b FROM c ORDER BY b)`
+	// Staging now has the reader's memory cap but sorts spill to a temp file
+	// (temp_store=FILE), so the large sort succeeds without pinning memory.
 	_, rows, err := rs.Query(context.Background(), h, q, nil)
 	if err != nil {
-		t.Fatalf("staging query was refused (memory cap present?): %v", err)
+		t.Fatalf("staging sort: %v", err)
 	}
-	t.Logf("staging query sorted %v rows of 1 KiB in memory", rows[0][0])
-
-	// The same statement on a capped reader connection fails with out-of-memory,
-	// which shows the cap that staging lacks.
-	var n int64
-	rerr := e.l.Read(e.ctx, func(q2 sqlitex.Querier) error { return q2.QueryRow(e.ctx, q).Scan(&n) })
-	t.Logf("reader connection: n=%d err=%v", n, rerr)
-	if rerr == nil {
-		t.Fatal("reader connection did not hit its memory cap; the comparison no longer holds")
+	t.Logf("staging query sorted %v rows of 1 KiB via temp files", rows[0][0])
+	// A query that must hold more than the cap in memory is refused.
+	_, _, err = rs.Query(context.Background(), h, `SELECT length(group_concat(randomblob(1048576))) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100) SELECT x FROM c)`, nil)
+	if err == nil {
+		t.Fatal("staging connection had no memory cap")
 	}
 }
 
@@ -170,7 +159,6 @@ func TestSecReview_StagingQueryMemoryCapLooserThanReaders(t *testing.T) {
 // editor reaches a builder's spreadsheet as a live formula. Header cells (field
 // display names, query column aliases) are never neutralised either.
 func TestSecReview_CSVExportCalculatedFormula(t *testing.T) {
-	secreview(t)
 	e := newEnv(t)
 	tb := e.table("People",
 		catalog.ColumnSpec{DisplayName: "Name", Type: catalog.ShortText},
@@ -192,10 +180,10 @@ func TestSecReview_CSVExportCalculatedFormula(t *testing.T) {
 	if recs[1][1] != "'"+payload {
 		t.Fatalf("short_text column should be neutralised: %q", recs[1][1])
 	}
-	if recs[1][2] != payload {
-		t.Fatalf("expected the calculated column to carry the raw formula, got %q", recs[1][2])
+	if recs[1][2] != "'"+payload {
+		t.Fatalf("calculated column not neutralised: %q", recs[1][2])
 	}
-	if recs[0][3] != "=1+1" {
-		t.Fatalf("expected a raw formula header, got %q", recs[0][3])
+	if recs[0][3] != "'=1+1" {
+		t.Fatalf("header not neutralised: %q", recs[0][3])
 	}
 }

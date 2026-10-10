@@ -590,6 +590,11 @@ func readJSONObjects(path string, array bool, fn func(keys []string, vals []json
 				}
 			}
 			if !dup {
+				// Fail as soon as an object is too wide: this also bounds the
+				// linear duplicate scan above to MaxColumns per key.
+				if len(keys) >= MaxColumns {
+					return badFile("Item %d has more than %d keys.", idx, MaxColumns)
+				}
 				keys = append(keys, key)
 				vals = append(vals, raw)
 			}
