@@ -1,5 +1,7 @@
-import { useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import type { KeyboardEvent, ReactNode } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import { ControlFrame, type DragDelta } from "@/components/designer/ControlFrame";
+import { Splitter } from "@/components/designer/Splitter";
 import {
   GRID,
   MAX_HEIGHT,
@@ -7,17 +9,12 @@ import {
   SECTIONS,
   SECTION_LABEL,
   controlLabel,
-  snap,
   type DesignControl,
   type DesignState,
   type SectionName,
 } from "./layoutModel";
 
-export interface DragDelta {
-  id: string;
-  dx: number;
-  dy: number;
-}
+export type { DragDelta };
 
 interface CanvasProps {
   state: DesignState;
@@ -83,65 +80,20 @@ function CanvasControl({
   columnName: (id: string) => string;
   p: CanvasProps;
 }) {
-  const { setNodeRef, listeners } = useDraggable({ id: `control:${c.id}`, data: { kind: "control", id: c.id } });
-  const moving = drag !== null && selected;
-  const x = c.x + (moving ? drag.dx : 0);
-  const y = c.y + (moving ? drag.dy : 0);
-  const resizing = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
-
-  function startResize(e: ReactPointerEvent<HTMLSpanElement>): void {
-    e.stopPropagation();
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    resizing.current = { x: e.clientX, y: e.clientY, w: c.w, h: c.h };
-  }
-  function moveResize(e: ReactPointerEvent<HTMLSpanElement>): void {
-    const s = resizing.current;
-    if (s) p.onResize(c.id, snap(s.w + e.clientX - s.x), snap(s.h + e.clientY - s.y));
-  }
-
   return (
-    <div
-      ref={(el) => {
-        setNodeRef(el);
-        p.registerNode(c.id, el);
-      }}
-      role="button"
-      aria-pressed={selected}
-      aria-label={controlLabel(c)}
-      tabIndex={tabStop ? 0 : -1}
-      data-control-id={c.id}
-      data-selected={selected ? "true" : "false"}
-      {...listeners}
-      onClick={(e) => {
-        e.stopPropagation();
-        p.onSelect(c.id, e.shiftKey || e.metaKey || e.ctrlKey ? "toggle" : "only");
-      }}
-      style={{ left: x, top: y, width: c.w, height: c.h }}
-      className={`absolute cursor-move select-none ${
-        selected ? "outline outline-2 outline-offset-1 outline-accent" : "outline outline-1 outline-dashed outline-border"
-      } ${c.visible === false ? "opacity-60" : ""}`}
+    <ControlFrame
+      control={c}
+      label={controlLabel(c)}
+      selected={selected}
+      tabStop={tabStop}
+      drag={drag}
+      single={single}
+      registerNode={p.registerNode}
+      onSelect={p.onSelect}
+      onResize={p.onResize}
     >
       <ControlBody c={c} columnName={columnName} />
-      {selected && (
-        <>
-          <span aria-hidden="true" className="pointer-events-none absolute -left-1 -top-1 h-2 w-2 border border-accent bg-surface" />
-          <span aria-hidden="true" className="pointer-events-none absolute -right-1 -top-1 h-2 w-2 border border-accent bg-surface" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -left-1 h-2 w-2 border border-accent bg-surface" />
-          <span
-            aria-hidden="true"
-            data-testid="resize-handle"
-            onPointerDown={single ? startResize : undefined}
-            onPointerMove={moveResize}
-            onPointerUp={() => {
-              resizing.current = null;
-            }}
-            className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize border border-accent bg-surface"
-            style={{ touchAction: "none" }}
-          />
-        </>
-      )}
-    </div>
+    </ControlFrame>
   );
 }
 
@@ -161,62 +113,6 @@ function SectionBody({ name, children, p }: { name: SectionName; children: React
     >
       {children}
     </div>
-  );
-}
-
-/** A focusable splitter (ARIA window splitter pattern): drag or use the arrow keys, 8 px per step. */
-function Splitter({
-  orientation,
-  label,
-  value,
-  max,
-  onChange,
-  className,
-}: {
-  orientation: "horizontal" | "vertical";
-  label: string;
-  value: number;
-  max: number;
-  onChange: (v: number) => void;
-  className: string;
-}) {
-  const start = useRef<{ pos: number; value: number } | null>(null);
-  const vertical = orientation === "vertical";
-  function key(e: KeyboardEvent<HTMLDivElement>): void {
-    const step = e.shiftKey ? GRID * 4 : GRID;
-    const grow = vertical ? "ArrowRight" : "ArrowDown";
-    const shrink = vertical ? "ArrowLeft" : "ArrowUp";
-    if (e.key === grow) onChange(Math.min(max, value + step));
-    else if (e.key === shrink) onChange(Math.max(0, value - step));
-    else return;
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  return (
-    <div
-      role="separator"
-      aria-orientation={orientation}
-      aria-label={label}
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-valuetext={`${value} pixels`}
-      tabIndex={0}
-      onKeyDown={key}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        start.current = { pos: vertical ? e.clientX : e.clientY, value };
-      }}
-      onPointerMove={(e) => {
-        const s = start.current;
-        if (s) onChange(Math.min(max, Math.max(0, snap(s.value + (vertical ? e.clientX : e.clientY) - s.pos))));
-      }}
-      onPointerUp={() => {
-        start.current = null;
-      }}
-      style={{ touchAction: "none" }}
-      className={className}
-    />
   );
 }
 

@@ -1,11 +1,11 @@
 import type { Form, FormControl, FormInput, FormLayout } from "../formsApi";
 import { ulid } from "@/features/tabledesign/ulid";
+import { GRID, MIN_SIZE, alignPatches, clamp, distributePatches, snap, type AlignMode, type DistributeAxis, type PlacedRect } from "@/components/designer/geometry";
 
-/** Snap grid in px (brief <forms>). */
-export const GRID = 8;
+export { GRID, MIN_SIZE, clamp, snap };
+export type { AlignMode, DistributeAxis };
 export const MAX_WIDTH = 4000;
 export const MAX_HEIGHT = 4000;
-export const MIN_SIZE = 8;
 export const DEFAULT_WIDTH = 640;
 export const LABEL_WIDTH = 120;
 
@@ -59,16 +59,6 @@ export interface SourceColumn {
   fieldType: string;
   /** Present for lookup columns whose catalog entry says where the values come from. */
   lookup?: { tableId: string; valueColumnId: string; displayColumnId: string };
-}
-
-// ---- numeric helpers -------------------------------------------------------------------------
-
-export function snap(n: number, grid: number = GRID): number {
-  return Math.round(n / grid) * grid;
-}
-
-export function clamp(n: number, lo: number, hi: number): number {
-  return Math.min(Math.max(n, lo), Math.max(lo, hi));
 }
 
 // ---- state construction & conversion ---------------------------------------------------------
@@ -235,11 +225,12 @@ export function setRect(s: DesignState, id: string, r: { x?: number; y?: number;
   });
 }
 
-export type AlignMode = "left" | "right" | "top" | "bottom";
-export type DistributeAxis = "horizontal" | "vertical";
+function placed(s: DesignState): PlacedRect[] {
+  return s.controls.map((c) => ({ id: c.id, x: c.x, y: c.y, w: c.w, h: c.h, group: c.section }));
+}
 
-function groupBySection(s: DesignState, ids: ReadonlySet<string>): DesignControl[][] {
-  return SECTIONS.map((name) => s.controls.filter((c) => c.section === name && ids.has(c.id))).filter((g) => g.length > 0);
+function applyPatch(s: DesignState, patch: Map<string, { x?: number; y?: number }>): DesignState {
+  return { ...s, controls: s.controls.map((c) => (patch.has(c.id) ? { ...c, ...patch.get(c.id) } : c)) };
 }
 
 /**
@@ -247,21 +238,7 @@ function groupBySection(s: DesignState, ids: ReadonlySet<string>): DesignControl
  * Each section is aligned on its own because positions are relative to the section.
  */
 export function alignControls(s: DesignState, ids: ReadonlySet<string>, mode: AlignMode): DesignState {
-  const patch = new Map<string, Partial<DesignControl>>();
-  for (const group of groupBySection(s, ids)) {
-    if (group.length < 2) continue;
-    const left = Math.min(...group.map((c) => c.x));
-    const right = Math.max(...group.map((c) => c.x + c.w));
-    const top = Math.min(...group.map((c) => c.y));
-    const bottom = Math.max(...group.map((c) => c.y + c.h));
-    for (const c of group) {
-      if (mode === "left") patch.set(c.id, { x: left });
-      else if (mode === "right") patch.set(c.id, { x: right - c.w });
-      else if (mode === "top") patch.set(c.id, { y: top });
-      else patch.set(c.id, { y: bottom - c.h });
-    }
-  }
-  return { ...s, controls: s.controls.map((c) => (patch.has(c.id) ? { ...c, ...patch.get(c.id) } : c)) };
+  return applyPatch(s, alignPatches(placed(s), ids, mode));
 }
 
 /**
@@ -269,27 +246,7 @@ export function alignControls(s: DesignState, ids: ReadonlySet<string>, mode: Al
  * the outermost two stay where they are.
  */
 export function distributeControls(s: DesignState, ids: ReadonlySet<string>, axis: DistributeAxis): DesignState {
-  const patch = new Map<string, Partial<DesignControl>>();
-  for (const group of groupBySection(s, ids)) {
-    if (group.length < 3) continue;
-    const horizontal = axis === "horizontal";
-    const pos = (c: DesignControl) => (horizontal ? c.x : c.y);
-    const size = (c: DesignControl) => (horizontal ? c.w : c.h);
-    const sorted = [...group].sort((a, b) => pos(a) - pos(b));
-    const first = sorted[0];
-    const last = sorted[sorted.length - 1];
-    if (!first || !last) continue;
-    const span = pos(last) + size(last) - pos(first);
-    const total = sorted.reduce((sum, c) => sum + size(c), 0);
-    const gap = (span - total) / (sorted.length - 1);
-    let cursor = pos(first);
-    for (const c of sorted) {
-      const p = Math.round(cursor);
-      patch.set(c.id, horizontal ? { x: p } : { y: p });
-      cursor += size(c) + gap;
-    }
-  }
-  return { ...s, controls: s.controls.map((c) => (patch.has(c.id) ? { ...c, ...patch.get(c.id) } : c)) };
+  return applyPatch(s, distributePatches(placed(s), ids, axis));
 }
 
 export function deleteControls(s: DesignState, ids: ReadonlySet<string>): DesignState {

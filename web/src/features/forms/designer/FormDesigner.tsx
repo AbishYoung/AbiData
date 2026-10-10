@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { ToolbarButton, useSaveShortcut } from "@/components/designer/toolbar";
+import { handleCanvasKey } from "@/components/designer/canvasKeys";
 import { ApiError } from "@/lib/api";
 import { LuaEditor } from "@/features/scripts/LuaEditor";
 import { createForm, formKeys, getForm, listForms, updateForm } from "../formsApi";
@@ -184,21 +186,6 @@ function LoadForm({ ws, formId, tabKey }: { ws: string; formId: string; tabKey: 
   );
 }
 
-function isSaveKey(e: globalThis.KeyboardEvent): boolean {
-  return (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s";
-}
-
-const TOOLBAR_BTN =
-  "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-surface hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50";
-
-function ToolbarButton({ icon: Icon, label, disabled, onClick }: { icon: LucideIcon; label: string; disabled: boolean; onClick: () => void }) {
-  return (
-    <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick} className={TOOLBAR_BTN}>
-      <Icon size={16} aria-hidden="true" />
-    </button>
-  );
-}
-
 function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
   const key = draftKey(ws, tabKey);
   const draft = useDesignerDrafts((s) => s.entries[key]);
@@ -265,20 +252,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
     save.mutate(cur.state);
   }, [key, save]);
 
-  const saveRef = useRef(doSave);
-  useEffect(() => {
-    saveRef.current = doSave;
-  });
-  useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent): void {
-      if (isSaveKey(e)) {
-        e.preventDefault();
-        saveRef.current();
-      }
-    }
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  useSaveShortcut(doSave);
 
   if (!draft || !state) return null;
   const present = new Set(state.controls.map((c) => c.id));
@@ -345,58 +319,24 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
   }
 
   function onCanvasKey(e: KeyboardEvent<HTMLElement>): void {
-    const el = (e.target as HTMLElement).closest<HTMLElement>("[data-control-id]");
-    const id = el?.dataset.controlId;
-    if (!id) return;
-    const mod = e.metaKey || e.ctrlKey;
-    const ids = selection.has(id) ? selection : new Set([id]);
-    const arrows: Record<string, [number, number]> = {
-      ArrowLeft: [-GRID, 0],
-      ArrowRight: [GRID, 0],
-      ArrowUp: [0, -GRID],
-      ArrowDown: [0, GRID],
-    };
-    const delta = arrows[e.key];
-    if (delta) {
-      e.preventDefault();
-      if (mod) {
-        const next = stepSelection(state as DesignState, id, e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1);
-        if (next) focusNode(next);
-      } else if (e.shiftKey) {
-        update((s) => resizeControls(s, ids, delta[0], delta[1]));
-      } else {
-        update((s) => moveControls(s, ids, delta[0], delta[1]));
-      }
-      if (!selection.has(id)) select([id]);
-    } else if (e.key === "Delete" || e.key === "Backspace") {
-      e.preventDefault();
-      update((s) => deleteControls(s, ids));
-      select([]);
-      say(`Deleted ${ids.size} control${ids.size === 1 ? "" : "s"}`);
-    } else if (e.key === "Tab") {
-      const next = stepSelection(state as DesignState, id, e.shiftKey ? -1 : 1);
-      if (next) {
-        e.preventDefault();
-        select([next]);
-        focusNode(next);
-      }
-    } else if (e.key === " ") {
-      e.preventDefault();
-      select(selection.has(id) ? selected.filter((x) => x !== id) : [...selected, id]);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      select([id]);
-    } else if (mod && e.key.toLowerCase() === "a") {
-      e.preventDefault();
-      select((state as DesignState).controls.map((c) => c.id));
-    } else if (mod && e.key.toLowerCase() === "d") {
-      e.preventDefault();
-      const r = duplicateControls(state as DesignState, ids);
-      update(() => r.state);
-      select(r.ids);
-    } else if (e.key === "Escape") {
-      select([]);
-    }
+    const st = state as DesignState;
+    handleCanvasKey(e, selected, {
+      move: (ids, dx, dy) => update((x) => moveControls(x, ids, dx, dy)),
+      resize: (ids, dw, dh) => update((x) => resizeControls(x, ids, dw, dh)),
+      remove: (ids) => {
+        update((x) => deleteControls(x, ids));
+        say(`Deleted ${ids.size} control${ids.size === 1 ? "" : "s"}`);
+      },
+      duplicate: (ids) => {
+        const r = duplicateControls(st, ids);
+        update(() => r.state);
+        select(r.ids);
+      },
+      selectAll: () => select(st.controls.map((c) => c.id)),
+      select,
+      step: (id, dir) => stepSelection(st, id, dir),
+      focus: focusNode,
+    });
   }
 
   function onDragStart(e: DragStartEvent): void {

@@ -177,11 +177,11 @@ test("a 10,000-row report reaches its last page in under 5 seconds", async ({ pa
   expect(await page.locator(".rv-page").count()).toBeLessThan(10);
 });
 
-test("builders get Report and Design views; the designer is a stub", async ({ page }) => {
+test("builders get Report and Design views; Design opens the band designer", async ({ page }) => {
   await openWorkspace(page, WS);
   await openReport(page, "Sales A4");
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Design" }).click();
-  await expect(page.getByText("The report designer is coming soon.")).toBeVisible();
+  await expect(page.getByTestId("report-designer")).toBeVisible();
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Report" }).click();
   await expect(page.getByTestId("report-page-of")).toBeVisible();
 });
