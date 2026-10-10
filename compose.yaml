@@ -6,6 +6,11 @@ services:
       ABIDATA_PUBLIC_URL: ${ABIDATA_PUBLIC_URL:-https://localhost}
       ABIDATA_SESSION_KEY_FILE: /run/secrets/session_key
       ABIDATA_MANIFEST_KEY_FILE: /run/secrets/manifest_key
+      # First start with no users: the one-time setup token is logged for this address.
+      ABIDATA_BOOTSTRAP_ADMIN_EMAIL: ${ABIDATA_BOOTSTRAP_ADMIN_EMAIL:-}
+      # Caddy reaches the app over the compose network, so trust its X-Forwarded-For
+      # (the app port is not published; only containers on this network can connect).
+      ABIDATA_TRUSTED_PROXIES: ${ABIDATA_TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
     volumes:
       - abidata-data:/var/lib/abidata
       - abidata-backups:/var/lib/abidata-backups

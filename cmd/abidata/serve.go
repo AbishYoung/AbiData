@@ -255,7 +255,7 @@ func serve() error {
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			UIEventBudgetMS: func(id ids.WorkspaceID) int { return quota(id).UIEventBudgetMS },
-			Enqueue: enqueue},
+			Enqueue:         enqueue},
 		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus, Docs: site,
 		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,

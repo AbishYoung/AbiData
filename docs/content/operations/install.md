@@ -47,11 +47,10 @@ make docker           # linux/amd64 and linux/arm64, build only
    ```
 
    `ABIDATA_SITE` is the host name Caddy serves and gets a certificate for. If you leave both unset, they default to `https://localhost` and `localhost`.
-4. Add the first administrator's email to the `abidata` service in `compose.yaml`:
+4. Set the first administrator's email (the compose file passes it to the server):
 
-   ```yaml
-   environment:
-     ABIDATA_BOOTSTRAP_ADMIN_EMAIL: you@example.com
+   ```sh
+   export ABIDATA_BOOTSTRAP_ADMIN_EMAIL=you@example.com
    ```
 
 5. Start it:
@@ -76,11 +75,12 @@ The two secret files are passed as `ABIDATA_SESSION_KEY_FILE` and `ABIDATA_MANIF
 
 ### Tell AbiData about the proxy {#proxy}
 
-AbiData sees Caddy's address, not the visitor's. For correct client addresses in logs and in the sign-in rate limit, set `ABIDATA_TRUSTED_PROXIES` to the network Caddy runs on, for example the Compose network's range:
+AbiData sees Caddy's address, not the visitor's. For correct client addresses in logs and in the sign-in rate limit, it must trust `X-Forwarded-For` from Caddy. The compose file sets `ABIDATA_TRUSTED_PROXIES` to the private address ranges by default (`10.0.0.0/8,172.16.0.0/12,192.168.0.0/16`). That is safe there because the app's port is not published: only containers on the Compose network can reach it.
 
-```yaml
-environment:
-  ABIDATA_TRUSTED_PROXIES: 172.16.0.0/12
+If you publish the app's port or run it outside Compose, narrow this to your proxy's address, for example:
+
+```sh
+export ABIDATA_TRUSTED_PROXIES=172.18.0.0/16
 ```
 
 Find the real range with `docker network inspect`. Only addresses in this list are allowed to supply `X-Forwarded-For`.
