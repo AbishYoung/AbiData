@@ -1,0 +1,43 @@
+.query-canvas .react-flow {
+  --xy-edge-stroke-default: var(--fg-muted);
+  --xy-edge-stroke-width-default: 2;
+  --xy-edge-stroke-selected-default: var(--accent);
+  --xy-background-color-default: var(--bg);
+  --xy-node-border-radius-default: 6px;
+  --xy-handle-background-color-default: var(--accent);
+  --xy-handle-border-color-default: var(--surface);
+  --xy-connectionline-stroke-default: var(--accent);
+  --xy-edge-label-color-default: var(--fg);
+  --xy-edge-label-background-color-default: var(--surface);
+  --xy-controls-button-background-color-default: var(--surface);
+  --xy-controls-button-background-color-hover-default: var(--surface-2);
+  --xy-controls-button-color-default: var(--fg);
+  --xy-controls-button-border-color-default: var(--border);
+  font-size: 0.875rem;
+}
+
+.query-canvas .react-flow__node-source {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  width: auto;
+}
+
+.query-canvas .react-flow__handle {
+  width: 8px;
+  height: 8px;
+}
+
+.query-canvas .react-flow__edge-textbg {
+  fill: var(--surface);
+}
+
+.query-canvas .react-flow__edge-text {
+  fill: var(--fg);
+  font-size: 12px;
+}
+
+.query-canvas .react-flow__edge.selected .react-flow__edge-path,
+.query-canvas .react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: var(--accent);
+}

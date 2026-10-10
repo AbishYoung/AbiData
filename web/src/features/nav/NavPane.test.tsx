@@ -16,6 +16,10 @@ vi.mock("@/lib/schema", () => ({
   }),
 }));
 
+vi.mock("@/features/queries/savedQueries", () => ({
+  useSavedQueries: () => ({ isError: false, isPending: false, data: [] }),
+}));
+
 import { NavPane, sortedTables } from "./NavPane";
 
 beforeEach(() => useTabs.setState({ byWs: {} }));

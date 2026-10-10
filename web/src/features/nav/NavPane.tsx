@@ -16,6 +16,9 @@ import { useTabs, useWorkspaceTabs, type TableView } from "@/app/tabs";
 import { useSchema, type Table } from "@/lib/schema";
 import { DeleteTableDialog, RenameTableDialog } from "./TableCrudDialogs";
 import { TableNavItem, tableActions } from "./TableNavItem";
+import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
+import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
+import { QueryNavItem, queryActions } from "./QueryNavItem";
 
 interface NavGroup {
   id: string;
@@ -45,16 +48,37 @@ export function sortedTables(tables: readonly Table[] | null | undefined, query:
 }
 
 type TableDialog = { kind: "rename" | "delete"; table: Table };
+type QueryDialog = { kind: "rename" | "delete"; query: Saved };
+
+export function sortedQueries(queries: readonly Saved[] | null | undefined, query: string): Saved[] {
+  const q = query.trim().toLowerCase();
+  return [...(queries ?? [])]
+    .filter((s) => q === "" || s.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
 
 export function NavPane({ ws, role }: { ws: string; role: string | undefined }) {
   const searchId = useId();
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<TableDialog | null>(null);
   const schema = useSchema(ws);
+  const savedQueries = useSavedQueries(ws);
+  const [queryDialog, setQueryDialog] = useState<QueryDialog | null>(null);
   const { tabs, active } = useWorkspaceTabs(ws);
   const openTab = useTabs((s) => s.open);
   const design = canDesign(role);
   const tables = sortedTables(schema.data?.tables, query);
+  const queries = sortedQueries(savedQueries.data, query);
+
+  function openQuery(q: Saved, view: TableView): void {
+    openTab(ws, { key: `query:${q.id}`, kind: "query", objectId: q.id, view, title: q.name });
+  }
+
+  function newQuery(): void {
+    let n = 1;
+    while (tabs.some((t) => t.key === `query:new:${n}`)) n++;
+    openTab(ws, { key: `query:new:${n}`, kind: "query", objectId: null, view: "design", title: n === 1 ? "New query" : `New query ${n}` });
+  }
 
   function openTable(t: Table, view: TableView): void {
     openTab(ws, { key: `table:${t.id}`, kind: "table", objectId: t.id, view, title: t.display_name });
@@ -117,6 +141,17 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     {g.label}
                   </button>
                 </h2>
+                {g.id === "queries" && design && (
+                  <button
+                    type="button"
+                    onClick={newQuery}
+                    aria-label="New query"
+                    title="New query"
+                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                  </button>
+                )}
                 {g.id === "tables" && design && (
                   <button
                     type="button"
@@ -161,7 +196,40 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                   )}
                 </div>
               )}
-              {open && g.id !== "tables" && (
+              {open && g.id === "queries" && (
+                <div id={panelId}>
+                  {queries.length > 0 ? (
+                    <ul className="m-0 p-0">
+                      {queries.map((q) => (
+                        <QueryNavItem
+                          key={q.id}
+                          query={q}
+                          active={active === `query:${q.id}`}
+                          onOpen={() => openQuery(q, "datasheet")}
+                          actions={queryActions(design, {
+                            open: () => openQuery(q, "datasheet"),
+                            design: () => openQuery(q, "design"),
+                            sql: () => openQuery(q, "sql"),
+                            rename: () => setQueryDialog({ kind: "rename", query: q }),
+                            remove: () => setQueryDialog({ kind: "delete", query: q }),
+                          })}
+                        />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-9 py-1 text-sm text-fg-muted">
+                      {savedQueries.isError
+                        ? "Queries could not be loaded"
+                        : savedQueries.isPending
+                          ? "Loading queries…"
+                          : searching
+                            ? `No ${g.noun} match “${query.trim()}”`
+                            : `No ${g.noun} yet`}
+                    </p>
+                  )}
+                </div>
+              )}
+              {open && g.id !== "tables" && g.id !== "queries" && (
                 <p id={panelId} className="px-9 py-1 text-sm text-fg-muted">
                   {searching ? `No ${g.noun} match “${query.trim()}”` : `No ${g.noun} yet`}
                 </p>
@@ -175,6 +243,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
       )}
       {dialog?.kind === "delete" && (
         <DeleteTableDialog ws={ws} table={dialog.table} schema={schema.data} onClose={() => setDialog(null)} />
+      )}
+      {queryDialog?.kind === "rename" && (
+        <RenameQueryDialog ws={ws} query={queryDialog.query} onClose={() => setQueryDialog(null)} />
+      )}
+      {queryDialog?.kind === "delete" && (
+        <DeleteQueryDialog ws={ws} query={queryDialog.query} onClose={() => setQueryDialog(null)} />
       )}
     </nav>
   );
