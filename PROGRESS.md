@@ -42,10 +42,9 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 Done: authorizer policy + Gate 2 denial tests (ATTACH other workspace, writable_schema, pragma TVFs, INSERT via CTE, _sys_ read as editor, load_extension, DDL, transactions, VACUUM INTO, multi-statement); read-only runner (params, 50k-row cap, 10 s cap); visual compiler (joins, totals/HAVING, Access criteria rows, params, editability, deps) with goldens; saved queries (CRUD + If-Match, deps, dependent recompile, visual queries follow renames inside schema changes, editor-policy validation for SQL kind); routes incl. SQL console (builder) and usages. Editors run but cannot save (HTTP test).
 Remaining for Gate 2: QBE designer UI + SQL view + params prompt + nav Queries group + e2e (Sonnet packet started; interrupted by the account's session limit — resume after reset), Phase 2 security review (fresh Opus).
 
-## Phase 3 work started early (Opus-owned core)
-- ADR 0004: vendored gopher-lua with a concatenation cap (closes review finding #2 for `..`).
-- Runtime framework: manifest/registry + parity check, budgets, pooled runner (global + per-workspace slots), heap watchdog, Go↔Lua conversion, entry calls; host bindings + UI session types.
-- Sonnet packet for decimal/datetime/json/csv/log modules in flight.
+## Phase 3 — Lua runtime & Forms (in progress)
+Done (Opus): sandbox (S2 + review fixes + ADR 0004 concat cap), runtime framework (manifest/registry/parity, budgets, pooled runner, per-workspace slots, heap watchdog, Go↔Lua conversion, entry calls, RaiseFault/host error codes), host modules db (authorizer-guarded, budgeted transactions with TxBlock ctx swap, DLookup family), records (typed OCC row API, in-tx variants + post-commit publish), event/record/ui/notify/workspace; scripts service (CRUD, compile cache, require loader, /scripts/check markers + manifest lint); forms service (layout validation, module scripts, deps, schema validator, event/save/delete dispatch per D10 with server-side calc — ADR 0005 for save endpoints); HTTP routes; generated `web/src/generated/lua-api.json`; Gate 3 backend tests: isolation/termination suite, `s..s`×40, db.exec CREATE → SQL_NOT_ALLOWED, NULL round trip, int > 2^53 as string, order-form lifecycle (lookup, subform, calc subtotal/total, before_update cancel > 5000 without approver, OCC save, toast, confirm), event round trip p95 4.4 ms at 50 concurrent users.
+In flight (Sonnet): decimal/datetime/json/csv/log modules; Script Studio (Monaco). Next: form runtime UI, form designer UI, Gate 3 e2e (order form), Phase 3 security review (fresh Opus).
 
 ## Next
 - Resume the QBE UI and Lua value-module packets after the session limit resets (~21:40 local); Phase 2 security review; close Gate 2.
