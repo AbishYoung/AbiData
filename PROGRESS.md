@@ -99,7 +99,6 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 In flight: docs content + docs panel packet (Sonnet, port 18092).
 1. Merge docs packet (error dialogs link to /docs/reference/errors#code).
 2. Axe on every route + container smoke CI job (Sonnet packet running, port 18093); Phase 7 security review after merges.
-3. Follow-up: OpenAPI `LogEntry` schema should match the stream payload `{time, level, msg, attrs}`.
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
 ## Notes / decisions taken without asking (per working agreement)
