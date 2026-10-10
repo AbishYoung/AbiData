@@ -108,7 +108,7 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 
 ## Next (resume here)
 In flight: row history panel UI (Sonnet, port 18096). Backend `GET .../rows/{id}/history` done.
-1. Merge it, full gate. Then ask the user about Phase 8 options; the license is still undecided.
+1. Merge it, full gate. Phase 8 declined by the user (2026-10-10); the project is complete after this.
 Docker: CLI at ~/.docker/bin (not on PATH).
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 
@@ -121,7 +121,8 @@ Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (s
 - Admin-DB mutations (users/workspaces/members) do not yet use Idempotency-Key storage (it lives in each workspace DB per the schema); creating duplicates is prevented by unique names/emails. Revisit in Phase 1 when the idempotency core lands.
 
 ## Open questions (reserved for user)
-- License: not chosen yet; no LICENSE file committed. Defaulting to none until the user decides.
+- License: MIT (user decision 2026-10-10), `LICENSE`. Vendored gopher-lua keeps its own MIT notice in `third_party/gopher-lua`.
+- Phase 8 (subprocess sandbox runner, PDF sidecar): declined by the user (2026-10-10).
 - Phase 8 options (subprocess sandbox, PDF sidecar): to ask at Phase 8.
 
 ## Deviations
