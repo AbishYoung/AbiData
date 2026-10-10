@@ -440,6 +440,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/w/{ws}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports */
+        get: operations["listReports"];
+        put?: never;
+        /** Create a report */
+        post: operations["createReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A report (ETag = version) */
+        get: operations["getReport"];
+        /** Replace a report (If-Match: version) */
+        put: operations["updateReport"];
+        post?: never;
+        /** Delete a report (If-Match: version) */
+        delete: operations["deleteReport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/reports/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a report: NDJSON stream of section instances {band, group_level, template, values, row}
+         * @description The first two lines are the page header/footer templates. Errors before streaming starts use the error envelope; errors after are a final line {"error":{…}}.
+         */
+        post: operations["runReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/w/{ws}/schema": {
         parameters: {
             query?: never;
@@ -726,6 +783,30 @@ export interface components {
             /** Format: date-time */
             last_login_at?: string;
         };
+        Aggregate: {
+            /** @enum {string} */
+            aggregate: "sum" | "avg" | "count" | "min" | "max";
+            column_id?: string;
+            running?: boolean;
+            /** @enum {string} */
+            scope: "group" | "report";
+        };
+        Band: {
+            can_grow?: boolean;
+            controls: components["schemas"]["ReportControl"][] | null;
+            force_new_page?: boolean;
+            /** Format: int64 */
+            height: number;
+            keep_together?: boolean;
+            visible?: boolean;
+        };
+        Bands: {
+            detail: components["schemas"]["Band"];
+            page_footer: components["schemas"]["Band"];
+            page_header: components["schemas"]["Band"];
+            report_footer: components["schemas"]["Band"];
+            report_header: components["schemas"]["Band"];
+        };
         BatchOp: {
             fields?: {
                 [key: string]: unknown;
@@ -994,6 +1075,19 @@ export interface components {
             returns?: string;
             signature: string;
         };
+        Group: {
+            column_id?: string;
+            footer: components["schemas"]["Band"];
+            header: components["schemas"]["Band"];
+            /**
+             * Format: int64
+             * @description Text: group by first N characters; number: by multiples of N.
+             */
+            interval?: number;
+            lua_expr?: string;
+            /** @enum {string} */
+            sort?: "asc" | "desc" | "";
+        };
         ImpactReport: {
             breaking: components["schemas"]["Issue"][] | null;
             conversion_failures: components["schemas"]["ConversionFailure"][] | null;
@@ -1051,6 +1145,9 @@ export interface components {
         };
         ListQueriesResponse: {
             items: components["schemas"]["Saved"][] | null;
+        };
+        ListReportsResponse: {
+            items: components["schemas"]["Report"][] | null;
         };
         ListScriptsResponse: {
             items: components["schemas"]["Script"][] | null;
@@ -1152,6 +1249,20 @@ export interface components {
             table?: components["schemas"]["TableSpec"];
             table_id?: string;
         };
+        PageSetup: {
+            /** Format: int64 */
+            margin_bottom: number;
+            /** Format: int64 */
+            margin_left: number;
+            /** Format: int64 */
+            margin_right: number;
+            /** Format: int64 */
+            margin_top: number;
+            /** @enum {string} */
+            orientation: "portrait" | "landscape";
+            /** @enum {string} */
+            paper: "letter" | "a4" | "legal";
+        };
         Param: {
             name: string;
             /** @enum {string} */
@@ -1201,6 +1312,67 @@ export interface components {
             name: string;
             on_delete?: string;
             parent_table_id: string;
+        };
+        Report: {
+            id: string;
+            layout: components["schemas"]["ReportLayout"];
+            module_id: string;
+            module_source: string;
+            /** Format: int64 */
+            module_version: number;
+            name: string;
+            page_setup: components["schemas"]["PageSetup"];
+            source_id: string;
+            /** @enum {string} */
+            source_kind: "table" | "query";
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+            /** Format: int64 */
+            version: number;
+        };
+        ReportControl: {
+            aggregate?: components["schemas"]["Aggregate"];
+            bind?: components["schemas"]["Bind"];
+            calc?: components["schemas"]["Calc"];
+            caption?: string;
+            format?: string;
+            /** Format: int64 */
+            h: number;
+            id: string;
+            name: string;
+            style?: {
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            type: "label" | "textbox" | "line" | "rect" | "page_number" | "page_count" | "now";
+            /** Format: int64 */
+            w: number;
+            /** Format: int64 */
+            x: number;
+            /** Format: int64 */
+            y: number;
+        };
+        ReportInput: {
+            layout: components["schemas"]["ReportLayout"];
+            /** @description Lua helpers usable from calculated controls. */
+            module_source?: string;
+            name: string;
+            page_setup: components["schemas"]["PageSetup"];
+            source_id: string;
+            /** @enum {string} */
+            source_kind: "table" | "query";
+        };
+        ReportLayout: {
+            bands: components["schemas"]["Bands"];
+            groups?: components["schemas"]["Group"][] | null;
+            sorts?: components["schemas"]["ReportSort"][] | null;
+            /** Format: int64 */
+            width: number;
+        };
+        ReportSort: {
+            column_id: string;
+            desc?: boolean;
         };
         Result: {
             columns: string[] | null;
@@ -3923,6 +4095,482 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Result"];
                 };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListReportsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    createReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateReport: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": string;
+            };
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    deleteReport: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": string;
+            };
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    runReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunRequest"];
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Bad Request */
             400: {

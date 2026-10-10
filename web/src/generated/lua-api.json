@@ -1,5 +1,246 @@
 [
   {
+    "name": "csv",
+    "doc": "CSV parsing and writing (RFC 4180 quoting). All cell values are strings when parsing; a leading UTF-8 byte-order mark is ignored. Rows may have differing lengths. Unknown option names raise an error.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "parse",
+        "signature": "csv.parse(s, opts?)",
+        "params": [
+          {
+            "name": "s",
+            "type": "string",
+            "doc": "CSV text."
+          },
+          {
+            "name": "opts",
+            "type": "table",
+            "doc": "{header = true, delimiter = \",\", trim = false}. With header = true each row is a table keyed by the header names (empty names become column_N, duplicates get _2, _3 suffixes; short rows are padded with empty strings, extra cells are named column_N). With header = false rows are arrays of strings. trim = true strips surrounding whitespace from every cell. delimiter must be a single character.",
+            "optional": true
+          }
+        ],
+        "returns": "table|nil, string|nil",
+        "errors": [
+          "invalid option"
+        ],
+        "doc": "Parses all of s into an array of rows. On malformed CSV returns nil and a message of the form \"line N: message\".",
+        "example": "local rows, err = csv.parse(\"name,qty\\nbolt,3\\n\")\nreturn rows[1].name  -- \"bolt\""
+      },
+      {
+        "name": "rows",
+        "signature": "csv.rows(s, opts?)",
+        "params": [
+          {
+            "name": "s",
+            "type": "string",
+            "doc": "CSV text."
+          },
+          {
+            "name": "opts",
+            "type": "table",
+            "doc": "{header = true, delimiter = \",\", trim = false}. With header = true each row is a table keyed by the header names (empty names become column_N, duplicates get _2, _3 suffixes; short rows are padded with empty strings, extra cells are named column_N). With header = false rows are arrays of strings. trim = true strips surrounding whitespace from every cell. delimiter must be a single character.",
+            "optional": true
+          }
+        ],
+        "returns": "function",
+        "errors": [
+          "invalid option",
+          "malformed CSV while iterating (message \"line N: ...\")"
+        ],
+        "doc": "Returns an iterator yielding one row per call, for use in a generic for loop. Malformed CSV raises an error when the bad line is reached.",
+        "example": "for row in csv.rows(text) do\n  total = total + tonumber(row.qty)\nend"
+      },
+      {
+        "name": "encode",
+        "signature": "csv.encode(rows, opts?)",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of rows. Each row is an array of values, or a table keyed by column name (then opts.columns is required)."
+          },
+          {
+            "name": "opts",
+            "type": "table",
+            "doc": "{columns = {\"a\", \"b\"}, delimiter = \",\", header = true}. columns selects and orders keyed-row cells and supplies the header line. For array rows a header line is written only when columns is given. Cells may be strings, numbers, booleans, decimals, nil or db.NULL (empty).",
+            "optional": true
+          }
+        ],
+        "returns": "string",
+        "errors": [
+          "columns missing for keyed rows",
+          "unsupported cell value",
+          "result exceeds the maximum string size (SCRIPT_LIMIT_EXCEEDED)"
+        ],
+        "doc": "Encodes rows as CSV text with LF line endings and standard quoting.",
+        "example": "return csv.encode({{sku = \"A1\", qty = 2}}, {columns = {\"sku\", \"qty\"}})  -- \"sku,qty\\nA1,2\\n\""
+      }
+    ]
+  },
+  {
+    "name": "datetime",
+    "doc": "Dates and times. A timestamp is an ISO 8601 UTC string like \"2026-03-09T05:30:00.000Z\"; a date is \"2026-01-31\". Timestamps and dates are plain strings, so they sort and compare correctly with \u003c and ==. Calendar arithmetic and local-time parsing use the workspace time zone unless a tz argument is given. Invalid tz names raise an error.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "now",
+        "signature": "datetime.now()",
+        "returns": "string",
+        "doc": "Returns the current time as an ISO UTC timestamp (millisecond precision).",
+        "example": "local started = datetime.now()  -- \"2026-03-09T05:30:00.123Z\""
+      },
+      {
+        "name": "today",
+        "signature": "datetime.today(tz?)",
+        "params": [
+          {
+            "name": "tz",
+            "type": "string",
+            "doc": "IANA time zone name such as \"America/New_York\". Defaults to the workspace time zone.",
+            "optional": true
+          }
+        ],
+        "returns": "string",
+        "errors": [
+          "unknown time zone"
+        ],
+        "doc": "Returns today's date (YYYY-MM-DD) in the time zone.",
+        "example": "local d = datetime.today(\"Europe/Paris\")"
+      },
+      {
+        "name": "parse",
+        "signature": "datetime.parse(s, tz?)",
+        "params": [
+          {
+            "name": "s",
+            "type": "string",
+            "doc": "RFC 3339 (any offset), \"YYYY-MM-DD\" (midnight in tz), \"YYYY-MM-DD HH:MM\" or \"YYYY-MM-DD HH:MM:SS\" (local time in tz)."
+          },
+          {
+            "name": "tz",
+            "type": "string",
+            "doc": "IANA time zone name such as \"America/New_York\". Defaults to the workspace time zone.",
+            "optional": true
+          }
+        ],
+        "returns": "string|nil, string|nil",
+        "errors": [
+          "unknown time zone",
+          "s is not a string"
+        ],
+        "doc": "Parses a date/time into an ISO UTC timestamp. On failure returns nil and an error message instead of raising.",
+        "example": "local ts, err = datetime.parse(\"2026-03-08 21:30\", \"America/New_York\")\nif not ts then error(err) end"
+      },
+      {
+        "name": "format",
+        "signature": "datetime.format(ts, layout, tz?)",
+        "params": [
+          {
+            "name": "ts",
+            "type": "string",
+            "doc": "A timestamp or date (any form accepted by datetime.parse)."
+          },
+          {
+            "name": "layout",
+            "type": "string",
+            "doc": "strftime-style layout. Supported: %Y %m %d %H %M %S %y %b %B %a %A %p %I %j %Z %z %%."
+          },
+          {
+            "name": "tz",
+            "type": "string",
+            "doc": "IANA time zone name such as \"America/New_York\". Defaults to the workspace time zone.",
+            "optional": true
+          }
+        ],
+        "returns": "string",
+        "errors": [
+          "ts cannot be parsed",
+          "unknown directive in layout",
+          "unknown time zone",
+          "result exceeds the maximum string size (SCRIPT_LIMIT_EXCEEDED)"
+        ],
+        "doc": "Formats a time in the time zone. %Z is the zone abbreviation and %z the numeric offset such as +0100.",
+        "example": "return datetime.format(\"2026-03-09T05:30:00.000Z\", \"%d %b %Y %I:%M %p\", \"America/New_York\")  -- \"09 Mar 2026 01:30 AM\""
+      },
+      {
+        "name": "add",
+        "signature": "datetime.add(ts, spec, tz?)",
+        "params": [
+          {
+            "name": "ts",
+            "type": "string",
+            "doc": "A timestamp or date."
+          },
+          {
+            "name": "spec",
+            "type": "table",
+            "doc": "Any of years, months, days, weeks (whole numbers, may be negative) and hours, minutes, seconds (fractions allowed)."
+          },
+          {
+            "name": "tz",
+            "type": "string",
+            "doc": "IANA time zone name such as \"America/New_York\". Defaults to the workspace time zone.",
+            "optional": true
+          }
+        ],
+        "returns": "string",
+        "errors": [
+          "ts cannot be parsed",
+          "unknown key in spec",
+          "non-integer years/months/days/weeks",
+          "result out of range",
+          "unknown time zone"
+        ],
+        "doc": "Adds calendar and clock amounts. years, months, days and weeks use calendar arithmetic in the time zone so local clock time is kept across daylight-saving changes; adding months clamps to the end of shorter months (Jan 31 + 1 month = Feb 28). hours, minutes and seconds are exact elapsed time. When ts is a date and only years/months/days/weeks are given the result is a date, otherwise a timestamp.",
+        "example": "datetime.add(\"2026-03-08T06:30:00.000Z\", {days = 1}, \"America/New_York\")  -- \"2026-03-09T05:30:00.000Z\""
+      },
+      {
+        "name": "diff",
+        "signature": "datetime.diff(a, b, unit, tz?)",
+        "params": [
+          {
+            "name": "a",
+            "type": "string",
+            "doc": "Start timestamp or date."
+          },
+          {
+            "name": "b",
+            "type": "string",
+            "doc": "End timestamp or date."
+          },
+          {
+            "name": "unit",
+            "type": "string",
+            "doc": "One of \"seconds\", \"minutes\", \"hours\", \"days\", \"weeks\", \"months\", \"years\"."
+          },
+          {
+            "name": "tz",
+            "type": "string",
+            "doc": "IANA time zone name such as \"America/New_York\". Defaults to the workspace time zone.",
+            "optional": true
+          }
+        ],
+        "returns": "number",
+        "errors": [
+          "a or b cannot be parsed",
+          "unknown unit",
+          "unknown time zone"
+        ],
+        "doc": "Returns b - a in the unit. seconds to weeks are exact elapsed time (a day is 24 hours) and may be fractional. months and years count whole calendar months/years in the time zone, truncated toward zero.",
+        "example": "datetime.diff(\"2026-01-01\", \"2026-03-15\", \"days\")  -- 73"
+      }
+    ]
+  },
+  {
     "name": "db",
     "doc": "Run SQL against this workspace's tables. Reads run on a snapshot; writes need edit rights and are not recorded in row history (use `records` for tracked edits). Statements are checked by the SQL authorizer: system tables, schema changes, PRAGMA and ATTACH are not allowed.",
     "contexts": [
@@ -134,6 +375,49 @@
     ]
   },
   {
+    "name": "decimal",
+    "doc": "Exact base-10 arithmetic. Currency is stored as an integer scaled by 10^4 and appears in scripts as decimal values, so decimal.new(\"0.1\") + decimal.new(\"0.2\") == decimal.new(\"0.3\") is true.\n\nDecimals support + - * / % unary minus, == \u003c \u003c= \u003e \u003e= and .. (concatenation). Arithmetic operands may be decimals, numbers (converted through their shortest exact decimal representation) or numeric strings. Lua 5.1 caveats: == is only evaluated when both sides are decimals, so decimal == number is always false; \u003c \u003c= \u003e \u003e= only work between two decimals and comparing a decimal with a number raises an error. Convert first: d == decimal.new(1), d \u003c decimal.new(\"2.5\"). Division keeps 16 decimal places and raises on division by zero; % follows Lua (the result has the sign of the divisor). Values are limited to about 4,900 digits and an exponent of 1000.\n\nDecimal values have the methods d:round(places), d:tostring() and d:tonumber().",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "new",
+        "signature": "decimal.new(value)",
+        "params": [
+          {
+            "name": "value",
+            "type": "string|number|decimal",
+            "doc": "A numeric string such as \"12.50\" or \"1e3\", a finite number, or another decimal."
+          }
+        ],
+        "returns": "decimal",
+        "errors": [
+          "value is not a number, numeric string or decimal",
+          "the string is not a valid decimal or is too large"
+        ],
+        "doc": "Creates a decimal. Prefer strings for exact values; a number is converted through its shortest round-trip representation, so decimal.new(0.1) is exactly 0.1.",
+        "example": "local price = decimal.new(\"19.99\")\nreturn price * 3  -- 59.97"
+      },
+      {
+        "name": "is_decimal",
+        "signature": "decimal.is_decimal(value)",
+        "params": [
+          {
+            "name": "value",
+            "type": "any",
+            "doc": "Any value."
+          }
+        ],
+        "returns": "boolean",
+        "doc": "Returns true when value is a decimal.",
+        "example": "return decimal.is_decimal(decimal.new(1))  -- true"
+      }
+    ]
+  },
+  {
     "name": "event",
     "doc": "The form event being handled.",
     "contexts": [
@@ -173,6 +457,204 @@
       }
     ],
     "global": true
+  },
+  {
+    "name": "json",
+    "doc": "JSON encoding and decoding.\n\nEncoding rules: tables with keys exactly 1..n (n \u003e= 1) or marked with json.array become arrays; an empty unmarked table becomes {}; other tables become objects with sorted keys (keys must be strings or numbers). json.null and db.NULL become null; decimals become JSON strings. Integral numbers within +/-2^53 are written without a decimal point; NaN and infinity raise. Nesting deeper than 100 levels and cycles raise.\n\nDecoding maps objects to tables, arrays to tables marked as arrays (so they re-encode as arrays even when empty), null to json.null, and integers beyond +/-2^53 to strings to avoid precision loss.\n\njson.array and json.object mark a table by giving it a private metatable. Calling setmetatable on a marked table replaces the metatable and drops the mark.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "encode",
+        "signature": "json.encode(value, opts?)",
+        "params": [
+          {
+            "name": "value",
+            "type": "any",
+            "doc": "The value to encode."
+          },
+          {
+            "name": "opts",
+            "type": "table",
+            "doc": "{pretty = boolean}: pretty = true indents with two spaces.",
+            "optional": true
+          }
+        ],
+        "returns": "string",
+        "errors": [
+          "unsupported value type (function, thread, non-null userdata)",
+          "NaN or infinity",
+          "table keys that are not strings or numbers",
+          "nesting deeper than 100 or cyclic tables",
+          "result exceeds the maximum string size (SCRIPT_LIMIT_EXCEEDED)"
+        ],
+        "doc": "Encodes a Lua value as JSON text.",
+        "example": "return json.encode({name = \"Ada\", tags = json.array({})})  -- {\"name\":\"Ada\",\"tags\":[]}"
+      },
+      {
+        "name": "decode",
+        "signature": "json.decode(s)",
+        "params": [
+          {
+            "name": "s",
+            "type": "string",
+            "doc": "JSON text."
+          }
+        ],
+        "returns": "any|nil, string|nil",
+        "doc": "Parses JSON text. On invalid JSON returns nil and an error message instead of raising. A literal null decodes to json.null (not nil).",
+        "example": "local v, err = json.decode('{\"a\":[1,2,null]}')\nif not v then error(err) end"
+      },
+      {
+        "name": "array",
+        "signature": "json.array(t?)",
+        "params": [
+          {
+            "name": "t",
+            "type": "table",
+            "doc": "Table to mark; a new empty table when omitted.",
+            "optional": true
+          }
+        ],
+        "returns": "table",
+        "errors": [
+          "t has a protected metatable"
+        ],
+        "doc": "Marks t (and returns it) so it always encodes as a JSON array, even when empty. Keys other than 1..n make encoding fail.",
+        "example": "local rows = json.array({})"
+      },
+      {
+        "name": "object",
+        "signature": "json.object(t?)",
+        "params": [
+          {
+            "name": "t",
+            "type": "table",
+            "doc": "Table to mark; a new empty table when omitted.",
+            "optional": true
+          }
+        ],
+        "returns": "table",
+        "errors": [
+          "t has a protected metatable"
+        ],
+        "doc": "Marks t (and returns it) so it always encodes as a JSON object, including an empty table or one with integer keys. Overrides json.array.",
+        "example": "return json.encode(json.object({}))  -- {}"
+      }
+    ],
+    "values": [
+      {
+        "name": "null",
+        "type": "userdata",
+        "doc": "The JSON null value. Compare with ==; it is distinct from nil and db.NULL but both encode as null."
+      }
+    ]
+  },
+  {
+    "name": "log",
+    "doc": "Writes to the run log (the script console, and the job run log for jobs). Messages longer than 8 KiB are truncated with an ellipsis; fields are limited to about 8 KiB when serialized. The most recent 256 KiB of log output is kept per run.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "debug",
+        "signature": "log.debug(msg, fields?)",
+        "params": [
+          {
+            "name": "msg",
+            "type": "any",
+            "doc": "Message; converted with tostring."
+          },
+          {
+            "name": "fields",
+            "type": "table",
+            "doc": "Structured context: a table with string keys. Values may be strings, numbers, booleans, decimals, json.null or nested tables.",
+            "optional": true
+          }
+        ],
+        "errors": [
+          "fields is not a table with string keys",
+          "fields are too large"
+        ],
+        "doc": "Writes a debug entry to the run log.",
+        "example": "log.debug(\"imported rows\", {count = 12, source = \"upload\"})"
+      },
+      {
+        "name": "info",
+        "signature": "log.info(msg, fields?)",
+        "params": [
+          {
+            "name": "msg",
+            "type": "any",
+            "doc": "Message; converted with tostring."
+          },
+          {
+            "name": "fields",
+            "type": "table",
+            "doc": "Structured context: a table with string keys. Values may be strings, numbers, booleans, decimals, json.null or nested tables.",
+            "optional": true
+          }
+        ],
+        "errors": [
+          "fields is not a table with string keys",
+          "fields are too large"
+        ],
+        "doc": "Writes a info entry to the run log.",
+        "example": "log.info(\"imported rows\", {count = 12, source = \"upload\"})"
+      },
+      {
+        "name": "warn",
+        "signature": "log.warn(msg, fields?)",
+        "params": [
+          {
+            "name": "msg",
+            "type": "any",
+            "doc": "Message; converted with tostring."
+          },
+          {
+            "name": "fields",
+            "type": "table",
+            "doc": "Structured context: a table with string keys. Values may be strings, numbers, booleans, decimals, json.null or nested tables.",
+            "optional": true
+          }
+        ],
+        "errors": [
+          "fields is not a table with string keys",
+          "fields are too large"
+        ],
+        "doc": "Writes a warn entry to the run log.",
+        "example": "log.warn(\"imported rows\", {count = 12, source = \"upload\"})"
+      },
+      {
+        "name": "error",
+        "signature": "log.error(msg, fields?)",
+        "params": [
+          {
+            "name": "msg",
+            "type": "any",
+            "doc": "Message; converted with tostring."
+          },
+          {
+            "name": "fields",
+            "type": "table",
+            "doc": "Structured context: a table with string keys. Values may be strings, numbers, booleans, decimals, json.null or nested tables.",
+            "optional": true
+          }
+        ],
+        "errors": [
+          "fields is not a table with string keys",
+          "fields are too large"
+        ],
+        "doc": "Writes a error entry to the run log.",
+        "example": "log.error(\"imported rows\", {count = 12, source = \"upload\"})"
+      }
+    ]
   },
   {
     "name": "notify",

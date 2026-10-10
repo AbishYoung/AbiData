@@ -288,6 +288,102 @@
         ],
         "type": "object"
       },
+      "Aggregate": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregate": {
+            "enum": [
+              "sum",
+              "avg",
+              "count",
+              "min",
+              "max"
+            ],
+            "type": "string"
+          },
+          "column_id": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "scope": {
+            "enum": [
+              "group",
+              "report"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregate",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "Band": {
+        "additionalProperties": false,
+        "properties": {
+          "can_grow": {
+            "type": "boolean"
+          },
+          "controls": {
+            "items": {
+              "$ref": "#/components/schemas/ReportControl"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "force_new_page": {
+            "type": "boolean"
+          },
+          "height": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "keep_together": {
+            "type": "boolean"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "height",
+          "controls"
+        ],
+        "type": "object"
+      },
+      "Bands": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "page_footer": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "page_header": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "report_footer": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "report_header": {
+            "$ref": "#/components/schemas/Band"
+          }
+        },
+        "required": [
+          "report_header",
+          "page_header",
+          "detail",
+          "page_footer",
+          "report_footer"
+        ],
+        "type": "object"
+      },
       "BatchOp": {
         "additionalProperties": false,
         "properties": {
@@ -1287,6 +1383,41 @@
         ],
         "type": "object"
       },
+      "Group": {
+        "additionalProperties": false,
+        "properties": {
+          "column_id": {
+            "type": "string"
+          },
+          "footer": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "header": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "interval": {
+            "description": "Text: group by first N characters; number: by multiples of N.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "lua_expr": {
+            "type": "string"
+          },
+          "sort": {
+            "enum": [
+              "asc",
+              "desc",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "header",
+          "footer"
+        ],
+        "type": "object"
+      },
       "ImpactReport": {
         "additionalProperties": false,
         "properties": {
@@ -1529,6 +1660,24 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/Saved"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ListReportsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Report"
             },
             "type": [
               "array",
@@ -1960,6 +2109,51 @@
         ],
         "type": "object"
       },
+      "PageSetup": {
+        "additionalProperties": false,
+        "properties": {
+          "margin_bottom": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "margin_left": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "margin_right": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "margin_top": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "orientation": {
+            "enum": [
+              "portrait",
+              "landscape"
+            ],
+            "type": "string"
+          },
+          "paper": {
+            "enum": [
+              "letter",
+              "a4",
+              "legal"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "paper",
+          "orientation",
+          "margin_top",
+          "margin_right",
+          "margin_bottom",
+          "margin_left"
+        ],
+        "type": "object"
+      },
       "Param": {
         "additionalProperties": false,
         "properties": {
@@ -2125,6 +2319,228 @@
           "parent_table_id",
           "child_table_id",
           "child_column_id"
+        ],
+        "type": "object"
+      },
+      "Report": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/ReportLayout"
+          },
+          "module_id": {
+            "type": "string"
+          },
+          "module_source": {
+            "type": "string"
+          },
+          "module_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "page_setup": {
+            "$ref": "#/components/schemas/PageSetup"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_kind": {
+            "enum": [
+              "table",
+              "query"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_by": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "source_kind",
+          "source_id",
+          "layout",
+          "page_setup",
+          "version",
+          "updated_at",
+          "updated_by",
+          "module_id",
+          "module_source",
+          "module_version"
+        ],
+        "type": "object"
+      },
+      "ReportControl": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregate": {
+            "$ref": "#/components/schemas/Aggregate"
+          },
+          "bind": {
+            "$ref": "#/components/schemas/Bind"
+          },
+          "calc": {
+            "$ref": "#/components/schemas/Calc"
+          },
+          "caption": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "h": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "style": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "type": {
+            "enum": [
+              "label",
+              "textbox",
+              "line",
+              "rect",
+              "page_number",
+              "page_count",
+              "now"
+            ],
+            "type": "string"
+          },
+          "w": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "x": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "type": "object"
+      },
+      "ReportInput": {
+        "additionalProperties": false,
+        "properties": {
+          "layout": {
+            "$ref": "#/components/schemas/ReportLayout"
+          },
+          "module_source": {
+            "description": "Lua helpers usable from calculated controls.",
+            "maxLength": 1000000,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "page_setup": {
+            "$ref": "#/components/schemas/PageSetup"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_kind": {
+            "enum": [
+              "table",
+              "query"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source_kind",
+          "source_id",
+          "layout",
+          "page_setup"
+        ],
+        "type": "object"
+      },
+      "ReportLayout": {
+        "additionalProperties": false,
+        "properties": {
+          "bands": {
+            "$ref": "#/components/schemas/Bands"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/Group"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sorts": {
+            "items": {
+              "$ref": "#/components/schemas/ReportSort"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "width": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "width",
+          "bands"
+        ],
+        "type": "object"
+      },
+      "ReportSort": {
+        "additionalProperties": false,
+        "properties": {
+          "column_id": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "column_id"
         ],
         "type": "object"
       },
@@ -6218,6 +6634,639 @@
         "summary": "Run a saved query with parameters",
         "tags": [
           "queries"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/reports": {
+      "get": {
+        "operationId": "listReports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListReportsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Reports",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "operationId": "createReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Create a report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/reports/{id}": {
+      "delete": {
+        "operationId": "deleteReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Delete a report (If-Match: version)",
+        "tags": [
+          "reports"
+        ]
+      },
+      "get": {
+        "operationId": "getReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "A report (ETag = version)",
+        "tags": [
+          "reports"
+        ]
+      },
+      "put": {
+        "operationId": "updateReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Replace a report (If-Match: version)",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/reports/{id}/run": {
+      "post": {
+        "description": "The first two lines are the page header/footer templates. Errors before streaming starts use the error envelope; errors after are a final line {\"error\":{…}}.",
+        "operationId": "runReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Run a report: NDJSON stream of section instances {band, group_level, template, values, row}",
+        "tags": [
+          "reports"
         ]
       }
     },
