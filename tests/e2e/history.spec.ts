@@ -50,32 +50,30 @@ test("creates a workspace with a tracked and an untracked table", async ({ page 
   priceId = String(cols.find((c) => c.display_name === "Price")?.id);
   const row = await call(page, "POST", `/api/v1/w/${ws}/tables/${trackedId}/rows`, { fields: { [nameId]: "Widget", [priceId]: "1.50" } });
   rowId = Number(row.id);
-  await call(page, "POST", `/api/v1/w/${ws}/tables/${plainId}/rows`, { fields: { [nameId]: "Untracked" } }).catch(() => undefined);
+  const plainCols = (plain?.columns as Record<string, unknown>[]).map(rec);
+  const plainName = String(plainCols.find((c) => c.display_name === "Name")?.id);
+  await call(page, "POST", `/api/v1/w/${ws}/tables/${plainId}/rows`, { fields: { [plainName]: "Untracked" } });
 });
-
-async function editCell(page: Page, column: string, text: string): Promise<void> {
-  const grid = page.getByRole("grid", { name: "Tracked datasheet" });
-  const n = await rowIndexOf(grid, "Widget", "Name").catch(() => 2);
-  const cell = await cellAt(grid, n, column);
-  await cell.click();
-  await page.keyboard.type(text);
-  await page.keyboard.press("Shift+Enter");
-}
 
 test("shows the changes of a record, newest first, from the datasheet", async ({ page }) => {
   await signIn(page);
   await page.goto(`/w/${ws}`);
   const grid = await switchTable(page, "Tracked");
 
-  await editCell(page, "Name", "Widget B");
-  await expect(grid.getByRole("gridcell", { name: "Widget B" })).toBeVisible();
-  const priceCell = await cellAt(grid, 2, "Price");
+  await expect(grid.getByRole("gridcell", { name: "Widget", exact: true })).toBeVisible();
+  const n = await rowIndexOf(grid, "Widget", "Name");
+  const nameCell = await cellAt(grid, n, "Name");
+  await nameCell.click();
+  await page.keyboard.type("Widget B");
+  await page.keyboard.press("Shift+Enter");
+  await expect(nameCell).toHaveText("Widget B");
+  const priceCell = await cellAt(grid, n, "Price");
   await priceCell.click();
   await page.keyboard.type("2.25");
   await page.keyboard.press("Shift+Enter");
   await expect(priceCell).toContainText("2.25");
 
-  await (await cellAt(grid, 2, "Name")).click();
+  await (await cellAt(grid, n, "Name")).click();
   await page.getByRole("button", { name: "History" }).click();
   const panel = page.getByRole("dialog", { name: /History of record/ });
   await expect(panel).toBeVisible();
@@ -104,7 +102,9 @@ test("opens and closes the history panel with the keyboard only", async ({ page 
   await signIn(page);
   await page.goto(`/w/${ws}`);
   const grid = await switchTable(page, "Tracked");
-  await (await cellAt(grid, 2, "Name")).click();
+  await expect(grid.getByRole("gridcell", { name: "Widget B" })).toBeVisible();
+  const n = await rowIndexOf(grid, "Widget B", "Name");
+  await (await cellAt(grid, n, "Name")).click();
   const button = page.getByRole("button", { name: "History" });
   await button.focus();
   await page.keyboard.press("Enter");
@@ -112,7 +112,7 @@ test("opens and closes the history panel with the keyboard only", async ({ page 
   await expect(panel).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
-  await expect(page.getByRole("grid", { name: "Tracked datasheet" })).toBeFocused();
+  await expect(button).toBeFocused();
 });
 
 test("records the deletion of the row", async ({ page }) => {
@@ -131,7 +131,8 @@ test("explains that history is off for a table without tracking", async ({ page 
   await page.goto(`/w/${ws}`);
   const grid = await switchTable(page, "Plain");
   await expect(grid.getByRole("gridcell", { name: "Untracked" })).toBeVisible();
-  await (await cellAt(grid, 2, "Name")).click();
+  const n = await rowIndexOf(grid, "Untracked", "Name");
+  await (await cellAt(grid, n, "Name")).click();
   await page.getByRole("button", { name: "History" }).click();
   const panel = page.getByRole("dialog", { name: /History of record/ });
   await expect(panel.getByTestId("history-off")).toContainText("History is off for this table.");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog } from "radix-ui";
 import { History, X } from "lucide-react";
@@ -29,6 +29,8 @@ interface Props {
 
 /** The history side sheet of one record: who changed what and when, newest first. Mount only while open. */
 export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
+  // Whatever had focus when the panel opened gets it back on close (Radix has no trigger to return to).
+  const opener = useRef<Element | null>(typeof document === "undefined" ? null : document.activeElement);
   const schema = useSchema(ws);
   const workspace = useQuery({
     queryKey: ["workspace", ws],
@@ -85,6 +87,12 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content
           aria-describedby={undefined}
+          onCloseAutoFocus={(e) => {
+            if (opener.current instanceof HTMLElement && opener.current.isConnected) {
+              e.preventDefault();
+              opener.current.focus();
+            }
+          }}
           className="fixed inset-y-0 right-0 z-50 flex w-[min(32rem,100vw)] flex-col border-l border-border bg-surface text-fg shadow-xl"
         >
           <div className="flex items-center gap-2 border-b border-border px-4 py-2">

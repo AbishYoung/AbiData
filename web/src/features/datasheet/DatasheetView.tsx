@@ -729,10 +729,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           ws={ws}
           tableId={tableId}
           rowId={historyRow}
-          onClose={() => {
-            setHistoryRow(null);
-            focusGrid();
-          }}
+          onClose={() => setHistoryRow(null)}
         />
       )}
       {failed && (
