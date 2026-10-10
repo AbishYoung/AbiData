@@ -11,6 +11,7 @@ import { alertBox, btn } from "@/components/styles";
 import { Grid, HEADER_HEIGHT, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
 import { ExportDialog } from "@/features/imports/ExportDialog";
+import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
 import { DeleteDialog } from "./DeleteDialog";
 import type { EditorHandle, LookupInfo, Move } from "./Editors";
@@ -91,6 +92,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [layout, setLayout] = useState<Layout>(() => loadLayout(ws, tableId));
   const [sort, setSort] = useState<SortState | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [historyRow, setHistoryRow] = useState<number | null>(null);
   const [quick, setQuick] = useState("");
   const [appliedQuick, setAppliedQuick] = useState("");
   const [conditions, setConditions] = useState<readonly Condition[]>([]);
@@ -714,9 +716,22 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         canDelete={canEdit && selectedActive}
         onDelete={requestDelete}
         onExport={() => setExportOpen(true)}
+        canHistory={activeCell.row < total && rowAt(activeCell.row) !== undefined}
+        onHistory={() => {
+          const row = rowAt(activeCell.row);
+          if (row) setHistoryRow(row.id);
+        }}
         filterRef={filterRef}
       />
       {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name }} onClose={() => setExportOpen(false)} />}
+      {historyRow !== null && (
+        <RowHistoryPanel
+          ws={ws}
+          tableId={tableId}
+          rowId={historyRow}
+          onClose={() => setHistoryRow(null)}
+        />
+      )}
       {failed && (
         <div role="alert" className={`${alertBox} m-2 flex items-center gap-3`}>
           <span>{failed instanceof ApiError ? failed.message : "The records could not be loaded."}</span>
