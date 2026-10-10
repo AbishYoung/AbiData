@@ -14,13 +14,15 @@ import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
 import { QueryTab } from "@/features/queries/QueryTab";
 import { FormTab } from "@/features/forms/FormTab";
 import { ScriptTab } from "@/features/scripts/ScriptTab";
+import { ReportTab } from "@/features/reports/ReportTab";
 import { alertBox } from "@/components/styles";
 
-const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form" } as const;
+const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form", report: "Report" } as const;
 const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
   table: ["datasheet", "design"],
   query: ["datasheet", "design", "sql"],
   form: ["form", "design"],
+  report: ["report", "design"],
   script: [],
 };
 
@@ -109,7 +111,9 @@ function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined 
   }
   const designing = tab.view !== "datasheet" && tab.view !== "form" && canDesign(role);
   let content;
-  if (tab.kind === "form") {
+  if (tab.kind === "report") {
+    content = <ReportTab ws={ws} reportId={tab.objectId} tabKey={tab.key} view={tab.view === "design" && canDesign(role) ? "design" : "report"} />;
+  } else if (tab.kind === "form") {
     content = <FormTab ws={ws} formId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? "design" : "form"} />;
   } else if (tab.kind === "script") {
     content = <ScriptTab ws={ws} scriptId={tab.objectId} tabKey={tab.key} />;

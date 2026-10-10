@@ -17,6 +17,7 @@ import { useTabs, useWorkspaceTabs, type TableView } from "@/app/tabs";
 import { useSchema, type Table } from "@/lib/schema";
 import { DeleteTableDialog, RenameTableDialog } from "./TableCrudDialogs";
 import { ScriptsGroupBody } from "./ScriptNavItem";
+import { ReportsGroupBody } from "./ReportNavItem";
 import { TableNavItem, tableActions } from "./TableNavItem";
 import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
@@ -252,7 +253,10 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
               {open && g.id === "scripts" && (
                 <ScriptsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} />
               )}
-              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && (
+              {open && g.id === "reports" && (
+                <ReportsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} design={design} />
+              )}
+              {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && g.id !== "reports" && (
                 <p id={panelId} className="px-9 py-1 text-sm text-fg-muted">
                   {searching ? `No ${g.noun} match “${query.trim()}”` : `No ${g.noun} yet`}
                 </p>

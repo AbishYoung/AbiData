@@ -246,3 +246,56 @@ export class ApiClient {
 }
 
 export const api = new ApiClient();
+
+/**
+ * A raw fetch for responses that are read incrementally (NDJSON streams), with the
+ * same origin, credentials and CSRF handling as `api`. Resolves with the open Response
+ * once it is OK; otherwise rejects with an ApiError built from the error envelope.
+ * Aborting `init.signal` rejects with a canceled ApiError.
+ */
+export async function fetchStream(
+  path: string,
+  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+): Promise<Response> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = { Accept: "application/x-ndjson, application/json" };
+  if (init.body !== undefined) headers["Content-Type"] = "application/json";
+  if (UNSAFE_METHODS.has(method)) {
+    const csrf = useSessionStore.getState().csrf;
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
+  let response: Response;
+  try {
+    response = await globalThis.fetch(path, {
+      method,
+      headers,
+      credentials: "same-origin",
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      ...(init.signal ? { signal: init.signal } : {}),
+    });
+  } catch {
+    if (init.signal?.aborted) throw canceledError();
+    throw networkError();
+  }
+  if (!response.ok) {
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = undefined;
+    }
+    throw errorFromResponse(response, body);
+  }
+  return response;
+}
+
+/** The error a user-initiated abort of a streaming read produces. */
+export function canceledStreamError(): ApiError {
+  return canceledError();
+}
+
+/** Wraps a read failure of an open stream: a network drop becomes "server unreachable". */
+export function streamReadError(e: unknown, signal?: AbortSignal): ApiError {
+  if (e instanceof ApiError) return e;
+  return signal?.aborted ? canceledError() : networkError();
+}
