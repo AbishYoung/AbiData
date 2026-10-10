@@ -213,7 +213,7 @@ test("an editor can open and run the saved query but cannot design or save it", 
   await expect(page.getByRole("button", { name: "Design", exact: true })).toHaveCount(0);
 
   await nav(page).getByRole("button", { name: "More actions for Big orders" }).click();
-  await expect(page.getByRole("menuitem")).toHaveText(["Open"]);
+  await expect(page.getByRole("menuitem")).toHaveText(["Open", "Export…"]);
   await page.keyboard.press("Escape");
   await expectDesignViewAccessible(page);
 });
