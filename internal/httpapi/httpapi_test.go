@@ -87,7 +87,8 @@ func newEnv(t *testing.T) *env {
 	arts := &artifacts.Store{Dir: filepath.Join(dir, "artifacts")}
 	jobSvc := &jobs.Service{Scripts: scriptSvc, Events: hub}
 	jobSvc.Scheduler = jobs.New(jobs.Config{Store: &jobs.SQLStore{Admin: ad, Workspaces: wm},
-		Executor: &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Artifacts: arts}})
+		Executor: &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Artifacts: arts},
+		Publish:  func(id ids.WorkspaceID, r jobs.Run) { hub.Publish(string(id), events.JobRun, r) }})
 	t.Cleanup(jobSvc.Scheduler.Wait)
 	opsSvc := &ops.Service{Workspaces: wm, Events: hub}
 	t.Cleanup(func() { _ = opsSvc.Shutdown(ctx) })

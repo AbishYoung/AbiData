@@ -71,7 +71,10 @@ func (s *Server) requestID(next http.Handler) http.Handler {
 }
 
 // remoteIP honours X-Forwarded-For only when the direct peer is a trusted proxy,
-// taking the right-most address that is not itself trusted.
+// taking the right-most address that is not itself trusted. When every entry
+// is trusted (a visitor on the same private network as the proxies), the
+// left-most entry is the client: falling back to the peer would put every such
+// visitor under the proxy's address (Phase 7 review M2).
 func (s *Server) remoteIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -83,6 +86,7 @@ func (s *Server) remoteIP(r *http.Request) string {
 	}
 	xff := r.Header.Values("X-Forwarded-For")
 	parts := strings.Split(strings.Join(xff, ","), ",")
+	client := ""
 	for i := len(parts) - 1; i >= 0; i-- {
 		a, err := netip.ParseAddr(strings.TrimSpace(parts[i]))
 		if err != nil {
@@ -91,6 +95,10 @@ func (s *Server) remoteIP(r *http.Request) string {
 		if !s.trusted(a) {
 			return a.Unmap().String()
 		}
+		client = a.Unmap().String()
+	}
+	if client != "" {
+		return client
 	}
 	return host
 }
@@ -160,7 +168,7 @@ func (s *Server) accessLog(next http.Handler) http.Handler {
 			}
 			d := time.Since(start)
 			if s.deps.Metrics != nil {
-				s.deps.Metrics.HTTPRequests.WithLabelValues(r.Method, route, strconv.Itoa(rec.status)).Observe(d.Seconds())
+				s.deps.Metrics.HTTPRequests.WithLabelValues(methodLabel(r.Method), route, strconv.Itoa(rec.status)).Observe(d.Seconds())
 			}
 			level := slog.LevelInfo
 			if rec.status >= 500 {
@@ -300,4 +308,14 @@ func constantEq(a, b string) bool {
 		v |= a[i] ^ b[i]
 	}
 	return v == 0
+}
+
+// methodLabel bounds the metrics method label: any token is a valid method, so
+// a raw label lets anyone mint series without limit (Phase 7 review M1).
+func methodLabel(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
+		return m
+	}
+	return "other"
 }

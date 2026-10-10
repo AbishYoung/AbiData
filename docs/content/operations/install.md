@@ -39,6 +39,15 @@ make docker           # linux/amd64 and linux/arm64, build only
    scripts/gen-secrets.sh
    ```
 
+   The server runs as user 65532 inside the container, and Compose mounts the files with their host owner and mode. On Linux, hand them to that user instead of widening them (Docker Desktop on macOS and Windows needs no change):
+
+   ```sh
+   sudo chown 65532:65532 secrets/session_key secrets/manifest_key
+   sudo chmod 400 secrets/session_key secrets/manifest_key
+   ```
+
+   Never make them world-readable. Anyone who can read the manifest key can forge backups that AbiData will accept.
+
 3. Set your public address. `ABIDATA_PUBLIC_URL` must be the exact address people type in the browser, with no path:
 
    ```sh
@@ -75,15 +84,9 @@ The two secret files are passed as `ABIDATA_SESSION_KEY_FILE` and `ABIDATA_MANIF
 
 ### Tell AbiData about the proxy {#proxy}
 
-AbiData sees Caddy's address, not the visitor's. For correct client addresses in logs and in the sign-in rate limit, it must trust `X-Forwarded-For` from Caddy. The compose file sets `ABIDATA_TRUSTED_PROXIES` to the private address ranges by default (`10.0.0.0/8,172.16.0.0/12,192.168.0.0/16`). That is safe there because the app's port is not published: only containers on the Compose network can reach it.
+AbiData sees Caddy's address, not the visitor's, so it reads the visitor's address from `X-Forwarded-For`, but only on requests that come from a trusted proxy. The compose file puts both services on an internal network with fixed addresses (`172.30.70.0/24`, Caddy at `172.30.70.2`) and sets `ABIDATA_TRUSTED_PROXIES` to Caddy's address alone. Client addresses then appear correctly in logs and in the sign-in rate limits, including for visitors on your own network.
 
-If you publish the app's port or run it outside Compose, narrow this to your proxy's address, for example:
-
-```sh
-export ABIDATA_TRUSTED_PROXIES=172.18.0.0/16
-```
-
-Find the real range with `docker network inspect`. Only addresses in this list are allowed to supply `X-Forwarded-For`.
+If `172.30.70.0/24` collides with a network you already use, change the subnet, both `ipv4_address` values and `ABIDATA_TRUSTED_PROXIES` together. If you run AbiData behind a different proxy, set `ABIDATA_TRUSTED_PROXIES` to that proxy's address only, never to a whole range that clients also use. Only addresses in this list may supply `X-Forwarded-For`.
 
 ## First run {#first-run}
 

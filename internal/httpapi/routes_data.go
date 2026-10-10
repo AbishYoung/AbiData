@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -476,15 +477,23 @@ func (s *Server) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, s.log, err)
 		return
 	}
+	// Job runs are builder-only data everywhere else (their errors carry script
+	// text), so job.run events go to builders and owners only.
+	var builder atomic.Bool
+	builder.Store(m.Role.AtLeast(admin.RoleBuilder))
 	events.Stream(w, r, s.deps.Events.Bus(string(m.Workspace.ID)), events.StreamOptions{
 		Authorize: func(ctx context.Context) error {
 			p2, err := s.deps.Auth.Authenticate(ctx, c.Value)
 			if err != nil {
 				return err
 			}
-			_, err = s.resolveMembership(ctx, p2, ws)
+			m2, err := s.resolveMembership(ctx, p2, ws)
+			if err == nil {
+				builder.Store(m2.Role.AtLeast(admin.RoleBuilder))
+			}
 			return err
 		},
 		Recheck: 5 * time.Minute,
+		Filter:  func(ev events.Event) bool { return ev.Type != events.JobRun || builder.Load() },
 	})
 }

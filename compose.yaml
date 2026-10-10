@@ -8,9 +8,8 @@ services:
       ABIDATA_MANIFEST_KEY_FILE: /run/secrets/manifest_key
       # First start with no users: the one-time setup token is logged for this address.
       ABIDATA_BOOTSTRAP_ADMIN_EMAIL: ${ABIDATA_BOOTSTRAP_ADMIN_EMAIL:-}
-      # Caddy reaches the app over the compose network, so trust its X-Forwarded-For
-      # (the app port is not published; only containers on this network can connect).
-      ABIDATA_TRUSTED_PROXIES: ${ABIDATA_TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # Trust X-Forwarded-For only from Caddy's fixed address on the internal network.
+      ABIDATA_TRUSTED_PROXIES: ${ABIDATA_TRUSTED_PROXIES:-172.30.70.2}
     volumes:
       - abidata-data:/var/lib/abidata
       - abidata-backups:/var/lib/abidata-backups
@@ -18,6 +17,9 @@ services:
       - session_key
       - manifest_key
     stop_grace_period: 45s
+    networks:
+      internal:
+        ipv4_address: 172.30.70.3
 
   caddy:
     image: caddy:2
@@ -34,6 +36,17 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    networks:
+      internal:
+        ipv4_address: 172.30.70.2
+
+networks:
+  # A fixed subnet so the app can trust exactly Caddy's address. Change all three
+  # addresses together if 172.30.70.0/24 collides with a network you use.
+  internal:
+    ipam:
+      config:
+        - subnet: 172.30.70.0/24
 
 secrets:
   session_key:

@@ -3,7 +3,7 @@
 Spec: [docs/BRIEF.md](docs/BRIEF.md) · Decisions: [docs/adr/](docs/adr/)
 
 ## Current phase
-Gates 3–6 PASSED (2026-10-10). Phase 7 in progress: all Gate 7 items green locally except the Phase 7 security review (running) and the CI run of the container-smoke job.
+Gates 3–6 PASSED (2026-10-10). Gate 7 PASSED locally (2026-10-10); the CI run of the container-smoke job is still to be observed. Post-brief additions in progress: table-design indexes UI (merging), row history viewer (agent running).
 
 ## Done
 - Repo initialised (module path `abidata`; no git remote to infer from).
@@ -90,7 +90,12 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
   - Doc statements to confirm with a human: no row-history viewer exists; unique indexes only via the schema API; `/metrics` needs an admin session (awkward for Prometheus); compose.yaml lacks `ABIDATA_BOOTSTRAP_ADMIN_EMAIL`/`ABIDATA_TRUSTED_PROXIES`; UI-event budgets are fixed (brief says workspace-configurable 250 ms–5 s).
 - a11y: `tests/e2e/a11y.spec.ts` runs axe (wcag2a/aa, no exclusions) on every route and in-app view, light and dark; no violations. `/setup` is unreachable on the shared e2e server (admin pre-created); it is covered by the container smoke.
 - Container: Dockerfile fixed (copy `third_party/` before `go mod download`; the image did not build before). `docker buildx` builds linux/amd64 + linux/arm64 locally. `scripts/container-smoke.sh` (compose project `abidata-smoke`, port 18094): build → compose up → setup token from log → setup → workspace → `smoke.spec.ts` (table, rows, query, job, backup, restore) → down -v. Passes locally; CI job `container-smoke` runs the same script (not yet run in CI).
-- compose.yaml passes `ABIDATA_BOOTSTRAP_ADMIN_EMAIL` and defaults `ABIDATA_TRUSTED_PROXIES` to private ranges (app port unpublished), so the per-IP login limit is not shared by all users behind Caddy.
+- compose.yaml passes `ABIDATA_BOOTSTRAP_ADMIN_EMAIL`; both services sit on a fixed internal network (172.30.70.0/24) and only Caddy (172.30.70.2) is a trusted proxy.
+- Phase 7 security review (fresh Opus) fixed, repros inverted (`internal/httpapi/phase7_secreview_test.go`):
+  - M1 metrics `method` label bounded (standard methods, else `other`).
+  - M2 LAN visitors collapsed to Caddy's address in rate limits: `remoteIP` now returns the left-most entry when every hop is trusted, and compose trusts only Caddy's fixed address.
+  - L1 secrets: smoke script uses throwaway keys in a temp dir (never chmods `secrets/`); install docs and gen-secrets.sh say chown 65532 + 0400 on Linux.
+  - Info items: no new job runs once shutdown begins; `job.run` SSE events go to builders/owners only (job data is builder-only elsewhere); sign-in limits (per account+address, per account, per address) and their lockout trade-off documented. Accepted: no `ReadTimeout` on the main server (Caddy streams bodies; slow uploads up to 100 MiB must work).
 - Quotas `ui_event_budget_ms` (clamped 250 ms–5 s) and `script_concurrency` (clamped to the global pool) now take effect; they were stored but unused. `ABIDATA_METRICS_ADDR` adds an unauthenticated `/metrics` listener for Prometheus (brief: "admin or a separate bind").
 - Perf budgets re-verified (2026-10-10, after Phases 5–6): 1M-row page fetch p95 31.8 ms (< 50); form event round trip, 50 users, p95 3.1 ms (< 150); 200k-row upsert with 20 interactive writers, interactive p99 8.5 ms (< 50).
 
@@ -102,8 +107,8 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Import wizard / export UI merged: modal 4-step wizard (`web/src/features/imports`), Export dialog on table/query menus and the datasheet toolbar; e2e `import-export.spec.ts`.
 
 ## Next (resume here)
-In flight: Phase 7 security review (fresh Opus).
-1. Fix its findings → Gate 7. Then ask the user about Phase 8 options; the license is still undecided.
+In flight: row history panel UI (Sonnet, port 18096). Backend `GET .../rows/{id}/history` done.
+1. Merge it, full gate. Then ask the user about Phase 8 options; the license is still undecided.
 Docker: CLI at ~/.docker/bin (not on PATH).
 Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (session limit hit twice).
 

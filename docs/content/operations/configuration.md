@@ -76,7 +76,7 @@ Without it, the server uses the connection's address as the client address, whic
 
 These are fixed in this version:
 
-- Sign-in rate limit: 5 failed attempts per 15 minutes per account and address.
+- Sign-in rate limits, each over 15 minutes: 5 failed attempts per account and address; 20 per account from any address; 300 per address across all accounts. While a limit is reached, sign-in is refused even with the correct password, so someone who keeps guessing an account's password can keep that account (including an administrator's) out for as long as they continue. Signed-in sessions are not affected; an administrator who is locked out can use an existing session, or wait for the window to pass.
 - Sessions: 12 hours idle, 7 days absolute.
 - Import upload size: 100 MiB.
 - Script time budgets and string limits: see [Scripts](/docs/guide/scripts#contexts).

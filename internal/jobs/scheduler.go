@@ -181,6 +181,7 @@ type Scheduler struct {
 	base        context.Context
 	stopRuns    context.CancelFunc
 	interrupted atomic.Bool
+	closed      atomic.Bool // Shutdown began: no new runs
 }
 
 // New returns a scheduler; call Recover then Start.
@@ -356,6 +357,7 @@ func (s *Scheduler) Wait() { s.wg.Wait() }
 // Shutdown gives running runs up to grace to finish, then cancels the rest;
 // those are recorded as interrupted (brief <deployment>). Stop the loop first.
 func (s *Scheduler) Shutdown(grace time.Duration) bool {
+	s.closed.Store(true)
 	done := make(chan struct{})
 	go func() { s.wg.Wait(); close(done) }()
 	select {
@@ -540,6 +542,9 @@ func mergeArgs(base, extra map[string]any) map[string]any {
 
 // RunNow starts (or queues, per overlap policy) a manual or enqueued run.
 func (s *Scheduler) RunNow(ctx context.Context, ws ids.WorkspaceID, jobID, kind, by string, args map[string]any) (Run, error) {
+	if s.closed.Load() {
+		return Run{}, fault.New(fault.WorkspaceBusy, "The server is shutting down; start the job again once it is back.")
+	}
 	l := s.wsLock(ws)
 	l.Lock()
 	defer l.Unlock()

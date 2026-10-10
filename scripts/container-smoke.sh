@@ -24,13 +24,20 @@ teardown() {
     "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   fi
   [ -z "${jar:-}" ] || rm -f "$jar"
+  [ -z "${ABIDATA_SMOKE_SECRETS:-}" ] || rm -rf "$ABIDATA_SMOKE_SECRETS"
   exit "$status"
 }
 trap teardown EXIT
 
-./scripts/gen-secrets.sh
-# The container runs as uid 65532; the bind-mounted secret files must be readable by it.
-chmod 644 secrets/session_key secrets/manifest_key
+# Throwaway keys in a temp dir (never touch a deployment's secrets/). The
+# container runs as uid 65532, so these test-only files are made world-readable.
+ABIDATA_SMOKE_SECRETS="$(mktemp -d)"
+export ABIDATA_SMOKE_SECRETS
+for name in session_key manifest_key; do
+  openssl rand -base64 32 > "$ABIDATA_SMOKE_SECRETS/$name"
+done
+chmod 755 "$ABIDATA_SMOKE_SECRETS"
+chmod 644 "$ABIDATA_SMOKE_SECRETS"/*
 
 "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 docker buildx build --platform "${ABIDATA_SMOKE_PLATFORM:-linux/amd64}" --load -t abidata:smoke .
