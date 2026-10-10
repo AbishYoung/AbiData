@@ -6,15 +6,23 @@ import { useActivityStore } from "@/lib/activity";
 import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
 import { useStatusBar } from "@/lib/statusbar";
 import type { Me } from "@/lib/session";
-import { useTabs, useWorkspaceTabs, type Tab } from "@/app/tabs";
+import { useTabs, useWorkspaceTabs, type Tab, type TableView } from "@/app/tabs";
 import { NavPane } from "@/features/nav/NavPane";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
 import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
 import { QueryTab } from "@/features/queries/QueryTab";
+import { FormTab } from "@/features/forms/FormTab";
+import { ScriptTab } from "@/features/scripts/ScriptTab";
 import { alertBox } from "@/components/styles";
 
-const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL" } as const;
+const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form" } as const;
+const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
+  table: ["datasheet", "design"],
+  query: ["datasheet", "design", "sql"],
+  form: ["form", "design"],
+  script: [],
+};
 
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
 
@@ -72,7 +80,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
       )}
       {current?.objectId && canDesign(role) && (
         <div role="group" aria-label="View" className="flex items-center gap-1 px-2">
-          {(current.kind === "query" ? (["datasheet", "design", "sql"] as const) : (["datasheet", "design"] as const)).map((v) => (
+          {VIEWS[current.kind].map((v) => (
             <button
               key={v}
               type="button"
@@ -99,9 +107,13 @@ function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined 
       </div>
     );
   }
-  const designing = tab.view !== "datasheet" && canDesign(role);
+  const designing = tab.view !== "datasheet" && tab.view !== "form" && canDesign(role);
   let content;
-  if (tab.kind === "query") {
+  if (tab.kind === "form") {
+    content = <FormTab ws={ws} formId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? "design" : "form"} />;
+  } else if (tab.kind === "script") {
+    content = <ScriptTab ws={ws} scriptId={tab.objectId} tabKey={tab.key} />;
+  } else if (tab.kind === "query") {
     content = <QueryTab ws={ws} queryId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? tab.view : "datasheet"} />;
   } else if (designing || !tab.objectId) {
     content = <TableDesignTab ws={ws} tableId={tab.objectId} tabKey={tab.key} />;

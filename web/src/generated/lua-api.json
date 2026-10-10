@@ -1,0 +1,398 @@
+[
+  {
+    "name": "db",
+    "doc": "Run SQL against this workspace's tables. Reads run on a snapshot; writes need edit rights and are not recorded in row history (use `records` for tracked edits). Statements are checked by the SQL authorizer: system tables, schema changes, PRAGMA and ATTACH are not allowed.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "query",
+        "signature": "db.query(sql, params?) → rows",
+        "params": [
+          {
+            "name": "sql",
+            "type": "string",
+            "doc": "One read-only statement; use :name placeholders."
+          },
+          {
+            "name": "params",
+            "type": "table",
+            "doc": "Values for :name placeholders.",
+            "optional": true
+          }
+        ],
+        "returns": "array of row tables keyed by column name (SQL NULL is db.NULL)",
+        "errors": [
+          "SQL_NOT_ALLOWED",
+          "BAD_REQUEST"
+        ],
+        "doc": "Runs a read-only query and returns up to 10,000 rows.",
+        "example": "local rows = db.query(\"SELECT Name FROM Customers WHERE City = :city\", {city = \"Paris\"})"
+      },
+      {
+        "name": "query_one",
+        "signature": "db.query_one(sql, params?) → row|nil",
+        "returns": "first row or nil",
+        "doc": "Like db.query but returns only the first row.",
+        "example": "local c = db.query_one(\"SELECT * FROM Customers WHERE id = :id\", {id = 1})"
+      },
+      {
+        "name": "query_value",
+        "signature": "db.query_value(sql, params?) → value|nil",
+        "returns": "first column of the first row, or nil when there are no rows",
+        "doc": "Returns a single value.",
+        "example": "local n = db.query_value(\"SELECT count(*) FROM Orders\")"
+      },
+      {
+        "name": "iter",
+        "signature": "db.iter(sql, params?) → iterator",
+        "returns": "iterator yielding row tables",
+        "doc": "Iterates over a large result in pages of 1,000 rows (jobs only).",
+        "example": "for row in db.iter(\"SELECT * FROM Orders\") do total = total + row.Qty end",
+        "contexts": [
+          "job"
+        ]
+      },
+      {
+        "name": "exec",
+        "signature": "db.exec(sql, params?) → {changes, last_id}",
+        "returns": "table with changes and last_id",
+        "errors": [
+          "SQL_NOT_ALLOWED",
+          "VALIDATION_FAILED",
+          "LINKED_RECORDS"
+        ],
+        "doc": "Runs one INSERT, UPDATE or DELETE on a workspace table. Not available in reports.",
+        "example": "db.exec(\"UPDATE Orders SET Status = 'Shipped' WHERE id = :id\", {id = 7})",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "transaction",
+        "signature": "db.transaction(fn) → results of fn",
+        "doc": "Runs fn inside one write transaction (all-or-nothing). Raising an error inside fn rolls back. The block has its own time budget (250 ms in form events, 2 s in jobs).",
+        "example": "db.transaction(function() db.exec(\"UPDATE Stock SET Qty = Qty - 1 WHERE id = :id\", {id = 3}) records.insert(\"Moves\", {Item = 3}) end)",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "lookup",
+        "signature": "db.lookup(table, field, where?, params?) → value|db.NULL",
+        "doc": "Access DLookup: the field's value in the first matching row, or db.NULL.",
+        "example": "local email = db.lookup(\"Customers\", \"Email\", \"id = :id\", {id = record.Customer})"
+      },
+      {
+        "name": "count",
+        "signature": "db.count(table, field?, where?, params?) → number",
+        "doc": "Access DCount: number of matching rows (non-empty values of field, or all rows when field is \"*\" or omitted).",
+        "example": "local open = db.count(\"Orders\", \"*\", \"Status = 'Open'\")"
+      },
+      {
+        "name": "sum",
+        "signature": "db.sum(table, field, where?, params?) → number|db.NULL",
+        "doc": "Access DSum.",
+        "example": "local total = db.sum(\"OrderLines\", \"Qty\", \"OrderId = :id\", {id = record.id})"
+      },
+      {
+        "name": "avg",
+        "signature": "db.avg(table, field, where?, params?) → number|db.NULL",
+        "doc": "Access DAvg.",
+        "example": "db.avg(\"Products\", \"Price\")"
+      },
+      {
+        "name": "min",
+        "signature": "db.min(table, field, where?, params?) → value|db.NULL",
+        "doc": "Access DMin.",
+        "example": "db.min(\"Orders\", \"OrderDate\")"
+      },
+      {
+        "name": "max",
+        "signature": "db.max(table, field, where?, params?) → value|db.NULL",
+        "doc": "Access DMax.",
+        "example": "db.max(\"Orders\", \"OrderDate\")"
+      },
+      {
+        "name": "is_null",
+        "signature": "db.is_null(v) → boolean",
+        "doc": "True for nil and db.NULL.",
+        "example": "if db.is_null(record.ShippedAt) then … end"
+      }
+    ],
+    "values": [
+      {
+        "name": "NULL",
+        "type": "userdata",
+        "doc": "SQL NULL. Lua tables cannot hold nil, so empty field values are db.NULL."
+      }
+    ]
+  },
+  {
+    "name": "event",
+    "doc": "The form event being handled.",
+    "contexts": [
+      "ui_event"
+    ],
+    "functions": null,
+    "values": [
+      {
+        "name": "name",
+        "type": "string",
+        "doc": "Event name: load, current, before_insert, before_update, after_update, before_delete, after_delete, close, click, change, confirm."
+      },
+      {
+        "name": "control",
+        "type": "string|nil",
+        "doc": "Name of the control that raised a control event."
+      },
+      {
+        "name": "old_value",
+        "type": "any",
+        "doc": "Previous value for change/before_update control events."
+      },
+      {
+        "name": "new_value",
+        "type": "any",
+        "doc": "New value for change/before_update control events."
+      },
+      {
+        "name": "args",
+        "type": "table",
+        "doc": "Arguments the form was opened with (open_args)."
+      },
+      {
+        "name": "answer",
+        "type": "boolean|nil",
+        "doc": "The user's answer when re-invoked after ui.confirm."
+      }
+    ],
+    "global": true
+  },
+  {
+    "name": "notify",
+    "doc": "Show messages to the user.",
+    "contexts": [
+      "ui_event"
+    ],
+    "functions": [
+      {
+        "name": "toast",
+        "signature": "notify.toast(text, {level?})",
+        "doc": "A brief message; level is \"info\" (default), \"success\", \"warning\" or \"error\".",
+        "example": "notify.toast(\"Order saved\", {level = \"success\"})"
+      },
+      {
+        "name": "alert",
+        "signature": "notify.alert(text, {title?})",
+        "doc": "A message the user must dismiss.",
+        "example": "notify.alert(\"Stock is low\", {title = \"Heads up\"})"
+      }
+    ]
+  },
+  {
+    "name": "record",
+    "doc": "The form's current record buffer. Read and assign fields by name (record.Qty = 5); assignments are sent back to the form and saved with the record.",
+    "contexts": [
+      "ui_event"
+    ],
+    "functions": [
+      {
+        "name": "get",
+        "signature": "record.get(field) → value",
+        "doc": "Reads a field (db.NULL when empty).",
+        "example": "local q = record.get(\"Qty\")"
+      },
+      {
+        "name": "set",
+        "signature": "record.set(field, value)",
+        "doc": "Assigns a field.",
+        "example": "record.set(\"Status\", \"Approved\")"
+      }
+    ],
+    "values": [
+      {
+        "name": "id",
+        "type": "number|nil",
+        "doc": "Row id (nil for a new record)."
+      },
+      {
+        "name": "version",
+        "type": "number|nil",
+        "doc": "Row _version the form loaded."
+      },
+      {
+        "name": "is_new",
+        "type": "boolean",
+        "doc": "True for a record not yet saved."
+      },
+      {
+        "name": "is_dirty",
+        "type": "boolean",
+        "doc": "True when the user changed fields."
+      }
+    ],
+    "global": true
+  },
+  {
+    "name": "records",
+    "doc": "Read and change rows field by field, with the same validation, concurrency checks and history as the datasheet. Fields are named by their field (physical) names.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "get",
+        "signature": "records.get(table, id) → row|nil",
+        "returns": "row table (id, _version and every field; currency as decimal, yes/no as boolean, empty as db.NULL) or nil",
+        "doc": "Reads one row by id.",
+        "example": "local c = records.get(\"Customers\", record.Customer)"
+      },
+      {
+        "name": "insert",
+        "signature": "records.insert(table, values) → id",
+        "errors": [
+          "REQUIRED_FIELD",
+          "VALIDATION_FAILED",
+          "DUPLICATE_VALUE",
+          "LINKED_RECORDS"
+        ],
+        "doc": "Creates a row and returns its id.",
+        "example": "local id = records.insert(\"Notes\", {Text = \"Called\", Customer = record.id})",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "update",
+        "signature": "records.update(table, id, values, {version?}) → version",
+        "errors": [
+          "CONCURRENT_MODIFICATION",
+          "VALIDATION_FAILED",
+          "NOT_FOUND"
+        ],
+        "doc": "Changes fields of a row. With version, fails if the row changed since that version; without it, applies to the current version.",
+        "example": "records.update(\"Orders\", id, {Status = \"Shipped\"})",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "delete",
+        "signature": "records.delete(table, id, {version?})",
+        "errors": [
+          "CONCURRENT_MODIFICATION",
+          "LINKED_RECORDS",
+          "NOT_FOUND"
+        ],
+        "doc": "Deletes a row.",
+        "example": "records.delete(\"Drafts\", id)",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ui",
+    "doc": "Change the form: control properties, focus, navigation and confirmations.",
+    "contexts": [
+      "ui_event"
+    ],
+    "functions": [
+      {
+        "name": "control",
+        "signature": "ui.control(name) → props",
+        "doc": "A snapshot of a control's properties (visible, enabled, locked, caption, value…).",
+        "example": "if ui.control(\"Approve\").visible then … end"
+      },
+      {
+        "name": "set",
+        "signature": "ui.set(name, props)",
+        "doc": "Changes control properties: visible, enabled, locked, required (booleans), caption, tooltip (text), tone (\"default\"|\"warning\"|\"danger\"|\"success\"), value (unbound controls).",
+        "example": "ui.set(\"Approve\", {visible = record.Total \u003e 5000})"
+      },
+      {
+        "name": "focus",
+        "signature": "ui.focus(name)",
+        "doc": "Moves focus to a control.",
+        "example": "ui.focus(\"Qty\")"
+      },
+      {
+        "name": "goto_record",
+        "signature": "ui.goto_record(target)",
+        "doc": "Moves to a record: an id, or \"next\", \"prev\", \"first\", \"last\", \"new\".",
+        "example": "ui.goto_record(\"new\")"
+      },
+      {
+        "name": "open_form",
+        "signature": "ui.open_form(name, {where?, args?})",
+        "doc": "Opens another form, optionally filtered with a filter-model table and passing args.",
+        "example": "ui.open_form(\"Customer\", {args = {id = record.Customer}})"
+      },
+      {
+        "name": "open_report",
+        "signature": "ui.open_report(name, {params?})",
+        "doc": "Opens a report.",
+        "example": "ui.open_report(\"Invoice\", {params = {order_id = record.id}})"
+      },
+      {
+        "name": "close",
+        "signature": "ui.close()",
+        "doc": "Closes the form.",
+        "example": "ui.close()"
+      },
+      {
+        "name": "requery",
+        "signature": "ui.requery(control?)",
+        "doc": "Reloads the form's records, or one subform/combo box.",
+        "example": "ui.requery(\"Lines\")"
+      },
+      {
+        "name": "cancel",
+        "signature": "ui.cancel(message)",
+        "doc": "Cancels the pending action (save, insert, delete) in before_* events and shows message.",
+        "example": "ui.cancel(\"Orders over 5,000 need an approver.\")"
+      },
+      {
+        "name": "confirm",
+        "signature": "ui.confirm(message, continuation)",
+        "doc": "Asks the user to confirm. When answered, the form calls the handler function named continuation with event.answer set.",
+        "example": "ui.confirm(\"Delete all lines?\", \"on_delete_lines\")"
+      }
+    ]
+  },
+  {
+    "name": "workspace",
+    "doc": "Information about the workspace and the user the script runs as.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": null,
+    "values": [
+      {
+        "name": "timezone",
+        "type": "string",
+        "doc": "The workspace's IANA time zone."
+      },
+      {
+        "name": "user",
+        "type": "table",
+        "doc": "{id, email, display_name, role} of the user (jobs run as the job principal)."
+      }
+    ],
+    "global": true
+  }
+]

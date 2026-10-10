@@ -1,9 +1,9 @@
 import { create } from "zustand";
 
 /** A document tab in the workspace (brief: each object opens as a tab). */
-export type TabKind = "table" | "query";
-/** Views: tables have datasheet/design; queries have datasheet/design/sql. */
-export type TableView = "datasheet" | "design" | "sql";
+export type TabKind = "table" | "query" | "form" | "script";
+/** Views: tables datasheet/design; queries datasheet/design/sql; forms form/design; scripts design. */
+export type TableView = "datasheet" | "design" | "sql" | "form";
 
 export interface Tab {
   /** Stable key: `${kind}:${objectId}`; a new unsaved object uses `${kind}:new:<n>`. */
