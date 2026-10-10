@@ -38,17 +38,23 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - OCC 10-way race, trigger safety net, transactional DDL byte-identical on block, kill -9 mid-rebuild, rename breaking saved query, idempotency, SSE < 1 s, FuzzIdentifier 1.5M / FuzzFilterCompile 16.7M / FuzzDecodeValue 2.8M execs.
 - Perf: 1M-row page fetch p50 17 ms / p95 31 ms with an indexed sort (text index keys use COLLATE NOCASE to serve the case-insensitive datasheet sort; unique text indexes are therefore case-insensitive, as in Access).
 
-## Current phase: 2 — Queries
-Done: authorizer policy + Gate 2 denial tests (ATTACH other workspace, writable_schema, pragma TVFs, INSERT via CTE, _sys_ read as editor, load_extension, DDL, transactions, VACUUM INTO, multi-statement); read-only runner (params, 50k-row cap, 10 s cap); visual compiler (joins, totals/HAVING, Access criteria rows, params, editability, deps) with goldens; saved queries (CRUD + If-Match, deps, dependent recompile, visual queries follow renames inside schema changes, editor-policy validation for SQL kind); routes incl. SQL console (builder) and usages. Editors run but cannot save (HTTP test).
-Remaining for Gate 2: QBE designer UI + SQL view + params prompt + nav Queries group + e2e (Sonnet packet started; interrupted by the account's session limit — resume after reset), Phase 2 security review (fresh Opus).
+## Phase 2 — Queries: implementation complete, gate pending final run
+- Backend done; Gate 2 tests pass (authorizer denials, compiler goldens, editors run-not-save, SQL console builder-only).
+- QBE designer UI merged (designer, SQL view, params prompt, results, nav Queries group); Playwright suite 26/26 incl. queries.spec.ts.
+- Phase 2 security review done; findings 1–5 fixed with regression tests (commit 59956a4): per-connection SQLite memory caps + LIMIT_LENGTH, NOMEM → QUOTA_EXCEEDED with broken-connection discard, result byte caps, no expr_sql for editors, db.exec REPLACE/_version guard, DDL lexer/rename scanner fixes. Info items noted: SQLite ≥ 3.41 functions in the DDL allowlist (portability floor).
+- Remaining: blank SQL console entry point in the UI (nothing opens one yet); mark Gate 2 passed after a full gate run.
 
-## Phase 3 — Lua runtime & Forms (in progress)
-Done (Opus): sandbox (S2 + review fixes + ADR 0004 concat cap), runtime framework (manifest/registry/parity, budgets, pooled runner, per-workspace slots, heap watchdog, Go↔Lua conversion, entry calls, RaiseFault/host error codes), host modules db (authorizer-guarded, budgeted transactions with TxBlock ctx swap, DLookup family), records (typed OCC row API, in-tx variants + post-commit publish), event/record/ui/notify/workspace; scripts service (CRUD, compile cache, require loader, /scripts/check markers + manifest lint); forms service (layout validation, module scripts, deps, schema validator, event/save/delete dispatch per D10 with server-side calc — ADR 0005 for save endpoints); HTTP routes; generated `web/src/generated/lua-api.json`; Gate 3 backend tests: isolation/termination suite, `s..s`×40, db.exec CREATE → SQL_NOT_ALLOWED, NULL round trip, int > 2^53 as string, order-form lifecycle (lookup, subform, calc subtotal/total, before_update cancel > 5000 without approver, OCC save, toast, confirm), event round trip p95 4.4 ms at 50 concurrent users.
-In flight (Sonnet): decimal/datetime/json/csv/log modules; Script Studio (Monaco). Next: form runtime UI, form designer UI, Gate 3 e2e (order form), Phase 3 security review (fresh Opus).
+## Phase 4 — Reports (backend started early)
+- Done: definitions/validation/CRUD + module scripts, run resolver (groups incl. Lua-expression groups, case-insensitive grouping, group/report aggregates with exact currency, running sums, calc via one driver run), NDJSON run route, schema validator. Goldens pass; 10k rows resolve in ~220 ms.
+- Remaining: client paginator (Opus), band designer UI, print CSS, PDF snapshot specs.
 
-## Next
-- Resume the QBE UI and Lua value-module packets after the session limit resets (~21:40 local); Phase 2 security review; close Gate 2.
-- Meanwhile (Opus): db/records/record/ui/notify/event host modules; forms service and event dispatch.
+## Next (resume here)
+1. When the Script Studio packet reports back: verify, merge, run the full gate (go test -race, golangci-lint, web typecheck/lint/vitest, Playwright).
+2. Add the SQL console entry point; close Gate 2.
+3. Dispatch Phase 3 frontend packets: form runtime (FormTab "form" view: single/continuous/datasheet, controls, combobox, subform, calc display, D10 client for /forms/{id}/events|save|delete), then form designer (canvas with dnd-kit, property sheet, embeds LuaEditor from Script Studio) owning the Gate 3 order-form e2e; then the Phase 3 security review.
+4. Phase 4: write the client paginator (Opus, pure function + tests), then the band designer packet.
+Contracts already committed: tab kinds form/script + shell routing (FormTab/ScriptTab placeholders), generated web/src/generated/lua-api.json (go generate ./internal/httpapi).
+Environment: git works via /usr/bin/git now (Xcode license accepted). The account's Sonnet session limit was hit once (reset ~3 h later); keep ≤ 3 concurrent Sonnet packets.
 
 ## Notes / decisions taken without asking (per working agreement)
 - Session ID hash is HMAC-SHA256(session key, token) rather than bare SHA-256, so a leaked admin DB yields no usable cookies; this is what the generated session key is for.
