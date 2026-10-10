@@ -9,7 +9,8 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "gen:api": "openapi-typescript ../internal/httpapi/openapi.json -o src/generated/api.d.ts"
+    "gen:api": "openapi-typescript ../internal/httpapi/openapi.json -o src/generated/api.d.ts",
+    "gen:shortcuts": "node scripts/gen-shortcuts.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

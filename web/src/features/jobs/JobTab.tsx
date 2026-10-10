@@ -29,9 +29,10 @@ import {
   type SchedulePreset,
 } from "./schedule";
 import { useDirtyGuard } from "@/lib/useDirtyGuard";
+import { matchesShortcut } from "@/lib/shortcuts";
 
 function isSave(e: React.KeyboardEvent): boolean {
-  return (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s";
+  return matchesShortcut(e, "design.save");
 }
 
 function ErrorBox({ error, children }: { error: unknown; children?: ReactNode }) {

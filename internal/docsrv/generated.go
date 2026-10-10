@@ -20,6 +20,17 @@ func Anchor(name string) string {
 	return strings.NewReplacer(".", "-", "_", "-", ":", "-").Replace(strings.ToLower(name))
 }
 
+// FuncName returns a function's qualified name ("db.query"). A module that is
+// itself a function (fetch) keeps its bare name. Qualifying matters because
+// many modules share function names (csv.parse and datetime.parse), and heading
+// ids must be unique within the page.
+func FuncName(m script.ModuleDoc, f script.FuncDoc) string {
+	if f.Name == m.Name {
+		return f.Name
+	}
+	return m.Name + "." + f.Name
+}
+
 // ErrorAnchor returns the heading id of an error code's section
 // ("CONCURRENT_MODIFICATION" → "concurrent-modification").
 func ErrorAnchor(c fault.Code) string { return Anchor(string(c)) }
@@ -45,7 +56,8 @@ func luaAPIMarkdown() string {
 			b.WriteString("\n")
 		}
 		for _, f := range m.Funcs {
-			fmt.Fprintf(&b, "### %s {#%s}\n\n`%s`\n\n%s\n\n", f.Name, Anchor(f.Name), f.Signature, f.Doc)
+			name := FuncName(m, f)
+			fmt.Fprintf(&b, "### %s {#%s}\n\n`%s`\n\n%s\n\n", name, Anchor(name), f.Signature, f.Doc)
 			if len(f.Contexts) > 0 {
 				fmt.Fprintf(&b, "Available in: %s.\n\n", contexts(f.Contexts))
 			}

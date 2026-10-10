@@ -40,6 +40,7 @@ lint: web/node_modules
 gen: web/node_modules
 	go generate ./...
 	npm --prefix web run gen:api
+	npm --prefix web run gen:shortcuts
 
 build: web-build
 	@mkdir -p bin

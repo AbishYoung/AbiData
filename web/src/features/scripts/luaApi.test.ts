@@ -68,6 +68,14 @@ describe("hoverFor", () => {
     expect(h?.endColumn).toBe(line.indexOf("query") + 1 + "query".length);
   });
 
+  it("links each hover to its section of the generated API reference", () => {
+    const line = "local r = db.query_one(x)";
+    expect(hoverFor(manifest, "job", line, line.indexOf("query_one") + 2)?.docsTarget).toBe("reference/lua-api#db-query-one");
+    expect(hoverFor(manifest, "job", line, 12)?.docsTarget).toBe("reference/lua-api#module-db");
+    const nul = "x = db.NULL";
+    expect(hoverFor(manifest, "job", nul, nul.indexOf("NULL") + 2)?.docsTarget).toBe("reference/lua-api#module-db");
+  });
+
   it("documents the module on the module part and notes unavailable members", () => {
     const line = "db.iter(sql)";
     expect(hoverFor(manifest, "job", line, 2)?.markdown).toContain("**db**");

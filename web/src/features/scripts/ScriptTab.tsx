@@ -16,6 +16,7 @@ import {
   type Script,
 } from "./scriptsApi";
 import type { ScriptKind } from "./luaApi";
+import { matchesShortcut } from "@/lib/shortcuts";
 
 export const KIND_LABEL: Readonly<Record<ScriptKind, string>> = {
   module: "Module",
@@ -41,7 +42,7 @@ function useDirtyGuard(ws: string, tabKey: string, dirty: boolean): void {
 }
 
 function isSave(e: KeyboardEvent): boolean {
-  return (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s";
+  return matchesShortcut(e, "design.save");
 }
 
 function ErrorBox({ error, children }: { error: unknown; children?: ReactNode }) {

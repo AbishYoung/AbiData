@@ -1,4 +1,5 @@
 import raw from "@/generated/lua-api.json";
+import { luaAnchor } from "@/features/docs/docsLinks";
 
 export type ScriptKind = "module" | "job" | "form_module" | "report_module";
 export type LuaContext = "ui_event" | "report" | "job";
@@ -210,9 +211,16 @@ export function suggestionsFor(api: readonly ManifestModule[], kind: ScriptKind,
 
 export interface HoverInfo {
   markdown: string;
+  /** Docs page and section for this symbol, e.g. "reference/lua-api#db-query". */
+  docsTarget: string;
   /** 1-based, end exclusive. */
   startColumn: number;
   endColumn: number;
+}
+
+/** The docs target of a Lua API section: a function ("db.query") or a module ("module-db"). */
+export function luaDocsTarget(name: string): string {
+  return `reference/lua-api#${luaAnchor(name)}`;
 }
 
 const CHAIN = /[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?/g;
@@ -229,7 +237,12 @@ export function hoverFor(api: readonly ManifestModule[], kind: ScriptKind, lineT
     if (!mod) return null;
     const ownerEnd = start + owner.length;
     if (member === undefined || offset <= ownerEnd) {
-      return { markdown: moduleMarkdown(mod), startColumn: start + 1, endColumn: ownerEnd + 1 };
+      return {
+        markdown: moduleMarkdown(mod),
+        docsTarget: luaDocsTarget(`module-${mod.name}`),
+        startColumn: start + 1,
+        endColumn: ownerEnd + 1,
+      };
     }
     const fn = (mod.functions ?? []).find((f) => f.name === member);
     const val = (mod.values ?? []).find((v) => v.name === member);
@@ -239,7 +252,12 @@ export function hoverFor(api: readonly ManifestModule[], kind: ScriptKind, lineT
     const note = available(ctx, kind)
       ? ""
       : `\n\n*Not available in this script type; it runs only in ${contextList(ctx)}.*`;
-    return { markdown: body + note, startColumn: ownerEnd + 2, endColumn: end + 1 };
+    return {
+      markdown: body + note,
+      docsTarget: luaDocsTarget(fn ? `${mod.name}.${member}` : `module-${mod.name}`),
+      startColumn: ownerEnd + 2,
+      endColumn: end + 1,
+    };
   }
   return null;
 }
