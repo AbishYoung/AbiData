@@ -7,6 +7,7 @@ import {
   FormInput,
   Plus,
   Search,
+  SquareTerminal,
   Table2,
   Terminal,
   type LucideIcon,
@@ -74,10 +75,11 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
     openTab(ws, { key: `query:${q.id}`, kind: "query", objectId: q.id, view, title: q.name });
   }
 
-  function newQuery(): void {
+  function newQuery(view: TableView = "design"): void {
     let n = 1;
     while (tabs.some((t) => t.key === `query:new:${n}`)) n++;
-    openTab(ws, { key: `query:new:${n}`, kind: "query", objectId: null, view: "design", title: n === 1 ? "New query" : `New query ${n}` });
+    const base = view === "sql" ? "SQL console" : "New query";
+    openTab(ws, { key: `query:new:${n}`, kind: "query", objectId: null, view, title: n === 1 ? base : `${base} ${n}` });
   }
 
   function openTable(t: Table, view: TableView): void {
@@ -144,12 +146,23 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                 {g.id === "queries" && design && (
                   <button
                     type="button"
-                    onClick={newQuery}
+                    onClick={() => newQuery()}
                     aria-label="New query"
                     title="New query"
                     className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
                   >
                     <Plus size={16} aria-hidden="true" />
+                  </button>
+                )}
+                {g.id === "queries" && design && (
+                  <button
+                    type="button"
+                    onClick={() => newQuery("sql")}
+                    aria-label="SQL console"
+                    title="SQL console"
+                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                  >
+                    <SquareTerminal size={16} aria-hidden="true" />
                   </button>
                 )}
                 {g.id === "tables" && design && (
