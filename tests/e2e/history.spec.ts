@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ADMIN_EMAIL, expectNoAxeViolations, signIn } from "./helpers";
 import { callApi, cellAt, rowIndexOf, switchTable } from "./datasheet-helpers";
+import { openForm } from "./forms-runtime-helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -113,6 +114,39 @@ test("opens and closes the history panel with the keyboard only", async ({ page 
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
   await expect(button).toBeFocused();
+});
+
+test("opens the record's history from a form", async ({ page }) => {
+  await signIn(page);
+  const form = await call(page, "POST", `/api/v1/w/${ws}/forms`, {
+    name: "Tracked form",
+    source_kind: "table",
+    source_id: trackedId,
+    default_view: "single",
+    allow_edits: true,
+    allow_additions: true,
+    allow_deletions: true,
+    module_source: "",
+    layout: {
+      width: 400,
+      sections: {
+        header: { height: 0, controls: [] },
+        footer: { height: 0, controls: [] },
+        detail: { height: 40, controls: [{ id: "n1", name: "Name", type: "textbox", x: 2, y: 2, w: 200, h: 24, tab_index: 1, bind: { column_id: nameId } }] },
+      },
+    },
+  });
+  await page.goto(`/w/${ws}`);
+  await openForm(page, ws, { id: String(form.id), name: "Tracked form" });
+  const formGroup = page.getByRole("group", { name: "Tracked form", exact: true });
+  await expect(formGroup.getByRole("textbox", { name: "Name" })).toHaveValue("Widget B");
+  await page.getByRole("button", { name: "History" }).click();
+  const panel = page.getByRole("dialog", { name: /History of record/ });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText("Widget B").first()).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
 });
 
 test("records the deletion of the row", async ({ page }) => {
