@@ -2,7 +2,7 @@ import { useId } from "react";
 import { useForm } from "react-hook-form";
 import { input, label as labelClass } from "@/components/styles";
 import type { Schema } from "@/lib/schema";
-import { DELETE_RULES, RESULT_TYPES, fieldTypeLabel, type DraftField } from "./draft";
+import { DELETE_RULES, RESULT_TYPES, fieldTypeLabel, type DraftField, type IndexedState } from "./draft";
 
 type TextKey = "maxLength" | "defaultSql" | "validationSql" | "validationText" | "expression" | "lookupDisplayId" | "resultType";
 type BoolKey = "required" | "hidden" | "lookupEnforce";
@@ -13,10 +13,21 @@ export interface FieldPropertiesProps {
   field: DraftField;
   schema: Schema;
   onChange: (patch: Partial<DraftField>) => void;
+  /** The field's single-field index in the draft. */
+  indexed: IndexedState;
+  /** The field is also part of an index with several fields (edited under Indexes). */
+  inMultiFieldIndex: boolean;
+  onIndexedChange: (state: IndexedState) => void;
 }
 
+const INDEXED_OPTIONS: { value: IndexedState; label: string }[] = [
+  { value: "none", label: "No" },
+  { value: "duplicates_ok", label: "Yes (duplicates OK)" },
+  { value: "unique", label: "Yes (no duplicates)" },
+];
+
 /** Type-specific properties of the selected field (react-hook-form keeps the inputs in step with the draft). */
-export function FieldProperties({ field, schema, onChange }: FieldPropertiesProps) {
+export function FieldProperties({ field, schema, onChange, indexed, inMultiFieldIndex, onIndexedChange }: FieldPropertiesProps) {
   const uid = useId();
   const { register, getValues } = useForm<DraftField>({ values: field });
   const id = (name: string) => `${uid}-${name}`;
@@ -177,6 +188,30 @@ export function FieldProperties({ field, schema, onChange }: FieldPropertiesProp
           </div>
         </>
       )}
+
+      <div>
+        <label className={labelClass} htmlFor={id("indexed")}>
+          Indexed
+        </label>
+        <select
+          id={id("indexed")}
+          className={input}
+          value={indexed}
+          aria-describedby={id("indexed-hint")}
+          onChange={(e) => onIndexedChange(e.target.value as IndexedState)}
+        >
+          {INDEXED_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p id={id("indexed-hint")} className={hint}>
+          An index speeds up searching and sorting. “No duplicates” rejects a second record with the same value
+          {type === "short_text" || type === "long_text" || type === "hyperlink" ? " (text compares case-insensitively)" : ""}.
+          {inMultiFieldIndex ? " This field is also part of a multi-field index; change that under Indexes." : ""}
+        </p>
+      </div>
 
       <div className="flex items-center gap-2">
         <input id={id("hidden")} type="checkbox" {...flag("hidden")} />

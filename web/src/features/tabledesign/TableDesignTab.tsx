@@ -12,8 +12,12 @@ import {
   emptyDraft,
   hasErrors,
   moveFieldTo,
+  indexedStateOf,
+  inMultiFieldIndex,
   validateDraft,
+  withFieldIndexed,
   withFieldType,
+  withoutField,
   type BuiltChange,
   type DraftErrors,
   type DraftField,
@@ -21,6 +25,7 @@ import {
 import { draftKey, isDirty, newEntry, useDraftStore, type DraftEntry } from "./draftStore";
 import { FieldGrid } from "./FieldGrid";
 import { FieldProperties } from "./FieldProperties";
+import { IndexesDialog } from "./IndexesDialog";
 import { SchemaChangeFlow } from "./SchemaChangeFlow";
 import { ulid } from "./ulid";
 
@@ -114,6 +119,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
   const [validation, setValidation] = useState<DraftErrors | null>(null);
   const [serverError, setServerError] = useState<{ fieldId: string | null; message: string } | null>(null);
   const [change, setChange] = useState<PendingChange | null>(null);
+  const [indexesOpen, setIndexesOpen] = useState(false);
 
   const { draft } = entry;
   const selected = draft.fields.find((f) => f.id === entry.selectedId);
@@ -203,6 +209,9 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
             </p>
           )}
         </div>
+        <button type="button" className={btn} onClick={() => setIndexesOpen(true)}>
+          Indexes ({draft.indexes.length})
+        </button>
         <button type="button" className={btnPrimary} disabled={!dirty} onClick={startPreview}>
           Preview changes
         </button>
@@ -249,7 +258,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
               select(storeKey, id);
             }}
             onDelete={(id) => {
-              edit((d) => ({ ...d, fields: d.fields.filter((f) => f.id !== id) }));
+              edit((d) => withoutField(d, id));
               if (entry.selectedId === id) select(storeKey, null);
             }}
             onMove={(id, delta) =>
@@ -273,6 +282,9 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
                 field={selected}
                 schema={schema}
                 onChange={(patch) => patchField(selected.id, patch)}
+                indexed={indexedStateOf(draft, selected.id)}
+                inMultiFieldIndex={inMultiFieldIndex(draft, selected.id)}
+                onIndexedChange={(state) => edit((d) => withFieldIndexed(d, entry.original, selected.id, state, ulid()))}
               />
             ) : (
               <p className="m-0 text-sm text-fg-muted">Select a field to edit its properties.</p>
@@ -311,6 +323,14 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
           </section>
         </aside>
       </div>
+
+      {indexesOpen && (
+        <IndexesDialog
+          draft={draft}
+          onChange={(indexes) => edit((d) => ({ ...d, indexes }))}
+          onClose={() => setIndexesOpen(false)}
+        />
+      )}
 
       {change && (
         <SchemaChangeFlow
