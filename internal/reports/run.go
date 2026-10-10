@@ -2,6 +2,7 @@ package reports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -367,13 +368,7 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 	return fields, rows, nil
 }
 
-func asFault(err error, fe **fault.Error) bool {
-	f, ok := err.(*fault.Error)
-	if ok {
-		*fe = f
-	}
-	return ok
-}
+func asFault(err error, fe **fault.Error) bool { return errors.As(err, fe) }
 
 var identRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 
@@ -494,8 +489,7 @@ end
 		}})
 	if err != nil {
 		var se *script.Error
-		if e, ok := err.(*script.Error); ok {
-			se = e
+		if errors.As(err, &se) {
 			code := map[script.ErrorKind]fault.Code{script.KindTimeout: fault.ScriptTimeout, script.KindLimit: fault.ScriptLimitExceeded}[se.Kind]
 			if code == "" {
 				code = fault.ScriptError
