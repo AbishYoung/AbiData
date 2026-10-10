@@ -21,6 +21,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/settings/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The scheduled-backup policy */
+        get: operations["adminGetBackupPolicy"];
+        /** Replace the scheduled-backup policy */
+        put: operations["adminPutBackupPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/settings/egress": {
         parameters: {
             query?: never;
@@ -1123,10 +1141,20 @@ export interface components {
         AdminListWorkspacesResponse: {
             items: components["schemas"]["WorkspaceDTO"][] | null;
         };
-        AdminStatsResponse: {
+        AdminStats: {
+            /** Format: int64 */
+            goroutines: number;
+            /** Format: int64 */
+            heap_bytes: number;
             /** Format: int64 */
             open_workspaces: number;
+            /** Format: int64 */
+            uptime_seconds: number;
+            /** Format: int64 */
+            users: number;
             version: string;
+            /** Format: int64 */
+            workspaces: number;
         };
         AdminUpdateUserRequest: {
             disabled?: boolean;
@@ -1876,6 +1904,14 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        Policy: {
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Scheduled backups run once a day from this hour (UTC).
+             */
+            hour_utc: number;
+        };
         PutEgressAllowlistRequest: {
             items: components["schemas"]["EgressEntry"][] | null;
         };
@@ -2358,6 +2394,122 @@ export interface operations {
             };
         };
     };
+    adminGetBackupPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Policy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminPutBackupPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Policy"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Policy"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     adminGetEgressPolicy: {
         parameters: {
             query?: never;
@@ -2489,7 +2641,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminStatsResponse"];
+                    "application/json": components["schemas"]["AdminStats"];
                 };
             };
             /** @description Unauthorized */

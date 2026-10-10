@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -73,6 +74,7 @@ type Server struct {
 	router   chi.Router
 	api      huma.API
 	draining atomic.Bool
+	started  time.Time
 }
 
 // New builds the server and registers every route.
@@ -82,7 +84,7 @@ func New(deps Deps) *Server {
 		log = slog.New(slog.DiscardHandler)
 	}
 	installHumaErrors(log)
-	s := &Server{deps: deps, log: obs.Subsystem(log, "http")}
+	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now()}
 	r := chi.NewMux()
 	r.Use(s.requestID, securityHeaders, s.accessLog)
 

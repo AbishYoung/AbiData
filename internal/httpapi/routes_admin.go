@@ -2,14 +2,17 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"abidata/internal/admin"
+	"abidata/internal/backup"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 )
@@ -247,21 +250,47 @@ func (s *Server) registerAdmin(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "adminStats", Method: http.MethodGet, Path: "/api/v1/admin/stats", Tags: tags, Metadata: adminOnly,
 		Summary: "Server statistics", Errors: []int{401, 403},
-	}, func(ctx context.Context, _ *struct{}) (*struct {
-		Body struct {
-			Version        string `json:"version"`
-			OpenWorkspaces int    `json:"open_workspaces"`
+	}, func(ctx context.Context, _ *struct{}) (*struct{ Body AdminStats }, error) {
+		ws, err := s.deps.Admin.ListWorkspaces(ctx)
+		if err != nil {
+			return nil, err
 		}
-	}, error) {
-		out := &struct {
-			Body struct {
-				Version        string `json:"version"`
-				OpenWorkspaces int    `json:"open_workspaces"`
+		users, err := s.deps.Admin.ListUsers(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		out := AdminStats{Version: s.deps.Version, UptimeSeconds: int64(time.Since(s.started).Seconds()),
+			OpenWorkspaces: s.deps.Workspaces.Open(), Users: len(users), HeapBytes: ms.HeapAlloc, Goroutines: runtime.NumGoroutine()}
+		for _, w := range ws {
+			if w.Status != admin.StatusDeleted {
+				out.Workspaces++
 			}
-		}{}
-		out.Body.Version = s.deps.Version
-		out.Body.OpenWorkspaces = s.deps.Workspaces.Open()
-		return out, nil
+		}
+		return &struct{ Body AdminStats }{Body: out}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "adminGetBackupPolicy", Method: http.MethodGet, Path: "/api/v1/admin/settings/backup", Tags: tags, Metadata: adminOnly,
+		Summary: "The scheduled-backup policy", Errors: []int{401, 403},
+	}, func(ctx context.Context, _ *struct{}) (*struct{ Body backup.Policy }, error) {
+		p, err := backup.LoadPolicy(ctx, s.deps.Admin)
+		if err != nil {
+			return nil, err
+		}
+		return &struct{ Body backup.Policy }{Body: p}, nil
+	})
+	huma.Register(api, huma.Operation{
+		OperationID: "adminPutBackupPolicy", Method: http.MethodPut, Path: "/api/v1/admin/settings/backup", Tags: tags, Metadata: adminOnly,
+		Summary: "Replace the scheduled-backup policy", Errors: []int{400, 401, 403},
+	}, func(ctx context.Context, in *struct{ Body backup.Policy }) (*struct{ Body backup.Policy }, error) {
+		b, _ := json.Marshal(in.Body)
+		if err := s.deps.Admin.PutSetting(ctx, backup.PolicySettingKey, string(b)); err != nil {
+			return nil, err
+		}
+		s.audit(ctx, "backup.policy", "settings", backup.PolicySettingKey, map[string]any{"enabled": in.Body.Enabled, "hour_utc": in.Body.HourUTC})
+		return &struct{ Body backup.Policy }{Body: in.Body}, nil
 	})
 }
 
@@ -275,4 +304,15 @@ func mapAdminErr(err error) error {
 		return fault.New(fault.BadRequest, "A workspace must keep at least one owner.")
 	}
 	return err
+}
+
+// AdminStats summarises the server for the admin console.
+type AdminStats struct {
+	Version        string `json:"version"`
+	UptimeSeconds  int64  `json:"uptime_seconds"`
+	OpenWorkspaces int    `json:"open_workspaces"`
+	Workspaces     int    `json:"workspaces"`
+	Users          int    `json:"users"`
+	HeapBytes      uint64 `json:"heap_bytes"`
+	Goroutines     int    `json:"goroutines"`
 }

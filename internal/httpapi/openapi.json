@@ -198,20 +198,46 @@
         ],
         "type": "object"
       },
-      "AdminStatsResponse": {
+      "AdminStats": {
         "additionalProperties": false,
         "properties": {
+          "goroutines": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "heap_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "open_workspaces": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "uptime_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "users": {
             "format": "int64",
             "type": "integer"
           },
           "version": {
             "type": "string"
+          },
+          "workspaces": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
           "version",
-          "open_workspaces"
+          "uptime_seconds",
+          "open_workspaces",
+          "workspaces",
+          "users",
+          "heap_bytes",
+          "goroutines"
         ],
         "type": "object"
       },
@@ -2997,6 +3023,26 @@
         ],
         "type": "object"
       },
+      "Policy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "hour_utc": {
+            "description": "Scheduled backups run once a day from this hour (UTC).",
+            "format": "int64",
+            "maximum": 23,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "hour_utc"
+        ],
+        "type": "object"
+      },
       "PutEgressAllowlistRequest": {
         "additionalProperties": false,
         "properties": {
@@ -4543,6 +4589,136 @@
         ]
       }
     },
+    "/api/v1/admin/settings/backup": {
+      "get": {
+        "operationId": "adminGetBackupPolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Policy"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "The scheduled-backup policy",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "adminPutBackupPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Policy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Policy"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Replace the scheduled-backup policy",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/settings/egress": {
       "get": {
         "operationId": "adminGetEgressPolicy",
@@ -4681,7 +4857,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminStatsResponse"
+                  "$ref": "#/components/schemas/AdminStats"
                 }
               }
             },

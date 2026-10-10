@@ -92,3 +92,32 @@ func TestBackupRoutes(t *testing.T) {
 		t.Fatalf("duplicate name: %d", st)
 	}
 }
+
+func TestAdminStatsAndBackupPolicy(t *testing.T) {
+	e := newEnv(t)
+	_, root, o, _, _, _ := roles(t, e)
+	if st, _, _ := o.do("GET", "/api/v1/admin/stats", nil); st != 403 {
+		t.Fatalf("owner read stats: %d", st)
+	}
+	st, stats, _ := root.do("GET", "/api/v1/admin/stats", nil)
+	if st != 200 || stats["workspaces"].(float64) < 1 || stats["users"].(float64) < 5 || stats["heap_bytes"].(float64) <= 0 {
+		t.Fatalf("%d %v", st, stats)
+	}
+	_, pol, _ := root.do("GET", "/api/v1/admin/settings/backup", nil)
+	if pol["enabled"] != true || pol["hour_utc"].(float64) != 2 {
+		t.Fatalf("default policy %v", pol)
+	}
+	if st, _, _ := root.do("PUT", "/api/v1/admin/settings/backup", map[string]any{"enabled": true, "hour_utc": 24}); st != 422 && st != 400 {
+		t.Fatalf("hour 24 accepted: %d", st)
+	}
+	if st, _, _ := o.do("PUT", "/api/v1/admin/settings/backup", map[string]any{"enabled": false, "hour_utc": 1}); st != 403 {
+		t.Fatalf("owner changed backup policy: %d", st)
+	}
+	if st, _, _ := root.do("PUT", "/api/v1/admin/settings/backup", map[string]any{"enabled": false, "hour_utc": 5}); st != 200 {
+		t.Fatalf("put %d", st)
+	}
+	_, pol, _ = root.do("GET", "/api/v1/admin/settings/backup", nil)
+	if pol["enabled"] != false || pol["hour_utc"].(float64) != 5 {
+		t.Fatalf("policy %v", pol)
+	}
+}
