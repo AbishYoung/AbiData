@@ -76,6 +76,9 @@ type Service struct {
 	Queries    *query.Service
 	Ops        *ops.Service
 	Artifacts  *artifacts.Store
+	// RestorePoint, when set, takes a restore_point backup before a chunked
+	// replace (more than ReplaceChunkedAbove rows), which is not atomic.
+	RestorePoint func(ctx context.Context, l *workspace.Lease) error
 	// Now is a clock for tests.
 	Now func() time.Time
 }

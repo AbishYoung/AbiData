@@ -530,3 +530,47 @@ func TestRetention(t *testing.T) {
 		t.Errorf("kept %d scheduled backups", scheduled)
 	}
 }
+
+func TestScheduledTick(t *testing.T) {
+	e := newEnv(t)
+	e.seed(e.ws)
+	e.createWorkspace("Second")
+	now := time.Date(2026, 10, 10, 1, 0, 0, 0, time.UTC)
+	e.svc.now = func() time.Time { return now }
+	count := func() int {
+		n := 0
+		all, _ := e.ad.ListWorkspaces(e.ctx)
+		for _, w := range all {
+			bs, _ := e.ad.ListBackups(e.ctx, w.ID)
+			for _, b := range bs {
+				if b.Kind == admin.BackupScheduled {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	e.svc.ScheduledTick(e.ctx)
+	if n := count(); n != 0 {
+		t.Fatalf("backed up before the policy hour: %d", n)
+	}
+	now = now.Add(2 * time.Hour)
+	e.svc.ScheduledTick(e.ctx)
+	e.svc.ScheduledTick(e.ctx)
+	if n := count(); n != 2 {
+		t.Fatalf("expected one scheduled backup per workspace, got %d", n)
+	}
+	now = now.Add(24 * time.Hour)
+	e.svc.ScheduledTick(e.ctx)
+	if n := count(); n != 4 {
+		t.Fatalf("next day: %d", n)
+	}
+	if err := e.ad.PutSetting(e.ctx, PolicySettingKey, `{"enabled":false,"hour_utc":0}`); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(24 * time.Hour)
+	e.svc.ScheduledTick(e.ctx)
+	if n := count(); n != 4 {
+		t.Fatalf("disabled policy still backed up: %d", n)
+	}
+}

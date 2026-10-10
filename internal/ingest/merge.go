@@ -157,6 +157,12 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 	oneTx := strict || (p.Mode == ModeReplace && total <= ReplaceChunkedAbove)
 	if p.Mode == ModeReplace && !oneTx {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("Replace of more than %d rows runs in chunks: the table is emptied with the first chunk and refilled afterwards, so readers can see a partly filled table until the import finishes.", ReplaceChunkedAbove))
+		if s.RestorePoint != nil {
+			if err := s.RestorePoint(ctx, l); err != nil {
+				return res, fmt.Errorf("ingest: restore point before replace: %w", err)
+			}
+			res.Warnings = append(res.Warnings, "A restore point was taken before the table was replaced.")
+		}
 	}
 	if strict && total > AllOrNothingWarnRows {
 		res.Warnings = append(res.Warnings, "All-or-nothing held the workspace writer for the whole import.")

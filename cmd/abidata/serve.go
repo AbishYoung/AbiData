@@ -19,6 +19,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
+	"abidata/internal/backup"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/egress"
@@ -129,6 +130,13 @@ func serve() error {
 		return err
 	}
 
+	backups := &backup.Service{DataDir: cfg.DataDir, BackupDir: cfg.BackupDir, Admin: adm, Workspaces: wm,
+		Key: keys.Manifest, AppVersion: version, Log: obs.Subsystem(log, "backup")}
+	// Complete or undo interrupted restores before any workspace is opened.
+	if err := backups.Recover(ctx); err != nil {
+		log.Error("restore recovery", "subsystem", "backup", "err", err)
+	}
+
 	spa, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		return err
@@ -141,6 +149,16 @@ func serve() error {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
+	// Destructive schema changes and large chunked import replaces take a restore point first.
+	restorePoint := func(ctx context.Context, l *workspace.Lease) error {
+		_, err := backups.Snapshot(ctx, l, admin.BackupRestorePoint, "system")
+		return err
+	}
+	engine.RestorePoint = restorePoint
+	backups.AfterRestore = func(_ context.Context, id ids.WorkspaceID) {
+		schemas.Drop(id)
+		hub.Publish(string(id), events.Reset, map[string]any{})
+	}
 	quota := func(id ids.WorkspaceID) admin.Quota {
 		w, err := adm.GetWorkspace(context.Background(), id)
 		if err != nil {
@@ -170,7 +188,7 @@ func serve() error {
 	defer gateway.Close()
 	opsSvc := &ops.Service{Workspaces: wm, Events: hub, Log: obs.Subsystem(log, "ops")}
 	ingestSvc := &ingest.Service{DataDir: cfg.DataDir, Workspaces: wm, Schemas: schemas, Catalog: engine, Records: recSvc,
-		Queries: querySvc, Ops: opsSvc, Artifacts: arts}
+		Queries: querySvc, Ops: opsSvc, Artifacts: arts, RestorePoint: restorePoint}
 	jobStore := &jobs.SQLStore{Admin: adm, Workspaces: wm}
 	jobSvc := &jobs.Service{Scripts: scriptSvc, Events: hub}
 	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts, Ingest: ingestSvc}
@@ -217,7 +235,7 @@ func serve() error {
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			Enqueue: enqueue},
-		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc,
+		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups,
 		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
@@ -228,6 +246,7 @@ func serve() error {
 	}
 	janitorCtx, stopJanitor := context.WithCancel(context.Background())
 	go janitor(janitorCtx, log, wm, adm, arts, ingestSvc)
+	go backups.RunSchedule(janitorCtx, 10*time.Minute)
 
 	errc := make(chan error, 1)
 	go func() {
