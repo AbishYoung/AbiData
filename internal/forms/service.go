@@ -64,6 +64,9 @@ type Service struct {
 	// Enqueue starts a job run for jobs.enqueue (nil: unavailable). Forms may only
 	// enqueue jobs that opt in with allow_enqueue (enforced by the jobs service).
 	Enqueue func(ctx context.Context, l *workspace.Lease, jobName, by string, args map[string]any, fromForm bool) (string, error)
+	// UIEventBudgetMS returns a workspace's UI-event wall-time quota in ms
+	// (0 or nil = the default 1 s; clamped to 250 ms–5 s).
+	UIEventBudgetMS func(ws ids.WorkspaceID) int
 }
 
 const formCols = `id, name, source_kind, source_id, default_view, allow_edits, allow_additions, allow_deletions, layout, version, updated_at, updated_by`

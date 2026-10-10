@@ -175,6 +175,7 @@ func serve() error {
 		}
 		return w.Quota
 	}
+	runner.PerWorkspace = func(id ids.WorkspaceID) int { return quota(id).ScriptConcurrency }
 	arts := &artifacts.Store{Dir: filepath.Join(cfg.DataDir, "artifacts"), Quota: func(id ids.WorkspaceID) int64 { return quota(id).ArtifactBytes }}
 	gateway := egress.New(egress.Config{
 		Global: func(ctx context.Context) (egress.Global, error) { return httpapi.LoadGlobalEgress(ctx, adm) },
@@ -253,6 +254,7 @@ func serve() error {
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
+			UIEventBudgetMS: func(id ids.WorkspaceID) int { return quota(id).UIEventBudgetMS },
 			Enqueue: enqueue},
 		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus, Docs: site,
 		Version: version, SPA: spa})
@@ -260,6 +262,9 @@ func serve() error {
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
 		BaseContext: func(net.Listener) context.Context { return context.Background() }}
 
+	if cfg.MetricsAddr != "" {
+		go serveMetrics(cfg.MetricsAddr, metrics, log)
+	}
 	if cfg.DebugAddr != "" {
 		go serveDebug(cfg.DebugAddr, log)
 	}
@@ -373,6 +378,18 @@ func serveDebug(addr string, log *slog.Logger) {
 	log.Info("debug server listening", "addr", addr)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Error("debug server", "err", err)
+	}
+}
+
+// serveMetrics serves /metrics without authentication on a separate bind, for
+// Prometheus on a private network (brief: "admin or a separate bind").
+func serveMetrics(addr string, m *obs.Metrics, log *slog.Logger) {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", m.Handler())
+	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	log.Info("metrics server listening", "addr", addr)
+	if err := srv.ListenAndServe(); err != nil {
+		log.Error("metrics server", "err", err)
 	}
 }
 

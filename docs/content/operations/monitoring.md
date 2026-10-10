@@ -17,7 +17,9 @@ summary: Health checks, Prometheus metrics, JSON logs and the administrator's li
 
 ## Metrics {#metrics}
 
-`GET /metrics` serves Prometheus text format. It requires a signed-in **platform administrator** session cookie. There is no separate metrics port or token in this version, so for a scraper you need to supply a session cookie, or collect from an authenticated proxy. Check it by hand from a browser where you are signed in as an administrator.
+`GET /metrics` serves Prometheus text format. On the main port it requires a signed-in **platform administrator** session cookie, so you can check it by hand from a browser where you are signed in as an administrator.
+
+For Prometheus, set `ABIDATA_METRICS_ADDR` (for example `10.0.0.5:9100`) to also serve `/metrics` on a separate listener. That listener has **no authentication**: bind it to a private interface or container network that only your scraper can reach, never to a public address. See [Configuration](/docs/operations/configuration).
 
 All AbiData metrics start with `abidata_`. The Go runtime and process collectors are included too.
 

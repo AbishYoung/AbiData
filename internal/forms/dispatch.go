@@ -183,7 +183,11 @@ func (s *Service) runHandler(ctx context.Context, l *workspace.Lease, c Caller, 
 	if err != nil {
 		return err
 	}
-	res, err := s.Runner.Exec(ctx, script.ExecRequest{Kind: script.UIEvent, Workspace: l.ID(),
+	budget := script.UIEventBudget(0)
+	if s.UIEventBudgetMS != nil {
+		budget = script.UIEventBudget(s.UIEventBudgetMS(l.ID()))
+	}
+	res, err := s.Runner.Exec(ctx, script.ExecRequest{Kind: script.UIEvent, Workspace: l.ID(), Budget: budget,
 		Principal: script.Principal{UserID: c.UserID, Email: c.Email, DisplayName: c.DisplayName, Role: string(c.Role)},
 		TZ:        c.TZ, Proto: proto, ChunkName: "form module", Entry: handler, Host: s.hostData(l, c, p), Loader: s.Scripts.Loader(ctx, l)})
 	if c.Role.AtLeast(admin.RoleBuilder) {

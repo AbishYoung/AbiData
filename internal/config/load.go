@@ -66,6 +66,9 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.DebugAddr, _, err = l.lookup("ABIDATA_DEBUG_ADDR"); err != nil {
 		return Config{}, err
 	}
+	if c.MetricsAddr, _, err = l.lookup("ABIDATA_METRICS_ADDR"); err != nil {
+		return Config{}, err
+	}
 	if c.LogLevel, err = l.logLevel("ABIDATA_LOG_LEVEL"); err != nil {
 		return Config{}, err
 	}

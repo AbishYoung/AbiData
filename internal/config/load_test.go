@@ -61,6 +61,7 @@ func TestValidValues(t *testing.T) {
 		"ABIDATA_SESSION_KEY":           key,
 		"ABIDATA_BOOTSTRAP_ADMIN_EMAIL": "a@b.c",
 		"ABIDATA_DEBUG_ADDR":            "localhost:6060",
+		"ABIDATA_METRICS_ADDR":          "10.0.0.5:9100",
 		"ABIDATA_LOG_LEVEL":             "WARN",
 		"ABIDATA_TRUSTED_PROXIES":       " 10.0.0.0/8 , 192.168.1.1,::1 ",
 	}, nil)
@@ -71,7 +72,7 @@ func TestValidValues(t *testing.T) {
 		c.DataDir != "/data/y" || c.BackupDir != "rel/dir" || c.MaxMemoryMB != 512 ||
 		c.JobWorkers != 3 || c.MaxOpenWorkspaces != 7 || c.Synchronous != "FULL" ||
 		len(c.SessionKey) != 32 || c.ManifestKey != nil || c.BootstrapAdminEmail != "a@b.c" ||
-		c.DebugAddr != "localhost:6060" || c.LogLevel != slog.LevelWarn {
+		c.DebugAddr != "localhost:6060" || c.MetricsAddr != "10.0.0.5:9100" || c.LogLevel != slog.LevelWarn {
 		t.Fatalf("unexpected config %+v", c)
 	}
 	if !c.SecureCookies() {

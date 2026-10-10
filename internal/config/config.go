@@ -22,6 +22,7 @@ type Config struct {
 	ManifestKey         []byte         // ABIDATA_MANIFEST_KEY: same format as SessionKey
 	BootstrapAdminEmail string         // ABIDATA_BOOTSTRAP_ADMIN_EMAIL
 	DebugAddr           string         // ABIDATA_DEBUG_ADDR, default "" (pprof off)
+	MetricsAddr         string         // ABIDATA_METRICS_ADDR, default "" (metrics only at /metrics for admins); unauthenticated, bind to a private interface
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info
 	TrustedProxies      []netip.Prefix // ABIDATA_TRUSTED_PROXIES: comma-separated CIDRs or bare IPs
 }

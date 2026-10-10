@@ -38,6 +38,22 @@ var DefaultBudgets = map[Context]Budget{
 	Job:     {Wall: 300 * time.Second, TxBlock: 2 * time.Second, MaxString: 16 << 20, Network: true, Writes: true},
 }
 
+// Limits on a workspace's UI-event wall time (quota ui_event_budget_ms).
+const (
+	MinUIEventWall = 250 * time.Millisecond
+	MaxUIEventWall = 5 * time.Second
+)
+
+// UIEventBudget is the UI-event budget with a workspace's wall time in ms
+// (0 = the default), clamped to [MinUIEventWall, MaxUIEventWall].
+func UIEventBudget(ms int) Budget {
+	b := DefaultBudgets[UIEvent]
+	if ms > 0 {
+		b.Wall = min(max(time.Duration(ms)*time.Millisecond, MinUIEventWall), MaxUIEventWall)
+	}
+	return b
+}
+
 // ParamDoc documents one parameter.
 type ParamDoc struct {
 	Name string `json:"name"`

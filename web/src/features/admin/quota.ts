@@ -7,6 +7,7 @@ export interface QuotaFieldSpec {
   label: string;
   help: string;
   max: number;
+  min?: number;
 }
 
 /** Quota fields in display order. A blank value (or 0) means "use the platform default". */
@@ -16,7 +17,7 @@ export const QUOTA_FIELDS: readonly QuotaFieldSpec[] = [
   { key: "max_concurrent_jobs", label: "Concurrent jobs", help: "Jobs running at the same time.", max: 1000 },
   { key: "script_concurrency", label: "Concurrent scripts", help: "Scripts running at the same time.", max: 1000 },
   { key: "egress_per_minute", label: "Outbound requests per minute", help: "Requests scripts may make to other hosts.", max: 1_000_000 },
-  { key: "ui_event_budget_ms", label: "Form event time budget (ms)", help: "How long one form or UI script event may run.", max: 600_000 },
+  { key: "ui_event_budget_ms", label: "Form event time budget (ms)", help: "How long one form or UI script event may run (250–5,000 ms).", min: 250, max: 5_000 },
 ];
 
 export type QuotaForm = Record<QuotaKey, string>;
@@ -52,6 +53,10 @@ export function parseQuotaForm(form: QuotaForm): { quota: Quota; errors: QuotaEr
     const n = Number(raw);
     if (!Number.isSafeInteger(n) || n > f.max) {
       errors[f.key] = `Use at most ${f.max.toLocaleString("en-US")}.`;
+      continue;
+    }
+    if (n > 0 && f.min !== undefined && n < f.min) {
+      errors[f.key] = `Use at least ${f.min.toLocaleString("en-US")}, or leave blank for the default.`;
       continue;
     }
     if (n > 0) quota[f.key] = n;

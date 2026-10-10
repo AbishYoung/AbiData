@@ -210,6 +210,9 @@ type Runner struct {
 	// SoftLimit is the heap size above which the watchdog cancels runs
 	// (default 75% of GOMEMLIMIT, or 1 GiB when no limit is set).
 	SoftLimit uint64
+	// PerWorkspace, when set, returns a workspace's concurrent-script quota
+	// (0 = the runner default); it is clamped to [1, global].
+	PerWorkspace func(ws ids.WorkspaceID) int
 }
 
 type activeRun struct {
@@ -241,11 +244,19 @@ func NewRunner(global, perWorkspace int) *Runner {
 }
 
 func (rn *Runner) slots(ws ids.WorkspaceID) chan struct{} {
+	n := rn.perWS
+	if rn.PerWorkspace != nil { // outside mu: it may read the admin DB
+		if q := rn.PerWorkspace(ws); q > 0 {
+			n = min(q, cap(rn.global))
+		}
+	}
 	rn.mu.Lock()
 	defer rn.mu.Unlock()
 	s, ok := rn.wsSlots[ws]
-	if !ok {
-		s = make(chan struct{}, rn.perWS)
+	// A changed quota takes effect once the workspace has no script running
+	// (holders release into the channel they took from).
+	if !ok || (cap(s) != n && len(s) == 0) {
+		s = make(chan struct{}, n)
 		rn.wsSlots[ws] = s
 	}
 	return s
