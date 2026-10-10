@@ -102,6 +102,17 @@ Filters and sorts are for your view only. To save a selection for others, create
 
 In **Design**, turn on **Track history of changes to rows**. From then on, every insert, update and delete through the app is recorded with the user, time and the values before and after.
 
+### Viewing a record's history {#view-history}
+
+Anyone who can read the table can see a record's history, including the history of deleted records.
+
+- **In the datasheet**, select a cell in the record and choose **History** in the toolbar.
+- **In a form**, open the record and choose **History** in the toolbar next to the record navigation. It appears for forms bound to a table once the record is saved.
+
+A panel opens with the changes, newest first. Each entry shows who made the change and when (for example "5 minutes ago" with the exact time), and what changed. A new record lists its initial values, a deleted record its last values, and an update lists only the fields that changed, as old value → new value. Fields that were removed from the table later appear as "(removed field)". Choose **Load older** to see earlier entries. Press **Esc** to close the panel.
+
+If the table does not track history, the panel says so; a builder can turn it on in Design. Only changes made after tracking was turned on are recorded.
+
 History is written by the row API (the datasheet), forms and the `records` module in scripts. Bulk imports and changes made with `db.exec` in a script are not recorded.
 
 ## Changing a design safely {#schema-changes}
