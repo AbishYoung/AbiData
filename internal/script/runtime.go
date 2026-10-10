@@ -126,6 +126,9 @@ type ExecRequest struct {
 	Host      any
 	Loader    ModuleLoader
 	Seed      uint64
+	// Globals adds run-specific globals (e.g. a record's fields for calculated
+	// controls); they override modules of the same name.
+	Globals func(r *Run) map[string]lua.LValue
 }
 
 // ExecResult is the outcome of a run.
@@ -261,10 +264,16 @@ func (rn *Runner) Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	for i, a := range req.Args {
 		args[i] = ToLua(run, a)
 	}
+	globals := hostGlobals(run)
+	if req.Globals != nil {
+		for k, v := range req.Globals(run) {
+			globals[k] = v
+		}
+	}
 	rets, err := vm.Exec(ctx, req.Proto, RunOptions{
 		Limits: Limits{MaxString: b.MaxString}, Seed: req.Seed, Loader: req.Loader,
 		Print:       func(s string) { run.Log("info", s, nil) },
-		HostGlobals: hostGlobals(run), Entry: req.Entry, EntryArgs: args,
+		HostGlobals: globals, Entry: req.Entry, EntryArgs: args,
 	})
 	res := ExecResult{Logs: run.Logs(), Took: time.Since(start)}
 	if err != nil && run.hostErr != nil && strings.Contains(err.Error(), run.hostErr.DisplayMessage()) {

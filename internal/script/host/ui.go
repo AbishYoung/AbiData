@@ -1,9 +1,12 @@
 package host
 
+import "abidata/internal/catalog"
+
 // UISession is the state of one form event (brief <forms> event protocol):
 // inputs from the client and the outputs the handler produces.
 type UISession struct {
 	// Inputs.
+	Table         *catalog.Table // the form's record source table (nil for unbound forms)
 	Event         string
 	Control       string
 	OldValue      any
