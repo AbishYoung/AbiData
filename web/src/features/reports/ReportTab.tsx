@@ -38,7 +38,7 @@ export function ReportTab({ ws, reportId, tabKey, view }: { ws: string; reportId
   return <ReportRun ws={ws} reportId={reportId} />;
 }
 
-function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
+export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
   const report = useReport(ws, reportId);
   const def = report.data;
   const sourceQuery = useSavedQuery(ws, def?.source_kind === "query" ? def.source_id : null);

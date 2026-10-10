@@ -1,0 +1,202 @@
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import { ControlFrame, type DragDelta } from "@/components/designer/ControlFrame";
+import { Splitter } from "@/components/designer/Splitter";
+import {
+  GRID,
+  MAX_BAND_HEIGHT,
+  bandLabel,
+  bandOrder,
+  contentWidth,
+  controlLabel,
+  pastWidth,
+  type BandId,
+  type DesignControl,
+  type ReportState,
+} from "./reportModel";
+
+export type { DragDelta };
+
+interface CanvasProps {
+  state: ReportState;
+  selection: ReadonlySet<string>;
+  tabStopId: string | null;
+  drag: DragDelta | null;
+  /** The band that toolbox and field list additions go to, and whose properties show. */
+  activeBand: BandId;
+  columnName: (id: string) => string;
+  onActivateBand: (id: BandId) => void;
+  onSelect: (id: string, mode: "only" | "toggle") => void;
+  onClear: () => void;
+  onBandHeight: (id: BandId, height: number) => void;
+  onResize: (id: string, w: number, h: number) => void;
+  registerNode: (id: string, el: HTMLElement | null) => void;
+  onKeyDown: (e: KeyboardEvent<HTMLElement>) => void;
+}
+
+function styleOf(c: DesignControl): CSSProperties {
+  const s = c.style ?? {};
+  const css: CSSProperties = {};
+  if (s.align === "left" || s.align === "center" || s.align === "right" || s.align === "justify") css.textAlign = s.align;
+  if (s.bold === "true") css.fontWeight = 700;
+  if (s.italic === "true") css.fontStyle = "italic";
+  return css;
+}
+
+/** What a control shows on the canvas: the caption, the bound field, the formula or the aggregate. */
+export function controlText(c: DesignControl, columnName: (id: string) => string): string {
+  if (c.aggregate) {
+    const a = c.aggregate;
+    const of = a.column_id ? columnName(a.column_id) : "*";
+    return `${a.running ? "running " : ""}${a.aggregate}(${of}) per ${a.scope}`;
+  }
+  if (c.calc) return `= ${c.calc.lua_expr}`;
+  if (c.bind) return `[${columnName(c.bind.column_id)}]`;
+  return c.caption ?? "";
+}
+
+function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: string) => string }) {
+  const clip = "block h-full w-full overflow-hidden text-ellipsis whitespace-nowrap px-1.5 text-sm leading-6";
+  const st = styleOf(c);
+  switch (c.type) {
+    case "label":
+      return (
+        <span className={`${clip} font-medium`} style={st}>
+          {c.caption ?? ""}
+        </span>
+      );
+    case "textbox":
+      return (
+        <span className={`${clip} border border-border bg-surface text-fg-muted`} style={st}>
+          {controlText(c, columnName)}
+        </span>
+      );
+    case "page_number":
+      return (
+        <span className={`${clip} italic text-fg-muted`} style={st}>
+          [Page]
+        </span>
+      );
+    case "page_count":
+      return (
+        <span className={`${clip} italic text-fg-muted`} style={st}>
+          [Pages]
+        </span>
+      );
+    case "now":
+      return (
+        <span className={`${clip} italic text-fg-muted`} style={st}>
+          [Date and time]
+        </span>
+      );
+    case "line":
+      return <span className="block h-1/2 border-b-2 border-fg" />;
+    case "rect":
+      return <span className="block h-full w-full border-2 border-fg" />;
+  }
+}
+
+function BandBody({ id, height, children, p }: { id: BandId; height: number; children: ReactNode; p: CanvasProps }) {
+  const { setNodeRef } = useDroppable({ id: `band:${id}`, data: { kind: "band", band: id } });
+  const props = p.state.bands[id];
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`band-${id}`}
+      onClick={() => {
+        p.onActivateBand(id);
+        p.onClear();
+      }}
+      style={{
+        height,
+        backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
+        backgroundSize: `${GRID}px ${GRID}px`,
+      }}
+      className={`relative border-b border-border bg-surface ${props && !props.visible ? "opacity-60" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The design surface: bands stacked in report order with absolutely positioned controls. */
+export function BandCanvas(p: CanvasProps) {
+  const { state } = p;
+  const width = contentWidth(state.page);
+  return (
+    <div role="group" aria-label="Report canvas" data-testid="report-canvas" onKeyDown={p.onKeyDown} className="relative" style={{ width }}>
+      <p className="m-0 mb-1 text-xs text-fg-muted" data-testid="width-guide-label">
+        Page content width {width} px
+      </p>
+      <div className="relative">
+        {bandOrder(state.groups.length).map((id) => {
+          const props = state.bands[id];
+          if (!props) return null;
+          const label = bandLabel(id);
+          const groupIndex = /^group_(?:header|footer)_(\d+)$/.exec(id)?.[1];
+          const group = groupIndex === undefined ? undefined : state.groups[Number(groupIndex)];
+          const groupField = group ? (group.column_id ? p.columnName(group.column_id) : group.lua_expr ? "expression" : "") : "";
+          const active = p.activeBand === id;
+          return (
+            <div key={id} role="group" aria-label={`${label} band`}>
+              <button
+                type="button"
+                aria-pressed={active}
+                aria-label={`Select ${label} band`}
+                onClick={() => {
+                  p.onActivateBand(id);
+                  p.onClear();
+                }}
+                className={`flex h-6 w-full cursor-pointer items-center gap-2 border-b border-border px-2 text-left text-xs font-semibold ${
+                  active ? "bg-accent text-accent-fg" : "bg-surface-2"
+                }`}
+              >
+                <span>
+                  {label}
+                  {groupField ? ` (${groupField})` : ""} — {props.height} px
+                </span>
+                {props.can_grow && <span className="font-normal">can grow</span>}
+                {props.keep_together && <span className="font-normal">keep together</span>}
+                {props.force_new_page && <span className="font-normal">new page</span>}
+                {!props.visible && <span className="font-normal">hidden</span>}
+              </button>
+              <BandBody id={id} height={props.height} p={p}>
+                {state.controls
+                  .filter((c) => c.band === id)
+                  .map((c) => (
+                    <ControlFrame
+                      key={c.id}
+                      control={c}
+                      label={controlLabel(c)}
+                      selected={p.selection.has(c.id)}
+                      tabStop={p.tabStopId === c.id}
+                      drag={p.drag}
+                      single={p.selection.size === 1}
+                      flagged={pastWidth(c, width)}
+                      registerNode={p.registerNode}
+                      onSelect={(cid, mode) => {
+                        p.onActivateBand(id);
+                        p.onSelect(cid, mode);
+                      }}
+                      onResize={p.onResize}
+                    >
+                      <ControlBody c={c} columnName={p.columnName} />
+                    </ControlFrame>
+                  ))}
+              </BandBody>
+              <Splitter
+                orientation="horizontal"
+                label={`Resize ${label} band height`}
+                value={props.height}
+                max={MAX_BAND_HEIGHT}
+                onChange={(h) => p.onBandHeight(id, h)}
+                className="h-2 cursor-ns-resize border-b-2 border-fg-muted bg-surface-2"
+              />
+            </div>
+          );
+        })}
+        <div aria-hidden="true" data-testid="width-guide" className="pointer-events-none absolute -right-px top-0 h-full border-r-2 border-dashed border-accent" />
+      </div>
+    </div>
+  );
+}

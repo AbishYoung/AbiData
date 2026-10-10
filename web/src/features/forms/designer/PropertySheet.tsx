@@ -23,7 +23,7 @@ import {
   type FormValues,
 } from "./propertyValues";
 import { columnsOfSource } from "./sourceColumns";
-import { AreaField, CheckField, Group, SelectField, TextField } from "./fields";
+import { AreaField, CheckField, Group, SelectField, TextField } from "@/components/designer/fields";
 
 export interface Catalog {
   schema: Schema | undefined;

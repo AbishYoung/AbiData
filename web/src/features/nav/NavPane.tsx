@@ -106,6 +106,11 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
     while (tabs.some((t) => t.key === `form:new:${n}`)) n++;
     openTab(ws, { key: `form:new:${n}`, kind: "form", objectId: null, view: "design", title: n === 1 ? "New form" : `New form ${n}` });
   }
+  function newReport(): void {
+    let n = 1;
+    while (tabs.some((t) => t.key === `report:new:${n}`)) n++;
+    openTab(ws, { key: `report:new:${n}`, kind: "report", objectId: null, view: "design", title: n === 1 ? "New report" : `New report ${n}` });
+  }
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
   function toggle(id: string) {
@@ -180,12 +185,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     <SquareTerminal size={16} aria-hidden="true" />
                   </button>
                 )}
-                {g.id === "forms" && design && (
+                {(g.id === "forms" || g.id === "reports") && design && (
                   <button
                     type="button"
-                    onClick={newForm}
-                    aria-label="New form"
-                    title="New form"
+                    onClick={g.id === "forms" ? newForm : newReport}
+                    aria-label={g.id === "forms" ? "New form" : "New report"}
+                    title={g.id === "forms" ? "New form" : "New report"}
                     className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
                   >
                     <Plus size={16} aria-hidden="true" />

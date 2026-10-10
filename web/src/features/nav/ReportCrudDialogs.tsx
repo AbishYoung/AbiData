@@ -5,6 +5,7 @@ import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { deleteReport, inputFromReport, reportKeys, updateReport, type Report } from "@/features/reports/reportsApi";
 import { ApiError } from "@/lib/api";
+import { applyExternalSave } from "@/features/reports/designer/reportDraftStore";
 
 const overlay = "fixed inset-0 bg-black/50";
 const content =
@@ -39,6 +40,7 @@ export function RenameReportDialog({ ws, report, onClose }: Props) {
       const saved = await updateReport(ws, report.id, report.version, inputFromReport(report, { name: trimmed }));
       qc.setQueryData(reportKeys.one(ws, saved.id), saved);
       void qc.invalidateQueries({ queryKey: reportKeys.all(ws) });
+      applyExternalSave(ws, saved);
       renameTab(ws, `report:${report.id}`, saved.name);
       onClose();
     } catch (err) {
