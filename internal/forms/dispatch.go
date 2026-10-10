@@ -162,8 +162,15 @@ func (s *Service) handlerFor(p *prepared, req EventRequest) (string, error) {
 }
 
 func (s *Service) hostData(l *workspace.Lease, c Caller, p *prepared) *host.Data {
-	return &host.Data{Lease: l, Schemas: s.Schemas, Records: s.Records, Builder: c.Role.AtLeast(admin.RoleBuilder),
+	d := &host.Data{Lease: l, Schemas: s.Schemas, Records: s.Records, Builder: c.Role.AtLeast(admin.RoleBuilder),
 		CanWrite: c.Role.AtLeast(admin.RoleEditor), UserID: c.UserID, UI: p.session}
+	// Enqueueing a job is a write: editors and above only.
+	if s.Enqueue != nil && c.Role.AtLeast(admin.RoleEditor) {
+		d.Enqueue = func(ctx context.Context, name string, args map[string]any) (string, error) {
+			return s.Enqueue(ctx, l, name, c.UserID, args, true)
+		}
+	}
+	return d
 }
 
 // runHandler executes handler (if any) and folds the session into resp.

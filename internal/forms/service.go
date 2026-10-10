@@ -61,6 +61,9 @@ type Service struct {
 	Events  interface {
 		Publish(key, typ string, data any)
 	}
+	// Enqueue starts a job run for jobs.enqueue (nil: unavailable). Forms may only
+	// enqueue jobs that opt in with allow_enqueue (enforced by the jobs service).
+	Enqueue func(ctx context.Context, l *workspace.Lease, jobName, by string, args map[string]any, fromForm bool) (string, error)
 }
 
 const formCols = `id, name, source_kind, source_id, default_view, allow_edits, allow_additions, allow_deletions, layout, version, updated_at, updated_by`
