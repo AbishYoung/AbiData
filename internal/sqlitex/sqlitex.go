@@ -51,6 +51,9 @@ type Options struct {
 	Synchronous  string // "NORMAL" (default) or "FULL"; writer only
 	MaxPageCount int64  // 0 = unlimited; writer only
 	BusyTimeout  time.Duration
+	// MustExist makes a writer refuse to create a missing file (reopening an
+	// existing workspace must never silently start an empty one).
+	MustExist bool
 }
 
 // ErrNoRows is returned by Row.Scan when the query produced no rows.
@@ -88,7 +91,10 @@ func Open(ctx context.Context, path string, opts Options) (*Conn, error) {
 	flags := sqlite3.OPEN_URI | sqlite3.OPEN_NOMUTEX
 	switch opts.Kind {
 	case Writer, Staging:
-		flags |= sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE
+		flags |= sqlite3.OPEN_READWRITE
+		if !opts.MustExist {
+			flags |= sqlite3.OPEN_CREATE
+		}
 	case Reader, Maintenance:
 		flags |= sqlite3.OPEN_READWRITE
 	case Snapshot:

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -157,6 +158,47 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 	return w.Close()
 }
 
+// Adopt makes the prepared database file src the new workspace id (restore as a
+// new workspace): it fails if the workspace file exists, renames src into place
+// (same filesystem), and opens it once to run migrations. On failure the file
+// is removed.
+func (m *Manager) Adopt(ctx context.Context, id ids.WorkspaceID, src string) error {
+	p, err := m.PathsFor(id)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(p.DB); err == nil {
+		return fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
+	}
+	for _, x := range []string{p.WAL, p.SHM} {
+		_ = os.Remove(x) // a stale -wal must never apply to the adopted file
+	}
+	if err := os.Rename(src, p.DB); err != nil {
+		return err
+	}
+	if err := syncDir(filepath.Dir(p.DB)); err != nil {
+		return err
+	}
+	w, err := m.openWriterQuota(ctx, id, p, false)
+	if err != nil {
+		_ = os.Remove(p.DB)
+		_ = os.Remove(p.WAL)
+		_ = os.Remove(p.SHM)
+		return err
+	}
+	return w.Close()
+}
+
+// syncDir fsyncs a directory so renames in it are durable.
+func syncDir(dir string) error {
+	d, err := os.Open(dir) //nolint:gosec // our own data directory
+	if err != nil {
+		return err
+	}
+	defer func() { _ = d.Close() }()
+	return d.Sync()
+}
+
 func (m *Manager) openWriter(ctx context.Context, id ids.WorkspaceID, p Paths) (*sqlitex.Conn, error) {
 	return m.openWriterQuota(ctx, id, p, true)
 }
@@ -171,7 +213,8 @@ func (m *Manager) openWriterQuota(ctx context.Context, id ids.WorkspaceID, p Pat
 			return nil, fmt.Errorf("workspace %s: quota: %w", id, err)
 		}
 	}
-	w, err := sqlitex.Open(ctx, p.DB, sqlitex.Options{Kind: sqlitex.Writer, Synchronous: m.cfg.Synchronous, MaxPageCount: pages})
+	// Only Create (quota == false) may create the file.
+	w, err := sqlitex.Open(ctx, p.DB, sqlitex.Options{Kind: sqlitex.Writer, Synchronous: m.cfg.Synchronous, MaxPageCount: pages, MustExist: quota})
 	if err != nil {
 		return nil, err
 	}
