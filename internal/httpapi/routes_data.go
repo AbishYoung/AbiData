@@ -255,6 +255,62 @@ func (s *Server) registerData(api huma.API) {
 		return &rowOut{ETag: etag(r.Version), Body: r}, nil
 	})
 
+	type historyItem struct {
+		records.HistoryEntry
+		UserName string `json:"user_name,omitempty" doc:"Display name of a current member; empty for system changes or former members."`
+	}
+	huma.Register(api, huma.Operation{
+		OperationID: "rowHistory", Method: http.MethodGet, Path: "/api/v1/w/{ws}/tables/{table}/rows/{id}/history", Tags: tags,
+		Summary:     "A row's recorded changes, newest first (tables with history tracking)",
+		Description: "Pages with `before` = the last entry's id. Readers of the table can read its history, including the history of deleted rows.",
+		Errors:      []int{401, 404},
+	}, func(ctx context.Context, in *struct {
+		WS     string `path:"ws"`
+		Table  string `path:"table"`
+		ID     int64  `path:"id"`
+		Before int64  `query:"before" minimum:"0"`
+		Limit  int    `query:"limit" minimum:"0" maximum:"100"`
+	}) (*struct {
+		Body struct {
+			Tracked bool          `json:"tracked" doc:"Whether the table currently records history."`
+			Items   []historyItem `json:"items"`
+			More    bool          `json:"more"`
+		}
+	}, error) {
+		l, err := s.lease(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer l.Release()
+		_, t, err := s.deps.Records.Table(ctx, l, in.Table)
+		if err != nil {
+			return nil, err
+		}
+		entries, more, err := s.deps.Records.History(ctx, l, in.Table, in.ID, in.Before, in.Limit)
+		if err != nil {
+			return nil, err
+		}
+		names := map[string]string{}
+		if ms, err := s.deps.Admin.ListMembers(ctx, l.ID()); err == nil {
+			for _, m := range ms {
+				names[m.UserID] = m.DisplayName
+			}
+		}
+		out := &struct {
+			Body struct {
+				Tracked bool          `json:"tracked" doc:"Whether the table currently records history."`
+				Items   []historyItem `json:"items"`
+				More    bool          `json:"more"`
+			}
+		}{}
+		out.Body.Tracked, out.Body.More = t.TrackHistory, more
+		out.Body.Items = make([]historyItem, 0, len(entries))
+		for _, e := range entries {
+			out.Body.Items = append(out.Body.Items, historyItem{HistoryEntry: e, UserName: names[e.UserID]})
+		}
+		return out, nil
+	})
+
 	huma.Register(api, huma.Operation{
 		OperationID: "insertRow", Method: http.MethodPost, Path: "/api/v1/w/{ws}/tables/{table}/rows", Tags: tags, Metadata: editor,
 		Summary: "Insert a row", DefaultStatus: http.StatusCreated, Errors: []int{400, 401, 403, 404, 409, 422, 503},

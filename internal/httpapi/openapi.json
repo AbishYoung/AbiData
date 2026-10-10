@@ -1622,6 +1622,53 @@
         ],
         "type": "object"
       },
+      "HistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "before": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "op": {
+            "enum": [
+              "insert",
+              "update",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "row_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "description": "Display name of a current member; empty for system changes or former members.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "row_version",
+          "op",
+          "at"
+        ],
+        "type": "object"
+      },
       "ImpactReport": {
         "additionalProperties": false,
         "properties": {
@@ -3565,6 +3612,33 @@
           "row",
           "code",
           "message"
+        ],
+        "type": "object"
+      },
+      "RowHistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryItem"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "more": {
+            "type": "boolean"
+          },
+          "tracked": {
+            "description": "Whether the table currently records history.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tracked",
+          "items",
+          "more"
         ],
         "type": "object"
       },
@@ -13546,6 +13620,116 @@
           }
         },
         "summary": "Update fields of a row (If-Match: version)",
+        "tags": [
+          "data"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/tables/{table}/rows/{id}/history": {
+      "get": {
+        "description": "Pages with `before` = the last entry's id. Readers of the table can read its history, including the history of deleted rows.",
+        "operationId": "rowHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RowHistoryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "A row's recorded changes, newest first (tables with history tracking)",
         "tags": [
           "data"
         ]

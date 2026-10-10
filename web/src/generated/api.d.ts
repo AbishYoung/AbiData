@@ -1126,6 +1126,26 @@ export interface paths {
         patch: operations["updateRow"];
         trace?: never;
     };
+    "/api/v1/w/{ws}/tables/{table}/rows/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A row's recorded changes, newest first (tables with history tracking)
+         * @description Pages with `before` = the last entry's id. Readers of the table can read its history, including the history of deleted rows.
+         */
+        get: operations["rowHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/w/{ws}/usages": {
         parameters: {
             query?: never;
@@ -1583,6 +1603,25 @@ export interface components {
             /** Format: int64 */
             level: number;
             text: string;
+        };
+        HistoryItem: {
+            after?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            at: string;
+            before?: {
+                [key: string]: unknown;
+            };
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            op: "insert" | "update" | "delete";
+            /** Format: int64 */
+            row_version: number;
+            user_id?: string;
+            /** @description Display name of a current member; empty for system changes or former members. */
+            user_name?: string;
         };
         ImpactReport: {
             breaking: components["schemas"]["Issue"][] | null;
@@ -2107,6 +2146,12 @@ export interface components {
              * @description 1-based data row number (the header is not counted).
              */
             row: number;
+        };
+        RowHistoryResponse: {
+            items: components["schemas"]["HistoryItem"][] | null;
+            more: boolean;
+            /** @description Whether the table currently records history. */
+            tracked: boolean;
         };
         RowPage: {
             items: components["schemas"]["Row"][] | null;
@@ -9255,6 +9300,69 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    rowHistory: {
+        parameters: {
+            query?: {
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                ws: string;
+                table: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowHistoryResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
