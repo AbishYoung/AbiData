@@ -246,6 +246,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/w/{ws}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export a table or saved query as csv, xlsx or json (an operation of kind export; the file is its artifact). Saved queries are capped at 50,000 rows. */
+        post: operations["createExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/w/{ws}/forms": {
         parameters: {
             query?: never;
@@ -328,6 +345,92 @@ export interface paths {
         put?: never;
         /** Save the record buffer: before_* handlers, OCC write, after_update */
         post: operations["formSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a CSV, XLSX, JSON or NDJSON file (builders). Fields format, delimiter, has_header and sheet must come before file. */
+        post: operations["uploadImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An import: columns, inferred types, mapping and the first 50 rows */
+        get: operations["getImport"];
+        put?: never;
+        post?: never;
+        /** Discard an import and its staging files */
+        delete: operations["deleteImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/imports/{id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit the import as an operation (kind import); its result is {inserted, updated, skipped, errors, table_id} */
+        post: operations["commitImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/imports/{id}/mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the target and column mapping (validated against the catalog) */
+        put: operations["setImportMapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/imports/{id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Convert every row with the current mapping and list the first 100 row errors */
+        post: operations["validateImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1078,6 +1181,11 @@ export interface components {
             validation_sql?: string;
             validation_text?: string;
         };
+        ColumnMap: {
+            column_id?: string;
+            /** Format: int64 */
+            source: number;
+        };
         ColumnSpec: {
             default_sql?: string;
             description?: string;
@@ -1225,6 +1333,18 @@ export interface components {
             requery?: string[] | null;
             saved?: components["schemas"]["Row"];
         };
+        ExportRequest: {
+            /** @enum {string} */
+            format: "csv" | "xlsx" | "json";
+            /** @description Query parameters (saved queries only). */
+            params?: {
+                [key: string]: unknown;
+            };
+            /** @description Table or saved query id. */
+            source_id: string;
+            /** @enum {string} */
+            source_kind: "table" | "query";
+        };
         Field: {
             alias?: string;
             column_id?: string;
@@ -1321,6 +1441,66 @@ export interface components {
             /** Format: int64 */
             schema_version: number;
             warnings: components["schemas"]["Issue"][] | null;
+        };
+        ImportMapping: {
+            /** @description Existing table only: source column to field. Unlisted sources are skipped. */
+            columns?: components["schemas"]["ColumnMap"][] | null;
+            /** @description upsert only: the field that identifies a row. It must have a single-field unique index. */
+            key_column_id?: string;
+            /** @enum {string} */
+            mode: "append" | "upsert" | "replace";
+            new_table?: components["schemas"]["NewTable"];
+            /** @description Existing target table. Exactly one of table_id and new_table is given. */
+            table_id?: string;
+            /**
+             * @description chunked (default) commits 2,000-row chunks and skips bad rows; all_or_nothing is one transaction that rolls back on the first error.
+             * @enum {string}
+             */
+            transaction?: "chunked" | "all_or_nothing";
+        };
+        ImportMeta: {
+            columns: components["schemas"]["SourceColumn"][] | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /** @enum {string} */
+            format: "csv" | "xlsx" | "json" | "ndjson";
+            id: string;
+            mapping?: components["schemas"]["ImportMapping"];
+            options: components["schemas"]["ParseOptions"];
+            /** Format: int64 */
+            row_count: number;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description The uploaded file's name. */
+            source_name: string;
+            /** @enum {string} */
+            status: "parsed" | "mapped" | "committing" | "failed";
+            /** @description Problems found while parsing that did not stop the import (at most 20). */
+            warnings: string[] | null;
+        };
+        ImportView: {
+            columns: components["schemas"]["SourceColumn"][] | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /** @enum {string} */
+            format: "csv" | "xlsx" | "json" | "ndjson";
+            id: string;
+            mapping?: components["schemas"]["ImportMapping"];
+            options: components["schemas"]["ParseOptions"];
+            /** @description The first 50 data rows, one entry per source column (null = empty). */
+            preview: ((string | null)[] | null)[] | null;
+            /** Format: int64 */
+            row_count: number;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description The uploaded file's name. */
+            source_name: string;
+            /** @enum {string} */
+            status: "parsed" | "mapped" | "committing" | "failed";
+            /** @description Problems found while parsing that did not stop the import (at most 20). */
+            warnings: string[] | null;
         };
         Index: {
             column_ids: string[] | null;
@@ -1511,6 +1691,27 @@ export interface components {
             name: string;
             values?: components["schemas"]["ValueDoc"][] | null;
         };
+        NewColumn: {
+            /** @description short_text, long_text, integer, number, currency, yes_no, date, datetime or hyperlink. */
+            field_type: string;
+            is_required?: boolean;
+            /**
+             * Format: int64
+             * @description short_text limit (default 255).
+             */
+            max_length?: number;
+            /** @description Field display name. */
+            name: string;
+            /**
+             * Format: int64
+             * @description Index of the source column that feeds this field.
+             */
+            source: number;
+        };
+        NewTable: {
+            columns: components["schemas"]["NewColumn"][] | null;
+            name: string;
+        };
         Notification: {
             /** @enum {string} */
             kind: "toast" | "alert";
@@ -1580,6 +1781,23 @@ export interface components {
             name: string;
             optional?: boolean;
             type: string;
+        };
+        ParseOptions: {
+            /** @description CSV field delimiter (sniffed unless given). */
+            delimiter?: string;
+            /** @description CSV text encoding that was detected: utf-8, utf-16le, utf-16be or windows-1252. */
+            encoding?: string;
+            /**
+             * @description Detected or requested file format.
+             * @enum {string}
+             */
+            format: "csv" | "xlsx" | "json" | "ndjson";
+            /** @description Whether the first row holds column names. */
+            has_header: boolean;
+            /** @description XLSX sheet that was read. */
+            sheet?: string;
+            /** @description All sheets of an XLSX file. */
+            sheets?: string[] | null;
         };
         Patch: {
             control: string;
@@ -1700,6 +1918,16 @@ export interface components {
             };
             /** Format: int64 */
             id: number;
+        };
+        RowError: {
+            code: string;
+            column?: string;
+            message: string;
+            /**
+             * Format: int64
+             * @description 1-based data row number (the header is not counted).
+             */
+            row: number;
         };
         RowPage: {
             items: components["schemas"]["Row"][] | null;
@@ -1879,6 +2107,31 @@ export interface components {
             /** Format: double */
             y: number;
         };
+        SourceColumn: {
+            /**
+             * Format: int64
+             * @description Zero-based position; mappings refer to it.
+             */
+            index: number;
+            /** @description Type inferred from the first 1,000 non-empty values. Currency is never inferred. */
+            inferred_type: string;
+            /**
+             * Format: int64
+             * @description Longest sampled value, in characters.
+             */
+            max_length: number;
+            /** @description Cleaned column name (a suggestion for the field name). */
+            name: string;
+            /**
+             * Format: int64
+             * @description How many of the sampled values were non-empty.
+             */
+            non_empty_sampled: number;
+            /** @description The header as it appears in the file. */
+            original: string;
+            /** @description Up to five sample values. */
+            samples: string[] | null;
+        };
         Subform: {
             form_id: string;
             link_child_column_id: string;
@@ -1935,6 +2188,18 @@ export interface components {
             email: string;
             id: string;
             is_platform_admin: boolean;
+        };
+        ValidationResult: {
+            /**
+             * Format: int64
+             * @description Rows that failed conversion.
+             */
+            error_count: number;
+            /** @description The first 100 failing rows. */
+            errors: components["schemas"]["RowError"][] | null;
+            /** Format: int64 */
+            rows_checked: number;
+            warnings: string[] | null;
         };
         ValueDoc: {
             doc: string;
@@ -3020,6 +3285,86 @@ export interface operations {
             };
         };
     };
+    createExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationDetail"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listForms: {
         parameters: {
             query?: never;
@@ -3672,6 +4017,478 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    uploadImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** @description CSV delimiter: comma, semicolon, tab or pipe; default sniffed */
+                    delimiter?: string;
+                    /**
+                     * Format: binary
+                     * @description At most 100 MiB.
+                     */
+                    file: string;
+                    /** @description csv, xlsx, json or ndjson; default from the file extension */
+                    format?: string;
+                    /** @description false when the first row is data */
+                    has_header?: string;
+                    /** @description XLSX sheet name; default the first visible sheet */
+                    sheet?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportMeta"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    deleteImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    commitImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationDetail"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setImportMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportMapping"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportMeta"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    validateImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

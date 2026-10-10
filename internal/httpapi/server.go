@@ -27,6 +27,7 @@ import (
 	"abidata/internal/egress"
 	"abidata/internal/events"
 	"abidata/internal/forms"
+	"abidata/internal/ingest"
 	"abidata/internal/jobs"
 	"abidata/internal/obs"
 	"abidata/internal/ops"
@@ -57,6 +58,7 @@ type Deps struct {
 	Ops        *ops.Service     // long-running operations (imports, exports)
 	Artifacts  *artifacts.Store // job/export output files
 	Egress     *egress.Gateway  // workspace allowlist settings validation
+	Ingest     *ingest.Service  // imports and exports; nil: ingest routes answer NOT_FOUND
 	Version    string
 	SPA        fs.FS // contents of web/dist; nil serves nothing
 }
@@ -105,6 +107,7 @@ func New(deps Deps) *Server {
 	s.registerReports(api)
 	s.registerJobs(api)
 	s.registerEgress(api)
+	s.registerIngest(api)
 
 	r.NotFound(s.notFound)
 	return s

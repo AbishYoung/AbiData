@@ -26,6 +26,7 @@ import (
 	"abidata/internal/forms"
 	"abidata/internal/httpapi"
 	"abidata/internal/ids"
+	"abidata/internal/ingest"
 	"abidata/internal/jobs"
 	"abidata/internal/obs"
 	"abidata/internal/ops"
@@ -168,9 +169,11 @@ func serve() error {
 	})
 	defer gateway.Close()
 	opsSvc := &ops.Service{Workspaces: wm, Events: hub, Log: obs.Subsystem(log, "ops")}
+	ingestSvc := &ingest.Service{DataDir: cfg.DataDir, Workspaces: wm, Schemas: schemas, Catalog: engine, Records: recSvc,
+		Queries: querySvc, Ops: opsSvc, Artifacts: arts}
 	jobStore := &jobs.SQLStore{Admin: adm, Workspaces: wm}
 	jobSvc := &jobs.Service{Scripts: scriptSvc, Events: hub}
-	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts}
+	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts, Ingest: ingestSvc}
 	sched := jobs.New(jobs.Config{Store: jobStore, Executor: executor, Workers: cfg.JobWorkers, Log: obs.Subsystem(log, "jobs"),
 		PerWorkspace: func(id ids.WorkspaceID) int { return quota(id).MaxConcurrentJobs },
 		Publish:      func(id ids.WorkspaceID, r jobs.Run) { hub.Publish(string(id), events.JobRun, r) }})
@@ -214,7 +217,7 @@ func serve() error {
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			Enqueue: enqueue},
-		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway,
+		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc,
 		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
@@ -224,7 +227,7 @@ func serve() error {
 		go serveDebug(cfg.DebugAddr, log)
 	}
 	janitorCtx, stopJanitor := context.WithCancel(context.Background())
-	go janitor(janitorCtx, log, wm, adm, arts)
+	go janitor(janitorCtx, log, wm, adm, arts, ingestSvc)
 
 	errc := make(chan error, 1)
 	go func() {
@@ -277,7 +280,7 @@ func serve() error {
 // artifactRetention is how long job and export artifacts are kept.
 const artifactRetention = 30 * 24 * time.Hour
 
-func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store, arts *artifacts.Store) {
+func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store, arts *artifacts.Store, ing *ingest.Service) {
 	t := time.NewTicker(5 * time.Minute)
 	defer t.Stop()
 	for {
@@ -300,6 +303,11 @@ func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *
 			log.Warn("sweep artifacts", "subsystem", "janitor", "err", err)
 		} else if n > 0 {
 			log.Info("swept artifacts", "subsystem", "janitor", "count", n)
+		}
+		if n, err := ing.Sweep(24*time.Hour, time.Now()); err != nil {
+			log.Warn("sweep staging", "subsystem", "janitor", "err", err)
+		} else if n > 0 {
+			log.Info("swept staging files", "subsystem", "janitor", "count", n)
 		}
 		wm.CloseIdle(ctx, 10*time.Minute)
 		if n, err := adm.PurgeSessions(ctx, time.Now(), auth.IdleTimeout); err != nil {

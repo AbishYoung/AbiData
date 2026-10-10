@@ -808,3 +808,8 @@ func (s *Service) PublishInvalidated(ws string, tableIDs []string) {
 		s.Events.Publish(ws, events.TableInvalidated, map[string]any{"table_id": id})
 	}
 }
+
+// Translate maps a database error raised while writing t to a classified fault
+// that names fields by display name (the same mapping the row API uses). Bulk
+// writers such as the importer call it for per-row failures.
+func Translate(t *catalog.Table, err error) error { return translate(t, err) }

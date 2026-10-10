@@ -629,6 +629,22 @@
         ],
         "type": "object"
       },
+      "ColumnMap": {
+        "additionalProperties": false,
+        "properties": {
+          "column_id": {
+            "type": "string"
+          },
+          "source": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
       "ColumnSpec": {
         "additionalProperties": false,
         "properties": {
@@ -1147,6 +1163,41 @@
         ],
         "type": "object"
       },
+      "ExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "csv",
+              "xlsx",
+              "json"
+            ],
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {},
+            "description": "Query parameters (saved queries only).",
+            "type": "object"
+          },
+          "source_id": {
+            "description": "Table or saved query id.",
+            "type": "string"
+          },
+          "source_kind": {
+            "enum": [
+              "table",
+              "query"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_kind",
+          "source_id",
+          "format"
+        ],
+        "type": "object"
+      },
       "Field": {
         "additionalProperties": false,
         "properties": {
@@ -1520,6 +1571,240 @@
           "conversion_failures",
           "restore_point_required",
           "schema_version"
+        ],
+        "type": "object"
+      },
+      "ImportMapping": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "description": "Existing table only: source column to field. Unlisted sources are skipped.",
+            "items": {
+              "$ref": "#/components/schemas/ColumnMap"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "key_column_id": {
+            "description": "upsert only: the field that identifies a row. It must have a single-field unique index.",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "append",
+              "upsert",
+              "replace"
+            ],
+            "type": "string"
+          },
+          "new_table": {
+            "$ref": "#/components/schemas/NewTable"
+          },
+          "table_id": {
+            "description": "Existing target table. Exactly one of table_id and new_table is given.",
+            "type": "string"
+          },
+          "transaction": {
+            "description": "chunked (default) commits 2,000-row chunks and skips bad rows; all_or_nothing is one transaction that rolls back on the first error.",
+            "enum": [
+              "chunked",
+              "all_or_nothing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "ImportMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/SourceColumn"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "csv",
+              "xlsx",
+              "json",
+              "ndjson"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/ImportMapping"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ParseOptions"
+          },
+          "row_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source_name": {
+            "description": "The uploaded file's name.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "parsed",
+              "mapped",
+              "committing",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "warnings": {
+            "description": "Problems found while parsing that did not stop the import (at most 20).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source_name",
+          "format",
+          "options",
+          "columns",
+          "row_count",
+          "status",
+          "created_by",
+          "created_at",
+          "size_bytes",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "ImportView": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/SourceColumn"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "csv",
+              "xlsx",
+              "json",
+              "ndjson"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/ImportMapping"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ParseOptions"
+          },
+          "preview": {
+            "description": "The first 50 data rows, one entry per source column (null = empty).",
+            "items": {
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "row_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source_name": {
+            "description": "The uploaded file's name.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "parsed",
+              "mapped",
+              "committing",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "warnings": {
+            "description": "Problems found while parsing that did not stop the import (at most 20).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "preview",
+          "id",
+          "source_name",
+          "format",
+          "options",
+          "columns",
+          "row_count",
+          "status",
+          "created_by",
+          "created_at",
+          "size_bytes",
+          "warnings"
         ],
         "type": "object"
       },
@@ -2285,6 +2570,60 @@
         ],
         "type": "object"
       },
+      "NewColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "field_type": {
+            "description": "short_text, long_text, integer, number, currency, yes_no, date, datetime or hyperlink.",
+            "type": "string"
+          },
+          "is_required": {
+            "type": "boolean"
+          },
+          "max_length": {
+            "description": "short_text limit (default 255).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Field display name.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Index of the source column that feeds this field.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "name",
+          "field_type"
+        ],
+        "type": "object"
+      },
+      "NewTable": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/NewColumn"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "columns"
+        ],
+        "type": "object"
+      },
       "Notification": {
         "additionalProperties": false,
         "properties": {
@@ -2529,6 +2868,52 @@
           "name",
           "type",
           "doc"
+        ],
+        "type": "object"
+      },
+      "ParseOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "delimiter": {
+            "description": "CSV field delimiter (sniffed unless given).",
+            "type": "string"
+          },
+          "encoding": {
+            "description": "CSV text encoding that was detected: utf-8, utf-16le, utf-16be or windows-1252.",
+            "type": "string"
+          },
+          "format": {
+            "description": "Detected or requested file format.",
+            "enum": [
+              "csv",
+              "xlsx",
+              "json",
+              "ndjson"
+            ],
+            "type": "string"
+          },
+          "has_header": {
+            "description": "Whether the first row holds column names.",
+            "type": "boolean"
+          },
+          "sheet": {
+            "description": "XLSX sheet that was read.",
+            "type": "string"
+          },
+          "sheets": {
+            "description": "All sheets of an XLSX file.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "format",
+          "has_header"
         ],
         "type": "object"
       },
@@ -2955,6 +3340,31 @@
           "id",
           "_version",
           "fields"
+        ],
+        "type": "object"
+      },
+      "RowError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "row": {
+            "description": "1-based data row number (the header is not counted).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row",
+          "code",
+          "message"
         ],
         "type": "object"
       },
@@ -3561,6 +3971,58 @@
         ],
         "type": "object"
       },
+      "SourceColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "description": "Zero-based position; mappings refer to it.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "inferred_type": {
+            "description": "Type inferred from the first 1,000 non-empty values. Currency is never inferred.",
+            "type": "string"
+          },
+          "max_length": {
+            "description": "Longest sampled value, in characters.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Cleaned column name (a suggestion for the field name).",
+            "type": "string"
+          },
+          "non_empty_sampled": {
+            "description": "How many of the sampled values were non-empty.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "original": {
+            "description": "The header as it appears in the file.",
+            "type": "string"
+          },
+          "samples": {
+            "description": "Up to five sample values.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "original",
+          "inferred_type",
+          "samples",
+          "non_empty_sampled",
+          "max_length"
+        ],
+        "type": "object"
+      },
       "Subform": {
         "additionalProperties": false,
         "properties": {
@@ -3789,6 +4251,46 @@
           "email",
           "display_name",
           "is_platform_admin"
+        ],
+        "type": "object"
+      },
+      "ValidationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "error_count": {
+            "description": "Rows that failed conversion.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "errors": {
+            "description": "The first 100 failing rows.",
+            "items": {
+              "$ref": "#/components/schemas/RowError"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "rows_checked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rows_checked",
+          "error_count",
+          "errors",
+          "warnings"
         ],
         "type": "object"
       },
@@ -5144,6 +5646,107 @@
         ]
       }
     },
+    "/api/v1/w/{ws}/exports": {
+      "post": {
+        "operationId": "createExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationDetail"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Export a table or saved query as csv, xlsx or json (an operation of kind export; the file is its artifact). Saved queries are capped at 50,000 rows.",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
     "/api/v1/w/{ws}/forms": {
       "get": {
         "operationId": "listForms",
@@ -6032,6 +6635,619 @@
         "summary": "Save the record buffer: before_* handlers, OCC write, after_update",
         "tags": [
           "forms"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/imports": {
+      "post": {
+        "operationId": "uploadImport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "delimiter": {
+                    "description": "CSV delimiter: comma, semicolon, tab or pipe; default sniffed",
+                    "type": "string"
+                  },
+                  "file": {
+                    "contentMediaType": "application/octet-stream",
+                    "description": "At most 100 MiB.",
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "format": {
+                    "description": "csv, xlsx, json or ndjson; default from the file extension",
+                    "type": "string"
+                  },
+                  "has_header": {
+                    "description": "false when the first row is data",
+                    "type": "string"
+                  },
+                  "sheet": {
+                    "description": "XLSX sheet name; default the first visible sheet",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportMeta"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Upload a CSV, XLSX, JSON or NDJSON file (builders). Fields format, delimiter, has_header and sheet must come before file.",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/imports/{id}": {
+      "delete": {
+        "operationId": "deleteImport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Discard an import and its staging files",
+        "tags": [
+          "ingest"
+        ]
+      },
+      "get": {
+        "operationId": "getImport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "An import: columns, inferred types, mapping and the first 50 rows",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/imports/{id}/commit": {
+      "post": {
+        "operationId": "commitImport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationDetail"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Commit the import as an operation (kind import); its result is {inserted, updated, skipped, errors, table_id}",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/imports/{id}/mapping": {
+      "put": {
+        "operationId": "setImportMapping",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportMapping"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportMeta"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Set the target and column mapping (validated against the catalog)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/imports/{id}/validate": {
+      "post": {
+        "operationId": "validateImport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Convert every row with the current mapping and list the first 100 row errors",
+        "tags": [
+          "ingest"
         ]
       }
     },

@@ -48,6 +48,11 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Done: definitions/validation/CRUD + module scripts, run resolver (groups incl. Lua-expression groups, case-insensitive grouping, group/report aggregates with exact currency, running sums, calc via one driver run), NDJSON run route, schema validator. Goldens pass; 10k rows resolve in ~220 ms.
 - Remaining: client paginator (Opus), band designer UI, print CSS, PDF snapshot specs.
 
+## Phase 5 — Ingest backend (imports, exports, Lua `staging`)
+- `internal/ingest`: streamed upload (100 MiB) -> staging SQLite (`c1..cN`, meta table) for CSV (delimiter/BOM/UTF-16/cp1252 sniffing, record caps), XLSX (archive pre-scan + excelize limits), JSON/NDJSON (depth cap); inference on the first 1,000 non-empty values; mapping validated against the catalog; validation pass (first 100 row errors + count); commit as operation `import` (2,000-row background chunks; append/upsert/replace; chunked or all_or_nothing); exports as operation `export` (keyset pages; csv/xlsx/json -> artifact). Janitor sweeps staging after 24 h.
+- Lua `staging` module (job context): `internal/script/modules/staging`, host binding `host.StagingStore`, per-run files `staging/<ws>/run-<run>-<n>.db` removed by `jobs.LuaExecutor`.
+- Known behaviours: bulk imports do not write `_sys_row_history`; replace of more than 50k rows is chunked (table is emptied with the first chunk; restore-point hook arrives in Phase 6); the workspace write gate is strict-priority, so a saturated interactive load can starve a background import.
+
 ## Next (resume here)
 Script Studio merged (Monaco lazy chunk, LuaEditor reusable, live diagnostics, scripts e2e). Gate 2 closed.
 In flight (Sonnet worktrees; verify, merge, full gate when they report — if a session ended, inspect .claude/worktrees/agent-*): form runtime (owns the Gate 3 order-form e2e, port 18085), form designer + nav Forms group (18086), report viewer + print CSS + PDF specs + ADR 0006 pdfjs test dep (18087).
