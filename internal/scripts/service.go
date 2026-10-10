@@ -32,7 +32,7 @@ type Script struct {
 }
 
 // Input creates or replaces a script.
-type Input struct {
+type ScriptInput struct {
 	Name    string `json:"name" minLength:"1" maxLength:"200"`
 	Kind    string `json:"kind" enum:"module,form_module,report_module,job"`
 	OwnerID string `json:"owner_id,omitempty"`
@@ -143,7 +143,7 @@ func ByOwner(ctx context.Context, q sqlitex.Querier, ownerID string) (Script, bo
 	return s, true, nil
 }
 
-func validate(in Input) error {
+func validate(in ScriptInput) error {
 	if strings.TrimSpace(in.Name) == "" || len(in.Name) > 200 {
 		return fault.New(fault.BadRequest, "Enter a script name of at most 200 characters.")
 	}
@@ -167,7 +167,7 @@ func validate(in Input) error {
 }
 
 // PutTx creates (id == "") or replaces a script inside a caller's transaction.
-func (svc *Service) PutTx(ctx context.Context, tx *sqlitex.Tx, id string, expectedVersion int64, in Input, user string) (Script, error) {
+func (svc *Service) PutTx(ctx context.Context, tx *sqlitex.Tx, id string, expectedVersion int64, in ScriptInput, user string) (Script, error) {
 	if err := validate(in); err != nil {
 		return Script{}, err
 	}
@@ -206,7 +206,7 @@ func (svc *Service) PutTx(ctx context.Context, tx *sqlitex.Tx, id string, expect
 }
 
 // Put creates or replaces a script.
-func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in Input, user string) (Script, error) {
+func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in ScriptInput, user string) (Script, error) {
 	var out Script
 	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
 		var err error

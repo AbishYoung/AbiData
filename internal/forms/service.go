@@ -39,7 +39,7 @@ type Form struct {
 }
 
 // Input creates or replaces a form (and its module source).
-type Input struct {
+type FormInput struct {
 	Name           string `json:"name" minLength:"1" maxLength:"200"`
 	SourceKind     string `json:"source_kind" enum:"table,query,none"`
 	SourceID       string `json:"source_id,omitempty"`
@@ -169,7 +169,7 @@ func (s *Service) source(ctx context.Context, l *workspace.Lease, sch *catalog.S
 }
 
 // Put creates (id "") or replaces a form and its module in one transaction.
-func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in Input, user string) (Form, error) {
+func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in FormInput, user string) (Form, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" || len(name) > 200 {
 		return Form{}, fault.New(fault.BadRequest, "Enter a form name of at most 200 characters.")
@@ -242,7 +242,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 			}
 			return err
 		}
-		mod, err := s.Scripts.PutTx(ctx, tx, moduleID, moduleVer, scripts.Input{Name: "form." + f.ID, Kind: "form_module", OwnerID: f.ID, Source: in.ModuleSource}, user)
+		mod, err := s.Scripts.PutTx(ctx, tx, moduleID, moduleVer, scripts.ScriptInput{Name: "form." + f.ID, Kind: "form_module", OwnerID: f.ID, Source: in.ModuleSource}, user)
 		if err != nil {
 			return err
 		}

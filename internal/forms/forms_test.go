@@ -115,7 +115,7 @@ end
 
 func (f *fx) createForms(t *testing.T) (orderForm, lineForm Form) {
 	t.Helper()
-	lineForm, err := f.svc.Put(f.ctx, f.l, "", 0, Input{Name: "Order lines", SourceKind: "table", SourceID: f.lines.ID, DefaultView: "continuous",
+	lineForm, err := f.svc.Put(f.ctx, f.l, "", 0, FormInput{Name: "Order lines", SourceKind: "table", SourceID: f.lines.ID, DefaultView: "continuous",
 		Layout: Layout{Width: 600, Sections: Sections{Detail: Section{Height: 28, Controls: []Control{
 			{ID: "c1", Name: "Qty", Type: "textbox", W: 80, H: 24, Bind: &Bind{ColumnID: col(f.lines, "Qty")}},
 			{ID: "c2", Name: "UnitPrice", Type: "textbox", X: 90, W: 100, H: 24, Bind: &Bind{ColumnID: col(f.lines, "UnitPrice")}},
@@ -124,7 +124,7 @@ func (f *fx) createForms(t *testing.T) (orderForm, lineForm Form) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	orderForm, err = f.svc.Put(f.ctx, f.l, "", 0, Input{Name: "Order", SourceKind: "table", SourceID: f.orders.ID, ModuleSource: orderModule,
+	orderForm, err = f.svc.Put(f.ctx, f.l, "", 0, FormInput{Name: "Order", SourceKind: "table", SourceID: f.orders.ID, ModuleSource: orderModule,
 		Layout: Layout{Width: 800, Events: map[string]string{"load": "on_load", "before_update": "before_update", "after_update": "after_update"},
 			Sections: Sections{Detail: Section{Height: 400, Controls: []Control{
 				{ID: "o1", Name: "Customer", Type: "combobox", W: 200, H: 24, Bind: &Bind{ColumnID: col(f.orders, "Customer")},
@@ -225,12 +225,12 @@ func TestOrderFormLifecycle(t *testing.T) {
 
 func TestFormValidationAndSchemaImpact(t *testing.T) {
 	f := setup(t)
-	if _, err := f.svc.Put(f.ctx, f.l, "", 0, Input{Name: "Bad", SourceKind: "table", SourceID: f.orders.ID,
+	if _, err := f.svc.Put(f.ctx, f.l, "", 0, FormInput{Name: "Bad", SourceKind: "table", SourceID: f.orders.ID,
 		Layout: Layout{Width: 100, Sections: Sections{Detail: Section{Height: 20, Controls: []Control{
 			{ID: "x", Name: "X", Type: "textbox", W: 10, H: 10, Bind: &Bind{ColumnID: col(f.lines, "Qty")}}}}}}}, "bu"); fault.Classify(err).Code != fault.BadRequest {
 		t.Fatalf("binding to another table's column accepted: %v", err)
 	}
-	if _, err := f.svc.Put(f.ctx, f.l, "", 0, Input{Name: "Syntax", SourceKind: "none", ModuleSource: "function x( end",
+	if _, err := f.svc.Put(f.ctx, f.l, "", 0, FormInput{Name: "Syntax", SourceKind: "none", ModuleSource: "function x( end",
 		Layout: Layout{Width: 100}}, "bu"); fault.Classify(err).Code != fault.ScriptError {
 		t.Fatalf("module syntax error accepted: %v", err)
 	}

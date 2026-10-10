@@ -19,9 +19,13 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/events"
+	"abidata/internal/forms"
 	"abidata/internal/ids"
 	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/script"
+	_ "abidata/internal/script/modules/all"
+	"abidata/internal/scripts"
 	"abidata/internal/workspace"
 )
 
@@ -64,14 +68,19 @@ func newEnv(t *testing.T) *env {
 		"assets/app-1a.js": {Data: []byte("console.log(1)")},
 	}
 	hub := events.NewHub(1000)
+	recSvc := &records.Service{Schemas: nil, Events: hub}
+	querySvc := &query.Service{Events: hub}
+	scriptSvc := &scripts.Service{Events: hub}
 	schemas := catalog.NewCache()
-	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
+	recSvc.Schemas, querySvc.Schemas = schemas, schemas
+	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
 	s := New(Deps{Config: cfg, Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
-		Schemas: schemas, Catalog: engine, Events: hub, Records: &records.Service{Schemas: schemas, Events: hub},
-		Queries: &query.Service{Schemas: schemas, Events: hub}})
+		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
+		Queries: querySvc, Scripts: scriptSvc,
+		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub}})
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
 	return &env{t: t, srv: srv, s: s, ad: ad, au: au}

@@ -24,9 +24,11 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/events"
+	"abidata/internal/forms"
 	"abidata/internal/obs"
 	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/scripts"
 	"abidata/internal/workspace"
 )
 
@@ -42,6 +44,8 @@ type Deps struct {
 	Catalog    *catalog.Engine
 	Records    *records.Service
 	Queries    *query.Service
+	Forms      *forms.Service
+	Scripts    *scripts.Service
 	Events     *events.Hub
 	Version    string
 	SPA        fs.FS // contents of web/dist; nil serves nothing
@@ -87,6 +91,7 @@ func New(deps Deps) *Server {
 	s.registerWorkspace(api)
 	s.registerData(api)
 	s.registerQueries(api)
+	s.registerForms(api)
 
 	r.NotFound(s.notFound)
 	return s
