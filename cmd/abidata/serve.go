@@ -271,28 +271,33 @@ func serve() error {
 		stopJanitor()
 		stopSched()
 		<-schedDone
+		sched.Shutdown(0)
+		hub.Close()
+		logBus.Close()
 		_ = opsSvc.Shutdown(context.Background())
 		_ = wm.Shutdown(context.Background())
 		return err
 	case <-ctx.Done():
 	}
 
-	// Graceful shutdown (brief <deployment>).
+	// Graceful shutdown (brief <deployment>): stop taking work, give running
+	// job runs up to 30s (then cancel them, recorded as interrupted), close the
+	// SSE streams so they do not hold the drain, drain HTTP for 15s, then close
+	// the workspaces.
 	log.Info("shutting down")
 	api.SetDraining()
 	stopJanitor()
+	stopSched()
+	<-schedDone
+	if !sched.Shutdown(30 * time.Second) {
+		log.Warn("job runs interrupted at shutdown")
+	}
+	hub.Close()
+	logBus.Close()
 	shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutCtx); err != nil {
 		log.Warn("http drain incomplete", "err", err)
-	}
-	// Running job runs are cancelled (recorded as cancelled); runs a crash cuts
-	// short are marked interrupted by Recover on the next start.
-	stopSched()
-	select {
-	case <-schedDone:
-	case <-shutCtx.Done():
-		log.Warn("job runs did not stop in time")
 	}
 	if err := opsSvc.Shutdown(shutCtx); err != nil {
 		log.Warn("operations did not stop in time", "err", err)

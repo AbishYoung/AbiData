@@ -42,6 +42,7 @@ type Bus struct {
 	start int // index of the oldest event
 	n     int // events held
 	subs  map[*Sub]struct{}
+	shut  bool // Close was called: subscribers are closed at once
 }
 
 // NewBus returns a bus retaining up to ring events for replay.
@@ -115,9 +116,27 @@ func (b *Bus) Publish(typ string, data any) (Event, error) {
 func (b *Bus) Subscribe() *Sub {
 	s := &Sub{C: make(chan Event, SubBuffer), b: b}
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.shut {
+		s.closed = true
+		close(s.C)
+		return s
+	}
 	b.subs[s] = struct{}{}
-	b.mu.Unlock()
 	return s
+}
+
+// Close ends every subscription (their streams return) and refuses new ones;
+// used at shutdown so open SSE streams do not hold the HTTP drain.
+func (b *Bus) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.shut = true
+	for s := range b.subs {
+		s.closed = true
+		close(s.C)
+		delete(b.subs, s)
+	}
 }
 
 // Since returns retained events with ID > after. reset is true when after is
@@ -154,9 +173,10 @@ func (b *Bus) Seq() uint64 {
 
 // Hub holds one bus per key (workspace ID), created on demand.
 type Hub struct {
-	mu    sync.Mutex
-	ring  int
-	buses map[string]*Bus
+	mu     sync.Mutex
+	ring   int
+	buses  map[string]*Bus
+	closed bool
 }
 
 // NewHub returns a hub whose buses retain ring events each.
@@ -169,9 +189,20 @@ func (h *Hub) Bus(key string) *Bus {
 	b, ok := h.buses[key]
 	if !ok {
 		b = NewBus(h.ring)
+		b.shut = h.closed
 		h.buses[key] = b
 	}
 	return b
+}
+
+// Close closes every bus (see Bus.Close); buses created later start closed.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.closed = true
+	for _, b := range h.buses {
+		b.Close()
+	}
 }
 
 // Publish publishes on key's bus.

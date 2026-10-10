@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"abidata/internal/fault"
@@ -171,7 +172,11 @@ type Scheduler struct {
 	// a queued run that survives a restart is marked interrupted).
 	queuedArgs map[string]map[string]any
 	wg         sync.WaitGroup
-	base       context.Context
+	// base is the parent of every run's context; Shutdown cancels it after the
+	// grace period, and runs stopped that way are recorded as interrupted.
+	base        context.Context
+	stopRuns    context.CancelFunc
+	interrupted atomic.Bool
 }
 
 // New returns a scheduler; call Recover then Start.
@@ -191,11 +196,12 @@ func New(cfg Config) *Scheduler {
 	if cfg.NewID == nil {
 		cfg.NewID = func() string { return ids.New() }
 	}
-	return &Scheduler{
+	s := &Scheduler{
 		cfg: cfg, wake: make(chan struct{}, 1), global: make(chan struct{}, cfg.Workers),
 		perWS: map[ids.WorkspaceID]chan struct{}{}, wsLocks: map[ids.WorkspaceID]*sync.Mutex{}, firing: map[ids.WorkspaceID]bool{}, cancel: map[string]context.CancelFunc{}, queuedArgs: map[string]map[string]any{},
-		base: context.Background(),
 	}
+	s.base, s.stopRuns = context.WithCancel(context.Background())
+	return s
 }
 
 // wsLock returns the mutex serializing ws's index updates.
@@ -317,11 +323,9 @@ func (s *Scheduler) Rebuild(ctx context.Context, ws ids.WorkspaceID) error {
 	return nil
 }
 
-// Start runs the scheduling loop until ctx is done, then waits for runs to stop.
+// Start runs the scheduling loop until ctx is done. Running runs continue;
+// call Shutdown to stop them.
 func (s *Scheduler) Start(ctx context.Context) {
-	s.mu.Lock()
-	s.base = ctx
-	s.mu.Unlock()
 	for {
 		if err := s.tick(ctx, false); err != nil && ctx.Err() == nil {
 			s.cfg.Log.Error("scheduler tick", "subsystem", "jobs", "err", err)
@@ -335,7 +339,6 @@ func (s *Scheduler) Start(ctx context.Context) {
 		}
 		select {
 		case <-ctx.Done():
-			s.wg.Wait()
 			return
 		case <-s.wake:
 		case <-timer:
@@ -345,6 +348,22 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 // Wait blocks until all started runs have finished (tests and shutdown).
 func (s *Scheduler) Wait() { s.wg.Wait() }
+
+// Shutdown gives running runs up to grace to finish, then cancels the rest;
+// those are recorded as interrupted (brief <deployment>). Stop the loop first.
+func (s *Scheduler) Shutdown(grace time.Duration) bool {
+	done := make(chan struct{})
+	go func() { s.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+		return true
+	case <-time.After(grace):
+	}
+	s.interrupted.Store(true)
+	s.stopRuns()
+	<-done
+	return false
+}
 
 // Tick fires everything due now and waits for it (tests call it directly).
 func (s *Scheduler) Tick(ctx context.Context) error { return s.tick(ctx, true) }
@@ -663,6 +682,8 @@ func (s *Scheduler) start(ws ids.WorkspaceID, job Job, run Run) {
 			if res.ErrorMessage == "" {
 				res.ErrorMessage = "The run exceeded the job's timeout."
 			}
+		case ctx.Err() != nil && res.Status != StatusSucceeded && s.interrupted.Load():
+			res.Status, res.ErrorCode, res.ErrorMessage = StatusInterrupted, "INTERRUPTED", "The server shut down during the run."
 		case ctx.Err() != nil && res.Status != StatusSucceeded:
 			res.Status, res.ErrorCode = StatusCancelled, "CANCELLED"
 			if res.ErrorMessage == "" {
