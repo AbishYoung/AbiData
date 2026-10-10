@@ -50,6 +50,10 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 
 ## Next (resume here)
 Script Studio merged (Monaco lazy chunk, LuaEditor reusable, live diagnostics, scripts e2e). Gate 2 closed.
+In flight (Sonnet worktrees; verify, merge, full gate when they report — if a session ended, inspect .claude/worktrees/agent-*): form runtime (owns the Gate 3 order-form e2e, port 18085), form designer + nav Forms group (18086), report viewer + print CSS + PDF specs + ADR 0006 pdfjs test dep (18087).
+Done since: client paginator `web/src/features/reports/paginate.ts` (17 tests); generated outputs regenerated and CI checks freshness.
+Phase 5 started: `internal/egress/egress.go` written and builds; the global policy defaults to allowing any host, so the workspace allowlist decides. NOT yet tested — next: Gate 5 SSRF test list, Lua `fetch` module (host.Data hook, job context only), then the Opus security review.
+After the form designer merges: band designer packet (reuses canvas), then Phase 3 security review → Gate 3.
 1. Dispatch Phase 3 frontend packets: form runtime (FormTab "form" view: single/continuous/datasheet, controls, combobox, subform, calc display, D10 client for /forms/{id}/events|save|delete), then form designer (canvas with dnd-kit, property sheet, embeds LuaEditor from Script Studio) owning the Gate 3 order-form e2e; then the Phase 3 security review.
 2. Phase 4: write the client paginator (Opus, pure function + tests), then the band designer packet.
 Contracts already committed: tab kinds form/script + shell routing (FormTab/ScriptTab placeholders), generated web/src/generated/lua-api.json (go generate ./internal/httpapi).
