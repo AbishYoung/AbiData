@@ -50,12 +50,15 @@ describe("NavPane", () => {
   it("offers builders New table and the design actions", async () => {
     render(<NavPane ws="w1" role="builder" />);
     const user = userEvent.setup();
+    expect(screen.getByRole("button", { name: "Import…" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "New table" }));
     expect(useTabs.getState().byWs.w1?.tabs[0]).toMatchObject({ key: "table:new:1", objectId: null, view: "design" });
 
     screen.getByRole("button", { name: "More actions for Orders" }).focus();
     await user.keyboard("{Enter}");
-    expect(await screen.findAllByRole("menuitem")).toHaveLength(4);
+    expect(await screen.findAllByRole("menuitem")).toHaveLength(6);
+    expect(screen.getByRole("menuitem", { name: "Export…" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Import into this table…" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Design view" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
@@ -67,9 +70,12 @@ describe("NavPane", () => {
     const user = userEvent.setup();
     screen.getByRole("button", { name: "More actions for Orders" }).focus();
     await user.keyboard("{Enter}");
-    expect(await screen.findAllByRole("menuitem")).toHaveLength(1);
+    expect(await screen.findAllByRole("menuitem")).toHaveLength(2);
     expect(screen.getByRole("menuitem", { name: "Open" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Export…" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Import into this table…" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import…" })).toBeNull();
   });
 
   it("filters tables with the search box and keeps empty groups", async () => {

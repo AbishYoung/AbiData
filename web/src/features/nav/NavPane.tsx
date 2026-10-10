@@ -10,6 +10,7 @@ import {
   SquareTerminal,
   Table2,
   Terminal,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { input } from "@/components/styles";
@@ -24,6 +25,9 @@ import { TableNavItem, tableActions } from "./TableNavItem";
 import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
 import { QueryNavItem, queryActions } from "./QueryNavItem";
+import { ImportWizard } from "@/features/imports/ImportWizard";
+import { ExportDialog, type ExportSource } from "@/features/imports/ExportDialog";
+import { effectiveParams } from "@/features/queries/params";
 
 interface NavGroup {
   id: string;
@@ -69,6 +73,8 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
   const schema = useSchema(ws);
   const savedQueries = useSavedQueries(ws);
   const [queryDialog, setQueryDialog] = useState<QueryDialog | null>(null);
+  const [importing, setImporting] = useState<{ intoTableId?: string } | null>(null);
+  const [exporting, setExporting] = useState<ExportSource | null>(null);
   const { tabs, active } = useWorkspaceTabs(ws);
   const openTab = useTabs((s) => s.open);
   const design = canDesign(role);
@@ -214,6 +220,17 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     <Plus size={16} aria-hidden="true" />
                   </button>
                 )}
+                {g.id === "tables" && design && (
+                  <button
+                    type="button"
+                    onClick={() => setImporting({})}
+                    aria-label="Import…"
+                    title="Import…"
+                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                  >
+                    <Upload size={16} aria-hidden="true" />
+                  </button>
+                )}
                 {(g.id === "tables" || g.id === "scripts") && design && (
                   <button
                     type="button"
@@ -241,6 +258,8 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                             design: () => openTable(t, "design"),
                             rename: () => setDialog({ kind: "rename", table: t }),
                             remove: () => setDialog({ kind: "delete", table: t }),
+                            export: () => setExporting({ kind: "table", id: t.id, name: t.display_name }),
+                            importInto: () => setImporting({ intoTableId: t.id }),
                           })}
                         />
                       ))}
@@ -274,6 +293,8 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                             sql: () => openQuery(q, "sql"),
                             rename: () => setQueryDialog({ kind: "rename", query: q }),
                             remove: () => setQueryDialog({ kind: "delete", query: q }),
+                            export: () =>
+                              setExporting({ kind: "query", id: q.id, name: q.name, params: effectiveParams(q.parameters ?? [], q.sql_text ?? "") }),
                           })}
                         />
                       ))}
@@ -322,6 +343,8 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
       {queryDialog?.kind === "delete" && (
         <DeleteQueryDialog ws={ws} query={queryDialog.query} onClose={() => setQueryDialog(null)} />
       )}
+      {importing && <ImportWizard ws={ws} {...(importing.intoTableId ? { intoTableId: importing.intoTableId } : {})} onClose={() => setImporting(null)} />}
+      {exporting && <ExportDialog ws={ws} source={exporting} onClose={() => setExporting(null)} />}
     </nav>
   );
 }

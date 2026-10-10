@@ -42,7 +42,7 @@ describe("NavPane queries group", () => {
     screen.getByRole("button", { name: "More actions for Zeta" }).focus();
     await user.keyboard("{Enter}");
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map((i) => i.textContent)).toEqual(["Open", "Design view", "SQL view", "Rename", "Delete"]);
+    expect(items.map((i) => i.textContent)).toEqual(["Open", "Export…", "Design view", "SQL view", "Rename", "Delete"]);
   });
 
   it("hides builder query actions from editors", async () => {
@@ -51,8 +51,9 @@ describe("NavPane queries group", () => {
     const user = userEvent.setup();
     screen.getByRole("button", { name: "More actions for Zeta" }).focus();
     await user.keyboard("{Enter}");
-    expect(await screen.findAllByRole("menuitem")).toHaveLength(1);
+    expect(await screen.findAllByRole("menuitem")).toHaveLength(2);
     expect(screen.getByRole("menuitem", { name: "Open" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Export…" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Design view" })).toBeNull();
   });

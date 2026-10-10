@@ -89,6 +89,15 @@ export function handleOperationProgress(qc: QueryClient, ws: string, data: unkno
   if (!p) return;
   useActiveOperationsStore.getState().apply(ws, p);
   void qc.invalidateQueries({ queryKey: operationKeys.one(ws, p.id) });
+  // A finished import may have created a table or changed rows, even if its wizard was closed meanwhile.
+  if (p.kind === "import" && !isActiveStatus(p.status)) invalidateImportData(qc, ws);
+}
+
+/** Refreshes the catalog and every cached row page and count of a workspace. */
+export function invalidateImportData(qc: QueryClient, ws: string): void {
+  void qc.invalidateQueries({ queryKey: ["schema", ws] });
+  void qc.invalidateQueries({ queryKey: ["rows", ws] });
+  void qc.invalidateQueries({ queryKey: ["count", ws] });
 }
 
 export async function getOperation(ws: string, id: string): Promise<OperationDetail> {

@@ -72,6 +72,8 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 - Lua `staging` module (job context): `internal/script/modules/staging`, host binding `host.StagingStore`, per-run files `staging/<ws>/run-<run>-<n>.db` removed by `jobs.LuaExecutor`.
 - Known behaviours: bulk imports do not write `_sys_row_history`; replace of more than 50k rows is chunked (table is emptied with the first chunk; restore-point hook arrives in Phase 6); the workspace write gate was strict-priority (a saturated interactive load could starve a background import) — fixed: a waiting background writer is served after at most 8 consecutive interactive grants (`gate_test.go`). Deviations: oversize upload → 400 (no 413 code); XLSX values read as formatted text; query exports capped at 50k rows; CSV export neutralises formula prefixes.
 
+- Import wizard / export UI merged: modal 4-step wizard (`web/src/features/imports`), Export dialog on table/query menus and the datasheet toolbar; e2e `import-export.spec.ts`.
+
 ## Next (resume here)
 Nothing in flight.
 1. Import wizard/export UI packet → egress/SSRF Opus review → Gate 5.
