@@ -23,6 +23,7 @@ teardown() {
   if [ "${ABIDATA_SMOKE_KEEP:-}" != "1" ]; then
     "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   fi
+  [ -z "${jar:-}" ] || rm -f "$jar"
   exit "$status"
 }
 trap teardown EXIT
@@ -46,7 +47,6 @@ token="$("${compose[@]}" logs --no-color abidata | grep -o '"setup_token":"[^"]*
 if [ -z "$token" ]; then echo "no setup_token in the container log" >&2; exit 1; fi
 
 jar="$(mktemp)"
-trap 'rm -f "$jar"; teardown' EXIT
 me="$(curl -fsS -c "$jar" -H "Origin: $base" -H 'Content-Type: application/json' \
   -d "{\"token\":\"$token\",\"display_name\":\"Admin\",\"password\":\"$password\"}" "$base/api/v1/auth/setup")"
 csrf="$(printf '%s' "$me" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')"

@@ -20,8 +20,8 @@ test("container smoke: table, rows, query, job, backup, restore", async ({ page 
 
   // Table through the design view.
   await startNewTable(page, "Fruit");
-  await addField(page, 1, "Name", "Short text");
-  await addField(page, 2, "Qty", "Integer");
+  await addField(page, 2, "Name", "Short text"); // row 1 is the built-in ID
+  await addField(page, 3, "Qty", "Integer");
   await applyFromDialog(await previewChanges(page));
   await page.reload();
   const schema = (await (await page.request.get(`/api/v1/w/${ws}/schema`)).json()) as {
