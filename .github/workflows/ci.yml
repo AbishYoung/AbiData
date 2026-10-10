@@ -62,3 +62,25 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  container-smoke:
+    # Builds the linux/amd64 image, brings it up with compose from a clean volume, bootstraps via the
+    # logged setup token and runs tests/e2e/smoke.spec.ts against it (same script as local runs).
+    needs: [go, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: docker/setup-buildx-action@v3
+      - name: Container smoke
+        run: ./scripts/container-smoke.sh
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-smoke-traces
+          path: tests/e2e/test-results
+          if-no-files-found: ignore

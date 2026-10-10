@@ -1,23 +1,30 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = process.env.ABIDATA_E2E_PORT ?? "18080";
-const baseURL = `http://127.0.0.1:${port}`;
+// ABIDATA_E2E_EXTERNAL_URL points the suite at an already running server (the container smoke, see
+// scripts/container-smoke.sh): no webServer is started and only smoke.spec.ts runs. Without it,
+// smoke.spec.ts is never run.
+const external = process.env.ABIDATA_E2E_EXTERNAL_URL;
+const baseURL = external ?? `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "*.spec.ts",
+  testMatch: external ? "smoke.spec.ts" : "*.spec.ts",
+  testIgnore: external ? [] : ["smoke.spec.ts"],
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
   reporter: [["list"]],
   use: { baseURL, trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: "node server.mjs",
-    url: `${baseURL}/healthz`,
-    reuseExistingServer: false,
-    timeout: 300_000,
-    stdout: "pipe",
-    stderr: "pipe",
-  },
+  webServer: external
+    ? undefined
+    : {
+        command: "node server.mjs",
+        url: `${baseURL}/healthz`,
+        reuseExistingServer: false,
+        timeout: 300_000,
+        stdout: "pipe",
+        stderr: "pipe",
+      },
 });
