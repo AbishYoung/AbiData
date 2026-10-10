@@ -17,6 +17,7 @@ import { ReportTab } from "@/features/reports/ReportTab";
 import { JobTab } from "@/features/jobs/JobTab";
 import { EgressSettings } from "@/features/settings/EgressSettings";
 import { OperationsStatus } from "@/components/OperationsStatus";
+import { HelpButton } from "@/features/docs/HelpButton";
 import { alertBox } from "@/components/styles";
 
 const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form", report: "Report" } as const;
@@ -162,7 +163,8 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         </Link>
         <h1 className="text-base font-semibold">{workspace.data?.name ?? "Workspace"}</h1>
         {workspace.data && <span className="text-sm text-fg-muted">Role: {workspace.data.role}</span>}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <HelpButton />
           <UserMenu
             me={me}
             {...(role === "owner"

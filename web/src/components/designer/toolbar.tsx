@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
+import { matchesShortcut } from "@/lib/shortcuts";
 
 export function isSaveKey(e: globalThis.KeyboardEvent): boolean {
-  return (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s";
+  return matchesShortcut(e, "design.save");
 }
 
 /** Calls the latest `save` on Mod+S anywhere in the page (capture phase, so editors cannot swallow it). */

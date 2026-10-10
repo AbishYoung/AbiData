@@ -25,6 +25,7 @@ import "monaco-editor/editor/contrib/wordOperations/browser/wordOperations";
 import "monaco-editor/languages/definitions/lua/register";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { loader } from "@monaco-editor/react";
+import { openDocs } from "@/features/docs/docsStore";
 import {
   hoverFor,
   manifest,
@@ -33,6 +34,17 @@ import {
   type ScriptKind,
   type SuggestKind,
 } from "./luaApi";
+
+const OPEN_DOCS = "abidata.openDocs";
+
+/** A hover link that opens the docs panel at `target` (a trusted command link). */
+function docsLink(target: string): string {
+  return `[Open in the docs](command:${OPEN_DOCS}?${encodeURIComponent(JSON.stringify([target]))})`;
+}
+
+monaco.editor.registerCommand(OPEN_DOCS, (_accessor, target: unknown) => {
+  if (typeof target === "string") openDocs(target);
+});
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 loader.config({ monaco });
@@ -115,7 +127,10 @@ function registerProviders(): void {
       if (!info) return null;
       return {
         range: new monaco.Range(position.lineNumber, info.startColumn, position.lineNumber, info.endColumn),
-        contents: [{ value: info.markdown }],
+        contents: [
+          { value: info.markdown },
+          { value: docsLink(info.docsTarget), isTrusted: true },
+        ],
       };
     },
   });

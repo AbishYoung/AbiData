@@ -27,7 +27,7 @@ jobs:
       - name: Generated files are current
         run: |
           make gen
-          git diff --exit-code -- internal/httpapi/openapi.json web/src/generated
+          git diff --exit-code -- internal/httpapi/openapi.json web/src/generated docs/content/reference/shortcuts.md
       - name: Test
         run: go test -race ./...
       - uses: golangci/golangci-lint-action@v8

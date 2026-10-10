@@ -4,6 +4,8 @@ import { Check, Copy, TriangleAlert } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { useErrorStore } from "@/lib/errorStore";
+import { errorDocsTarget } from "@/features/docs/docsLinks";
+import { openDocs } from "@/features/docs/docsStore";
 import { btn, btnPrimary } from "./styles";
 
 interface ErrorDialogProps {
@@ -52,14 +54,9 @@ export function ErrorDialog({ error, onClose, onRetry }: ErrorDialogProps) {
             )}
           </dl>
           <p className="mt-3 text-sm">
-            <a
-              className="text-accent underline"
-              href={`/docs/troubleshooting/errors#${error.code.toLowerCase()}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Troubleshooting for {error.code} (opens in a new tab)
-            </a>
+            <button type="button" className="text-accent underline" onClick={() => openDocs(errorDocsTarget(error.code))}>
+              Learn more<span className="sr-only"> about {error.code}</span>
+            </button>
           </p>
           <div className="mt-4 flex justify-end gap-2">
             {onRetry && (
