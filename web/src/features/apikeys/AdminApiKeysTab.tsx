@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
@@ -5,7 +6,7 @@ import { Modal } from "@/features/queries/Modal";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
 import { ErrorBox, td, th } from "@/features/admin/ui";
 import { Tip } from "@/components/Tip";
-import { alertBox, btn, btnPrimary } from "@/components/styles";
+import { alertBox, badgeDanger, badgeSuccess, badgeWarning, btn, btnPrimary } from "@/components/styles";
 import { STATUS_LABEL, keyStatus } from "./apiKeyLogic";
 import { adminListApiKeys, adminRevokeApiKey, apiKeyKeys, type ApiKey } from "./apiKeysApi";
 
@@ -58,9 +59,7 @@ export function AdminApiKeysTab() {
       </div>
       {q.isError && <ErrorBox error={q.error} onRetry={() => void q.refetch()} />}
       {q.isPending && (
-        <p role="status" className="m-0 text-fg-muted">
-          Loading API keys…
-        </p>
+        <SkeletonLines rows={3} label="Loading API keys…" />
       )}
       {q.data && (
         <table className="w-full border-collapse text-sm">
@@ -99,7 +98,7 @@ export function AdminApiKeysTab() {
                   <td className={td}>{k.created_by_name || "A former member"}</td>
                   <td className={td}>{k.last_used_at ? relativeTime(k.last_used_at) : <span className="text-fg-muted">Never</span>}</td>
                   <td className={td}>{k.expires_at ? absoluteTime(k.expires_at) : <span className="text-fg-muted">Never</span>}</td>
-                  <td className={td}>{STATUS_LABEL[st]}</td>
+                  <td className={td}><span className={st === "active" ? badgeSuccess : st === "revoked" ? badgeDanger : badgeWarning}>{STATUS_LABEL[st]}</span></td>
                   <td className={td}>
                     <div className="flex justify-end">
                       {st === "active" && (
