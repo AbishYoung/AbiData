@@ -126,3 +126,4 @@ Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (s
 
 ## Deviations
 (see docs/adr; none yet beyond spike outcomes)
+- ADR 0008 (2026-10-10): the egress allowlist is global and managed by platform admins; per-workspace lists and their routes removed; a fresh install denies all outbound requests; the old policy shape is migrated at startup (`docs/adr/0008-global-egress-allowlist.md`).

@@ -535,7 +535,7 @@ type RunRequest struct { Workspace ids.WorkspaceID; Principal auth.Principal; Ki
 </jobs_and_scheduler>
 
 <egress>
-Policy = global admin policy ∩ workspace `_sys_egress_allowlist`. Patterns are an exact host or `*.domain`. Ports default to 443; 80 is allowed only if listed. `https` only, unless the admin enables http.
+Policy = the platform administrator's global allowlist (amended by ADR 0008; originally global ∩ workspace `_sys_egress_allowlist`, which is no longer read). An empty allowlist denies everything. Patterns are an exact host or `*.domain`. Ports default to 443; 80 is allowed only if listed. `https` only, unless the admin enables http.
 
 ```go
 func (g *Gateway) Client(ws ids.WorkspaceID, timeout time.Duration) *http.Client {

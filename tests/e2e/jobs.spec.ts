@@ -88,32 +88,14 @@ test("a job can be created with the keyboard alone", async ({ page }) => {
   await expect(nav(page).getByRole("button", { name: "Keyboard job", exact: true })).toBeVisible();
 });
 
-test("the owner edits the egress allowlist and sees a per-row error", async ({ page }) => {
+test("the owner sees that outbound hosts are managed by the platform administrator", async ({ page }) => {
   await openWorkspace(page, WS);
   await page.getByRole("button", { name: /Admin/ }).click();
   await page.getByRole("menuitem", { name: "Workspace settings" }).click();
-  await expect(page.getByText("Requests must match both lists.")).toBeVisible();
-
-  await page.getByRole("button", { name: "Add host" }).click();
-  await page.getByLabel("Host pattern, row 1").fill("api.example.com");
-  await page.getByRole("button", { name: "Add host" }).click();
-  await page.getByLabel("Host pattern, row 2").fill("not a host!");
-  await page.getByRole("button", { name: "Save allowlist" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Row 2" })).toBeVisible();
-  await expect(page.getByLabel("Host pattern, row 2")).toHaveAttribute("aria-invalid", "true");
-  await expectNoAxeViolations(page);
-
-  await page.getByLabel("Host pattern, row 2").fill("*.example.org");
-  await page.getByLabel("Ports, row 2").fill("443, 8443");
-  await page.getByRole("button", { name: "Save allowlist" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
-
-  await page.reload();
-  await page.getByRole("button", { name: /Admin/ }).click();
-  await page.getByRole("menuitem", { name: "Workspace settings" }).click();
-  await expect(page.getByLabel("Host pattern, row 1")).toHaveValue("*.example.org");
-  await expect(page.getByLabel("Host pattern, row 2")).toHaveValue("api.example.com");
-  await expect(page.getByLabel("Ports, row 1")).toHaveValue("443,8443");
+  const settings = page.getByTestId("workspace-settings");
+  await expect(settings.getByText("allowed hosts are managed by the platform administrator")).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Add host" })).toHaveCount(0);
+  await expect(settings.getByRole("button", { name: "Save allowlist" })).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
 
