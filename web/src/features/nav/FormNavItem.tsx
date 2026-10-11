@@ -1,3 +1,4 @@
+import { Tip } from "@/components/Tip";
 import { useState } from "react";
 import { navEmpty, navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { ContextMenu, DropdownMenu } from "radix-ui";
@@ -65,15 +66,17 @@ export function FormNavItem({
               {form.name}
             </button>
             <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  type="button"
-                  aria-label={`More actions for ${form.name}`}
-                  className={navMoreButton}
-                >
-                  <Ellipsis size={15} aria-hidden="true" />
-                </button>
-              </DropdownMenu.Trigger>
+              <Tip side="right" label={`More actions for ${form.name}`}>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`More actions for ${form.name}`}
+                    className={navMoreButton}
+                  >
+                    <Ellipsis size={15} aria-hidden="true" />
+                  </button>
+                </DropdownMenu.Trigger>
+              </Tip>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (

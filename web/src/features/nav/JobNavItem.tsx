@@ -1,3 +1,4 @@
+import { Tip } from "@/components/Tip";
 import { useState } from "react";
 import { navEmpty, navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { ContextMenu, DropdownMenu } from "radix-ui";
@@ -41,15 +42,17 @@ function JobNavItem({ job, active, actions, onOpen }: { job: Job; active: boolea
             </button>
             {!job.enabled && <span className="shrink-0 pr-1 text-xs text-fg-muted">Disabled</span>}
             <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  type="button"
-                  aria-label={`More actions for ${job.name}`}
-                  className={navMoreButton}
-                >
-                  <Ellipsis size={15} aria-hidden="true" />
-                </button>
-              </DropdownMenu.Trigger>
+              <Tip side="right" label={`More actions for ${job.name}`}>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`More actions for ${job.name}`}
+                    className={navMoreButton}
+                  >
+                    <Ellipsis size={15} aria-hidden="true" />
+                  </button>
+                </DropdownMenu.Trigger>
+              </Tip>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (

@@ -1,6 +1,7 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, Plus, Search, SquareTerminal, Upload } from "lucide-react";
 import { input } from "@/components/styles";
+import { Tip } from "@/components/Tip";
 import { KindIcon } from "@/components/objectKinds";
 import { navEmpty } from "./navStyles";
 import { useTabs, useWorkspaceTabs, type TabKind, type TableView } from "@/app/tabs";
@@ -36,6 +37,16 @@ const GROUPS: NavGroup[] = [
 
 const groupAction =
   "inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-fg-subtle transition-colors hover:bg-surface-3 hover:text-fg";
+
+function GroupAction({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <Tip label={label}>
+      <button type="button" onClick={onClick} aria-label={label} className={groupAction}>
+        {children}
+      </button>
+    </Tip>
+  );
+}
 
 function canDesign(role: string | undefined): boolean {
   return role === "owner" || role === "builder";
@@ -144,6 +155,12 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
             className={`${input} bg-surface-2 pl-8`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && query !== "") {
+                e.preventDefault();
+                setQuery("");
+              }
+            }}
           />
         </div>
       </div>
@@ -168,70 +185,34 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                   </button>
                 </h2>
                 {g.id === "queries" && design && (
-                  <button
-                    type="button"
-                    onClick={() => newQuery()}
-                    aria-label="New query"
-                    title="New query"
-                    className={groupAction}
-                  >
+                  <GroupAction label="New query" onClick={() => newQuery()}>
                     <Plus size={15} aria-hidden="true" />
-                  </button>
+                  </GroupAction>
                 )}
                 {g.id === "queries" && design && (
-                  <button
-                    type="button"
-                    onClick={() => newQuery("sql")}
-                    aria-label="SQL console"
-                    title="SQL console"
-                    className={groupAction}
-                  >
+                  <GroupAction label="SQL console" onClick={() => newQuery("sql")}>
                     <SquareTerminal size={14} aria-hidden="true" />
-                  </button>
+                  </GroupAction>
                 )}
                 {(g.id === "forms" || g.id === "reports") && design && (
-                  <button
-                    type="button"
-                    onClick={g.id === "forms" ? newForm : newReport}
-                    aria-label={g.id === "forms" ? "New form" : "New report"}
-                    title={g.id === "forms" ? "New form" : "New report"}
-                    className={groupAction}
-                  >
+                  <GroupAction label={g.id === "forms" ? "New form" : "New report"} onClick={g.id === "forms" ? newForm : newReport}>
                     <Plus size={15} aria-hidden="true" />
-                  </button>
+                  </GroupAction>
                 )}
                 {g.id === "jobs" && design && (
-                  <button
-                    type="button"
-                    onClick={newJob}
-                    aria-label="New job"
-                    title="New job"
-                    className={groupAction}
-                  >
+                  <GroupAction label="New job" onClick={newJob}>
                     <Plus size={15} aria-hidden="true" />
-                  </button>
+                  </GroupAction>
                 )}
                 {g.id === "tables" && design && (
-                  <button
-                    type="button"
-                    onClick={() => setImporting({})}
-                    aria-label="Import…"
-                    title="Import…"
-                    className={groupAction}
-                  >
+                  <GroupAction label="Import…" onClick={() => setImporting({})}>
                     <Upload size={14} aria-hidden="true" />
-                  </button>
+                  </GroupAction>
                 )}
                 {(g.id === "tables" || g.id === "scripts") && design && (
-                  <button
-                    type="button"
-                    onClick={g.id === "tables" ? newTable : newScript}
-                    aria-label={g.id === "tables" ? "New table" : "New script"}
-                    title={g.id === "tables" ? "New table" : "New script"}
-                    className={groupAction}
-                  >
+                  <GroupAction label={g.id === "tables" ? "New table" : "New script"} onClick={g.id === "tables" ? newTable : newScript}>
                     <Plus size={15} aria-hidden="true" />
-                  </button>
+                  </GroupAction>
                 )}
               </div>
               {open && g.id === "tables" && (

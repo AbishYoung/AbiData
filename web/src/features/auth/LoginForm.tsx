@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { Tip } from "@/components/Tip";
 import { alertBox, btnPrimary, input, label } from "@/components/styles";
 
 interface LoginFormProps {
@@ -14,8 +16,14 @@ export function errorText(e: unknown): string {
 export function LoginForm({ onSubmit }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  function trackCapsLock(e: KeyboardEvent<HTMLInputElement>) {
+    setCapsLock(e.getModifierState("CapsLock"));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -55,15 +63,37 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         <label htmlFor="login-password" className={label}>
           Password
         </label>
-        <input
-          id="login-password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className={input}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="relative">
+          <input
+            id="login-password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            className={`${input} pr-16`}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={trackCapsLock}
+            onKeyUp={trackCapsLock}
+            onBlur={() => setCapsLock(false)}
+          />
+          <Tip label={showPassword ? "Hide password" : "Show password"}>
+            <button
+              type="button"
+              aria-controls="login-password"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-xs font-medium text-fg-muted hover:bg-surface-2 hover:text-fg"
+            >
+              {showPassword ? "Hide" : "Show"}
+              <span className="sr-only"> password</span>
+            </button>
+          </Tip>
+        </div>
+        {capsLock && (
+          <p role="status" className="mt-1 flex items-center gap-1 text-xs font-medium text-fg">
+            <TriangleAlert size={12} aria-hidden="true" className="shrink-0 text-warning" />
+            Caps Lock is on.
+          </p>
+        )}
       </div>
       <button type="submit" className={`${btnPrimary} w-full`} disabled={busy}>
         {busy ? "Signing in…" : "Sign in"}

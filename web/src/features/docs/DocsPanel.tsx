@@ -1,3 +1,4 @@
+import { Tip } from "@/components/Tip";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Dialog } from "radix-ui";
 import { ArrowLeft, BookOpen, List, X } from "lucide-react";
@@ -198,9 +199,11 @@ export function DocsPanel() {
                 Contents
               </button>
             )}
-            <Dialog.Close className={`${btn} !px-2`} aria-label="Close documentation">
-              <X size={16} aria-hidden="true" />
-            </Dialog.Close>
+            <Tip label="Close documentation">
+              <Dialog.Close className={`${btn} !px-2`} aria-label="Close documentation">
+                <X size={16} aria-hidden="true" />
+              </Dialog.Close>
+            </Tip>
           </div>
 
           <div className="border-b border-border px-4 py-2">

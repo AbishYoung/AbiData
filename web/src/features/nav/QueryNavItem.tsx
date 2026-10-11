@@ -1,3 +1,4 @@
+import { Tip } from "@/components/Tip";
 import { ContextMenu, DropdownMenu } from "radix-ui";
 import { navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { Code, Download, Ellipsis, Eye, Pencil, Ruler, Trash2, type LucideIcon } from "lucide-react";
@@ -54,15 +55,17 @@ export function QueryNavItem({
               {query.name}
             </button>
             <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  type="button"
-                  aria-label={`More actions for ${query.name}`}
-                  className={navMoreButton}
-                >
-                  <Ellipsis size={15} aria-hidden="true" />
-                </button>
-              </DropdownMenu.Trigger>
+              <Tip side="right" label={`More actions for ${query.name}`}>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`More actions for ${query.name}`}
+                    className={navMoreButton}
+                  >
+                    <Ellipsis size={15} aria-hidden="true" />
+                  </button>
+                </DropdownMenu.Trigger>
+              </Tip>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (

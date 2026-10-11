@@ -1,3 +1,4 @@
+import { Tip } from "@/components/Tip";
 import { useState } from "react";
 import { navEmpty, navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { ContextMenu, DropdownMenu } from "radix-ui";
@@ -53,15 +54,17 @@ function ScriptNavItem({
             </button>
             <span className="shrink-0 pr-1 text-xs text-fg-muted">{SCRIPT_KIND_LABEL[script.kind] ?? script.kind}</span>
             <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  type="button"
-                  aria-label={`More actions for ${script.name}`}
-                  className={navMoreButton}
-                >
-                  <Ellipsis size={15} aria-hidden="true" />
-                </button>
-              </DropdownMenu.Trigger>
+              <Tip side="right" label={`More actions for ${script.name}`}>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`More actions for ${script.name}`}
+                    className={navMoreButton}
+                  >
+                    <Ellipsis size={15} aria-hidden="true" />
+                  </button>
+                </DropdownMenu.Trigger>
+              </Tip>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (
