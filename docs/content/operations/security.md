@@ -83,6 +83,20 @@ Regardless of the list:
 
 See [Jobs](/docs/guide/jobs#egress) for what job authors see. Denied requests fail with [EGRESS_DENIED](/docs/reference/errors#egress-denied).
 
+## File attachments {#files}
+
+Uploaded files are untrusted content that people will open in their browsers, so AbiData never lets a file run as part of the app:
+
+- The content type is detected from the file's bytes. The type or name the client sends is ignored, and a name only picks between harmless text and Office variants.
+- Only PNG, JPEG, GIF and WebP images are shown in place (`Content-Disposition: inline`). Everything else is an attachment. HTML, SVG, XML and other types a browser could run are served as `application/octet-stream`.
+- Every file response carries `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'` and `Cross-Origin-Resource-Policy: same-origin`.
+- Files are stored under their SHA-256, never under the client's name, so a name cannot reach the file system. Display names are stripped of paths, control characters and invisible direction marks.
+- Image sizes are read from the header and images over 40 megapixels are refused before anything is decoded, so a decompression bomb cannot exhaust memory. Thumbnails decode at most two images at a time.
+- Reading a file needs workspace membership (or a key for that workspace). A file id from another workspace is "not found", and a field can only hold ids of its own workspace.
+- Uploading needs the editor role, is limited per file and per workspace, and counts against an API key's rate limit.
+
+Files are not scanned for malware. If your people share files with each other outside AbiData, treat downloads like any other email attachment.
+
 ## Your checklist {#checklist}
 
 1. Serve only over HTTPS and set `ABIDATA_PUBLIC_URL` to the HTTPS address.

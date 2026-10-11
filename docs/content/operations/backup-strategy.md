@@ -13,10 +13,18 @@ AbiData makes workspace backups for you. You are still responsible for keeping c
 | Location | Contents | Protected by |
 |---|---|---|
 | Data volume `/var/lib/abidata` | `system/admin.db` (users, sessions, memberships, settings), `system/keys/`, every `workspaces/<id>.db`, staging files, job artifacts | Your own volume backups |
-| Backups volume `/var/lib/abidata-backups` | `<workspace id>/<backup id>.db.gz` and a `.manifest.json` for each | Off-site copies |
+| Backups volume `/var/lib/abidata-backups` | `<workspace id>/<backup id>.db.gz`, a `.manifest.json` and, for workspaces with attachments, a `.files.tar` for each | Off-site copies |
 | Secrets (`session_key`, `manifest_key`) | The two keys | A password manager or secrets store |
 
 In-product backups protect workspace contents: tables, records, forms, reports, scripts, jobs and design. They do not contain user accounts or memberships. After a total loss you must restore the data volume's admin database too, or recreate users and memberships by hand.
+
+## Files and backups {#files}
+
+Attached files live next to the workspace database, in `workspaces/<id>.files/` on the data volume (`aa/bb/<sha256>`, thumbnails in `.thumb/`). Your volume backups of the data directory cover them like the databases.
+
+In-product backups include the files too. A backup of a workspace with files is a `<backup id>.files.tar` beside the `.db.gz`, holding each distinct file once. The signed manifest lists every file with its hash and the hash of the tar, so changing a single byte makes **Verify** and restore fail. Restore puts the files back into the bucket before it switches the database, and restore as new workspace gives the copy its own files. Backups made before this feature, and backups of workspaces without files, have no tar and work as before.
+
+Plan for the space: every retained backup holds its own copy of the files, so a workspace with 2 GB of photos and the default retention (7 daily, 4 weekly) can take 20 GB or more on the backups volume. A file that is missing or damaged on disk is left out of the backup and counted in the manifest (`files_missing`), and the log says which; the database is still backed up.
 
 ## Defaults {#retention}
 

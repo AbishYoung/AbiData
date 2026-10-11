@@ -29,6 +29,7 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_MAX_MEMORY_MB` | `0` (not set) | A soft memory limit for the process in MiB (0 or more). When set, the Go runtime works harder to stay under it, and the script memory watchdog stops runaway scripts at 75% of it |
 | `ABIDATA_JOB_WORKERS` | Number of CPUs | How many jobs can run at the same time across all workspaces (1 or more) |
 | `ABIDATA_MAX_OPEN_WORKSPACES` | `128` | How many workspace databases are kept open (1 or more). Idle ones are closed after 10 minutes, and the least recently used are closed when the limit is reached |
+| `ABIDATA_MAX_FILE_BYTES` | `26214400` (25 MiB) | The largest single file attachment, in bytes (1 to 1073741824). Uploads over it are refused. See below |
 | `ABIDATA_SYNCHRONOUS` | `normal` | SQLite durability: `normal` or `full`. See below |
 | `ABIDATA_SESSION_KEY` | Generated on first start | Key used to protect session identifiers: base64, at least 32 bytes once decoded |
 | `ABIDATA_MANIFEST_KEY` | Generated on first start | Key that signs backup manifests: same format. See [Backup strategy](/docs/operations/backup-strategy#manifest-key) |
@@ -56,6 +57,10 @@ openssl rand -base64 32
 If you do not supply a key, the server creates one on first start in `system/keys/` inside the data directory, with mode 600 (it refuses to start if the file is readable by others). A key you supply always wins over a file.
 
 Changing the session key signs everyone out and also makes every [API key](/docs/guide/api) stop working (they are hashed under it); owners must create new keys. Changing or losing the manifest key makes existing backups fail verification: see [Backup strategy](/docs/operations/backup-strategy#manifest-key).
+
+### ABIDATA_MAX_FILE_BYTES {#max-file-bytes}
+
+Attached files are stored in `workspaces/<workspace id>.files/` inside `ABIDATA_DATA_DIR`, one file per distinct content. This setting limits one file; a reverse proxy in front of AbiData must allow request bodies at least this large (for Caddy, `request_body max_size`). The total per workspace is limited by the **file storage** quota (`max_file_bytes` in the workspace quota, counting distinct bytes; default 5 GiB), which an administrator can change in the admin console. Expired files are removed by a background task every few minutes: files never attached after 24 hours, and files no row refers to after 7 days.
 
 ### ABIDATA_SYNCHRONOUS {#synchronous}
 

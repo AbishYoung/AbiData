@@ -75,8 +75,8 @@ func attachTriggersSQL(t *Table) []string {
 	var names []string
 	for _, c := range cols {
 		ins.WriteString(insertRefs(c) + " ")
-		upd.WriteString(fmt.Sprintf(`DELETE FROM _sys_file_refs WHERE table_id = '%s' AND row_id = OLD."id" AND column_id = '%s' `+
-			`AND file_id NOT IN (SELECT value FROM json_each(NEW.%s) WHERE type = 'text'); `, t.ID, c.ID, Quote(c.PhysicalName)))
+		fmt.Fprintf(&upd, `DELETE FROM _sys_file_refs WHERE table_id = '%s' AND row_id = OLD."id" AND column_id = '%s' `+
+			`AND file_id NOT IN (SELECT value FROM json_each(NEW.%s) WHERE type = 'text'); `, t.ID, c.ID, Quote(c.PhysicalName))
 		upd.WriteString(insertRefs(c) + " ")
 		names = append(names, Quote(c.PhysicalName))
 	}

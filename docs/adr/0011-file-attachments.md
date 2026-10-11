@@ -1,6 +1,6 @@
 # ADR 0011: File attachments (workspace bucket)
 
-Status: Proposed · 2026-10-11
+Status: Accepted (server side implemented; UI pending) · 2026-10-11
 
 ## Context
 Rows need documents: photos of a sighting, permit PDFs, specification sheets. The driving use case is **tracking invasive species**:
@@ -80,3 +80,16 @@ The platform keeps each workspace in one SQLite file and backs it up as a signed
 - The database stays small, and the files are plain files on disk. Operators back up the same data directory they already do.
 - Reference tracking adds a write per changed attachments cell. It is a small cost for safe garbage collection.
 - Content addressing means two rows with the same photo share storage, and deleting one row never deletes the other row's file.
+
+## Deviations from the proposal (implementation, 2026-10-11)
+- **Reference tracking uses SQLite triggers**, not Go code in each write path. `_att_<table id>_i/u/d` on every table with an attachments field (rebuilt by the schema engine whenever the table is rebuilt or a column is added/renamed) plus `_att_refs_ins/_del` on `_sys_file_refs`. Row API, batch, imports, scripts' `db.exec`, cascades and restores therefore cannot drift. `_sys_file_refs.file_id` is a foreign key, so even raw SQL cannot reference a missing file. `last_unreferenced_at` on `_sys_files` starts the 7-day grace.
+- An empty list is stored as NULL (a required attachments field needs a file). Duplicates within a cell are dropped, order kept. Attachments fields cannot be indexed, have no default, and cannot be converted to or from another type.
+- **Janitor** also keeps a file that row history from the last 7 days still names, sweeps orphan blobs older than 24 hours (daily per workspace) and stale temp uploads, and visits closed workspaces once a day.
+- **Quota**: `max_file_bytes` counts distinct bytes (deduplicated); default 5 GiB. Over-size and over-quota uploads use `BAD_REQUEST` and `QUOTA_EXCEEDED` (507); no new error code.
+- **Uploads** are rate limited per workspace (4 at once, 120 per minute) in addition to the API key's own limit. They do not take an `Idempotency-Key`: a retry only creates another pending file that expires.
+- `GET /files?ids=` (batch metadata) was added for the UI. `?download=true` forces an attachment. CSP is `sandbox; default-src 'none'; frame-ancestors 'none'`.
+- **WebP** is stored, served inline and has its size read from the header, but has **no thumbnail** (no `golang.org/x/image` dependency). HEIC/HEIF is accepted and served as a download. SVG/HTML/XML are never served as themselves.
+- **Backups**: a `<id>.files.tar` beside the `.db.gz`, listed and hashed in the signed manifest (`files`, `files_bytes`, `sha256_files`, `files_missing`; all omitted when empty, so old manifests verify unchanged). Restore merges missing blobs into the live bucket before the swap rather than replacing the bucket. Restore-as-new extracts into the new workspace's bucket. No workspace hard-delete route exists yet; `files.Service.RemoveBucket` is called from the create-failure path and is ready for it.
+- **Lua `files`**: `info`, `read`, `create` as proposed. `read` raises `BAD_REQUEST` when the file exceeds the context cap (1 MiB form events and reports, 10 MiB jobs) and a limit error when the run's reads exceed its string budget. `create` is job-only, not allowed inside `db.transaction`, and ignores the declared content type.
+- **Import** skips attachments columns and says so in `notes` (mapping response, import view, validation warnings). **CSV export** is unchanged: an attachments cell currently exports as Go's list formatting of the ids; the file-name form (`; `-separated) is left to the export work. JSON export shows the id array.
+- Migration `0003_files.sql` (after the geo migration that opened the field type list).

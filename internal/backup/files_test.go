@@ -141,7 +141,7 @@ func TestTamperedFilesArchiveFailsVerifyAndRestore(t *testing.T) {
 		t.Fatal("content not found in archive")
 	}
 	tampered[i] ^= 0x01
-	if err := os.WriteFile(tarPath, tampered, 0o600); err != nil {
+	if err := os.WriteFile(tarPath, tampered, 0o600); err != nil { //nolint:gosec // test file in a temp dir
 		t.Fatal(err)
 	}
 	if _, err := fe.svc.Verify(fe.ctx, b); fault.Classify(err).Code != fault.BackupInvalid {
@@ -161,12 +161,12 @@ func TestTamperedFilesArchiveFailsVerifyAndRestore(t *testing.T) {
 		t.Fatalf("verify without the archive: %v", err)
 	}
 	// Rewriting the tar and the manifest's hash without the key is caught by the signature.
-	if err := os.WriteFile(tarPath, orig, 0o600); err != nil {
+	if err := os.WriteFile(tarPath, orig, 0o600); err != nil { //nolint:gosec // test file in a temp dir
 		t.Fatal(err)
 	}
 	mp := strings.TrimSuffix(b.Path, ".db.gz") + ".manifest.json"
 	raw, _ := os.ReadFile(mp)
-	if err := os.WriteFile(mp, bytes.Replace(raw, []byte(`"size": 14`), []byte(`"size": 15`), 1), 0o600); err != nil {
+	if err := os.WriteFile(mp, bytes.Replace(raw, []byte(`"size": 14`), []byte(`"size": 15`), 1), 0o600); err != nil { //nolint:gosec // test file in a temp dir
 		t.Fatal(err)
 	}
 	if _, err := fe.svc.Verify(fe.ctx, b); fault.Classify(err).Code != fault.BackupInvalid {

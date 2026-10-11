@@ -510,6 +510,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/w/{ws}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Metadata of several files by id (unknown ids are left out) */
+        get: operations["lookupFiles"];
+        put?: never;
+        /**
+         * Upload one file (editors and above)
+         * @description Send the bytes as the raw request body with an X-File-Name header (percent-encode non-ASCII names), or as multipart/form-data with the file in a field named file. The file is stored once per content (SHA-256) and returned as `pending`; it becomes `attached` when a row's attachments field refers to its id, and a pending file nothing refers to within 24 hours is deleted. The content type is detected from the bytes; a type sent by the client is ignored.
+         */
+        post: operations["uploadFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A file's metadata */
+        get: operations["getFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/files/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A file's bytes
+         * @description Safe raster images (PNG, JPEG, GIF, WebP) are served inline; everything else is an attachment. Responses carry X-Content-Type-Options: nosniff and a sandboxing Content-Security-Policy, are cacheable for a year (immutable: the content never changes for an id), and support Range requests. Add download=true to force a download.
+         */
+        get: operations["getFileContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/files/{id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A JPEG thumbnail (at most 320 px) of a PNG, JPEG or GIF file
+         * @description Made on first request and cached. Files that are not such images answer 404.
+         */
+        get: operations["getFileThumbnail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/w/{ws}/forms": {
         parameters: {
             query?: never;
@@ -1865,6 +1943,8 @@ export interface components {
             format: "csv" | "xlsx" | "json" | "ndjson";
             id: string;
             mapping?: components["schemas"]["ImportMapping"];
+            /** @description What the current mapping leaves out on purpose, for example attachments fields (files cannot be imported). */
+            notes: string[] | null;
             options: components["schemas"]["ParseOptions"];
             /** Format: int64 */
             row_count: number;
@@ -1886,6 +1966,8 @@ export interface components {
             format: "csv" | "xlsx" | "json" | "ndjson";
             id: string;
             mapping?: components["schemas"]["ImportMapping"];
+            /** @description What the current mapping leaves out on purpose, for example attachments fields (files cannot be imported). */
+            notes: string[] | null;
             options: components["schemas"]["ParseOptions"];
             /** @description The first 50 data rows, one entry per source column (null = empty). */
             preview: ((string | null)[] | null)[] | null;
@@ -2039,6 +2121,9 @@ export interface components {
             table_id?: string;
             value_column_id: string;
         };
+        LookupFilesResponse: {
+            items: components["schemas"]["Meta"][] | null;
+        };
         LookupSpec: {
             display_column_id?: string;
             enforce?: boolean;
@@ -2076,6 +2161,29 @@ export interface components {
             status: string;
             workspace_id: string;
             workspace_name: string;
+        };
+        Meta: {
+            /** @description Detected from the content, never taken from the client. */
+            content_type: string;
+            /** Format: date-time */
+            created_at: string;
+            created_by?: string;
+            has_thumbnail: boolean;
+            /** Format: int64 */
+            height?: number;
+            id: string;
+            /** @description The original file name, sanitised. */
+            name: string;
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+            /**
+             * @description pending until a row refers to the file.
+             * @enum {string}
+             */
+            state: "pending" | "attached";
+            /** Format: int64 */
+            width?: number;
         };
         Model: {
             distinct?: boolean;
@@ -2326,6 +2434,8 @@ export interface components {
             egress_per_minute?: number;
             /** Format: int64 */
             max_concurrent_jobs?: number;
+            /** Format: int64 */
+            max_file_bytes?: number;
             /** Format: int64 */
             max_page_count?: number;
             /** Format: int64 */
@@ -2694,6 +2804,8 @@ export interface components {
         TypeOptions: {
             expression?: string;
             format?: string;
+            /** Format: int64 */
+            max_files?: number;
             /** Format: int64 */
             max_length?: number;
             result_type?: string;
@@ -5009,6 +5121,364 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    lookupFiles: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated file ids, at most 100. */
+                ids?: string;
+            };
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupFilesResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    uploadFile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The file's name for the raw-body form; percent-decoded when valid. Ignored for multipart. */
+                "X-File-Name"?: string;
+            };
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/octet-stream": string;
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The file.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Meta"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Insufficient Storage */
+            507: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Meta"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getFileContent: {
+        parameters: {
+            query?: {
+                /** @description Send as an attachment even if the file could be shown in place. */
+                download?: boolean;
+            };
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getFileThumbnail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thumbnail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

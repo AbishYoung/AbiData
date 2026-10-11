@@ -231,7 +231,7 @@ func (s *Service) Upload(ctx context.Context, l *workspace.Lease, actor, name st
 				return Meta{}, werr
 			}
 		}
-		if rerr == io.EOF {
+		if errors.Is(rerr, io.EOF) {
 			break
 		}
 		if rerr != nil {

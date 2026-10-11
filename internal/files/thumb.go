@@ -86,7 +86,7 @@ func scaleBox(src image.Image, dw, dh int) *image.RGBA {
 			// Premultiplied average over a white backdrop.
 			white := 0xffff - a/n
 			dst.SetRGBA(x, y, color.RGBA{
-				R: uint8((r/n + white) >> 8), G: uint8((g/n + white) >> 8), B: uint8((bl/n + white) >> 8), A: 0xff,
+				R: uint8(min(255, (r/n+white)>>8)), G: uint8(min(255, (g/n+white)>>8)), B: uint8(min(255, (bl/n+white)>>8)), A: 0xff, //nolint:gosec // clamped to a byte
 			})
 		}
 	}
