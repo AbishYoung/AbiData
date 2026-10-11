@@ -10,6 +10,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { Column } from "@/lib/schema";
+import { Tip } from "@/components/Tip";
 import { CellEditor, type EditorHandle, type LookupInfo, type Move } from "./Editors";
 import type { Cell } from "./nav";
 import type { RowBuffer, RowKey } from "./buffer";
@@ -127,24 +128,27 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
       style={{ width }}
       className="relative flex shrink-0 items-center border-b border-r border-border bg-surface-2 text-sm font-semibold"
     >
-      <button
-        type="button"
-        onClick={() => onSort(col.id, "toggle")}
-        onKeyDown={onKeyDown}
-        className="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left"
-        title={`${col.display_name}. Click to sort. Alt+Left or Alt+Right resizes the column.`}
-      >
-        <span className="truncate">{col.display_name}</span>
-        {direction === "ascending" && <ArrowUp size={14} aria-hidden="true" className="shrink-0" />}
-        {direction === "descending" && <ArrowDown size={14} aria-hidden="true" className="shrink-0" />}
-      </button>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger
-          aria-label={`${col.display_name} column menu`}
-          className="mr-1 shrink-0 rounded p-1 hover:bg-surface"
+      <Tip label={`${col.display_name}. Click to sort. Alt+Left or Alt+Right resizes the column.`}>
+        <button
+          type="button"
+          onClick={() => onSort(col.id, "toggle")}
+          onKeyDown={onKeyDown}
+          className="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left"
         >
-          <ChevronDown size={14} aria-hidden="true" />
-        </DropdownMenu.Trigger>
+          <span className="truncate">{col.display_name}</span>
+          {direction === "ascending" && <ArrowUp size={14} aria-hidden="true" className="shrink-0" />}
+          {direction === "descending" && <ArrowDown size={14} aria-hidden="true" className="shrink-0" />}
+        </button>
+      </Tip>
+      <DropdownMenu.Root>
+        <Tip label={`${col.display_name} column menu`}>
+          <DropdownMenu.Trigger
+            aria-label={`${col.display_name} column menu`}
+            className="mr-1 shrink-0 rounded p-1 hover:bg-surface"
+          >
+            <ChevronDown size={14} aria-hidden="true" />
+          </DropdownMenu.Trigger>
+        </Tip>
         <DropdownMenu.Portal>
           <DropdownMenu.Content
             align="end"
@@ -205,17 +209,19 @@ function RowMarker({ index, row, buffer, moved, isNew }: { index: number; row: R
   }
   if (buffer && Object.keys(buffer.changes).length > 0) {
     return (
-      <span className="flex items-center gap-1">
-        <Pencil size={14} aria-hidden="true" />
-        <span className="sr-only">Unsaved changes</span>
-        {moved && (
-          <>
-            <RefreshCw size={14} aria-hidden="true" />
-            <span className="sr-only">Changed by someone else</span>
-          </>
-        )}
-        <span aria-hidden="true">{isNew ? "*" : ""}</span>
-      </span>
+      <Tip label={moved ? "Unsaved changes. Another user also changed this record." : "Unsaved changes. Press Shift+Enter to save the record."}>
+        <span className="flex items-center gap-1">
+          <Pencil size={14} aria-hidden="true" />
+          <span className="sr-only">Unsaved changes</span>
+          {moved && (
+            <>
+              <RefreshCw size={14} aria-hidden="true" />
+              <span className="sr-only">Changed by someone else</span>
+            </>
+          )}
+          <span aria-hidden="true">{isNew ? "*" : ""}</span>
+        </span>
+      </Tip>
     );
   }
   if (isNew) {
@@ -322,7 +328,13 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
           isActive ? "outline-2 -outline-offset-2 outline-focus" : ""
         } ${changed ? "bg-accent-soft" : "bg-surface"} ${error ? "border-b-2 border-b-danger" : ""}`}
       >
-        {error && !isEditing && <TriangleAlert size={14} aria-hidden="true" className="shrink-0 text-danger" />}
+        {error && !isEditing && (
+          <Tip label={error}>
+            <span className="inline-flex shrink-0">
+              <TriangleAlert size={14} aria-hidden="true" className="text-danger" />
+            </span>
+          </Tip>
+        )}
         {body}
         {error && !isEditing && (
           <span

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "rea
 import { useQueryClient } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { useTabs } from "@/app/tabs";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { keys } from "@/lib/events";
 import { findTable, useSchema, type Schema } from "@/lib/schema";
@@ -212,12 +213,23 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
         <button type="button" className={btn} onClick={() => setIndexesOpen(true)}>
           Indexes ({draft.indexes.length})
         </button>
-        <button type="button" className={btnPrimary} disabled={!dirty} onClick={startPreview}>
-          Preview changes
-        </button>
-        <button type="button" className={btn} disabled={!dirty} onClick={discard}>
-          Discard changes
-        </button>
+        <Tip
+          label={dirty ? "Review the changes before anything is applied" : "Change a field or the table first"}
+          shortcut={dirty ? "Mod+S" : undefined}
+        >
+          <span className="inline-flex">
+            <button type="button" className={btnPrimary} disabled={!dirty} onClick={startPreview}>
+              Preview changes
+            </button>
+          </span>
+        </Tip>
+        <Tip label={dirty ? "Throw away your unapplied changes" : "No unapplied changes to discard"}>
+          <span className="inline-flex">
+            <button type="button" className={btn} disabled={!dirty} onClick={discard}>
+              Discard changes
+            </button>
+          </span>
+        </Tip>
       </div>
 
       {stale && (

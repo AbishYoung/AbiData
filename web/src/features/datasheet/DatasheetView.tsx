@@ -741,7 +741,13 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         </div>
       )}
       {countReady && total === 0 && (
-        <p className="px-3 py-2 text-sm text-fg-muted">{filterActive ? "No records match the filter." : "This table has no records yet."}</p>
+        <p className="px-3 py-2 text-sm text-fg-muted">
+          {filterActive
+            ? "No records match the filter. Use Clear filter to see every record."
+            : canEdit
+              ? "This table has no records yet. Type in the New record row below to add the first one."
+              : "This table has no records yet."}
+        </p>
       )}
       <Grid
         gridId={gridId}
