@@ -134,6 +134,13 @@ func (s *Store) RecordLoginFailure(ctx context.Context, key string, now time.Tim
 	return out, nil
 }
 
+func (s *Store) ClearLoginAttemptsPrefix(ctx context.Context, prefix string) error {
+	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM _adm_login_attempts WHERE substr(key, 1, ?) = ?`, len(prefix), prefix)
+		return err
+	})
+}
+
 func (s *Store) ClearLoginAttempts(ctx context.Context, key string) error {
 	return s.Write(ctx, func(tx *sqlitex.Tx) error {
 		_, err := tx.Exec(ctx, `DELETE FROM _adm_login_attempts WHERE key = ?`, key)

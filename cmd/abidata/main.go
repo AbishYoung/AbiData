@@ -14,7 +14,10 @@ commands:
   serve                     run the server
   healthcheck               exit 0 if the local server answers /healthz
   user create-admin --email E [--name N]
-                            create a platform admin (password read from stdin)
+                            create a platform admin (password read from stdin or ABIDATA_PASSWORD)
+  user reset-password --email E
+                            set a new password for a user and sign them out everywhere
+                            (password read from stdin or ABIDATA_PASSWORD; server stopped)
   demo --owner EMAIL        create the "Northwind Traders" sample workspace for an
                             existing user (the server must be stopped)
   version                   print the version

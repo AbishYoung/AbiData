@@ -243,6 +243,10 @@ func TestAPIKeyRoleCapAndRouteScope(t *testing.T) {
 			t.Errorf("%s with key: %d", p, st)
 		}
 	}
+	// An API key can never reset a password, whoever minted it.
+	if st, _, _ := (bearer{k.env, builder}).do("POST", "/api/v1/admin/users/someone/password", map[string]string{"new_password": "brand-new-password"}); st != 403 {
+		t.Errorf("password reset with key: %d", st)
+	}
 	for _, p := range []string{"/metrics", "/api/v1/admin/logs/stream"} {
 		if st, _, _ := (bearer{k.env, builder}).do("GET", p, nil); st != 401 {
 			t.Errorf("%s with key: %d", p, st)

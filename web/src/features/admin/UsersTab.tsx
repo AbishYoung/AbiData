@@ -8,6 +8,7 @@ import { Modal } from "@/features/queries/Modal";
 import { absoluteTime } from "@/features/backups/backupLogic";
 import { alertBox, btn, btnPrimary, input } from "@/components/styles";
 import { adminKeys, createUser, listUsers, updateUser, type AdminUser } from "./adminApi";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { ErrorBox, Field, td, th } from "./ui";
 
 export const MIN_PASSWORD = 10;
@@ -131,6 +132,7 @@ export function UsersTab({ selfId }: { selfId: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: adminKeys.users, queryFn: listUsers });
   const [open, setOpen] = useState(false);
+  const [resetFor, setResetFor] = useState<AdminUser | null>(null);
   const [status, setStatus] = useState("");
   const [rowError, setRowError] = useState<string | null>(null);
   const patch = useMutation({
@@ -224,6 +226,17 @@ export function UsersTab({ selfId }: { selfId: string }) {
                           {u.is_platform_admin ? "Remove admin" : "Make admin"}
                         </button>
                       </WhyUnavailable>
+                      <WhyUnavailable reason={self ? "Use Change password in the user menu for your own account" : undefined}>
+                        <button
+                          type="button"
+                          className={btn}
+                          disabled={self}
+                          aria-label={`Reset password for ${u.email}`}
+                          onClick={() => setResetFor(u)}
+                        >
+                          Reset password…
+                        </button>
+                      </WhyUnavailable>
                     </div>
                   </td>
                 </tr>
@@ -232,6 +245,7 @@ export function UsersTab({ selfId }: { selfId: string }) {
           </tbody>
         </table>
       )}
+      {resetFor && <ResetPasswordDialog user={resetFor} onClose={() => setResetFor(null)} />}
       {open && (
         <NewUserDialog
           onClose={() => setOpen(false)}

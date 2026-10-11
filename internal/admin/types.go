@@ -178,6 +178,8 @@ type Repository interface {
 	// if the existing one began before now-window. Returns the updated record.
 	RecordLoginFailure(ctx context.Context, key string, now time.Time, window time.Duration) (LoginAttempts, error)
 	ClearLoginAttempts(ctx context.Context, key string) error
+	// ClearLoginAttemptsPrefix removes every counter whose key starts with prefix.
+	ClearLoginAttemptsPrefix(ctx context.Context, prefix string) error
 
 	// Workspaces
 	CreateWorkspace(ctx context.Context, w Workspace, owner string) error // also inserts owner membership; ErrConflict on duplicate name

@@ -309,6 +309,40 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	return s.repo.CreateSession(ctx, own)
 }
 
+// ResetPassword sets a new password for the user without the current one (an
+// administrator's recovery path). It ends every session of the user and clears
+// their sign-in lockout counters. The caller authorises and audits.
+func (s *Service) ResetPassword(ctx context.Context, userID, next string) (admin.User, error) {
+	if err := ValidatePassword(next); err != nil {
+		return admin.User{}, err
+	}
+	u, err := s.repo.GetUser(ctx, userID)
+	if err != nil {
+		return admin.User{}, err
+	}
+	h, err := s.hash(ctx, next)
+	if err != nil {
+		return admin.User{}, err
+	}
+	if err := s.repo.SetPasswordHash(ctx, u.ID, h); err != nil {
+		return admin.User{}, err
+	}
+	if err := s.repo.DeleteUserSessions(ctx, u.ID); err != nil {
+		return admin.User{}, err
+	}
+	// The per-account key, the change-password key and every per-address pair key.
+	if err := s.repo.ClearLoginAttempts(ctx, "email:"+u.Email); err != nil {
+		return admin.User{}, err
+	}
+	if err := s.repo.ClearLoginAttempts(ctx, "pw:"+u.ID); err != nil {
+		return admin.User{}, err
+	}
+	if err := s.repo.ClearLoginAttemptsPrefix(ctx, "pair:"+u.Email+"|"); err != nil {
+		return admin.User{}, err
+	}
+	return u, nil
+}
+
 // ValidatePassword enforces the password policy.
 func ValidatePassword(pw string) error {
 	if len(pw) < MinPasswordLen {

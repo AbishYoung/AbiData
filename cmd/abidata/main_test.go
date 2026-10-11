@@ -104,6 +104,12 @@ func TestServeSecondInstanceAndShutdown(t *testing.T) {
 		t.Fatalf("CLI ran against a live server: %v %s", err, out)
 	}
 
+	rp := exec.Command(bin, "user", "reset-password", "--email", "x@example.com")
+	rp.Env, rp.Stdin = env, strings.NewReader("another-long-pw\n")
+	if out, err := rp.CombinedOutput(); err == nil || !strings.Contains(string(out), "in use") {
+		t.Fatalf("reset-password ran against a live server: %v %s", err, out)
+	}
+
 	if err := first.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +132,24 @@ func TestServeSecondInstanceAndShutdown(t *testing.T) {
 	cli.Env, cli.Stdin = env, strings.NewReader("long-enough-pw\n")
 	if out, err := cli.CombinedOutput(); err != nil {
 		t.Fatalf("create-admin: %v %s", err, out)
+	}
+
+	// reset-password: unknown user fails, a short password is refused, and the
+	// password may come from ABIDATA_PASSWORD.
+	rp = exec.Command(bin, "user", "reset-password", "--email", "nobody@example.com")
+	rp.Env, rp.Stdin = env, strings.NewReader("another-long-pw\n")
+	if out, err := rp.CombinedOutput(); err == nil || !strings.Contains(string(out), "no user has") {
+		t.Fatalf("reset of unknown user: %v %s", err, out)
+	}
+	rp = exec.Command(bin, "user", "reset-password", "--email", "x@example.com")
+	rp.Env, rp.Stdin = env, strings.NewReader("short\n")
+	if out, err := rp.CombinedOutput(); err == nil {
+		t.Fatalf("short password accepted: %s", out)
+	}
+	rp = exec.Command(bin, "user", "reset-password", "--email", "X@example.com")
+	rp.Env = append(append([]string{}, env...), "ABIDATA_PASSWORD=another-long-pw")
+	if out, err := rp.CombinedOutput(); err != nil || !strings.Contains(string(out), "reset the password of x@example.com") {
+		t.Fatalf("reset-password: %v %s", err, out)
 	}
 }
 

@@ -251,6 +251,29 @@ func (s *Server) registerAdmin(api huma.API) {
 		return &struct{ Body AdminUserDTO }{Body: AdminUserDTO{UserDTO: userDTO(u), Disabled: u.Disabled, CreatedAt: u.CreatedAt, LastLoginAt: u.LastLoginAt}}, nil
 	})
 
+	// Session-only: an API key must never reset a password.
+	adminSession := map[string]any{metaAccess: "platform_admin", metaSessionOnly: true}
+	huma.Register(api, huma.Operation{
+		OperationID: "adminResetUserPassword", Method: http.MethodPost, Path: "/api/v1/admin/users/{id}/password", Tags: tags, Metadata: adminSession,
+		Summary: "Reset a user's password (ends all of their sessions)", DefaultStatus: http.StatusNoContent, Errors: []int{400, 401, 403, 404},
+	}, func(ctx context.Context, in *struct {
+		ID   string `path:"id"`
+		Body struct {
+			NewPassword string `json:"new_password" maxLength:"1024"`
+		}
+	}) (*struct{}, error) {
+		p, _ := PrincipalFrom(ctx)
+		if in.ID == p.UserID {
+			return nil, fault.New(fault.BadRequest, "Use Change password in the user menu to change your own password.")
+		}
+		u, err := s.deps.Auth.ResetPassword(ctx, in.ID, in.Body.NewPassword)
+		if err != nil {
+			return nil, mapAdminErr(err)
+		}
+		s.audit(ctx, "user.password_reset", "user", u.ID, map[string]any{"target_email": u.Email})
+		return nil, nil
+	})
+
 	huma.Register(api, huma.Operation{
 		OperationID: "adminGetSettings", Method: http.MethodGet, Path: "/api/v1/admin/settings", Tags: tags, Metadata: adminOnly,
 		Summary: "Platform settings (values are JSON text)", Errors: []int{401, 403},
