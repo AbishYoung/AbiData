@@ -81,6 +81,9 @@ func serve() error {
 		return err
 	}
 	defer func() { _ = adm.Close() }()
+	if err := httpapi.MigrateEgressPolicy(ctx, adm, obs.Subsystem(log, "egress")); err != nil {
+		return err
+	}
 	authSvc := auth.NewService(adm, keys, auth.DefaultArgon2, nil, obs.Subsystem(log, "auth"))
 	if tok, err := authSvc.PrepareBootstrap(ctx, cfg.BootstrapAdminEmail); err != nil {
 		return err
@@ -178,20 +181,7 @@ func serve() error {
 	runner.PerWorkspace = func(id ids.WorkspaceID) int { return quota(id).ScriptConcurrency }
 	arts := &artifacts.Store{Dir: filepath.Join(cfg.DataDir, "artifacts"), Quota: func(id ids.WorkspaceID) int64 { return quota(id).ArtifactBytes }}
 	gateway := egress.New(egress.Config{
-		Global: func(ctx context.Context) (egress.Global, error) { return httpapi.LoadGlobalEgress(ctx, adm) },
-		Allowlist: func(ctx context.Context, id ids.WorkspaceID) ([]egress.Entry, error) {
-			l, err := wm.Acquire(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-			defer l.Release()
-			items, err := httpapi.ReadAllowlist(ctx, l)
-			out := make([]egress.Entry, len(items))
-			for i, e := range items {
-				out[i] = egress.Entry{Pattern: e.Pattern, Ports: e.Ports}
-			}
-			return out, err
-		},
+		Global:    func(ctx context.Context) (egress.Global, error) { return httpapi.LoadGlobalEgress(ctx, adm) },
 		PerMinute: func(id ids.WorkspaceID) int { return quota(id).EgressPerMinute },
 		Log:       obs.Subsystem(log, "egress"),
 	})

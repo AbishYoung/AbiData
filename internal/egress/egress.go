@@ -1,12 +1,14 @@
 // Package egress is the only way workspace code reaches the network (brief
-// <egress>). A request must pass the global admin policy and the workspace's
-// _sys_egress_allowlist (scheme, host pattern, port) on every hop, and every
+// <egress>, amended by ADR 0008). A request must pass the platform
+// administrator's global allowlist (scheme, host pattern, port) on every hop,
+// and every
 // connection is checked against PublicRoutable on the actual address being
 // dialed, so DNS rebinding and redirects to internal addresses fail closed.
 package egress
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -45,29 +47,77 @@ var ErrBlockedAddress = errors.New("egress: address is not publicly routable")
 // errDenied marks a request the allowlist rejects (wrapped with the reason).
 var errDenied = errors.New("egress: denied by policy")
 
-// Global is the platform admin's policy (stored in _adm_settings "egress_policy").
+// Entry is one row of the platform allowlist.
+type Entry struct {
+	Pattern string `json:"pattern" maxLength:"255" doc:"Exact host (api.example.com) or *.domain for any subdomain."`
+	Ports   string `json:"ports,omitempty" maxLength:"100" doc:"Comma-separated ports (default 443; list 80 to allow plain http when the platform permits it)."`
+	Note    string `json:"note,omitempty" maxLength:"500"`
+}
+
+// Global is the platform administrator's policy (stored in _adm_settings
+// "egress_policy"). It is the single source of truth: an empty allowlist
+// permits no outbound request at all.
 type Global struct {
-	// Hosts are the host patterns any workspace may be granted; "*" allows any host.
-	Hosts []string `json:"hosts"`
-	// AllowHTTP permits plain http (port 80 must still be listed by the workspace).
+	// Allowlist holds the hosts and ports every workspace's jobs may reach.
+	Allowlist []Entry `json:"allowlist" maxItems:"200"`
+	// AllowHTTP permits plain http (the port must still be listed).
 	AllowHTTP bool `json:"allow_http,omitempty"`
 	// Disabled turns all egress off.
 	Disabled bool `json:"disabled,omitempty"`
 }
 
-// DefaultGlobal lets workspaces decide via their allowlists, https only.
-var DefaultGlobal = Global{Hosts: []string{"*"}}
+// DefaultGlobal is the fail-closed policy of a fresh install: nothing is reachable.
+var DefaultGlobal = Global{Allowlist: []Entry{}}
 
-// Entry is one row of a workspace's _sys_egress_allowlist.
-type Entry struct {
-	Pattern string // exact host or *.domain
-	Ports   string // comma-separated; default "443"
+// ParseGlobal decodes a stored policy. Policies written before ADR 0008 have a
+// "hosts" list (where "*" meant "each workspace decides") and no allowlist; they
+// are converted by keeping the non-wildcard hosts as allowlist entries (port 443,
+// plus 80 when plain http was enabled) and dropping "*". migrated reports that
+// the stored value had the old shape and should be rewritten; dropped reports
+// that a "*" was discarded, which the administrator should review.
+func ParseGlobal(raw string) (g Global, migrated, dropped bool, err error) {
+	var keys map[string]json.RawMessage
+	if err = json.Unmarshal([]byte(raw), &keys); err != nil {
+		return Global{}, false, false, err
+	}
+	var hosts []string
+	if h, ok := keys["hosts"]; ok {
+		if err = json.Unmarshal(h, &hosts); err != nil {
+			return Global{}, false, false, err
+		}
+		migrated = true
+		delete(keys, "hosts")
+	}
+	b, _ := json.Marshal(keys)
+	if err = json.Unmarshal(b, &g); err != nil {
+		return Global{}, false, false, err
+	}
+	if g.Allowlist == nil {
+		g.Allowlist = []Entry{}
+	}
+	if _, has := keys["allowlist"]; has || !migrated {
+		return g, migrated, false, nil
+	}
+	ports := "443"
+	if g.AllowHTTP {
+		ports = "443,80"
+	}
+	for _, h := range hosts {
+		h = normHost(strings.TrimSpace(h))
+		switch {
+		case h == "*":
+			dropped = true
+		case ValidPattern(h):
+			g.Allowlist = append(g.Allowlist, Entry{Pattern: h, Ports: ports, Note: "Migrated from the previous platform policy"})
+		}
+	}
+	return g, migrated, dropped, nil
 }
 
 // Config wires a Gateway to its policy sources.
 type Config struct {
-	Global    func(ctx context.Context) (Global, error)
-	Allowlist func(ctx context.Context, ws ids.WorkspaceID) ([]Entry, error)
+	// Global returns the platform policy (default: DefaultGlobal, which denies everything).
+	Global func(ctx context.Context) (Global, error)
 	// PerMinute returns the workspace's request rate (0 → DefaultPerMinute).
 	PerMinute func(ws ids.WorkspaceID) int
 	// Routable decides which connect addresses are allowed (default PublicRoutable).
@@ -178,18 +228,17 @@ func (g *Gateway) dial(ctx context.Context, network, address string) (net.Conn, 
 type policyRT struct {
 	g      *Gateway
 	global Global
-	allow  []Entry
 }
 
 func (p *policyRT) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := p.g.check(req.URL, p.global, p.allow); err != nil {
+	if err := p.g.check(req.URL, p.global); err != nil {
 		return nil, err
 	}
 	return p.g.tr.RoundTrip(req)
 }
 
-// check enforces scheme, host pattern (global ∩ workspace) and port.
-func (g *Gateway) check(u *url.URL, global Global, allow []Entry) error {
+// check enforces scheme, host pattern and port against the platform allowlist.
+func (g *Gateway) check(u *url.URL, global Global) error {
 	if global.Disabled {
 		return fmt.Errorf("%w: Egress is disabled by the administrator", errDenied)
 	}
@@ -216,27 +265,15 @@ func (g *Gateway) check(u *url.URL, global Global, allow []Entry) error {
 			port = "80"
 		}
 	}
-	if !matchAny(global.Hosts, host) {
-		return fmt.Errorf("%w: The platform policy does not allow host %s", errDenied, host)
-	}
-	for _, e := range allow {
+	for _, e := range global.Allowlist {
 		if matchPattern(e.Pattern, host) && portListed(e.Ports, port) {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: The workspace allowlist does not include %s:%s", errDenied, host, port)
+	return fmt.Errorf("%w: The platform allowlist does not include %s:%s; ask a platform administrator to add it", errDenied, host, port)
 }
 
 func normHost(h string) string { return strings.TrimSuffix(strings.ToLower(h), ".") }
-
-func matchAny(patterns []string, host string) bool {
-	for _, p := range patterns {
-		if strings.TrimSpace(p) == "*" || matchPattern(p, host) {
-			return true
-		}
-	}
-	return false
-}
 
 // matchPattern: exact host, or "*.domain" for any subdomain (not the apex).
 func matchPattern(pattern, host string) bool {
@@ -347,14 +384,8 @@ func (g *Gateway) do(ctx context.Context, ws ids.WorkspaceID, u *url.URL, req Re
 	if err != nil {
 		return nil, 0, err
 	}
-	var allow []Entry
-	if g.cfg.Allowlist != nil {
-		if allow, err = g.cfg.Allowlist(ctx, ws); err != nil {
-			return nil, 0, err
-		}
-	}
 	// Check before building anything so denied requests never touch the network.
-	if err := g.check(u, global, allow); err != nil {
+	if err := g.check(u, global); err != nil {
 		return nil, 0, classify(err)
 	}
 
@@ -412,7 +443,7 @@ func (g *Gateway) do(ctx context.Context, ws ids.WorkspaceID, u *url.URL, req Re
 	}
 
 	client := &http.Client{
-		Transport: &policyRT{g: g, global: global, allow: allow},
+		Transport: &policyRT{g: g, global: global},
 		CheckRedirect: func(next *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
 				return fault.New(fault.EgressFailed, "Too many redirects.")

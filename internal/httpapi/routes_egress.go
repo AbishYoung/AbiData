@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -12,30 +13,31 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/egress"
 	"abidata/internal/fault"
-	"abidata/internal/sqlitex"
-	"abidata/internal/workspace"
 )
 
-// EgressSettingKey is the _adm_settings key holding the global egress policy.
+// EgressSettingKey is the _adm_settings key holding the platform egress policy.
 const EgressSettingKey = "egress_policy"
 
-// maxAllowlist bounds a workspace's allowlist.
+// maxAllowlist bounds the platform allowlist.
 const maxAllowlist = 200
 
-// EgressEntry is one workspace allowlist row.
-type EgressEntry struct {
-	Pattern string `json:"pattern" maxLength:"255" doc:"Exact host (api.example.com) or *.domain for any subdomain."`
-	Ports   string `json:"ports,omitempty" maxLength:"100" doc:"Comma-separated ports (default 443; list 80 to allow plain http when the platform permits it)."`
-	Note    string `json:"note,omitempty" maxLength:"500"`
+// EgressHost is the read-only view of an allowlist entry shown to workspace
+// builders and owners: host pattern and ports only (notes stay with administrators).
+type EgressHost struct {
+	Pattern string `json:"pattern"`
+	Ports   string `json:"ports"`
 }
 
-// WorkspaceEgress is a workspace's allowlist plus the platform policy it is intersected with.
-type WorkspaceEgress struct {
-	Items    []EgressEntry `json:"items"`
-	Platform egress.Global `json:"platform" readOnly:"true"`
+// EgressHosts is what outbound requests from a workspace's jobs may reach.
+type EgressHosts struct {
+	Items     []EgressHost `json:"items"`
+	AllowHTTP bool         `json:"allow_http"`
+	Disabled  bool         `json:"disabled"`
 }
 
-// LoadGlobalEgress reads the platform egress policy (DefaultGlobal when unset).
+// LoadGlobalEgress reads the platform egress policy (DefaultGlobal, which
+// denies everything, when unset). A policy stored in the pre-ADR-0008 shape is
+// converted in memory; MigrateEgressPolicy persists the conversion at startup.
 func LoadGlobalEgress(ctx context.Context, a *admin.Store) (egress.Global, error) {
 	v, err := a.GetSetting(ctx, EgressSettingKey)
 	if err != nil {
@@ -44,40 +46,47 @@ func LoadGlobalEgress(ctx context.Context, a *admin.Store) (egress.Global, error
 		}
 		return egress.Global{}, err
 	}
-	var g egress.Global
-	if err := json.Unmarshal([]byte(v), &g); err != nil {
-		return egress.Global{}, err
+	g, _, _, err := egress.ParseGlobal(v)
+	return g, err
+}
+
+// MigrateEgressPolicy rewrites a stored policy in the old per-workspace shape
+// ("hosts") to the global allowlist shape and logs a warning when a wildcard
+// was dropped. It is idempotent and does nothing on a fresh install.
+func MigrateEgressPolicy(ctx context.Context, a *admin.Store, log *slog.Logger) error {
+	v, err := a.GetSetting(ctx, EgressSettingKey)
+	if errors.Is(err, admin.ErrNotFound) {
+		return nil
 	}
-	return g, nil
+	if err != nil {
+		return err
+	}
+	g, migrated, dropped, err := egress.ParseGlobal(v)
+	if err != nil {
+		return err
+	}
+	if !migrated {
+		return nil
+	}
+	b, _ := json.Marshal(g)
+	if err := a.PutSetting(ctx, EgressSettingKey, string(b)); err != nil {
+		return err
+	}
+	attrs := []any{slog.Int("entries", len(g.Allowlist)), slog.Bool("wildcard_dropped", dropped)}
+	if dropped {
+		log.Warn("egress policy migrated: the old \"*\" host (each workspace decides) was dropped and per-workspace allowlists are no longer used; review the platform allowlist in Admin > Settings", attrs...)
+	} else {
+		log.Info("egress policy migrated to the platform allowlist", attrs...)
+	}
+	return nil
 }
 
-// ReadAllowlist reads a workspace's _sys_egress_allowlist.
-func ReadAllowlist(ctx context.Context, l *workspace.Lease) ([]EgressEntry, error) {
-	out := []EgressEntry{}
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
-		rows, err := q.Query(ctx, `SELECT pattern, ports, note FROM _sys_egress_allowlist ORDER BY pattern`)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var e EgressEntry
-			if err := rows.Scan(&e.Pattern, &e.Ports, &e.Note); err != nil {
-				return err
-			}
-			out = append(out, e)
-		}
-		return rows.Err()
-	})
-	return out, err
-}
-
-func validateEgress(items []EgressEntry) ([]EgressEntry, error) {
+func validateEgress(items []egress.Entry) ([]egress.Entry, error) {
 	if len(items) > maxAllowlist {
-		return nil, fault.Newf(fault.BadRequest, "The allowlist can hold at most %d entries.", maxAllowlist)
+		return nil, fault.Newf(fault.BadRequest, "The platform allowlist can hold at most %d entries.", maxAllowlist)
 	}
 	seen := map[string]bool{}
-	out := make([]EgressEntry, 0, len(items))
+	out := make([]egress.Entry, 0, len(items))
 	for i, e := range items {
 		e.Pattern = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(e.Pattern), "."))
 		e.Ports = strings.ReplaceAll(strings.TrimSpace(e.Ports), " ", "")
@@ -100,70 +109,30 @@ func validateEgress(items []EgressEntry) ([]EgressEntry, error) {
 }
 
 func (s *Server) registerEgress(api huma.API) {
-	owner := map[string]any{metaRole: string(admin.RoleOwner)}
 	adminOnly := map[string]any{metaAccess: "platform_admin"}
-	tags := []string{"workspace"}
+	builder := map[string]any{metaRole: string(admin.RoleBuilder)}
 
-	get := func(ctx context.Context) (*struct{ Body WorkspaceEgress }, error) {
-		l, err := s.lease(ctx)
-		if err != nil {
-			return nil, err
-		}
-		defer l.Release()
-		items, err := ReadAllowlist(ctx, l)
-		if err != nil {
-			return nil, err
-		}
-		g, err := LoadGlobalEgress(ctx, s.deps.Admin)
-		if err != nil {
-			return nil, err
-		}
-		return &struct{ Body WorkspaceEgress }{Body: WorkspaceEgress{Items: items, Platform: g}}, nil
-	}
-	huma.Register(api, huma.Operation{OperationID: "getEgressAllowlist", Method: http.MethodGet, Path: "/api/v1/w/{ws}/settings/egress", Tags: tags, Metadata: owner,
-		Summary: "The workspace's outbound HTTP allowlist (owner)", Errors: []int{401, 403, 404}},
+	huma.Register(api, huma.Operation{OperationID: "getEgressHosts", Method: http.MethodGet, Path: "/api/v1/w/{ws}/egress-hosts", Tags: []string{"workspace"}, Metadata: builder,
+		Summary: "The outbound hosts the platform allows (read-only)", Errors: []int{401, 403, 404}},
 		func(ctx context.Context, _ *struct {
 			WS string `path:"ws"`
-		}) (*struct{ Body WorkspaceEgress }, error) {
-			return get(ctx)
-		})
-	huma.Register(api, huma.Operation{OperationID: "putEgressAllowlist", Method: http.MethodPut, Path: "/api/v1/w/{ws}/settings/egress", Tags: tags, Metadata: owner,
-		Summary: "Replace the workspace's outbound HTTP allowlist (owner)", Errors: []int{400, 401, 403, 404}},
-		func(ctx context.Context, in *struct {
-			WS   string `path:"ws"`
-			Body struct {
-				Items []EgressEntry `json:"items" maxItems:"200"`
+		}) (*struct{ Body EgressHosts }, error) {
+			if _, ok := MembershipFrom(ctx); !ok {
+				return nil, errNotFound
 			}
-		}) (*struct{ Body WorkspaceEgress }, error) {
-			items, err := validateEgress(in.Body.Items)
+			g, err := LoadGlobalEgress(ctx, s.deps.Admin)
 			if err != nil {
 				return nil, err
 			}
-			l, err := s.lease(ctx)
-			if err != nil {
-				return nil, err
+			out := EgressHosts{Items: make([]EgressHost, 0, len(g.Allowlist)), AllowHTTP: g.AllowHTTP, Disabled: g.Disabled}
+			for _, e := range g.Allowlist {
+				out.Items = append(out.Items, EgressHost{Pattern: e.Pattern, Ports: e.Ports})
 			}
-			err = l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-				if _, err := tx.Exec(ctx, `DELETE FROM _sys_egress_allowlist`); err != nil {
-					return err
-				}
-				for _, e := range items {
-					if _, err := tx.Exec(ctx, `INSERT INTO _sys_egress_allowlist (pattern, ports, note) VALUES (?,?,?)`, e.Pattern, e.Ports, e.Note); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-			l.Release()
-			if err != nil {
-				return nil, err
-			}
-			s.audit(ctx, "egress.update", "workspace", "", map[string]any{"entries": len(items)})
-			return get(ctx)
+			return &struct{ Body EgressHosts }{Body: out}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "adminGetEgressPolicy", Method: http.MethodGet, Path: "/api/v1/admin/settings/egress", Tags: []string{"admin"}, Metadata: adminOnly,
-		Summary: "The platform egress policy", Errors: []int{401, 403}},
+		Summary: "The platform egress policy and allowlist", Errors: []int{401, 403}},
 		func(ctx context.Context, _ *struct{}) (*struct{ Body egress.Global }, error) {
 			g, err := LoadGlobalEgress(ctx, s.deps.Admin)
 			if err != nil {
@@ -172,23 +141,19 @@ func (s *Server) registerEgress(api huma.API) {
 			return &struct{ Body egress.Global }{Body: g}, nil
 		})
 	huma.Register(api, huma.Operation{OperationID: "adminPutEgressPolicy", Method: http.MethodPut, Path: "/api/v1/admin/settings/egress", Tags: []string{"admin"}, Metadata: adminOnly,
-		Summary: "Replace the platform egress policy", Errors: []int{400, 401, 403}},
+		Summary: "Replace the platform egress policy and allowlist", Errors: []int{400, 401, 403}},
 		func(ctx context.Context, in *struct{ Body egress.Global }) (*struct{ Body egress.Global }, error) {
 			g := in.Body
-			hosts := make([]string, 0, len(g.Hosts))
-			for _, h := range g.Hosts {
-				h = strings.ToLower(strings.TrimSpace(h))
-				if h != "*" && !egress.ValidPattern(h) {
-					return nil, fault.Newf(fault.BadRequest, "%q is not a host name, *.domain pattern or *.", h)
-				}
-				hosts = append(hosts, h)
+			items, err := validateEgress(g.Allowlist)
+			if err != nil {
+				return nil, err
 			}
-			g.Hosts = hosts
+			g.Allowlist = items
 			b, _ := json.Marshal(g)
 			if err := s.deps.Admin.PutSetting(ctx, EgressSettingKey, string(b)); err != nil {
 				return nil, err
 			}
-			s.audit(ctx, "egress.policy", "settings", EgressSettingKey, map[string]any{"hosts": len(hosts), "allow_http": g.AllowHTTP, "disabled": g.Disabled})
+			s.audit(ctx, "egress.policy", "settings", EgressSettingKey, map[string]any{"entries": len(items), "allow_http": g.AllowHTTP, "disabled": g.Disabled})
 			return &struct{ Body egress.Global }{Body: g}, nil
 		})
 }

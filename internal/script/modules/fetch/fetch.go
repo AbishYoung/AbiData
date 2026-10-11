@@ -22,7 +22,7 @@ func init() {
 
 var doc = script.ModuleDoc{
 	Name: "fetch", Contexts: []script.Context{script.Job}, Global: true,
-	Doc: "Makes an HTTP request from a job. Only https hosts in the workspace's egress allowlist (and the platform policy) are reachable; private and internal addresses are always refused, including after redirects (at most 5).",
+	Doc: "Makes an HTTP request from a job. Only hosts and ports on the platform's egress allowlist, which platform administrators manage for all workspaces, are reachable (https unless the platform also allows http); an empty allowlist permits nothing; private and internal addresses are always refused, including after redirects (at most 5).",
 	Funcs: []script.FuncDoc{{
 		Name: "fetch", Signature: "fetch(url, {method, headers, body, timeout_ms, max_bytes}?) → response",
 		Params: []script.ParamDoc{

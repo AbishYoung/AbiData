@@ -28,7 +28,6 @@ Each workspace has its own list of members. A member has one role in that worksp
 | SQL console and queries that use expressions | | | Yes | Yes |
 | Import data | | | Yes | Yes |
 | Add or remove members, change roles | | | | Yes |
-| Edit the egress allowlist | | | | Yes |
 | Create, list and restore backups | | | | Yes |
 | Workspace settings | | | | Yes |
 
@@ -38,7 +37,7 @@ A workspace always keeps at least one owner. You cannot remove or demote the las
 
 ## Platform administrators {#platform-admins}
 
-A platform administrator manages the whole server: creating workspaces, creating and disabling user accounts, setting the platform egress policy and backup schedule, reading server logs and metrics. This is separate from workspace roles. An administrator sees a workspace's data only after being added to it as a member.
+A platform administrator manages the whole server: creating workspaces, creating and disabling user accounts, managing the platform egress allowlist (the outbound hosts jobs may reach) and the backup schedule, reading server logs and metrics. This is separate from workspace roles. An administrator sees a workspace's data only after being added to it as a member.
 
 ## Add and manage members {#members}
 
@@ -55,6 +54,6 @@ Adding someone who does not have an account fails with a message asking you to h
 
 - Give most people **Editor**. They can do their daily work and cannot change the design.
 - Give **Builder** only to people who design tables, forms and scripts. Scripts run on the server, so a builder can read and write every table.
-- Keep **Owner** to people who may restore a backup, which replaces all the data, or open outbound network access.
+- Keep **Owner** to people who may restore a backup, which replaces all the data,.
 
 For the security reasoning behind this, see [Security](/docs/operations/security#roles).

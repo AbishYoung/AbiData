@@ -46,9 +46,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The platform egress policy */
+        /** The platform egress policy and allowlist */
         get: operations["adminGetEgressPolicy"];
-        /** Replace the platform egress policy */
+        /** Replace the platform egress policy and allowlist */
         put: operations["adminPutEgressPolicy"];
         post?: never;
         delete?: never;
@@ -364,6 +364,23 @@ export interface paths {
         put?: never;
         /** Create a new workspace from this backup (owner); the caller owns it */
         post: operations["restoreBackupAsNew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/w/{ws}/egress-hosts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The outbound hosts the platform allows (read-only) */
+        get: operations["getEgressHosts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1020,24 +1037,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/w/{ws}/settings/egress": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The workspace's outbound HTTP allowlist (owner) */
-        get: operations["getEgressAllowlist"];
-        /** Replace the workspace's outbound HTTP allowlist (owner) */
-        put: operations["putEgressAllowlist"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/w/{ws}/sql/run": {
         parameters: {
             query?: never;
@@ -1446,7 +1445,16 @@ export interface components {
         DocsIndex: {
             pages: components["schemas"]["Summary"][] | null;
         };
-        EgressEntry: {
+        EgressHost: {
+            pattern: string;
+            ports: string;
+        };
+        EgressHosts: {
+            allow_http: boolean;
+            disabled: boolean;
+            items: components["schemas"]["EgressHost"][] | null;
+        };
+        Entry: {
             note?: string;
             /** @description Exact host (api.example.com) or *.domain for any subdomain. */
             pattern: string;
@@ -1582,8 +1590,8 @@ export interface components {
         };
         Global: {
             allow_http?: boolean;
+            allowlist: components["schemas"]["Entry"][] | null;
             disabled?: boolean;
-            hosts: string[] | null;
         };
         Group: {
             column_id?: string;
@@ -2021,9 +2029,6 @@ export interface components {
              */
             hour_utc: number;
         };
-        PutEgressAllowlistRequest: {
-            items: components["schemas"]["EgressEntry"][] | null;
-        };
         Quota: {
             /** Format: int64 */
             artifact_bytes?: number;
@@ -2448,10 +2453,6 @@ export interface components {
             quota: components["schemas"]["Quota"];
             /** @enum {string} */
             status: "active" | "suspended" | "restoring" | "needs_repair" | "deleted";
-        };
-        WorkspaceEgress: {
-            items: components["schemas"]["EgressEntry"][] | null;
-            readonly platform: components["schemas"]["Global"];
         };
         WorkspaceInfo: {
             id: string;
@@ -4113,6 +4114,73 @@ export interface operations {
             };
             /** @description Insufficient Storage */
             507: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getEgressHosts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EgressHosts"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8431,153 +8499,6 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    getEgressAllowlist: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ws: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceEgress"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    putEgressAllowlist: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ws: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PutEgressAllowlistRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceEgress"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -81,7 +81,7 @@ var registry = map[Code]Entry{
 	ScriptTimeout:        {http.StatusUnprocessableEntity, "Script timed out", "A script ran longer than its time budget and was stopped.", "Make the script do less work, or move the work into a job.", false, true},
 	ScriptLimitExceeded:  {http.StatusUnprocessableEntity, "Script limit exceeded", "A script exceeded a resource limit and was stopped.", "Reduce the size of strings or patterns the script builds.", false, true},
 	SQLNotAllowed:        {http.StatusForbidden, "SQL not allowed", "The SQL statement uses an operation that is not permitted here.", "Use a read-only SELECT on workspace tables.", false, true},
-	EgressDenied:         {http.StatusForbidden, "Outbound request blocked", "The destination is not on the workspace's allowlist or is not a public address.", "Ask a workspace owner to add the host to the egress allowlist.", false, true},
+	EgressDenied:         {http.StatusForbidden, "Outbound request blocked", "The destination is not on the platform's outbound allowlist or is not a public address.", "Ask a platform administrator to add the host to the egress allowlist.", false, true},
 	EgressFailed:         {http.StatusBadGateway, "Outbound request failed", "The outbound request could not be completed.", "Check the destination service and try again.", true, true},
 	EgressResponseTooLarge: {http.StatusBadGateway, "Response too large", "The outbound response exceeded the size limit and was discarded.",
 		"Request less data, or raise max_bytes within the allowed maximum.", false, false},

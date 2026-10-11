@@ -137,7 +137,7 @@ log.info("stock updated", { inserted = out.inserted, updated = out.updated })
 artifacts.save("errors.csv", csv.encode(out.errors, { columns = { "row", "column", "message" } }))
 ```
 
-The host `data.example.com` must be on the workspace's [egress allowlist](/docs/guide/jobs#egress). The `sku` column needs a unique index for `upsert`.
+The host `data.example.com` must be on the platform's [egress allowlist](/docs/guide/jobs#egress), which a platform administrator manages. The `sku` column needs a unique index for `upsert`.
 
 ## Reference {#reference}
 

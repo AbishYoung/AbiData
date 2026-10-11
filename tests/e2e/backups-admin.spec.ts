@@ -215,7 +215,7 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await expectNoAxeViolations(page);
 });
 
-test("admin changes the backup policy and the platform egress policy", async ({ page }) => {
+test("admin changes the backup policy", async ({ page }) => {
   await signIn(page);
   await openAdmin(page, "Settings");
   const hour = page.getByLabel("Hour of day (UTC)");
@@ -224,23 +224,78 @@ test("admin changes the backup policy and the platform egress policy", async ({ 
   await page.getByRole("button", { name: "Save backup policy" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Saved" }).first()).toBeVisible();
 
+  await page.reload();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await expect(page.getByLabel("Hour of day (UTC)")).toHaveValue("5");
+  await page.getByLabel("Hour of day (UTC)").selectOption("2");
+  await page.getByRole("button", { name: "Save backup policy" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved" }).first()).toBeVisible();
+});
+
+test("admin edits the platform egress allowlist; owners see it read-only", async ({ page }) => {
+  await signIn(page);
+  await openAdmin(page, "Settings");
+  const form = page.getByRole("form", { name: /Outbound requests/ });
+  const save = form.getByRole("button", { name: "Save egress policy" });
+  const patterns = form.getByLabel(/^Host pattern, row/);
+  await expect(form.getByRole("button", { name: "Add host" })).toBeVisible();
+  const start = await patterns.count();
   const host = `hooks-${RUN}.example.com`;
-  await page.getByRole("button", { name: "Add host" }).click();
-  await page.getByLabel(/^Allowed host, row/).last().fill("https://bad");
-  await page.getByRole("button", { name: "Save egress policy" }).click();
+
+  // Client-side validation mirrors the server: scheme, bare *, bad ports, duplicates.
+  await form.getByRole("button", { name: "Add host" }).click();
+  await patterns.last().fill("https://bad");
+  await save.click();
   await expect(page.getByRole("alert").filter({ hasText: "without a scheme" })).toBeVisible();
-  await page.getByLabel(/^Allowed host, row/).last().fill(host);
-  await page.getByRole("button", { name: "Save egress policy" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toHaveCount(2);
+  await expect(patterns.last()).toHaveAttribute("aria-invalid", "true");
+  await patterns.last().fill("*");
+  await save.click();
+  await expect(page.getByRole("alert").filter({ hasText: "A bare * is not allowed" })).toBeVisible();
+  await patterns.last().fill(host);
+  await form.getByLabel(/^Ports, row/).last().fill("443, 80x");
+  await save.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Ports must be numbers" })).toBeVisible();
+  await form.getByLabel(/^Ports, row/).last().fill("443, 8443");
+  await form.getByLabel(/^Note, row/).last().fill("Webhook target");
+  await form.getByRole("button", { name: "Add host" }).click();
+  await patterns.last().fill(host.toUpperCase());
+  await save.click();
+  await expect(page.getByRole("alert").filter({ hasText: "already listed" })).toBeVisible();
+  await expectNoAxeViolations(page);
+  await form.getByRole("button", { name: `Remove row ${start + 2}` }).click();
+  await expect(patterns).toHaveCount(start + 1);
+
+  await save.click();
+  await expect(form.getByRole("status")).toHaveText("Saved");
   await expectNoAxeViolations(page);
 
   await page.reload();
   await page.getByRole("tab", { name: "Settings" }).click();
-  await expect(page.getByLabel("Hour of day (UTC)")).toHaveValue("5");
-  await expect(page.getByLabel(/^Allowed host, row/).last()).toHaveValue(host);
-  await page.getByLabel("Hour of day (UTC)").selectOption("2");
-  await page.getByRole("button", { name: "Save backup policy" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Saved" }).first()).toBeVisible();
+  await expect(patterns).toHaveCount(start + 1);
+  await expect(patterns.last()).toHaveValue(host);
+  await expect(form.getByLabel(/^Ports, row/).last()).toHaveValue("443,8443");
+
+  // The owner of a workspace sees the list, but cannot edit it there.
+  await page.goto("/");
+  await page.getByRole("link", { name: /Backup Lab/ }).first().click();
+  await expect(page).toHaveURL(/\/w\//);
+  await openMenu(page, "Admin");
+  await page.getByRole("menuitem", { name: "Workspace settings" }).click();
+  const settings = page.getByTestId("workspace-settings");
+  await expect(settings.getByText("allowed hosts are managed by the platform administrator")).toBeVisible();
+  await expect(settings.getByRole("cell", { name: host, exact: true })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Add host" })).toHaveCount(0);
+  await expect(settings.getByRole("textbox", { name: /Host pattern/ })).toHaveCount(0);
+  await expectNoAxeViolations(page);
+
+  // Remove the entry again so other specs start from the same state.
+  await openAdmin(page, "Settings");
+  await form.getByRole("button", { name: `Remove row ${start + 1}` }).click();
+  await save.click();
+  await expect(form.getByRole("status")).toHaveText("Saved");
+  await page.reload();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await expect(patterns).toHaveCount(start);
 });
 
 test("live logs show new lines after an action and the level filter works", async ({ page, request }) => {
