@@ -118,6 +118,15 @@ test("removing a member can keep or revoke their keys", async ({ page, request, 
   expect(await activeKeyNames(page)).toEqual([]);
 });
 
+test("the members table keeps a gap above the backups card", async ({ page }) => {
+  await signIn(page);
+  await page.goto(`/w/${ws}`);
+  const panel = await openSettings(page);
+  const members = await panel.boundingBox();
+  const backups = await page.getByTestId("backups-panel").boundingBox();
+  expect(backups!.y - (members!.y + members!.height)).toBeGreaterThanOrEqual(16);
+});
+
 test("the last owner cannot be demoted or removed", async ({ page }) => {
   await signIn(page);
   await page.goto(`/w/${ws}`);
