@@ -1,11 +1,8 @@
 {$ABIDATA_SITE:localhost} {
-	encode {
-		zstd
-		gzip
-		match {
-			not header Content-Type text/event-stream*
-		}
-	}
+	# Compress everything except the server-sent event streams, which must
+	# reach the browser unbuffered.
+	@compress not path_regexp ^/api/v1/(w/[^/]+/events|admin/logs/stream)$
+	encode @compress zstd gzip
 
 	reverse_proxy abidata:8080 {
 		flush_interval -1

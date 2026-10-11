@@ -39,6 +39,9 @@ done
 chmod 755 "$ABIDATA_SMOKE_SECRETS"
 chmod 644 "$ABIDATA_SMOKE_SECRETS"/*
 
+# The smoke runs without Caddy, so at least check the production Caddyfile parses.
+docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile >/dev/null
+
 "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 docker buildx build --platform "${ABIDATA_SMOKE_PLATFORM:-linux/amd64}" --load -t abidata:smoke .
 "${compose[@]}" up -d --no-build abidata
