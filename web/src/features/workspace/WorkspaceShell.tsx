@@ -318,7 +318,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   if (compact) {
     return (
       <div data-shell className="flex h-full flex-col">
-        <header className="safe-top flex shrink-0 items-center gap-0.5 border-b border-border bg-surface px-1">
+        <header className="shell-header flex shrink-0 items-center gap-1 border-b border-border bg-surface">
           <button ref={menuButtonRef} type="button" className={iconBtn} aria-label="Open navigation" aria-haspopup="dialog" onClick={() => setNavOpen(true)}>
             <Menu size={20} aria-hidden="true" />
           </button>

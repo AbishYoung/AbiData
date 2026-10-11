@@ -117,6 +117,15 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
   await expectNoHorizontalOverflow(page, "workspace (empty)");
   await shot(page, "workspace-empty");
 
+  // Header controls are vertically centred with air above and below (not flush against the top edge).
+  const bounds = await page.locator("header").first().evaluate((h) => {
+    const hb = h.getBoundingClientRect();
+    const user = h.querySelector("button[aria-haspopup='menu']")!.getBoundingClientRect();
+    return { above: user.top - hb.top, below: hb.bottom - user.bottom };
+  });
+  expect(bounds.above).toBeGreaterThanOrEqual(4);
+  expect(Math.abs(bounds.above - bounds.below)).toBeLessThanOrEqual(2);
+
   // The navigation pane is off-canvas until the hamburger opens it.
   const nav = page.getByRole("navigation", { name: "Navigation pane" });
   await expect(nav).toHaveCount(0);
