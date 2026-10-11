@@ -11,6 +11,7 @@ import {
   isDirty,
   labelFor,
   mergeAssigned,
+  stackedOrder,
   newRec,
   overridesPayload,
   planResponse,
@@ -148,5 +149,17 @@ describe("formatting and query rows", () => {
     expect(hasIdentity).toBe(true);
     expect(rows).toEqual([{ id: 3, _version: 2, fields: { c_name: "Ann" } }]);
     expect(rowsFromResult({ columns: ["x"], rows: [["a"], ["b"]], truncated: false }).hasIdentity).toBe(false);
+  });
+});
+
+describe("stackedOrder", () => {
+  it("puts a label before its textbox even when the textbox starts higher", () => {
+    const box = (id: string, x: number, y: number, h = 24) => ({ id, x, y, h });
+    const out = stackedOrder([box("input1", 120, 8), box("label1", 8, 12, 16), box("input2", 120, 46), box("label2", 8, 50, 16)]);
+    expect(out.map((c) => c.id)).toEqual(["label1", "input1", "label2", "input2"]);
+  });
+  it("keeps separate rows apart and orders a row left to right", () => {
+    const box = (id: string, x: number, y: number) => ({ id, x, y, h: 20 });
+    expect(stackedOrder([box("c", 0, 100), box("b", 80, 0), box("a", 0, 0)]).map((c) => c.id)).toEqual(["a", "b", "c"]);
   });
 });

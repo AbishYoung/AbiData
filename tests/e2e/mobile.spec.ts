@@ -89,7 +89,7 @@ test("sign in and create a workspace on a phone", async ({ page }) => {
         detail: {
           height: 80,
           controls: [
-            { id: "c1", name: "NameLabel", type: "label", x: 0, y: 0, w: 80, h: 24, tab_index: 0, caption: "Name" },
+            { id: "c1", name: "NameLabel", type: "label", x: 0, y: 3, w: 80, h: 18, tab_index: 0, caption: "Name" },
             { id: "c2", name: "Name", type: "textbox", x: 90, y: 0, w: 400, h: 24, tab_index: 1, bind: { column_id: nameCol } },
           ],
         },
@@ -185,7 +185,10 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
   // New record from the floating button.
   await page.getByRole("button", { name: "New record" }).tap();
   await expect(sheet.getByText("New record", { exact: true })).toBeVisible();
+  // Nothing entered yet: Add record is disabled instead of silently closing the sheet.
+  await expect(sheet.getByRole("button", { name: "Add record" })).toBeDisabled();
   await sheet.getByLabel("Name").fill("Cleo");
+  await expect(sheet.getByRole("button", { name: "Add record" })).toBeEnabled();
   await sheet.getByLabel("City").fill("Ogdenville");
   await sheet.getByRole("button", { name: "Add record" }).tap();
   await expect(sheet).toHaveCount(0);
@@ -227,6 +230,9 @@ test("forms, reports, queries, jobs and settings fit a phone", async ({ page }) 
   await expect(name).toBeVisible();
   const box = (await name.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  // A label comes before its textbox even though the textbox is placed a few pixels higher.
+  const labelBox = (await page.getByText("Name", { exact: true }).first().boundingBox())!;
+  expect(labelBox.y + labelBox.height).toBeLessThanOrEqual(box.y + 1);
   await expectNoHorizontalOverflow(page, "form runtime");
   await shot(page, "form");
 
@@ -324,6 +330,26 @@ test("dialogs are bottom sheets and menus fit the screen", async ({ page }) => {
   expect(Math.round(db.x)).toBe(0);
   expect(Math.round(db.height)).toBe(vp.height);
   await shot(page, "docs");
+  await page.keyboard.press("Escape");
+});
+
+test("the import wizard step labels are not truncated on a phone", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(WS()) }).tap();
+  await page.getByRole("button", { name: "Open navigation" }).tap();
+  await page.getByRole("navigation", { name: "Navigation pane" }).getByRole("button", { name: "Import…" }).tap();
+  const w = page.getByRole("dialog", { name: "Import data" });
+  await w.getByLabel("File to import").setInputFiles({ name: "steps.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Qty\nApple,3\n") });
+  await w.getByRole("button", { name: "Upload and preview" }).tap();
+  await expect(w.getByRole("heading", { name: "Preview and map columns" })).toBeVisible();
+  // The current step's label shows in full; the others collapse to their number.
+  const truncated = await w.getByRole("list", { name: "Steps" }).evaluate((ol) =>
+    Array.from(ol.querySelectorAll("li > span.truncate"))
+      .filter((el) => el.getBoundingClientRect().width > 1)
+      .filter((el) => el.scrollWidth > el.clientWidth)
+      .map((el) => el.textContent),
+  );
+  expect(truncated).toEqual([]);
   await page.keyboard.press("Escape");
 });
 

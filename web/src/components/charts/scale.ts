@@ -217,3 +217,22 @@ export function formatPercent(ratio: number): string {
   if (p < 0.1) return "<0.1%";
   return p >= 10 ? `${Math.round(p)}%` : `${trim(p, 1)}%`;
 }
+
+/**
+ * Index ranges [from, to) of consecutive non-zero samples. Stacked areas stroke only these, so a
+ * series that is zero (no 5xx errors) does not draw a coloured line along the top of the stack.
+ */
+export function nonZeroRuns(values: readonly (number | null)[]): [number, number][] {
+  const runs: [number, number][] = [];
+  let from = -1;
+  values.forEach((v, i) => {
+    const on = (v ?? 0) !== 0;
+    if (on && from < 0) from = i;
+    if (!on && from >= 0) {
+      runs.push([from, i]);
+      from = -1;
+    }
+  });
+  if (from >= 0) runs.push([from, values.length]);
+  return runs;
+}

@@ -565,7 +565,7 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
                 const done = i + 1 < step;
                 const current = i + 1 === step;
                 return (
-                  <li key={s} aria-current={current ? "step" : undefined} className="flex min-w-0 flex-1 items-center gap-2 last:flex-none">
+                  <li key={s} aria-current={current ? "step" : undefined} className={`flex min-w-0 flex-1 items-center gap-2 last:flex-none ${current ? "" : "max-sm:flex-none"}`}>
                     <span
                       aria-hidden="true"
                       className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -574,12 +574,12 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
                     >
                       {done ? <Check size={12} strokeWidth={3} /> : i + 1}
                     </span>
-                    <span className={`truncate ${current ? "font-semibold text-fg" : "text-fg-muted"}`}>
+                    <span className={`truncate ${current ? "font-semibold text-fg" : "text-fg-muted max-sm:sr-only"}`}>
                       <span className="sr-only">{i + 1}. </span>
                       {s}
                       {done && <span className="sr-only"> (done)</span>}
                     </span>
-                    {i < STEPS.length - 1 && <span aria-hidden="true" className={`h-px min-w-4 flex-1 ${done ? "bg-success" : "bg-border"}`} />}
+                    {i < STEPS.length - 1 && <span aria-hidden="true" className={`h-px min-w-4 flex-1 max-sm:min-w-3 ${done ? "bg-success" : "bg-border"}`} />}
                   </li>
                 );
               })}

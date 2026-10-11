@@ -32,6 +32,7 @@ import {
 import { classifyDocLink, prepareDocHtml } from "./docsLinks";
 import {
   createDocsIndex,
+  hitLabel,
   searchDocs,
   type DocHit,
   type DocSummary,
@@ -62,10 +63,6 @@ function groupBySection(
     else groups.push({ section: p.section, pages: [p] });
   }
   return groups;
-}
-
-function hitLabel(hit: DocHit): string {
-  return hit.anchorText ? `${hit.title}: ${hit.anchorText}` : hit.title;
 }
 
 function countText(n: number, query: string): string {

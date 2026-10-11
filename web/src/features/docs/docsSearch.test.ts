@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDocsIndex, searchDocs, type DocSummary } from "./docsSearch";
+import { createDocsIndex, hitLabel, searchDocs, type DocSummary } from "./docsSearch";
 
 const PAGES: DocSummary[] = [
   {
@@ -72,5 +72,13 @@ describe("searchDocs", () => {
 
   it("limits the number of results", () => {
     expect(searchDocs(index, "a", 1)).toHaveLength(1);
+  });
+});
+
+describe("hitLabel", () => {
+  it("does not repeat the page title as its own section", () => {
+    expect(hitLabel({ title: "Imports and exports", anchorText: "Imports and exports" })).toBe("Imports and exports");
+    expect(hitLabel({ title: "Backups", anchorText: "Restore a backup" })).toBe("Backups: Restore a backup");
+    expect(hitLabel({ title: "Backups", anchorText: null })).toBe("Backups");
   });
 });

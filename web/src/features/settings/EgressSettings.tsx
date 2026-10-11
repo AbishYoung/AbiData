@@ -75,7 +75,9 @@ export function EgressSettings({ ws }: { ws: string }) {
         </div>
       </div>
       <AllowedHosts ws={ws} />
-      <MembersPanel ws={ws} />
+      <div className="mb-6">
+        <MembersPanel ws={ws} />
+      </div>
       <BackupsPanel ws={ws} />
       <ApiKeysPanel ws={ws} />
       </div>

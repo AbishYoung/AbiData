@@ -24,6 +24,7 @@ import {
   layoutControls,
   recFromRow,
   recordLabel,
+  stackedOrder,
   tabOrder,
   type CalcState,
   type Fields,
@@ -63,7 +64,7 @@ function Band({
   const ordered = useMemo(() => {
     const list = tabOrder(controls).filter((c) => !renderOnly || renderOnly(c));
     // Stacked (phone) layout reads top to bottom, left to right, as designed.
-    return stacked ? [...list].sort((a, b) => a.y - b.y || a.x - b.x) : list;
+    return stacked ? stackedOrder(list) : list;
   }, [controls, renderOnly, stacked]);
   return (
     <>

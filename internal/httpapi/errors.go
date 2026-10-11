@@ -65,8 +65,12 @@ func toAPIError(ctx context.Context, log *slog.Logger, err error) *APIError {
 	}
 	fe := fault.Classify(err)
 	entry := fe.Entry()
+	recovery := entry.Recovery
+	if fe.Recovery != "" {
+		recovery = fe.Recovery
+	}
 	body := ErrorBody{
-		Code: fe.Code, Title: entry.Title, Message: fe.DisplayMessage(), Recovery: entry.Recovery,
+		Code: fe.Code, Title: entry.Title, Message: fe.DisplayMessage(), Recovery: recovery,
 		RequestID: obs.RequestID(ctx), Details: fe.Details,
 	}
 	if fe.Code == fault.Internal {

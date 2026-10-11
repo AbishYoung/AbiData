@@ -329,7 +329,7 @@ export function BackupsPanel({ ws }: { ws: string }) {
                     {formatSize(b.gz_bytes)}
                     <span className="block text-xs text-fg-muted">{formatSize(b.raw_bytes)} uncompressed</span>
                   </td>
-                  <td className="px-3 py-2">{who(b)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{who(b)}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap justify-end gap-2">
                       <Tip label="Replace this workspace's data with the backup">
@@ -341,7 +341,7 @@ export function BackupsPanel({ ws }: { ws: string }) {
                       <Tip label="Make a new workspace from this backup; this workspace is not changed">
                         <button type="button" className={btn} onClick={() => setCloning(b)} aria-label={`Restore backup from ${abs} as new workspace`}>
                           <Copy size={14} aria-hidden="true" />
-                          Restore as new workspace…
+                          Restore as new…
                         </button>
                       </Tip>
                       {b.kind === "manual" && (
