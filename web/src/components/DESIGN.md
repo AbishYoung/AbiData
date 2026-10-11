@@ -1,0 +1,61 @@
+# AbiData design system
+
+AbiData is a professional data tool in the lineage of Microsoft Access: dense, keyboard-first, calm. The look is **clean and confident with a clear identity**. It is not bare and not decorative. Reference points include Linear, Airtable, Retool and the GitHub UI: layered surfaces, crisp type, purposeful colour, and generous but not wasteful spacing.
+
+The tokens live in `web/src/styles/tokens.css`, the shared class strings in `web/src/components/styles.ts`, and the object-kind icons and colours in `web/src/components/objectKinds.tsx`. The logo is in `web/src/components/brand/Logo.tsx`. The reference implementation of the style is the workspace shell (`features/workspace/WorkspaceShell.tsx`) and the navigation pane (`features/nav/NavPane.tsx`, `navStyles.ts`).
+
+## Principles
+1. **Hierarchy through layering.** Use `bg` for the page, `surface` for panels and cards, `surface-2` for toolbars, headers and inputs at rest, and `surface-3` for hover and pressed states and badges. In light mode a card gets `shadow-sm`; dialogs and menus get `shadow-lg`. Borders use `border` (soft). Only interactive outlines (inputs) use `border-strong`.
+2. **One primary action per view.** Use `btnPrimary` for the main action, `btn` for secondary actions, and `btnGhost` or `iconBtn` for tertiary actions and toolbars. Use `btnDanger` only inside a confirmation. Group related toolbar buttons and separate the groups with a `h-5 w-px bg-border` divider.
+3. **Colour has meaning.** The accent (indigo) marks selection, focus, links and the primary action. Object kinds have their own hues (table blue, query violet, form green, report orange, script cyan, job pink). Use `KindIcon` wherever an object appears: tabs, nav, lists, pickers, dialog titles about an object. Status uses success, warning and danger with their `-soft` backgrounds, via the `badge*` classes. Never rely on colour alone; always include text or an icon.
+4. **Typography.**
+   - Base text is 14px (`text-sm`). Captions are 12px (`text-xs`, the minimum).
+   - Page titles use `pageTitle`, which is 20px semibold with tight tracking.
+   - Section titles use `sectionTitle`.
+   - Group labels use `eyebrow`, which is uppercase 12px with letter spacing.
+   - Numbers in tables use `tabular` (tabular figures) and are right-aligned. Text is left-aligned.
+   - Code and SQL use `font-mono`.
+5. **Spacing rhythm** uses a 4px grid.
+   - Toolbars are `h-10`/`h-11` with `px-3` and `gap-1.5`.
+   - Cards use `p-4`/`p-5`.
+   - Form fields are spaced `space-y-4`, with labels `mb-1.5`.
+   - Dialog content uses `p-5` and puts the footer actions at the right with `gap-2`.
+6. **Shape.**
+   - Buttons and inputs use `rounded-md` (8px).
+   - Cards, dialogs and menus use `rounded-xl`/`rounded-lg`.
+   - Pills use `rounded-full`.
+   - Controls are `h-8` by default and `h-7` in dense toolbars.
+7. **Every empty state is designed.**
+   - It has a tinted icon (`KindIcon size="lg"` or an icon in a `surface-3` circle), a one-line title, one sentence of guidance and, when the user can act, a primary button.
+   - Loading uses skeleton bars (`animate-pulse rounded bg-surface-3`) rather than bare "Loading…" text wherever the layout is known. Keep an `aria-live`/`role="status"` text for screen readers.
+8. **Motion.** Keep it subtle: `transition-colors`/`transition-shadow` at 150 ms, and a small fade/scale for dialogs and menus. Nothing moves when `prefers-reduced-motion` is set; the tokens handle that.
+9. **Dark and light are equal citizens.** Check both. Never hard-code colours; use the tokens (`bg-surface`, `text-fg-muted` …). The only literal colour allowed is white text on a solid brand, kind or accent fill.
+10. **Accessibility is non-negotiable.**
+    - Use visible focus (the global `:focus-visible` ring, or `focus:ring-3 focus:ring-accent/20` on inputs).
+    - Meet AA contrast for text, and 3:1 for input borders and icons that carry meaning.
+    - Give every icon-only button an `aria-label`. Hover-only affordances must also appear on `focus-visible`/`focus-within`.
+    - Keep roles, names and labels stable, because the Playwright e2e suite selects by role and accessible name. If you must rename a visible label, update the specs.
+
+## Patterns
+- **Page header** (full pages such as the picker and admin):
+  - A `pageTitle`, with a one-line `text-fg-muted` description under it and actions on the right.
+  - It sits on `bg`, in a content column of `max-w-5xl mx-auto px-6 py-8`.
+- **Document toolbar** (the top of each tab):
+  - `h-11 border-b border-border bg-surface px-3 flex items-center gap-1.5`.
+  - Primary actions go left.
+  - Filters and search go in the middle, with a search input that has a leading icon.
+  - Export and more actions go right.
+- **Cards and lists**: use `card` with `cardHeader` and `cardBody`. Lists inside cards use divided rows (`divide-y divide-border`) with hover `bg-surface-2/60`.
+- **Data tables** (non-datasheet): use `table`, `th`, `td` and `trHover`, with a sticky header. Right-align numbers, use badges for status, and put row actions as `iconBtnSm` on the right that appear on hover and on focus.
+- **Datasheet**:
+  - The header row is `surface-2`, 12px semibold `fg-muted`, with sticky header and selector columns.
+  - Rows are 32px. Zebra striping is very subtle (`even:bg-surface-2/30`), and hover is `bg-surface-2/60`.
+  - The selected row is `bg-accent-soft/60`. The active cell gets a 2px accent outline.
+  - Yes/no cells show a check glyph. Lookup cells show their display text, left-aligned.
+- **Dialogs**:
+  - The title row holds a `KindIcon` or semantic icon, the title and a close `iconBtn`.
+  - The body is `p-5 space-y-4`.
+  - The footer is `border-t border-border bg-surface-2/50 px-5 py-3 flex justify-end gap-2`.
+- **Side sheets** (docs, history): full height and right-anchored, `w-[min(92vw,28rem)]`, with `shadow-lg` and the same header and footer rules as dialogs.
+- **Forms and settings**: label above the field, help text below (`hint`), and errors below in `fieldError` with `aria-invalid` set. Group related settings into cards.
+- **Toasts**: a `surface` card with `shadow-lg` and a left accent stripe in the status colour, an icon, the title and the message.

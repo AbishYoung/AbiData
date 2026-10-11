@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, X } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
 import { useStatusBar } from "@/lib/statusbar";
@@ -18,7 +18,11 @@ import { JobTab } from "@/features/jobs/JobTab";
 import { EgressSettings } from "@/features/settings/EgressSettings";
 import { OperationsStatus } from "@/components/OperationsStatus";
 import { HelpButton } from "@/features/docs/HelpButton";
-import { alertBox } from "@/components/styles";
+import { alertBox, badge, kbd } from "@/components/styles";
+import { KindIcon } from "@/components/objectKinds";
+import { LogoMark } from "@/components/brand/Logo";
+import { usePalette } from "@/features/palette/commands";
+import { detectPlatform, formatKeys } from "@/lib/shortcuts";
 
 const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form", report: "Report" } as const;
 const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
@@ -32,6 +36,27 @@ const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
 };
 
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
+const LIVE_DOT: Record<LiveState, string> = { live: "bg-success", reconnecting: "bg-warning animate-pulse", offline: "bg-danger" };
+
+/** Deep fills that keep white initials at AA contrast (≥ 4.5:1) in both themes. */
+const AVATAR_FILLS = ["#1d4ed8", "#6d28d9", "#047857", "#b45309", "#0e7490", "#be185d", "#4338ca"];
+
+/** A coloured tile with the workspace's initials; the colour is stable per name. */
+export function WorkspaceAvatar({ name, size = "md" }: { name: string; size?: "md" | "lg" }) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
+  const box = size === "lg" ? "h-10 w-10 rounded-lg text-sm" : "h-7 w-7 rounded-md text-xs";
+  return (
+    <span
+      aria-hidden="true"
+      style={{ backgroundColor: AVATAR_FILLS[h % AVATAR_FILLS.length] }}
+      className={`inline-flex shrink-0 items-center justify-center font-semibold text-white ${box}`}
+    >
+      {initials}
+    </span>
+  );
+}
 
 export type WorkspaceRole = "owner" | "builder" | "editor" | "viewer";
 
@@ -52,52 +77,75 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   }
 
   return (
-    <div className="flex items-stretch border-b border-border bg-surface-2">
-      <div role="tablist" aria-label="Open objects" className="flex min-w-0 flex-1 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={t.key === active}
-            aria-controls="document-panel"
-            title="Press Delete to close"
-            onClick={() => activate(ws, t.key)}
-            onKeyDown={(e) => {
-              if (e.key === "Delete") {
-                e.preventDefault();
-                onClose(t);
-              }
-            }}
-            onAuxClick={(e) => {
-              if (e.button === 1) onClose(t);
-            }}
-            className={`max-w-56 truncate border-r border-border px-3 py-2 text-sm ${t.key === active ? "bg-surface" : ""}`}
-          >
-            {t.title}
-            {t.dirty && <span className="ml-1">(unsaved)</span>}
-          </button>
-        ))}
+    <div className="flex h-10 items-stretch border-b border-border bg-surface-2/70">
+      <div role="tablist" aria-label="Open objects" className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-2 pt-1.5">
+        {tabs.map((t) => {
+          const on = t.key === active;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              aria-controls="document-panel"
+              title="Press Delete to close"
+              onClick={() => activate(ws, t.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Delete") {
+                  e.preventDefault();
+                  onClose(t);
+                }
+              }}
+              onAuxClick={(e) => {
+                if (e.button === 1) onClose(t);
+              }}
+              className={`group relative flex h-full max-w-60 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition-colors ${
+                on
+                  ? "border-border bg-surface font-medium text-fg shadow-[0_1px_0_var(--surface)]"
+                  : "border-transparent text-fg-muted hover:bg-surface/60 hover:text-fg"
+              }`}
+            >
+              {on && <span aria-hidden="true" className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-accent" />}
+              <KindIcon kind={t.kind} size="sm" />
+              <span className="truncate">{t.title}</span>
+              {t.dirty && (
+                <>
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                  <span className="sr-only">(unsaved)</span>
+                </>
+              )}
+            </button>
+          );
+        })}
       </div>
       {current && (
-        <button type="button" onClick={() => onClose(current)} className="flex items-center gap-1 px-2 text-sm hover:bg-surface" aria-label={`Close ${current.title}`}>
-          <X size={14} aria-hidden="true" />
-          Close
-        </button>
-      )}
-      {current?.objectId && canDesign(role) && (
-        <div role="group" aria-label="View" className="flex items-center gap-1 px-2">
-          {VIEWS[current.kind].map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={current.view === v}
-              onClick={() => setView(ws, current.key, v)}
-              className={`rounded px-2 py-1 text-sm ${current.view === v ? "bg-accent text-accent-fg" : "hover:bg-surface"}`}
-            >
-              {VIEW_LABEL[v]}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 px-2">
+          {current.objectId && canDesign(role) && VIEWS[current.kind].length > 0 && (
+            <div role="group" aria-label="View" className="flex items-center rounded-lg border border-border bg-surface p-0.5 shadow-xs">
+              {VIEWS[current.kind].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={current.view === v}
+                  onClick={() => setView(ws, current.key, v)}
+                  className={`h-6 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                    current.view === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                  }`}
+                >
+                  {VIEW_LABEL[v]}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => onClose(current)}
+            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-surface hover:text-fg"
+            aria-label={`Close ${current.title}`}
+          >
+            <X size={14} aria-hidden="true" />
+            Close
+          </button>
         </div>
       )}
     </div>
@@ -108,11 +156,7 @@ function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined 
   const { tabs, active } = useWorkspaceTabs(ws);
   const tab = tabs.find((t) => t.key === active);
   if (!tab) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6 text-fg-muted">
-        <p>Open an object from the navigation pane</p>
-      </div>
-    );
+    return <EmptyWorkspace />;
   }
   const designing = tab.view !== "datasheet" && tab.view !== "form" && canDesign(role);
   let content;
@@ -156,14 +200,17 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-accent underline">
-          <ArrowLeft size={14} aria-hidden="true" />
-          Workspaces
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+        <Link to="/" className="group inline-flex items-center gap-2 rounded-md px-1 py-1 text-sm font-medium text-fg-muted hover:text-fg">
+          <LogoMark size={24} />
+          <span>Workspaces</span>
         </Link>
-        <h1 className="text-base font-semibold">{workspace.data?.name ?? "Workspace"}</h1>
-        {workspace.data && <span className="text-sm text-fg-muted">Role: {workspace.data.role}</span>}
-        <div className="ml-auto flex items-center gap-2">
+        <ChevronRight size={14} aria-hidden="true" className="text-fg-subtle" />
+        {workspace.data ? <WorkspaceAvatar name={workspace.data.name} /> : <span className="h-7 w-7 rounded-md bg-surface-3" aria-hidden="true" />}
+        <h1 className="truncate text-sm font-semibold text-fg">{workspace.data?.name ?? <span className="text-fg-muted">Loading…</span>}</h1>
+        {workspace.data && <span className={`${badge} capitalize`}>Role: {workspace.data.role}</span>}
+        <div className="ml-auto flex items-center gap-1.5">
+          <PaletteTrigger />
           <HelpButton />
           <UserMenu
             me={me}
@@ -191,13 +238,54 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
           )}
         </main>
       </div>
-      <footer className="flex items-center gap-4 border-t border-border bg-surface px-3 py-1 text-xs text-fg-muted">
-        <span aria-live="polite">{recordNav ?? ""}</span>
+      <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-border bg-surface px-3 text-xs text-fg-muted">
+        <span aria-live="polite" className="tabular">{recordNav ?? ""}</span>
         <span className="ml-auto">
           <OperationsStatus ws={ws} />
         </span>
-        <span>Updates: {LIVE_LABEL[live]}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+          Updates: {LIVE_LABEL[live]}
+        </span>
       </footer>
+    </div>
+  );
+}
+
+function PaletteTrigger() {
+  const setOpen = usePalette((s) => s.setOpen);
+  const keys = formatKeys("Mod+K", detectPlatform());
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className="hidden h-8 w-64 items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 text-sm text-fg-subtle shadow-xs transition-colors hover:border-border-strong/60 hover:text-fg-muted md:inline-flex"
+      aria-keyshortcuts="Meta+K Control+K"
+    >
+      <Search size={14} aria-hidden="true" />
+      <span className="flex-1 text-left">Search commands…</span>
+      <kbd className={kbd}>{keys}</kbd>
+    </button>
+  );
+}
+
+function EmptyWorkspace() {
+  const keys = formatKeys("Mod+K", detectPlatform());
+  return (
+    <div className="flex flex-1 items-center justify-center overflow-auto p-8">
+      <div className="w-full max-w-lg text-center">
+        <div className="mx-auto mb-5 flex w-fit items-center gap-1.5 rounded-2xl border border-border bg-surface p-2 shadow-sm">
+          {(["table", "query", "form", "report", "script", "job"] as const).map((k) => (
+            <KindIcon key={k} kind={k} size="lg" />
+          ))}
+        </div>
+        <h2 className="text-lg font-semibold tracking-tight text-fg">Open an object from the navigation pane</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-fg-muted">
+          Tables, queries, forms, reports, scripts and jobs live in the pane on the left. Open one to work with it, or press{" "}
+          <kbd className={kbd}>{keys}</kbd>{" "}
+          for commands and <kbd className={kbd}>?</kbd> for help.
+        </p>
+      </div>
     </div>
   );
 }

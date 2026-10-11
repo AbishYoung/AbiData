@@ -19,6 +19,18 @@ export async function signOut(page: Page): Promise<void> {
 }
 
 export async function expectNoAxeViolations(page: Page): Promise<void> {
+  await settleAnimations(page);
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
+}
+
+/** Waits until finite CSS transitions/animations have finished, so axe measures settled colours. */
+export async function settleAnimations(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () => document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity || a.playState !== "running"),
+      undefined,
+      { timeout: 2000 },
+    )
+    .catch(() => undefined);
 }

@@ -1,3 +1,4 @@
+import { settleAnimations } from "./helpers";
 import { expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { ADMIN_EMAIL, signIn } from "./helpers";
@@ -209,6 +210,7 @@ export async function rowIndexOf(grid: Locator, name: string, column = "Name"): 
 
 /** Runs axe (wcag2a, wcag2aa) on the whole page with the datasheet open (including any dialogs). */
 export async function expectDatasheetAccessible(page: Page): Promise<void> {
+  await settleAnimations(page);
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }

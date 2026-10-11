@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { navEmpty, navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { ContextMenu, DropdownMenu } from "radix-ui";
 import { useQuery } from "@tanstack/react-query";
 import { Ellipsis, Eye, Pencil, Ruler, Trash2, type LucideIcon } from "lucide-react";
@@ -38,9 +39,6 @@ export function formActions(
   return actions;
 }
 
-const contentClass = "z-50 min-w-44 rounded-md border border-border bg-surface p-1 text-sm text-fg shadow-lg";
-const itemClass =
-  "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-fg";
 
 export function FormNavItem({
   form,
@@ -57,12 +55,12 @@ export function FormNavItem({
     <li className="m-0 list-none">
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
-          <div className="group flex items-center pr-1 hover:bg-surface-2">
+          <div className={`${navRow} ${active ? navRowActive : ""}`}>
             <button
               type="button"
               aria-current={active ? "true" : undefined}
               onClick={onOpen}
-              className={`min-w-0 flex-1 cursor-pointer truncate py-1.5 pl-9 pr-2 text-left text-sm ${active ? "font-semibold" : ""}`}
+              className={navItemButton(active)}
             >
               {form.name}
             </button>
@@ -71,15 +69,15 @@ export function FormNavItem({
                 <button
                   type="button"
                   aria-label={`More actions for ${form.name}`}
-                  className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface"
+                  className={navMoreButton}
                 >
-                  <Ellipsis size={16} aria-hidden="true" />
+                  <Ellipsis size={15} aria-hidden="true" />
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
-                <DropdownMenu.Content align="end" className={contentClass}>
+                <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (
-                    <DropdownMenu.Item key={a.id} className={itemClass} onSelect={a.run}>
+                    <DropdownMenu.Item key={a.id} className={navMenuItem} onSelect={a.run}>
                       <a.icon size={14} aria-hidden="true" />
                       {a.label}
                     </DropdownMenu.Item>
@@ -90,9 +88,9 @@ export function FormNavItem({
           </div>
         </ContextMenu.Trigger>
         <ContextMenu.Portal>
-          <ContextMenu.Content className={contentClass}>
+          <ContextMenu.Content className={navMenu}>
             {actions.map((a) => (
-              <ContextMenu.Item key={a.id} className={itemClass} onSelect={a.run}>
+              <ContextMenu.Item key={a.id} className={navMenuItem} onSelect={a.run}>
                 <a.icon size={14} aria-hidden="true" />
                 {a.label}
               </ContextMenu.Item>
@@ -150,7 +148,7 @@ export function FormsGroupBody({
           ))}
         </ul>
       ) : (
-        <p className="px-9 py-1 text-sm text-fg-muted">
+        <p className={navEmpty}>
           {forms.isError
             ? "Forms could not be loaded"
             : forms.isPending

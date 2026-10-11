@@ -1,81 +1,169 @@
-/* Design tokens (owned by the orchestrator; see BRIEF <frontend>).
-   Slate neutrals + Cobalt accent. Light and dark themes; system default with user override
-   via [data-theme] on <html>. Contrast pairs are chosen to meet WCAG AA. */
+/* Design tokens (owned by the orchestrator; see BRIEF <frontend> and
+   web/src/components/DESIGN.md). Cool neutrals, an indigo accent with an
+   indigo→cyan brand gradient, and one hue per object kind for wayfinding.
+   Light and dark themes; system default with user override via [data-theme]
+   on <html>. Text pairs meet WCAG AA; input borders meet 3:1 non-text contrast. */
 @import "tailwindcss";
 
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   --text-xs: 0.75rem; /* 12px: the minimum text size */
+  --text-2xs: 0.75rem; /* alias kept at the minimum */
+
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-fg: var(--accent-fg);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
   --color-danger-soft: var(--danger-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-focus: var(--focus);
+  /* Object kinds: icon colour and its tinted chip background. */
+  --color-kind-table: var(--kind-table);
+  --color-kind-table-soft: var(--kind-table-soft);
+  --color-kind-query: var(--kind-query);
+  --color-kind-query-soft: var(--kind-query-soft);
+  --color-kind-form: var(--kind-form);
+  --color-kind-form-soft: var(--kind-form-soft);
+  --color-kind-report: var(--kind-report);
+  --color-kind-report-soft: var(--kind-report-soft);
+  --color-kind-script: var(--kind-script);
+  --color-kind-script-soft: var(--kind-script-soft);
+  --color-kind-job: var(--kind-job);
+  --color-kind-job-soft: var(--kind-job-soft);
+
+  --shadow-xs: 0 1px 2px var(--shadow-color-1);
+  --shadow-sm: 0 1px 2px var(--shadow-color-1), 0 1px 3px var(--shadow-color-2);
+  --shadow-md: 0 4px 12px -2px var(--shadow-color-2), 0 2px 4px -2px var(--shadow-color-1);
+  --shadow-lg: 0 16px 40px -8px var(--shadow-color-3), 0 4px 12px -4px var(--shadow-color-2);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 }
 
 :root {
-  --bg: #f8fafc;          /* slate-50 */
+  --bg: #f5f6f8;
   --surface: #ffffff;
-  --surface-2: #f1f5f9;   /* slate-100 */
-  --border: #cbd5e1;      /* slate-300 */
-  --fg: #0f172a;          /* slate-900 */
-  --fg-muted: #475569;    /* slate-600, 7.5:1 on white */
-  --accent: #1f4fd1;      /* cobalt, 6.6:1 on white */
+  --surface-2: #f2f4f7;
+  --surface-3: #e7eaef;
+  --border: #e0e4ea;
+  --border-strong: #8a94a6;   /* 3.1:1 on white: input outlines */
+  --fg: #101828;
+  --fg-muted: #475467;        /* 7.6:1 on white */
+  --fg-subtle: #667085;       /* 4.8:1 on white */
+  --accent: #4f46e5;          /* indigo-600, 6.3:1 on white */
+  --accent-hover: #4338ca;
   --accent-fg: #ffffff;
-  --accent-soft: #e6edfc;
+  --accent-soft: #eef0ff;
+  --brand-from: #4f46e5;
+  --brand-to: #0891b2;
   --danger: #b42318;
-  --danger-soft: #fdecea;
-  --warning: #92400e;
-  --success: #166534;
-  --focus: #1f4fd1;
+  --danger-fg: #ffffff;
+  --danger-soft: #fef3f2;
+  --warning: #b54708;
+  --warning-soft: #fffaeb;
+  --success: #067647;
+  --success-soft: #ecfdf3;
+  --focus: #4f46e5;
+  --kind-table: #2563eb;  --kind-table-soft: #eaf1ff;
+  --kind-query: #7c3aed;  --kind-query-soft: #f3eeff;
+  --kind-form: #059669;   --kind-form-soft: #e7f8f1;
+  --kind-report: #c2410c; --kind-report-soft: #fff1e8;
+  --kind-script: #0e7490; --kind-script-soft: #e6f6fa;
+  --kind-job: #be185d;    --kind-job-soft: #fdeef5;
+  --shadow-color-1: rgb(16 24 40 / 0.05);
+  --shadow-color-2: rgb(16 24 40 / 0.08);
+  --shadow-color-3: rgb(16 24 40 / 0.18);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b1220;
-    --surface: #111827;
-    --surface-2: #1e293b;   /* slate-800 */
-    --border: #334155;      /* slate-700 */
-    --fg: #e2e8f0;          /* slate-200 */
-    --fg-muted: #94a3b8;    /* slate-400, 7:1 on #111827 */
-    --accent: #7ea2ff;      /* cobalt-light, 7.4:1 on #111827 */
-    --accent-fg: #0b1220;
-    --accent-soft: #1b2a52;
-    --danger: #f87171;
-    --danger-soft: #3b1414;
-    --warning: #fbbf24;
-    --success: #4ade80;
-    --focus: #7ea2ff;
+    --bg: #0c0e13;
+    --surface: #13161d;
+    --surface-2: #1a1e27;
+    --surface-3: #232834;
+    --border: #272c38;
+    --border-strong: #5d6779;  /* 3.1:1 on surface */
+    --fg: #e7e9ef;
+    --fg-muted: #a6aebd;       /* 8:1 on surface */
+    --fg-subtle: #8a93a4;      /* 5.6:1 on surface */
+    --accent: #8f90fa;         /* 6.6:1 on surface */
+    --accent-hover: #a9aafc;
+    --accent-fg: #0c0e13;
+    --accent-soft: #24244a;
+    --brand-from: #7c7cf8;
+    --brand-to: #22b8d4;
+    --danger: #f97066;
+    --danger-fg: #0c0e13;
+    --danger-soft: #3a1614;
+    --warning: #fdb022;
+    --warning-soft: #33250a;
+    --success: #47cd89;
+    --success-soft: #0e2e1e;
+    --focus: #8f90fa;
+    --kind-table: #6ea0ff;  --kind-table-soft: #16233f;
+    --kind-query: #b18cff;  --kind-query-soft: #241a3d;
+    --kind-form: #34d399;   --kind-form-soft: #0f2c22;
+    --kind-report: #fb923c; --kind-report-soft: #33200f;
+    --kind-script: #38bdf8; --kind-script-soft: #0f2633;
+    --kind-job: #f472b6;    --kind-job-soft: #331526;
+    --shadow-color-1: rgb(0 0 0 / 0.3);
+    --shadow-color-2: rgb(0 0 0 / 0.35);
+    --shadow-color-3: rgb(0 0 0 / 0.55);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b1220;
-  --surface: #111827;
-  --surface-2: #1e293b;
-  --border: #334155;
-  --fg: #e2e8f0;
-  --fg-muted: #94a3b8;
-  --accent: #7ea2ff;
-  --accent-fg: #0b1220;
-  --accent-soft: #1b2a52;
-  --danger: #f87171;
-  --danger-soft: #3b1414;
-  --warning: #fbbf24;
-  --success: #4ade80;
-  --focus: #7ea2ff;
+  --bg: #0c0e13;
+  --surface: #13161d;
+  --surface-2: #1a1e27;
+  --surface-3: #232834;
+  --border: #272c38;
+  --border-strong: #5d6779;
+  --fg: #e7e9ef;
+  --fg-muted: #a6aebd;
+  --fg-subtle: #8a93a4;
+  --accent: #8f90fa;
+  --accent-hover: #a9aafc;
+  --accent-fg: #0c0e13;
+  --accent-soft: #24244a;
+  --brand-from: #7c7cf8;
+  --brand-to: #22b8d4;
+  --danger: #f97066;
+  --danger-fg: #0c0e13;
+  --danger-soft: #3a1614;
+  --warning: #fdb022;
+  --warning-soft: #33250a;
+  --success: #47cd89;
+  --success-soft: #0e2e1e;
+  --focus: #8f90fa;
+  --kind-table: #6ea0ff;  --kind-table-soft: #16233f;
+  --kind-query: #b18cff;  --kind-query-soft: #241a3d;
+  --kind-form: #34d399;   --kind-form-soft: #0f2c22;
+  --kind-report: #fb923c; --kind-report-soft: #33200f;
+  --kind-script: #38bdf8; --kind-script-soft: #0f2633;
+  --kind-job: #f472b6;    --kind-job-soft: #331526;
+  --shadow-color-1: rgb(0 0 0 / 0.3);
+  --shadow-color-2: rgb(0 0 0 / 0.35);
+  --shadow-color-3: rgb(0 0 0 / 0.55);
   color-scheme: dark;
 }
 
@@ -86,10 +174,35 @@ body {
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  line-height: 1.4;
+  line-height: 1.45;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 /* Focus rings are always visible. */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+::selection { background: var(--accent-soft); }
+
+/* The brand gradient, used sparingly: logo mark, sign-in panel, primary hero accents. */
+.bg-brand { background-image: linear-gradient(135deg, var(--brand-from), var(--brand-to)); }
+.text-brand {
+  background-image: linear-gradient(135deg, var(--brand-from), var(--brand-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* Numbers line up in grids and tables. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Thin, theme-aware scrollbars in the app chrome and grids. */
+* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+
+[data-theme-switching] *, [data-theme-switching] *::before, [data-theme-switching] *::after { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }

@@ -1,20 +1,9 @@
 import { useId, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  FileText,
-  FormInput,
-  Plus,
-  Search,
-  SquareTerminal,
-  Table2,
-  Terminal,
-  Upload,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown, Plus, Search, SquareTerminal, Upload } from "lucide-react";
 import { input } from "@/components/styles";
-import { useTabs, useWorkspaceTabs, type TableView } from "@/app/tabs";
+import { KindIcon } from "@/components/objectKinds";
+import { navEmpty } from "./navStyles";
+import { useTabs, useWorkspaceTabs, type TabKind, type TableView } from "@/app/tabs";
 import { useSchema, type Table } from "@/lib/schema";
 import { DeleteTableDialog, RenameTableDialog } from "./TableCrudDialogs";
 import { ScriptsGroupBody } from "./ScriptNavItem";
@@ -33,17 +22,20 @@ interface NavGroup {
   id: string;
   label: string;
   noun: string;
-  icon: LucideIcon;
+  kind: TabKind;
 }
 
 const GROUPS: NavGroup[] = [
-  { id: "tables", label: "Tables", noun: "tables", icon: Table2 },
-  { id: "queries", label: "Queries", noun: "queries", icon: Search },
-  { id: "forms", label: "Forms", noun: "forms", icon: FormInput },
-  { id: "reports", label: "Reports", noun: "reports", icon: FileText },
-  { id: "scripts", label: "Scripts", noun: "scripts", icon: Terminal },
-  { id: "jobs", label: "Jobs", noun: "jobs", icon: Clock },
+  { id: "tables", label: "Tables", noun: "tables", kind: "table" },
+  { id: "queries", label: "Queries", noun: "queries", kind: "query" },
+  { id: "forms", label: "Forms", noun: "forms", kind: "form" },
+  { id: "reports", label: "Reports", noun: "reports", kind: "report" },
+  { id: "scripts", label: "Scripts", noun: "scripts", kind: "script" },
+  { id: "jobs", label: "Jobs", noun: "jobs", kind: "job" },
 ];
+
+const groupAction =
+  "inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-fg-subtle transition-colors hover:bg-surface-3 hover:text-fg";
 
 function canDesign(role: string | undefined): boolean {
   return role === "owner" || role === "builder";
@@ -139,41 +131,40 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
 
   return (
     <nav aria-label="Navigation pane" data-ws={ws} data-role={role} className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="border-b border-border p-2">
+      <div className="p-2.5 pb-1.5">
         <label htmlFor={searchId} className="sr-only">
           Search objects
         </label>
         <div className="relative">
-          <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-2 top-2.5 text-fg-muted" />
+          <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             id={searchId}
             type="search"
             placeholder="Search objects"
-            className={`${input} pl-7`}
+            className={`${input} bg-surface-2 pl-8`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 space-y-1 overflow-y-auto pb-3 pt-1">
         {GROUPS.filter((g) => (g.id !== "scripts" && g.id !== "jobs") || design).map((g) => {
           const open = !collapsed.has(g.id);
-          const Icon = g.icon;
           const panelId = `nav-group-${g.id}`;
           return (
             <section key={g.id} aria-label={g.label}>
-              <div className="flex items-center">
-                <h2 className="m-0 min-w-0 flex-1 text-sm font-semibold">
+              <div className="group/head mx-2 flex items-center gap-0.5 pr-0.5">
+                <h2 className="m-0 min-w-0 flex-1">
                   <button
                     type="button"
                     aria-expanded={open}
                     aria-controls={panelId}
                     onClick={() => toggle(g.id)}
-                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-2"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-fg-subtle transition-colors hover:text-fg"
                   >
-                    {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
-                    <Icon size={16} aria-hidden="true" />
-                    {g.label}
+                    <KindIcon kind={g.kind} size="sm" />
+                    <span className="flex-1">{g.label}</span>
+                    <ChevronDown size={14} aria-hidden="true" className={`transition-transform ${open ? "" : "-rotate-90"}`} />
                   </button>
                 </h2>
                 {g.id === "queries" && design && (
@@ -182,9 +173,9 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={() => newQuery()}
                     aria-label="New query"
                     title="New query"
-                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                    className={groupAction}
                   >
-                    <Plus size={16} aria-hidden="true" />
+                    <Plus size={15} aria-hidden="true" />
                   </button>
                 )}
                 {g.id === "queries" && design && (
@@ -193,9 +184,9 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={() => newQuery("sql")}
                     aria-label="SQL console"
                     title="SQL console"
-                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                    className={groupAction}
                   >
-                    <SquareTerminal size={16} aria-hidden="true" />
+                    <SquareTerminal size={14} aria-hidden="true" />
                   </button>
                 )}
                 {(g.id === "forms" || g.id === "reports") && design && (
@@ -204,9 +195,9 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={g.id === "forms" ? newForm : newReport}
                     aria-label={g.id === "forms" ? "New form" : "New report"}
                     title={g.id === "forms" ? "New form" : "New report"}
-                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                    className={groupAction}
                   >
-                    <Plus size={16} aria-hidden="true" />
+                    <Plus size={15} aria-hidden="true" />
                   </button>
                 )}
                 {g.id === "jobs" && design && (
@@ -215,9 +206,9 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={newJob}
                     aria-label="New job"
                     title="New job"
-                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                    className={groupAction}
                   >
-                    <Plus size={16} aria-hidden="true" />
+                    <Plus size={15} aria-hidden="true" />
                   </button>
                 )}
                 {g.id === "tables" && design && (
@@ -226,9 +217,9 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={() => setImporting({})}
                     aria-label="Import…"
                     title="Import…"
-                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                    className={groupAction}
                   >
-                    <Upload size={16} aria-hidden="true" />
+                    <Upload size={14} aria-hidden="true" />
                   </button>
                 )}
                 {(g.id === "tables" || g.id === "scripts") && design && (
@@ -237,9 +228,9 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                     onClick={g.id === "tables" ? newTable : newScript}
                     aria-label={g.id === "tables" ? "New table" : "New script"}
                     title={g.id === "tables" ? "New table" : "New script"}
-                    className="mr-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2"
+                    className={groupAction}
                   >
-                    <Plus size={16} aria-hidden="true" />
+                    <Plus size={15} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -265,7 +256,7 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                       ))}
                     </ul>
                   ) : (
-                    <p className="px-9 py-1 text-sm text-fg-muted">
+                    <p className={navEmpty}>
                       {schema.isError
                         ? "Tables could not be loaded"
                         : schema.isPending
@@ -300,7 +291,7 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
                       ))}
                     </ul>
                   ) : (
-                    <p className="px-9 py-1 text-sm text-fg-muted">
+                    <p className={navEmpty}>
                       {savedQueries.isError
                         ? "Queries could not be loaded"
                         : savedQueries.isPending
@@ -323,7 +314,7 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
               )}
               {open && g.id === "jobs" && <JobsGroupBody ws={ws} panelId={panelId} query={query} activeKey={active} />}
               {open && g.id !== "tables" && g.id !== "queries" && g.id !== "scripts" && g.id !== "forms" && g.id !== "reports" && g.id !== "jobs" && (
-                <p id={panelId} className="px-9 py-1 text-sm text-fg-muted">
+                <p id={panelId} className={navEmpty}>
                   {searching ? `No ${g.noun} match “${query.trim()}”` : `No ${g.noun} yet`}
                 </p>
               )}
