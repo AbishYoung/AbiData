@@ -145,6 +145,18 @@ func TestAllowedReadsAndParams(t *testing.T) {
 	if !errors.As(err, &fe) || !strings.HasSuffix(fe.Message, ".") || !strings.Contains(fe.Recovery, "statement") {
 		t.Fatalf("SQL error wording: %+v", fe)
 	}
+	// SQLite's own words survive: which column or table is missing, where the syntax error is.
+	for stmt, want := range map[string]string{
+		`SELECT nosuchcol FROM Items`:   "no such column: nosuchcol",
+		`SELECT * FROM nosuchtable`:     "no such table: nosuchtable",
+		`SELEC 1`:                       `near "SELEC": syntax error`,
+		`SELECT nosuchfn(1) FROM Items`: "no such function: nosuchfn",
+	} {
+		_, err := Run(f.ctx, f.l, Policy{}, stmt, nil, 0)
+		if !errors.As(err, &fe) || !strings.Contains(fe.Message, want) {
+			t.Errorf("%s: message %q lacks %q", stmt, fe.Message, want)
+		}
+	}
 }
 
 func TestRunawayQueryStops(t *testing.T) {

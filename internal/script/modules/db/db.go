@@ -236,10 +236,7 @@ func sqlError(d *query.Denial, err error) error {
 		return &fault.Error{Code: fault.SQLNotAllowed, Message: "Not allowed: " + reason + ".", Cause: err}
 	}
 	if errors.As(err, &se) && se.Code() == sqlite3.ERROR {
-		msg := se.Error()
-		if i := strings.LastIndex(msg, ": "); i >= 0 {
-			msg = msg[i+2:]
-		}
+		msg := fault.SQLiteMessage(se)
 		return fault.SQLError(msg, err)
 	}
 	if strings.Contains(err.Error(), "multiple statements") {
