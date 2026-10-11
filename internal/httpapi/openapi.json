@@ -3377,6 +3377,10 @@
             "description": "Job ID, or the backup kind.",
             "type": "string"
           },
+          "subject_name": {
+            "description": "Job name resolved when the failure was recorded; empty for backups and for jobs that no longer exist.",
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           },
@@ -3390,6 +3394,7 @@
           "workspace_id",
           "workspace_name",
           "subject",
+          "subject_name",
           "status",
           "message"
         ],

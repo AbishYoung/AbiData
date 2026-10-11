@@ -3,6 +3,7 @@ import type { AdminOverview } from "./adminApi";
 import {
   backupSummary,
   errorTone,
+  failureJobLabel,
   latencyTone,
   lastValue,
   normalizeSeries,
@@ -14,6 +15,14 @@ import {
   totalRate,
   type WorkspaceRow,
 } from "./overviewData";
+
+describe("failureJobLabel", () => {
+  it("uses the job name, or a placeholder for deleted jobs", () => {
+    expect(failureJobLabel("Nightly sync")).toBe("Nightly sync");
+    expect(failureJobLabel("")).toBe("Deleted job");
+    expect(failureJobLabel(undefined)).toBe("Deleted job");
+  });
+});
 
 const series = (over: Partial<AdminOverview["series"]> = {}): AdminOverview["series"] => ({
   interval_seconds: 10,

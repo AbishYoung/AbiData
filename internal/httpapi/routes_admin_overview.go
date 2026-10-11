@@ -61,6 +61,7 @@ type OverviewFailure struct {
 	WorkspaceID   string    `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
 	Subject       string    `json:"subject" doc:"Job ID, or the backup kind."`
+	SubjectName   string    `json:"subject_name" doc:"Job name resolved when the failure was recorded; empty for backups and for jobs that no longer exist."`
 	Status        string    `json:"status"`
 	Message       string    `json:"message"`
 }
@@ -264,7 +265,7 @@ func (s *Server) registerAdminOverview(api huma.API, adminOnly map[string]any, t
 				break
 			}
 			out.Failures = append(out.Failures, OverviewFailure{At: f.At.UTC(), Kind: f.Kind, WorkspaceID: f.WorkspaceID,
-				WorkspaceName: names[f.WorkspaceID], Subject: f.Subject, Status: f.Status, Message: clip(f.Message, maxFailureMessage)})
+				WorkspaceName: names[f.WorkspaceID], Subject: f.Subject, SubjectName: f.SubjectName, Status: f.Status, Message: clip(f.Message, maxFailureMessage)})
 		}
 
 		entries, err := s.deps.Admin.ListAudit(ctx, overviewAuditLimit)
