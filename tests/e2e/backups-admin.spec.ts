@@ -210,6 +210,10 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   dialog = page.getByRole("dialog", { name: "New user" });
   await expect(dialog.getByText(/At least 10 characters/)).toBeVisible();
   await dialog.getByLabel("Email").fill(email);
+  await dialog.getByLabel("Display name").fill("api KEY imposter");
+  await dialog.getByLabel("Initial password").fill("long-enough-password");
+  await dialog.getByRole("button", { name: "Create user" }).click();
+  await expect(dialog.getByText(/cannot start with .API key./)).toBeVisible();
   await dialog.getByLabel("Display name").fill("Casey Created");
   await dialog.getByLabel("Initial password").fill("short");
   await dialog.getByRole("button", { name: "Create user" }).click();
@@ -222,6 +226,13 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await expect(userRow).toContainText("Disabled");
   await userRow.getByRole("button", { name: `Enable ${email}` }).click();
   await expect(userRow).toContainText("Active");
+  // Why an action is unavailable shows as a tooltip (Tip), not a native title.
+  const selfRow = page.getByRole("row", { name: new RegExp(ADMIN_EMAIL) });
+  const selfDisable = selfRow.getByRole("button", { name: `Disable ${ADMIN_EMAIL}` });
+  await expect(selfDisable).toBeDisabled();
+  await expect(selfDisable).not.toHaveAttribute("title", /.+/);
+  await selfDisable.locator("xpath=..").hover();
+  await expect(page.getByRole("tooltip").filter({ hasText: "You cannot disable yourself" }).first()).toBeVisible();
   await expectNoAxeViolations(page);
 });
 

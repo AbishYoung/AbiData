@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { Tip } from "@/components/Tip";
 import { Modal } from "@/features/queries/Modal";
 import { absoluteTime } from "@/features/backups/backupLogic";
 import { alertBox, btn, btnPrimary, input } from "@/components/styles";
@@ -17,6 +18,18 @@ interface FormValues {
   display_name: string;
   password: string;
   is_platform_admin: boolean;
+}
+
+/** Explains why a (possibly disabled) button is unavailable. A disabled button gets no pointer or focus events, so the tip hangs off a focusable wrapper. */
+function WhyUnavailable({ reason, children }: { reason: string | undefined; children: ReactElement }) {
+  if (!reason) return children;
+  return (
+    <Tip label={reason}>
+      <span tabIndex={0} className="inline-flex rounded-md [&>button]:pointer-events-none">
+        {children}
+      </span>
+    </Tip>
+  );
 }
 
 function NewUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (m: string) => void }) {
@@ -183,32 +196,34 @@ export function UsersTab({ selfId }: { selfId: string }) {
                   <td className={td}>{u.last_login_at ? absoluteTime(u.last_login_at) : "Never"}</td>
                   <td className={td}>
                     <div className="flex flex-wrap justify-end gap-2">
-                      <button
-                        type="button"
-                        className={btn}
-                        disabled={patch.isPending || (self && !u.disabled)}
-                        title={self ? "You cannot disable yourself" : undefined}
-                        aria-label={`${u.disabled ? "Enable" : "Disable"} ${u.email}`}
-                        onClick={() => patch.mutate({ user: u, body: { disabled: !u.disabled }, message: `${u.disabled ? "Enabled" : "Disabled"} ${u.email}.` })}
-                      >
-                        {u.disabled ? "Enable" : "Disable"}
-                      </button>
-                      <button
-                        type="button"
-                        className={btn}
-                        disabled={patch.isPending || (self && u.is_platform_admin)}
-                        title={self ? "You cannot remove your own platform admin role" : undefined}
-                        aria-label={`${u.is_platform_admin ? "Remove platform admin from" : "Make platform admin"} ${u.email}`}
-                        onClick={() =>
-                          patch.mutate({
-                            user: u,
-                            body: { is_platform_admin: !u.is_platform_admin },
-                            message: `${u.email} is ${u.is_platform_admin ? "no longer" : "now"} a platform admin.`,
-                          })
-                        }
-                      >
-                        {u.is_platform_admin ? "Remove admin" : "Make admin"}
-                      </button>
+                      <WhyUnavailable reason={self ? "You cannot disable yourself" : undefined}>
+                        <button
+                          type="button"
+                          className={btn}
+                          disabled={patch.isPending || (self && !u.disabled)}
+                          aria-label={`${u.disabled ? "Enable" : "Disable"} ${u.email}`}
+                          onClick={() => patch.mutate({ user: u, body: { disabled: !u.disabled }, message: `${u.disabled ? "Enabled" : "Disabled"} ${u.email}.` })}
+                        >
+                          {u.disabled ? "Enable" : "Disable"}
+                        </button>
+                      </WhyUnavailable>
+                      <WhyUnavailable reason={self ? "You cannot remove your own platform admin role" : undefined}>
+                        <button
+                          type="button"
+                          className={btn}
+                          disabled={patch.isPending || (self && u.is_platform_admin)}
+                          aria-label={`${u.is_platform_admin ? "Remove platform admin from" : "Make platform admin"} ${u.email}`}
+                          onClick={() =>
+                            patch.mutate({
+                              user: u,
+                              body: { is_platform_admin: !u.is_platform_admin },
+                              message: `${u.email} is ${u.is_platform_admin ? "no longer" : "now"} a platform admin.`,
+                            })
+                          }
+                        >
+                          {u.is_platform_admin ? "Remove admin" : "Make admin"}
+                        </button>
+                      </WhyUnavailable>
                     </div>
                   </td>
                 </tr>
