@@ -43,7 +43,18 @@ A platform administrator manages the whole server from the **Admin console**, wh
 
 Accounts come first. A platform administrator creates each one in the **Admin console**, on the **Users** tab, with **New user**. There is no self-registration.
 
-Membership is managed through the API. The web app has no members screen in this version. An owner adds, changes and removes members with the workspace members routes, `/api/v1/w/<workspace id>/members`. The [API access](/docs/guide/api) page explains how to call the API, and the OpenAPI document lists every route.
+Owners manage members in **Workspace settings**, in the **Members** section at the top. Non-owners do not see it.
+
+- The table lists each member with their initials, name, email and role.
+- **Add member** takes an email address and a role. The person must already have an account; if not, the dialog says so. Platform administrators can create one in the Admin console, on the Users tab.
+- Change a role with the **Change role** list in the member's row. Lowering a role asks you to confirm first.
+- **Remove** takes someone out of the workspace after you confirm.
+
+Removing or lowering the role of a member whose API keys are still active lists those keys and offers **Also revoke N API keys they created**, ticked by default. Untick it to keep the keys working.
+
+A workspace must keep at least one owner. If you try to remove or lower the last one, the server refuses and the dialog shows why. Removing or demoting yourself is allowed while another owner remains, but you lose access to this screen right away.
+
+The same actions are available through the API at `/api/v1/w/<workspace id>/members`, for signed-in owners only: an API key can never manage members. The [API access](/docs/guide/api) page explains how to call the API, and the OpenAPI document lists every route.
 
 Adding someone who is already a member fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value).
 
@@ -51,7 +62,7 @@ Adding someone who is already a member fails with [DUPLICATE_VALUE](/docs/refere
 
 Programs that are not people, such as a bot or a nightly sync, use an [API key](/docs/guide/api) instead of an account. A key has the **Viewer**, **Editor** or **Builder** access level, and the table above applies to it. A key is never an owner.
 
-Owners create and revoke keys in **Workspace settings**, in the **API keys** section, with **Create API key** and **Revoke**. Each key has an expiry: 30 days, 90 days, 1 year or never. Keys belong to the workspace, so removing the member who created a key does not stop it. Revoke it explicitly.
+Owners create and revoke keys in **Workspace settings**, in the **API keys** section, with **Create API key** and **Revoke**. Each key has an expiry: 30 days, 90 days, 1 year or never. Keys belong to the workspace, so removing the member who created a key does not stop it by itself. Revoke it explicitly, or tick the revoke option when you remove or demote that member.
 
 ## Choosing a role {#choosing}
 
