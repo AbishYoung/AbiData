@@ -98,6 +98,20 @@ export function DocsPanel() {
     if (open) ensureHighlightCss();
   }, [open]);
 
+  // Closing the panel returns the focus to whatever had it before ("?" and the help button have no
+  // dialog trigger, so the dialog would otherwise drop the focus on the page body).
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const active = document.activeElement;
+    returnFocusRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [open]);
+  function onCloseAutoFocus(e: Event) {
+    e.preventDefault();
+    const el = returnFocusRef.current;
+    if (el?.isConnected) el.focus();
+  }
+
   const searchIndex = useMemo(
     () => (index.data ? createDocsIndex(index.data) : null),
     [index.data],
@@ -232,6 +246,7 @@ export function DocsPanel() {
           aria-describedby={undefined}
           data-presentation="side"
           onOpenAutoFocus={onOpenAutoFocus}
+          onCloseAutoFocus={onCloseAutoFocus}
           onEscapeKeyDown={(e) => {
             // First Escape clears the search; the next one closes the panel.
             if (query !== "") {

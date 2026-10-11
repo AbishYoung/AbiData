@@ -14,9 +14,16 @@ function isKeyboardFocusInNav(el: Element | null): el is HTMLElement {
   }
 }
 
-/** The thing to focus in a freshly opened tab: a datasheet or result grid, otherwise the first control. */
+const FORM_CONTROL =
+  '[data-control-name] input:not([disabled]):not([type="hidden"]), [data-control-name] textarea:not([disabled]), [data-control-name] select:not([disabled]), [data-control-name] button:not([disabled])';
+
+/** The thing to focus in a freshly opened tab: a datasheet or result grid, a form's first field, otherwise the first control. */
 export function firstFocusTarget(panel: HTMLElement): HTMLElement | null {
-  return panel.querySelector<HTMLElement>('[role="grid"][tabindex="0"]') ?? panel.querySelector<HTMLElement>(FOCUSABLE);
+  return (
+    panel.querySelector<HTMLElement>('[role="grid"][tabindex="0"]') ??
+    panel.querySelector<HTMLElement>(FORM_CONTROL) ??
+    panel.querySelector<HTMLElement>(FOCUSABLE)
+  );
 }
 
 /**
