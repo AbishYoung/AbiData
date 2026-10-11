@@ -317,8 +317,8 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
 
   if (compact) {
     return (
-      <div className="flex h-full flex-col">
-        <header className="safe-top safe-x flex shrink-0 items-center gap-0.5 border-b border-border bg-surface px-1">
+      <div data-shell className="flex h-full flex-col">
+        <header className="safe-top flex shrink-0 items-center gap-0.5 border-b border-border bg-surface px-1">
           <button ref={menuButtonRef} type="button" className={iconBtn} aria-label="Open navigation" aria-haspopup="dialog" onClick={() => setNavOpen(true)}>
             <Menu size={20} aria-hidden="true" />
           </button>
@@ -356,7 +356,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
             </>
           )}
         </main>
-        <footer className="safe-bottom safe-x flex shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-xs text-fg-muted">
+        <footer className="safe-bottom flex shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-xs text-fg-muted">
           <span aria-live="polite" className="tabular min-h-7 truncate leading-7">{recordNav ?? ""}</span>
           <span className="ml-auto">
             <OperationsStatus ws={ws} />
@@ -372,7 +372,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-shell className="flex h-full flex-col">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
         <Link to="/" className="group inline-flex items-center gap-2 rounded-md px-1 py-1 text-sm font-medium text-fg-muted hover:text-fg">
           <LogoMark size={24} />

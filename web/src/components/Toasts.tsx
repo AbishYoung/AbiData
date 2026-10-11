@@ -105,7 +105,7 @@ export function ToastRegion({
       role="status"
       aria-live="polite"
       aria-label="Notifications"
-      className="pointer-events-none fixed bottom-10 right-4 z-40 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-2"
+      className="pointer-events-none fixed bottom-10 right-4 z-40 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-2 compact:inset-x-2 compact:bottom-auto compact:top-[calc(env(safe-area-inset-top)+3.25rem)] compact:w-auto compact:max-w-none"
     >
       {toasts.map((t) => {
         const Icon = ICONS[t.level];

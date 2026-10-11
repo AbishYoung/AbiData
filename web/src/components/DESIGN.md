@@ -64,3 +64,13 @@ The tokens live in `web/src/styles/tokens.css`, the shared class strings in `web
   - Truncated text and terse controls (badges, status dots, abbreviated column headers) may get one that spells them out.
   - Tooltips are hints only: never put the only copy of important information or an interactive element in one. Touch devices do not show them.
   - Prefer `Tip` over the native `title` attribute.
+
+## Mobile
+"Compact" means a viewport up to 767px wide, or a touch device (`pointer: coarse`) up to 1023px. It is defined once in `lib/useMediaQuery.ts` (`useIsCompact`) and mirrored by the Tailwind `compact:` variant (tokens.css) and the media query in `styles/mobile.css`. Desktop layouts are never changed by it.
+- **Shell**: the navigation pane is an off-canvas drawer (`NavDrawer`, a Radix dialog opened by the "Open navigation" button). The header shows the menu button, logo, workspace name, search and the user menu. Open tabs live in one "Open objects" button that opens a sheet.
+- **Touch targets**: `mobile.css` gives every button, tab, menu item and input a 44px minimum and 16px input text (no iOS focus zoom). Opt a deliberately dense control out with `data-dense`. Hover-only affordances must also show with `compact:opacity-100`.
+- **Dialogs** (any Radix `role=dialog` or `alertdialog`) become bottom sheets (full width, `max-height: 90dvh`, scrollable). `dialogFooter` sticks to the bottom. Popovers are left alone; side sheets, the drawer and the palette set `data-presentation` to opt out.
+- **Datasheet** shows record cards with a full-screen record sheet (`CardList`, `RecordSheet`) and keeps a grid toggle. Edits go through the same buffer and save path as the grid.
+- **Designers** (table design, forms, reports, queries, scripts) show a "works best on a larger screen" note and scroll inside themselves. The form runtime stacks fields in one column; report pages fit the width.
+- **Safe areas**: the shell header, footer, drawer, sheets and toasts apply `env(safe-area-inset-*)`; the body only pads left and right.
+- Use `100dvh` rather than `100vh` for full-height layouts.

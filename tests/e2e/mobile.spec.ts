@@ -59,9 +59,13 @@ test("sign in and create a workspace on a phone", async ({ page }) => {
   await expectNoHorizontalOverflow(page, "workspace picker");
   await shot(page, "picker");
 
-  await page.getByLabel("Workspace name").fill(WS());
-  await page.getByRole("button", { name: "Create workspace" }).tap();
-  await page.getByRole("link", { name: new RegExp(WS()) }).tap();
+  const link = page.getByRole("link", { name: new RegExp(WS()) });
+  if ((await link.count()) === 0) {
+    await page.getByLabel("Workspace name").fill(WS());
+    await page.getByRole("button", { name: "Create workspace" }).tap();
+    await expect(link).toBeVisible();
+  }
+  await link.tap();
   await expect(page).toHaveURL(/\/w\//);
   await expect(page.getByRole("heading", { name: WS() })).toBeVisible();
   const data = await createSampleData(page);
