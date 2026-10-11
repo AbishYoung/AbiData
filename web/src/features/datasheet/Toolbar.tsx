@@ -1,7 +1,9 @@
 import { useId, type Ref } from "react";
 import { Download, FilterX, History, ListFilter, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { Tip } from "@/components/Tip";
-import { btn, input } from "@/components/styles";
+import { btnGhost, input } from "@/components/styles";
+
+const Divider = () => <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />;
 import type { Condition } from "./filter";
 
 interface ToolbarProps {
@@ -28,12 +30,12 @@ interface ToolbarProps {
 export function Toolbar({ filterRef, ...p }: ToolbarProps) {
   const quickId = useId();
   return (
-    <div role="toolbar" aria-label="Datasheet tools" className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
-      <div className="relative w-56">
+    <div role="toolbar" aria-label="Datasheet tools" className="flex min-h-11 flex-wrap items-center gap-1.5 border-b border-border bg-surface px-3 py-1.5">
+      <div className="relative w-56 max-w-full">
         <label htmlFor={quickId} className="sr-only">
           Filter records
         </label>
-        <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-2 top-2.5 text-fg-muted" />
+        <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-2.5 top-[9px] text-fg-muted" />
         <Tip label={p.quickEnabled ? "Filter records" : "This table has no text fields to filter on"} shortcut={p.quickEnabled ? "Mod+F" : undefined}>
           <input
             id={quickId}
@@ -49,13 +51,14 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
                 p.onQuickCommit();
               }
             }}
-            className={`${input} pl-7`}
+            className={`${input} pl-8`}
           />
         </Tip>
       </div>
+      <Divider />
       <Tip label={p.canFilterBySelection ? "Show only records with this value" : "Select a saved record's cell to filter by its value"}>
         <span className="inline-flex">
-          <button type="button" className={btn} onClick={p.onFilterBySelection} disabled={!p.canFilterBySelection}>
+          <button type="button" className={btnGhost} onClick={p.onFilterBySelection} disabled={!p.canFilterBySelection}>
             <ListFilter size={14} aria-hidden="true" />
             Filter by selection
           </button>
@@ -63,13 +66,14 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
       </Tip>
       <Tip label={p.filterActive ? "Remove the search text and all filters" : "No filter is applied"}>
         <span className="inline-flex">
-          <button type="button" className={btn} onClick={p.onClearFilter} disabled={!p.filterActive}>
+          <button type="button" className={btnGhost} onClick={p.onClearFilter} disabled={!p.filterActive}>
             <FilterX size={14} aria-hidden="true" />
             Clear filter
           </button>
         </span>
       </Tip>
-      <button type="button" className={btn} onClick={p.onRefresh}>
+      <Divider />
+      <button type="button" className={btnGhost} onClick={p.onRefresh}>
         <RefreshCw size={14} aria-hidden="true" className={p.refreshing ? "animate-spin" : ""} />
         Refresh
       </button>
@@ -78,7 +82,7 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
         shortcut={p.canDelete ? "Delete" : undefined}
       >
         <span className="inline-flex">
-          <button type="button" className={btn} onClick={p.onDelete} disabled={!p.canDelete}>
+          <button type="button" className={btnGhost} onClick={p.onDelete} disabled={!p.canDelete}>
             <Trash2 size={14} aria-hidden="true" />
             Delete record
           </button>
@@ -86,14 +90,15 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
       </Tip>
       <Tip label={p.canHistory ? "Show this record's change history" : "Select a saved record to see its history"}>
         <span className="inline-flex">
-          <button type="button" className={btn} onClick={p.onHistory} disabled={!p.canHistory}>
+          <button type="button" className={btnGhost} onClick={p.onHistory} disabled={!p.canHistory}>
             <History size={14} aria-hidden="true" />
             History
           </button>
         </span>
       </Tip>
+      {p.onExport && <span className="ml-auto" />}
       {p.onExport && (
-        <button type="button" className={btn} onClick={p.onExport}>
+        <button type="button" className={btnGhost} onClick={p.onExport}>
           <Download size={14} aria-hidden="true" />
           Export…
         </button>
@@ -101,13 +106,13 @@ export function Toolbar({ filterRef, ...p }: ToolbarProps) {
       {p.conditions.length > 0 && (
         <ul aria-label="Active filters" className="flex flex-wrap items-center gap-1">
           {p.conditions.map((c, i) => (
-            <li key={`${c.col}-${i}`} className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-2 py-0.5 text-xs">
+            <li key={`${c.col}-${i}`} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-0.5 pl-2.5 pr-1 text-xs font-medium text-accent">
               <span>Filter: {c.label}</span>
               <Tip label={`Remove filter ${c.label}`}>
                 <button
                   type="button"
                   aria-label={`Remove filter ${c.label}`}
-                  className="rounded p-0.5 hover:bg-surface"
+                  className="rounded-full p-0.5 hover:bg-surface-3"
                   onClick={() => p.onRemoveCondition(i)}
                 >
                   <X size={12} aria-hidden="true" />

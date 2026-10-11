@@ -7,7 +7,9 @@ import { useErrorStore } from "@/lib/errorStore";
 import { useStatusBar } from "@/lib/statusbar";
 import { useTabs } from "@/app/tabs";
 import type { Column, Schema, Table } from "@/lib/schema";
-import { alertBox, btn } from "@/components/styles";
+import { alertBox, badge, badgeWarning, btn } from "@/components/styles";
+import { KindIcon } from "@/components/objectKinds";
+import { docFooter } from "@/components/EditorParts";
 import { Grid, HEADER_HEIGHT, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
 import { ExportDialog } from "@/features/imports/ExportDialog";
@@ -741,13 +743,19 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         </div>
       )}
       {countReady && total === 0 && (
-        <p className="px-3 py-2 text-sm text-fg-muted">
-          {filterActive
-            ? "No records match the filter. Use Clear filter to see every record."
-            : canEdit
-              ? "This table has no records yet. Type in the New record row below to add the first one."
-              : "This table has no records yet."}
-        </p>
+        <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
+          <KindIcon kind="table" size="lg" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-fg">{filterActive ? "No records match" : "No records yet"}</p>
+            <p className="text-sm text-fg-muted">
+              {filterActive
+                ? "No records match the filter. Use Clear filter to see every record."
+                : canEdit
+                  ? "This table has no records yet. Type in the New record row below to add the first one."
+                  : "This table has no records yet."}
+            </p>
+          </div>
+        </div>
       )}
       <Grid
         gridId={gridId}
@@ -782,6 +790,18 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onCommit={commitEdit}
         onCancel={cancelEdit}
       />
+      <div className={docFooter}>
+        <span className="tabular-nums">
+          {countReady ? `${formatCount(total)}${capped ? "+" : ""} ${total === 1 ? "record" : "records"}` : "Counting records…"}
+        </span>
+        {filterActive && <span className={badge}>Filtered</span>}
+        {selected.size > 0 && <span className="tabular-nums">{formatCount(selected.size)} selected</span>}
+        {dirty && <span className={badgeWarning}>Unsaved changes</span>}
+        <span className="ml-auto flex items-center gap-3">
+          {fetching && <span>Updating…</span>}
+          {!canEdit && <span className={badge}>Read-only</span>}
+        </span>
+      </div>
       {merge && (
         <MergeDialog
           columns={allColumns}

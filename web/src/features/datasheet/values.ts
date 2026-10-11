@@ -61,7 +61,7 @@ export function isReadOnlyColumn(col: Column): boolean {
 }
 
 export function isNumericKind(kind: ValueKind): boolean {
-  return kind === "integer" || kind === "number" || kind === "currency" || kind === "autonumber" || kind === "lookup";
+  return kind === "integer" || kind === "number" || kind === "currency" || kind === "autonumber";
 }
 
 export function isEmpty(v: unknown): boolean {
