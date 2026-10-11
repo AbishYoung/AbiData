@@ -77,6 +77,9 @@ func columnDef(c Column) string {
 	case Attachments:
 		b.WriteString("TEXT")
 		tyCheck = fmt.Sprintf("%s IS NULL OR (json_valid(%s) AND json_type(%s) = 'array')", q, q, q)
+	case GeoPoint, GeoArea:
+		b.WriteString("TEXT")
+		tyCheck = geoTypeCheck(q, c.Type)
 	default:
 		b.WriteString("ANY")
 	}

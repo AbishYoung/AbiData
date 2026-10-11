@@ -1616,8 +1616,10 @@ export interface components {
         };
         Criterion: {
             /** @enum {string} */
-            op: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "like" | "contains" | "starts" | "ends" | "in" | "between" | "is_null" | "not_null";
+            op: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "like" | "contains" | "starts" | "ends" | "in" | "between" | "is_null" | "not_null" | "within";
             param?: string;
+            ref_alias?: string;
+            ref_column_id?: string;
             /** Format: int64 */
             row: number;
             value?: unknown;
@@ -1696,12 +1698,21 @@ export interface components {
             saved?: components["schemas"]["Row"];
         };
         ExportRequest: {
+            /**
+             * @description CSV only: start the file with a UTF-8 byte-order mark so Excel on Windows reads non-ASCII text correctly. Ignored for other formats.
+             * @default true
+             */
+            bom: boolean;
+            /** @description Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record. */
+            filter?: string;
             /** @enum {string} */
             format: "csv" | "xlsx" | "json";
             /** @description Query parameters (saved queries only). */
             params?: {
                 [key: string]: unknown;
             };
+            /** @description Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter. */
+            sort?: string;
             /** @description Table or saved query id. */
             source_id: string;
             /** @enum {string} */
@@ -1974,6 +1985,8 @@ export interface components {
             kind: "inner" | "left";
             left_alias: string;
             left_column_id: string;
+            /** @enum {string} */
+            op?: "eq" | "within" | "";
             right_alias: string;
             right_column_id: string;
         };
@@ -2266,7 +2279,7 @@ export interface components {
         Param: {
             name: string;
             /** @enum {string} */
-            type: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime";
+            type: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" | "area";
         };
         ParamDoc: {
             doc: string;

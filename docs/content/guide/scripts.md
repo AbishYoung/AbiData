@@ -161,3 +161,10 @@ Every function, with parameters, errors and examples, is in the [Lua API referen
 - [`ui`](/docs/reference/lua-api#module-ui), [`record`](/docs/reference/lua-api#module-record) and [`notify`](/docs/reference/lua-api#module-notify) in form events.
 - [`fetch`](/docs/reference/lua-api#module-fetch), [`staging`](/docs/reference/lua-api#module-staging) and [`artifacts`](/docs/reference/lua-api#module-artifacts) in jobs.
 - [`datetime`](/docs/reference/lua-api#module-datetime), [`json`](/docs/reference/lua-api#module-json), [`csv`](/docs/reference/lua-api#module-csv) and [`decimal`](/docs/reference/lua-api#module-decimal) anywhere.
+- [`geo`](/docs/reference/lua-api#module-geo) for [Location and Area fields](/docs/guide/tables#geo). `records.get` returns them as tables that mirror GeoJSON, and `records.insert` and `records.update` accept the same tables (or the text `"lat, lon"` for a location):
+
+```lua
+local here = geo.point(51.50135, -0.14189)
+local zone = {type = "Polygon", coordinates = {{{-1, 51}, {1, 51}, {1, 52}, {-1, 52}}}}
+return geo.within(here, zone), geo.distance(here, geo.point(51.5, -0.1)) < 1000
+```

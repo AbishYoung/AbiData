@@ -1,6 +1,6 @@
 # ADR 0010: Geographic fields (points and areas)
 
-Status: Proposed · 2026-10-11
+Status: Accepted · 2026-10-11 (server side implemented; the browser parts are still to build)
 
 ## Context
 Users want to record where things are and to draw boundaries. The driving use case is **tracking invasive species**:
@@ -87,3 +87,16 @@ Invalid input returns NULL rather than raising, so one bad row cannot break a qu
 - No SpatiaLite and no native code: the functions are pure Go. Spatial joins are O(n·m), with limits documented.
 - GeoJSON in TEXT stays readable to scripts, exports and the API, and survives backups unchanged.
 - Maps without tiles are plain. This is deliberate: privacy by default, and the setting is one field away.
+
+## Implementation notes (deviations)
+The server side is built as decided, with these details and deviations:
+- **Filters are JSON conditions, not `within:`/`near:` strings.** The records filter is `{"col", "op", "value"}`, so these are operators `within` (value: an area) and `near` (value: `{"lat","lon","metres"}`, `[lat, lon, metres]` or the text `"lat,lon,metres"`).
+- **Other operators on geo fields are refused** (`eq`, `contains`, `in`, ...); only `within`, `near`, `is_null` and `not_null` apply, and `within`/`near` only to `geo_point` fields.
+- **Input errors are `VALIDATION_FAILED`** (422) with the field named, not `BAD_REQUEST`, for geometry values. Invalid filter values stay `BAD_REQUEST`.
+- **Visual queries:** a join gets `op: "within"`; a criterion gets op `within` and either `param`, `value` or `ref_alias` + `ref_column_id`; parameter type `area`. There is no `point` parameter type.
+- **Parser extras:** also accepts WKT `POINT(lon lat)`, `lng` for `lon`, numeric strings in `lat`/`lon`, and `alt` in the `{lat, lon}` shorthand. Altitudes inside area positions are dropped.
+- **Type CHECK:** the column has `json_valid(col) AND json_extract(col, '$.type') IN (...)` as its type constraint, so a writer that bypasses the records API cannot store a different geometry type. Full validation is in the records codec. Because the catalog's `_sys_columns` carried a closed list of field types, migration 0002 relaxes that check (see PROGRESS.md).
+- **Containment is planar in longitude/latitude,** with a boundary tolerance of 1e-9 degrees (about 0.1 mm). Distance uses a 6,371,008.8 m radius. Self-intersecting rings are not detected.
+- **Lua:** also provides `geo.lat` and `geo.lon`; `geo.bbox` returns a list.
+- **Workspace portability:** a calculated field that uses `geo_*` cannot be read by stock sqlite3 tools; the stored GeoJSON text can.
+- **Deferred from this step:** CSV mapping from two numeric columns, GeoJSON FeatureCollection import/export, CSV/GeoJSON export, and everything under Maps in the browser and Where geo appears in the UI.

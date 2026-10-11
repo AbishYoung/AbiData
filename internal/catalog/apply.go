@@ -572,7 +572,7 @@ func (p *planner) buildColumn(spec ColumnSpec, t *Table, ordinal int, existing *
 			return Column{}, nil, err
 		}
 		switch c.Options.ResultType {
-		case "", "text", "integer", "number", "currency", "yes_no", "date", "datetime":
+		case "", "text", "integer", "number", "currency", "yes_no", "date", "datetime", "geo_point", "geo_area":
 		default:
 			return Column{}, nil, badf("Unknown result type %q.", c.Options.ResultType)
 		}

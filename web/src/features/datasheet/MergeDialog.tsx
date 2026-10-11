@@ -11,6 +11,8 @@ interface MergeDialogProps {
   columns: readonly Column[];
   fields: readonly MergeField[];
   current: Row;
+  /** Fields of mine that did not conflict; they are saved together with the choices below. */
+  auto?: Record<string, unknown>;
   busy: boolean;
   /** Re-PATCH with the chosen values and If-Match = the server's current version. */
   onSave: (request: { version: number; fields: Record<string, unknown> }) => void;
@@ -18,15 +20,19 @@ interface MergeDialogProps {
   onDiscard: () => void;
 }
 
-export function MergeDialog({ columns, fields, current, busy, onSave, onDiscard }: MergeDialogProps) {
+export function MergeDialog({ columns, fields, current, auto, busy, onSave, onDiscard }: MergeDialogProps) {
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const byId = new Map(columns.map((c) => [c.id, c]));
 
-  function shown(f: MergeField, side: Choice): string {
+  function shown(f: MergeField, side: Choice | "before"): string {
     const col = byId.get(f.colId);
     if (!col) return "";
     const text =
-      side === "mine" ? formatValue(col, f.mine, f.mineDisplay) : formatValue(col, f.theirs, f.theirsDisplay);
+      side === "mine"
+        ? formatValue(col, f.mine, f.mineDisplay)
+        : side === "theirs"
+          ? formatValue(col, f.theirs, f.theirsDisplay)
+          : formatValue(col, f.base, f.baseDisplay);
     return text === "" ? "(empty)" : text;
   }
 
@@ -44,8 +50,9 @@ export function MergeDialog({ columns, fields, current, busy, onSave, onDiscard 
             Someone else changed this record
           </Dialog.Title>
           <Dialog.Description className="mt-2 text-sm">
-            Record {current.id} was saved by another user while you were editing it. For each field you changed,
-            choose which value to keep.
+            Record {current.id} was saved by another user while you were editing it. You both changed the{" "}
+            {fields.length === 1 ? "field" : "fields"} below. Choose which value to keep for each.
+            {auto && Object.keys(auto).length > 0 && " Your other changes do not overlap and are saved with them."}
           </Dialog.Description>
           <div className="mt-4 space-y-3">
             {fields.map((f) => {
@@ -55,6 +62,12 @@ export function MergeDialog({ columns, fields, current, busy, onSave, onDiscard 
                 <fieldset key={f.colId} className="rounded-md border border-border p-3">
                   <legend className="px-1 text-sm font-medium">{col?.display_name ?? f.colId}</legend>
                   <div className="flex flex-col gap-1">
+                    {"base" in f && (
+                      <p className="flex items-center gap-2 text-sm text-fg-muted">
+                        <span className="ml-6 w-14 font-medium">Before</span>
+                        <span className="min-w-0 break-words">{shown(f, "before")}</span>
+                      </p>
+                    )}
                     {(["mine", "theirs"] as const).map((side) => (
                       <label key={side} className="flex items-center gap-2 text-sm">
                         <input
@@ -80,7 +93,7 @@ export function MergeDialog({ columns, fields, current, busy, onSave, onDiscard 
               type="button"
               className={btnPrimary}
               disabled={busy}
-              onClick={() => onSave(mergedRequest(fields, choices, current))}
+              onClick={() => onSave(mergedRequest(fields, choices, current, auto))}
             >
               {busy ? "Saving…" : "Save merged"}
             </button>

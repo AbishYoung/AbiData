@@ -2,6 +2,8 @@ import type { Column } from "@/lib/schema";
 import { api as defaultApi, type ApiClient } from "@/lib/api";
 import { isEmpty, valuesEqual } from "./values";
 import { classifyFailure, insertRow, updateRow, type Failure, type Row } from "./rowsApi";
+import { threeWayMerge, type MergeField } from "./merge";
+import type { ApiError } from "@/lib/api";
 
 /** "new" is the record in the new-record row; otherwise the row's id. */
 export type RowKey = number | "new";
@@ -17,6 +19,9 @@ export interface RowBuffer {
   changes: Record<string, unknown>;
   /** Lookup display text for changed lookup columns. */
   display: Record<string, string>;
+  /** The changed fields as they were when the user started editing them (for the three-way merge). */
+  base: Record<string, unknown>;
+  baseDisplay: Record<string, string>;
   status: BufferStatus;
   /** Inline field errors from the last failed save, keyed by column ID. */
   errors: Record<string, string>;
@@ -28,6 +33,8 @@ export function newBuffer(key: RowKey, row: Row | undefined): RowBuffer {
     baseVersion: key === "new" ? null : (row?._version ?? null),
     changes: {},
     display: {},
+    base: {},
+    baseDisplay: {},
     status: "editing",
     errors: {},
   };
@@ -58,19 +65,28 @@ export function applyChange(
   const errors = omit(base.errors, col.id);
   let changes: Record<string, unknown>;
   let shown: Record<string, string>;
+  let was = base.base;
+  let wasShown = base.baseDisplay;
   if (key !== "new" && valuesEqual(col, value, original)) {
     changes = omit(base.changes, col.id);
     shown = omit(base.display, col.id);
+    was = omit(was, col.id);
+    wasShown = omit(wasShown, col.id);
   } else {
     changes = { ...base.changes, [col.id]: value };
     shown = display !== undefined ? { ...base.display, [col.id]: display } : omit(base.display, col.id);
+    if (key !== "new" && !(col.id in was)) {
+      was = { ...was, [col.id]: original };
+      const text = row?.display?.[col.id];
+      if (text !== undefined) wasShown = { ...wasShown, [col.id]: text };
+    }
   }
   if (key === "new" && isEmpty(value)) {
     changes = omit(base.changes, col.id);
     shown = omit(base.display, col.id);
   }
   if (key !== "new" && Object.keys(changes).length === 0) return undefined;
-  return { ...base, changes, display: shown, errors, status: base.status === "saving" ? "editing" : base.status };
+  return { ...base, changes, display: shown, base: was, baseDisplay: wasShown, errors, status: base.status === "saving" ? "editing" : base.status };
 }
 
 /** The PATCH a buffer turns into: only changed fields plus the If-Match version. */
@@ -99,4 +115,62 @@ export async function persistBuffer(
   } catch (e) {
     return classifyFailure(e);
   }
+}
+
+/** Automatic merge attempts (after the first rejected save) before the merge dialog takes over. */
+export const MAX_MERGE_RETRIES = 3;
+
+export type MergeSaveOutcome =
+  | (Extract<SaveOutcome, { kind: "ok" }> & { merged?: boolean })
+  | Exclude<SaveOutcome, { kind: "ok" } | { kind: "conflict" }>
+  | { kind: "conflict"; current: Row; error: ApiError }
+  /** Both sides changed the same fields differently: the user decides. `auto` is applied on top. */
+  | { kind: "merge"; current: Row; fields: MergeField[]; auto: Record<string, unknown>; error: ApiError };
+
+/**
+ * Saves a buffer; when another user saved first, merges field by field against the server's current
+ * record and retries with only the user's non-conflicting changes (bounded). Real conflicts come back
+ * as `merge` for the dialog.
+ */
+export async function persistWithMerge(
+  ws: string,
+  tableId: string,
+  columns: readonly Column[],
+  buf: RowBuffer,
+  client: ApiClient = defaultApi,
+  maxRetries: number = MAX_MERGE_RETRIES,
+): Promise<MergeSaveOutcome> {
+  let outcome = await persistBuffer(ws, tableId, buf, client);
+  for (let attempt = 0; outcome.kind === "conflict" && typeof buf.key === "number"; attempt++) {
+    const { current, error } = outcome;
+    let merged = threeWayMerge(columns, buf, current);
+    if (merged.conflicts.length === 0 && attempt >= maxRetries && Object.keys(merged.send).length > 0) {
+      // Contention never settled: let the user decide on everything still differing.
+      merged = threeWayMerge(columns, { ...buf, base: {}, baseDisplay: {} }, current);
+      return { kind: "merge", current, fields: merged.conflicts, auto: {}, error };
+    }
+    if (merged.conflicts.length > 0) return { kind: "merge", current, fields: merged.conflicts, auto: merged.send, error };
+    if (Object.keys(merged.send).length === 0) return { kind: "ok", row: current, created: false };
+    const retry: RowBuffer = { ...buf, baseVersion: current._version, changes: merged.send, display: merged.sendDisplay };
+    outcome = await persistBuffer(ws, tableId, retry, client);
+    if (outcome.kind === "ok") return { ...outcome, merged: true };
+  }
+  return outcome;
+}
+
+/**
+ * The buffer to send after the user resolved a merge: only `fields`, against the server's current record.
+ * The server values the user saw and overrode become the new base, so only newer changes conflict again.
+ */
+export function rebaseBuffer(buf: RowBuffer, current: Row, fields: Record<string, unknown>): RowBuffer {
+  const display: Record<string, string> = {};
+  const base: Record<string, unknown> = {};
+  const baseDisplay: Record<string, string> = {};
+  for (const id of Object.keys(fields)) {
+    if (buf.display[id] !== undefined) display[id] = buf.display[id];
+    base[id] = current.fields[id];
+    const shown = current.display?.[id];
+    if (shown !== undefined) baseDisplay[id] = shown;
+  }
+  return { ...buf, baseVersion: current._version, changes: fields, display, base, baseDisplay };
 }

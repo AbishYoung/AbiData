@@ -115,7 +115,8 @@ var deterministicFuncs = func() map[string]bool {
 	json json_array json_array_length json_extract json_insert json_object json_patch json_quote json_remove
 	json_replace json_set json_type json_valid json_error_position
 	acos acosh asin asinh atan atan2 atanh ceil ceiling cos cosh degrees exp floor ln log log10 log2 mod pi pow power
-	radians sin sinh sqrt tan tanh trunc`) {
+	radians sin sinh sqrt tan tanh trunc
+	geo_point geo_lat geo_lon geo_distance_m geo_within geo_area_m2 geo_centroid geo_bbox`) {
 		m[f] = true
 	}
 	return m

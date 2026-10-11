@@ -2,12 +2,13 @@
 // touch targets, no horizontal page scroll, and axe in both colour schemes.
 // Runs on the "mobile-pixel" (Pixel 7) and "mobile-iphone" (390x844 touch) projects only.
 import { mkdirSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import { ADMIN_EMAIL, ADMIN_PASSWORD, expectNoAxeViolations, settleAnimations, signIn } from "./helpers";
 import { apiPost, createSampleData } from "./queries-helpers";
 import { createReportViaApi, createSales, salesReportBody } from "./reports-helpers";
 import { createJobScript } from "./jobs-helpers";
 import { workspaceId } from "./tabledesign-helpers";
+import { callApi } from "./datasheet-helpers";
 
 test.describe.configure({ mode: "serial" });
 test.use({ actionTimeout: 15_000 });
@@ -230,6 +231,85 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
   await expect(page.getByRole("dialog").getByRole("button", { name: "Customers", exact: true })).toBeVisible();
   await shot(page, "tab-sheet");
   await page.keyboard.press("Escape");
+});
+
+/** Another user (a second browser context) changes fields of a Customers record by name. */
+async function otherUserEdits(browser: Browser, baseURL: string | undefined, ws: string, record: string, fields: Record<string, string>): Promise<void> {
+  const context = await browser.newContext({ baseURL });
+  try {
+    const page = await context.newPage();
+    await signIn(page);
+    const schema = (await callApi(page, "GET", `/api/v1/w/${ws}/schema`)).body as { tables: { id: string; display_name: string; columns: { id: string; display_name: string }[] }[] };
+    const table = schema.tables.find((t) => t.display_name === "Customers")!;
+    const colId = (n: string) => table.columns.find((c) => c.display_name === n)!.id;
+    const list = (await callApi(page, "GET", `/api/v1/w/${ws}/tables/${table.id}/rows?limit=50`)).body as { items: { id: number; _version: number; fields: Record<string, unknown> }[] };
+    const target = list.items.find((r) => String(r.fields[colId("Name")]).startsWith(record))!;
+    const body: Record<string, string> = {};
+    for (const [k, v] of Object.entries(fields)) body[colId(k)] = v;
+    const res = await callApi(page, "PATCH", `/api/v1/w/${ws}/tables/${table.id}/rows/${target.id}`, { fields: body }, { "If-Match": `"${target._version}"` });
+    expect(res.status).toBe(200);
+  } finally {
+    await context.close();
+  }
+}
+
+test("the record sheet merges another user's changes field by field", async ({ page, browser, baseURL }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(WS()) }).tap();
+  await expect(page.getByRole("heading", { name: WS() })).toBeVisible();
+  const ws = workspaceId(page);
+  await page.getByRole("button", { name: "Open navigation" }).tap();
+  await page.getByRole("navigation", { name: "Navigation pane" }).getByRole("button", { name: "Customers", exact: true }).tap();
+  const cards = page.getByRole("list", { name: "Customers records" });
+  await expect(cards).toBeVisible();
+  const sheet = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: "Someone else changed this record" });
+
+  // Different fields: I change City, they change Name. No dialog, both changes are kept.
+  await cards.getByRole("button", { name: /Ann/ }).tap();
+  await sheet.getByLabel("City").fill("Mine City");
+  await otherUserEdits(browser, baseURL, ws, "Ann", { Name: "Ann Theirs" });
+  await page.waitForTimeout(1000); // the live update reaches the page behind the sheet
+  await sheet.getByRole("button", { name: "Save", exact: true }).tap();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByText("Merged with changes made by someone else")).toBeVisible();
+  await expect(cards.getByRole("button", { name: /Ann Theirs/ })).toContainText("Mine City");
+
+  // Same field: the dialog lists only City with Before, Theirs and Mine.
+  await cards.getByRole("button", { name: /Ann Theirs/ }).tap();
+  await sheet.getByLabel("City").fill("City mine 2");
+  await otherUserEdits(browser, baseURL, ws, "Ann Theirs", { City: "City theirs 2" });
+  await page.waitForTimeout(1000);
+  await sheet.getByRole("button", { name: "Save", exact: true }).tap();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("group")).toHaveCount(1);
+  const group = dialog.getByRole("group", { name: "City" });
+  await expect(group).toContainText("Before");
+  await expect(group).toContainText("Mine City");
+  await expect(group).toContainText("City theirs 2");
+  await expect(group).toContainText("City mine 2");
+  await shot(page, "merge-dialog");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await expectNoAxeViolations(page);
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+  await dialog.getByRole("radio", { name: /Mine/ }).check();
+  await dialog.getByRole("button", { name: "Save merged" }).tap();
+  await expect(dialog).toHaveCount(0);
+  await expect(cards.getByRole("button", { name: /Ann Theirs/ })).toContainText("City mine 2");
+
+  // Same field, keeping theirs.
+  await cards.getByRole("button", { name: /Ann Theirs/ }).tap();
+  await sheet.getByLabel("City").fill("City mine 3");
+  await otherUserEdits(browser, baseURL, ws, "Ann Theirs", { City: "City theirs 3" });
+  await page.waitForTimeout(1000);
+  await sheet.getByRole("button", { name: "Save", exact: true }).tap();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("radio", { name: /Theirs/ }).check();
+  await dialog.getByRole("button", { name: "Save merged" }).tap();
+  await expect(dialog).toHaveCount(0);
+  await expect(cards.getByRole("button", { name: /Ann Theirs/ })).toContainText("City theirs 3");
 });
 
 async function openObject(page: Page, group: string, name: string): Promise<void> {

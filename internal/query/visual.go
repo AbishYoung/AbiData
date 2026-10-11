@@ -41,6 +41,12 @@ type Join struct {
 	RightAlias    string `json:"right_alias"`
 	RightColumnID string `json:"right_column_id"`
 	Kind          string `json:"kind" enum:"inner,left"`
+	// Op is the join condition: "eq" (default) joins equal values; "within" is
+	// a spatial join that keeps pairs where the location field (a geo_point)
+	// lies inside the area field (a geo_area). Either column may be on either
+	// side when both are catalog fields; for query sources the left column is
+	// the point and the right column the area.
+	Op string `json:"op,omitempty" enum:"eq,within,"`
 }
 
 // Field is one column of the QBE grid. For query sources ColumnID is the
@@ -61,15 +67,20 @@ type Field struct {
 // are AND-ed across fields; rows are OR-ed (Access semantics).
 type Criterion struct {
 	Row   int    `json:"row"`
-	Op    string `json:"op" enum:"eq,ne,lt,le,gt,ge,like,contains,starts,ends,in,between,is_null,not_null"`
+	Op    string `json:"op" enum:"eq,ne,lt,le,gt,ge,like,contains,starts,ends,in,between,is_null,not_null,within"`
 	Value any    `json:"value,omitempty"`
 	Param string `json:"param,omitempty"` // use :param instead of Value
+	// within ("is within", for geo_point fields) compares the field with exactly
+	// one area: an "area" parameter (Param), a GeoJSON literal (Value), or an
+	// area field of another source (RefAlias and RefColumnID).
+	RefAlias    string `json:"ref_alias,omitempty"`
+	RefColumnID string `json:"ref_column_id,omitempty"`
 }
 
 // Param declares a query parameter the UI prompts for.
 type Param struct {
 	Name string `json:"name"`
-	Type string `json:"type" enum:"text,integer,number,currency,yes_no,date,datetime"`
+	Type string `json:"type" enum:"text,integer,number,currency,yes_no,date,datetime,area"`
 }
 
 // Compiled is the result of compiling a model.
@@ -235,7 +246,11 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 			pending[target] = e
 			pendingOrder = append(pendingOrder, target)
 		}
-		e.conds = append(e.conds, le+" = "+re)
+		cond, err := joinCondition(j, le, re, lc, rc)
+		if err != nil {
+			return out, err
+		}
+		e.conds = append(e.conds, cond)
 	}
 	for progress := true; progress; {
 		progress = false
@@ -356,7 +371,17 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 			critCol = nil
 		}
 		for _, c := range f.Criteria {
-			cond, err := criterion(valueExpr, critCol, c, params)
+			cond, err := criterion(valueExpr, critCol, c, params, func(alias, colID string) (string, *catalog.Column, error) {
+				s, ok := srcs[strings.ToLower(alias)]
+				if !ok {
+					return "", nil, bad("Source %q is not in the query.", alias)
+				}
+				e, rc, err := s.column(colID)
+				if rc != nil {
+					deps["c"][rc.ID] = true
+				}
+				return e, rc, err
+			})
 			if err != nil {
 				return out, fault.Newf(fault.BadRequest, "Field %d criteria: %s", i+1, fault.Classify(err).DisplayMessage())
 			}
@@ -462,7 +487,7 @@ func keysOf(m map[string]bool) []string {
 // criterion renders one condition. Literal values are inlined as SQL literals
 // (the compiled SQL is stored and shown to builders), produced only by
 // sqlLiteral from decoded, typed values; parameters become :name.
-func criterion(expr string, col *catalog.Column, c Criterion, params map[string]Param) (string, error) {
+func criterion(expr string, col *catalog.Column, c Criterion, params map[string]Param, ref func(alias, colID string) (string, *catalog.Column, error)) (string, error) {
 	operand := func(v any) (string, error) {
 		if c.Param != "" {
 			p, ok := params[strings.ToLower(c.Param)]
@@ -557,6 +582,8 @@ func criterion(expr string, col *catalog.Column, c Criterion, params map[string]
 		return expr + " IS NULL", nil
 	case "not_null":
 		return expr + " IS NOT NULL", nil
+	case "within":
+		return withinCriterion(expr, col, c, params, ref)
 	}
 	return "", bad("Unknown operator %q.", c.Op)
 }

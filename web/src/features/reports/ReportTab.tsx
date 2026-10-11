@@ -4,6 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { alertBox, btn, btnPrimary } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { ParameterDialog } from "@/features/queries/ParameterDialog";
+import type { ParamType } from "@/features/queries/model";
 import { effectiveParams, recallParams, rememberParams } from "@/features/queries/params";
 import { useSavedQuery, type Params } from "@/features/queries/savedQueries";
 import { MeasureLayer } from "./MeasureLayer";
@@ -49,7 +50,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [instances, setInstances] = useState<ReportInstance[]>([]);
   const [measured, setMeasured] = useState<(number | undefined)[] | null>(null);
-  const [asking, setAsking] = useState<{ name: string; type: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" }[] | null>(null);
+  const [asking, setAsking] = useState<{ name: string; type: ParamType }[] | null>(null);
   const abort = useRef<AbortController | null>(null);
   const last = useRef<Params | null>(null);
   const started = useRef(false);

@@ -23,10 +23,11 @@ import type { EditorHandle, LookupInfo, Move } from "./Editors";
 import {
   applyChange,
   hasChanges,
-  persistBuffer,
+  persistWithMerge,
+  rebaseBuffer,
+  type MergeSaveOutcome,
   type RowBuffer,
   type RowKey,
-  type SaveOutcome,
 } from "./buffer";
 import {
   buildFilter,
@@ -47,7 +48,8 @@ import {
   saveLayout,
   type Layout,
 } from "./layout";
-import { mergeFields, type MergeField } from "./merge";
+import type { MergeField } from "./merge";
+import { toast } from "@/components/AppToasts";
 import { NAV_KEYS, clampCell, moveActive, tabTarget, type Cell, type NavDims } from "./nav";
 import {
   PAGE_SIZE,
@@ -55,7 +57,6 @@ import {
   deleteRow,
   fetchCount,
   fetchRows,
-  updateRow,
   type Row,
   type RowPage,
 } from "./rowsApi";
@@ -72,6 +73,9 @@ interface Props {
 interface MergeState {
   key: number;
   current: Row;
+  fields: MergeField[];
+  /** My changes that did not conflict; saved together with the choices. */
+  auto: Record<string, unknown>;
   busy: boolean;
 }
 
@@ -124,6 +128,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
 
   const columns = useMemo(() => orderedColumns(table.columns ?? [], layout), [table.columns, layout]);
   const allColumns = useMemo(() => table.columns ?? [], [table.columns]);
+  const allColumnsRef = useRef(allColumns);
+  allColumnsRef.current = allColumns;
 
   // ---- filter / sort -> query parameters ------------------------------------
   useEffect(() => {
@@ -278,32 +284,27 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
   }
 
-  function applyOutcome(key: RowKey, buf: RowBuffer, outcome: SaveOutcome) {
+  function applyOutcome(key: RowKey, buf: RowBuffer, outcome: MergeSaveOutcome) {
     switch (outcome.kind) {
       case "ok":
         dropBuffer(key);
         if (outcome.created) refreshData();
         else setRowInCache(outcome.row);
+        if (outcome.merged) toast("info", "Merged with changes made by someone else");
         return;
       case "canceled":
         updateBuffers((m) => m.set(key, { ...buf, status: "editing" }));
         return;
-      case "conflict": {
-        if (typeof key !== "number") {
-          updateBuffers((m) => m.set(key, { ...buf, status: "editing" }));
-          useErrorStore.getState().show(outcome.error);
-          return;
-        }
-        const fields = mergeFields(allColumns, buf.changes, buf.display, outcome.current);
-        if (fields.length === 0) {
-          setRowInCache(outcome.current);
-          dropBuffer(key);
-          return;
-        }
-        updateBuffers((m) => m.set(key, { ...buf, status: "conflict" }));
-        setMerge({ key, current: outcome.current, busy: false });
+      case "conflict":
+        // Only a new record can get here without a merge: there is nothing to merge it with.
+        updateBuffers((m) => m.set(key, { ...buf, status: "editing" }));
+        useErrorStore.getState().show(outcome.error);
         return;
-      }
+      case "merge":
+        if (typeof key !== "number") return;
+        updateBuffers((m) => m.set(key, { ...buf, status: "conflict" }));
+        setMerge({ key, current: outcome.current, fields: outcome.fields, auto: outcome.auto, busy: false });
+        return;
       case "fields":
         updateBuffers((m) => m.set(key, { ...buf, status: "editing", errors: outcome.errors }));
         failureFocus(key, outcome.errors);
@@ -325,7 +326,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     if (!buf || buf.status !== "editing" || !hasChanges(buf)) return;
     const saving: RowBuffer = { ...buf, status: "saving", errors: {} };
     updateBuffers((m) => m.set(key, saving));
-    applyOutcome(key, buf, await persistBuffer(ws, tableId, buf));
+    applyOutcome(key, buf, await persistWithMerge(ws, tableId, allColumns, buf));
   }
 
   /** Save from the phone record sheet: goes through the same buffer, validation and conflict handling as the grid. */
@@ -349,16 +350,11 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   // ---- merge dialog -------------------------------------------------------------
-  const mergeBuffer = merge ? buffers.get(merge.key) : undefined;
-  const mergeList: MergeField[] = useMemo(
-    () => (merge && mergeBuffer ? mergeFields(allColumns, mergeBuffer.changes, mergeBuffer.display, merge.current) : []),
-    [merge, mergeBuffer, allColumns],
-  );
-
   async function saveMerged(request: { version: number; fields: Record<string, unknown> }) {
     if (!merge) return;
     const { key, current } = merge;
-    if (Object.keys(request.fields).length === 0) {
+    const buf = buffersRef.current.get(key);
+    if (Object.keys(request.fields).length === 0 || !buf) {
       setRowInCache(current);
       dropBuffer(key);
       setMerge(null);
@@ -366,28 +362,15 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       return;
     }
     setMerge({ ...merge, busy: true });
-    try {
-      const row = await updateRow(ws, tableId, key, request.version, request.fields);
-      setRowInCache(row);
-      dropBuffer(key);
-      setMerge(null);
-      focusGrid();
-    } catch (e) {
-      const failure = classifyFailure(e);
-      const buf = buffersRef.current.get(key);
-      if (failure.kind === "conflict") {
-        setMerge({ key, current: failure.current, busy: false });
-        return;
-      }
-      setMerge(null);
-      if (buf) {
-        updateBuffers((m) =>
-          m.set(key, { ...buf, status: "editing", errors: failure.kind === "fields" ? failure.errors : buf.errors }),
-        );
-      }
-      if (failure.kind === "fields") failureFocus(key, failure.errors);
-      else if (failure.kind === "error") useErrorStore.getState().show(failure.error);
+    const outcome = await persistWithMerge(ws, tableId, allColumns, rebaseBuffer(buf, current, request.fields));
+    if (outcome.kind === "merge") {
+      // Someone saved again meanwhile: the dialog shows what still conflicts.
+      setMerge({ key, current: outcome.current, fields: outcome.fields, auto: outcome.auto, busy: false });
+      return;
     }
+    setMerge(null);
+    applyOutcome(key, buf, outcome);
+    if (outcome.kind === "ok") focusGrid();
   }
 
   function discardMerge() {
@@ -718,7 +701,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     return () => {
       for (const [key, buf] of store.current) {
         if (buf.status !== "editing" || !hasChanges(buf)) continue;
-        void persistBuffer(ws, tableId, buf).then((outcome) => {
+        void persistWithMerge(ws, tableId, allColumnsRef.current, buf).then((outcome) => {
           if (outcome.kind === "ok") {
             void qc.invalidateQueries({ queryKey: keys.rows(ws, tableId) });
             void qc.invalidateQueries({ queryKey: keys.count(ws, tableId) });
@@ -770,7 +753,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         mode={mode}
         onMode={setViewMode}
       />
-      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name }} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive } }} onClose={() => setExportOpen(false)} />}
       {historyRow !== null && (
         <RowHistoryPanel
           ws={ws}
@@ -897,7 +880,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       {merge && (
         <MergeDialog
           columns={allColumns}
-          fields={mergeList}
+          fields={merge.fields}
+          auto={merge.auto}
           current={merge.current}
           busy={merge.busy}
           onSave={(req) => void saveMerged(req)}

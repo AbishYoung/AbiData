@@ -34,7 +34,20 @@ type ExportRequest struct {
 	SourceID   string         `json:"source_id" doc:"Table or saved query id."`
 	Format     string         `json:"format" enum:"csv,xlsx,json"`
 	Params     map[string]any `json:"params,omitempty" doc:"Query parameters (saved queries only)."`
+	BOM        *bool          `json:"bom,omitempty" default:"true" doc:"CSV only: start the file with a UTF-8 byte-order mark so Excel on Windows reads non-ASCII text correctly. Ignored for other formats."`
+	Filter     string         `json:"filter,omitempty" doc:"Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record."`
+	Sort       string         `json:"sort,omitempty" doc:"Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter."`
+
+	// View is Filter and Sort parsed by the HTTP layer with the rows
+	// endpoint's parser. Nil exports every record in id order.
+	View *records.ListQuery `json:"-"`
 }
+
+// withBOM reports whether a CSV export starts with the UTF-8 byte-order mark.
+func (r ExportRequest) withBOM() bool { return r.BOM == nil || *r.BOM }
+
+// utf8BOM is the UTF-8 byte-order mark Excel needs to read a CSV as UTF-8.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 // ExportResult is the operation result of an export. The file is the
 // operation's artifact, downloadable from /operations/{id}/artifacts/{name}.
@@ -178,9 +191,14 @@ func (x *xlsxSink) finish() error {
 	return x.f.Write(x.w)
 }
 
-func newSink(format string, w io.Writer) (sink, string, error) {
+func newSink(format string, w io.Writer, bom bool) (sink, string, error) {
 	switch format {
 	case "csv":
+		if bom {
+			if _, err := w.Write(utf8BOM); err != nil {
+				return nil, "", err
+			}
+		}
 		return &csvSink{w: csv.NewWriter(w)}, "text/csv; charset=utf-8", nil
 	case "json":
 		return &jsonSink{w: w}, "application/json", nil
@@ -218,7 +236,7 @@ func artifactName(display, ext string) string {
 
 // StartExport validates the source and starts the export operation.
 func (s *Service) StartExport(ctx context.Context, l *workspace.Lease, by string, pol query.Policy, req ExportRequest) (ops.Op, error) {
-	if _, _, err := newSink(req.Format, io.Discard); err != nil {
+	if _, _, err := newSink(req.Format, io.Discard, false); err != nil {
 		return ops.Op{}, err
 	}
 	var display string
@@ -233,7 +251,18 @@ func (s *Service) StartExport(ctx context.Context, l *workspace.Lease, by string
 			return ops.Op{}, fault.New(fault.NotFound, "Table not found.")
 		}
 		display = t.DisplayName
+		if req.View != nil {
+			if _, _, err := records.CompileFilter(t, req.View.Filter, records.DecodeValue); err != nil {
+				return ops.Op{}, err
+			}
+			if _, err := records.CompileSort(t, req.View.Sort); err != nil {
+				return ops.Op{}, err
+			}
+		}
 	case "query":
+		if req.View != nil || req.Filter != "" || req.Sort != "" {
+			return ops.Op{}, fault.New(fault.BadRequest, "Filter and sort apply to table exports only.")
+		}
 		q, err := s.Queries.Get(ctx, l, req.SourceID)
 		if err != nil {
 			return ops.Op{}, err
@@ -261,13 +290,13 @@ func (s *Service) runExport(ctx context.Context, l *workspace.Lease, prog *ops.P
 		return nil, err
 	}
 	defer func() { _ = tmp.Close(); _ = os.Remove(tmpPath) }()
-	sk, mime, err := newSink(req.Format, tmp)
+	sk, mime, err := newSink(req.Format, tmp, req.withBOM())
 	if err != nil {
 		return nil, err
 	}
 	res := ExportResult{Format: req.Format}
 	if req.SourceKind == "table" {
-		res.Rows, err = s.exportTable(ctx, l, prog, sk, req.SourceID)
+		res.Rows, err = s.exportTable(ctx, l, prog, sk, req.SourceID, req.View)
 	} else {
 		res.Rows, res.Truncated, err = s.exportQuery(ctx, l, pol, sk, req)
 	}
@@ -289,7 +318,7 @@ func (s *Service) runExport(ctx context.Context, l *workspace.Lease, prog *ops.P
 	return res, nil
 }
 
-func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string) (int64, error) {
+func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, view *records.ListQuery) (int64, error) {
 	sch, err := s.Schemas.Get(ctx, l)
 	if err != nil {
 		return 0, err
@@ -313,6 +342,9 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 	}
 	if err := sk.header(names); err != nil {
 		return 0, err
+	}
+	if view != nil {
+		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view)
 	}
 	sql := fmt.Sprintf(`SELECT %s FROM %s WHERE "id" > ? ORDER BY "id" LIMIT ?`, strings.Join(sel, ", "), catalog.Quote(t.PhysicalName))
 	var total, last int64
@@ -356,6 +388,42 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 			return n, nil
 		}
 		last, _ = page[len(page)-1][0].(int64)
+		prog.Set(float64(n)/float64(max(total, 1)), fmt.Sprintf("Exported %d of %d rows", n, total))
+	}
+}
+
+// exportView writes the rows matching a filter in the requested order, paging
+// by offset through the same read path as the rows endpoint.
+func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, cols []catalog.Column, textual []bool, view records.ListQuery) (int64, error) {
+	total, _, err := s.Records.Count(ctx, l, tableID, view.Filter)
+	if err != nil {
+		return 0, err
+	}
+	var n int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return n, err
+		}
+		q := view
+		q.Offset, q.Limit = int(n), records.MaxPage
+		page, more, err := s.Records.List(ctx, l, tableID, q)
+		if err != nil {
+			return n, err
+		}
+		for _, r := range page {
+			vals := make([]any, len(cols)+1)
+			vals[0] = r.ID
+			for i, c := range cols {
+				vals[i+1] = r.Fields[c.ID]
+			}
+			if err := sk.row(vals, textual); err != nil {
+				return n, err
+			}
+			n++
+		}
+		if !more || len(page) == 0 {
+			return n, nil
+		}
 		prog.Set(float64(n)/float64(max(total, 1)), fmt.Sprintf("Exported %d of %d rows", n, total))
 	}
 }

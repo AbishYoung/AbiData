@@ -806,7 +806,10 @@ func TestExports(t *testing.T) {
 	}
 	// CSV: keyset pages cover every row exactly once, values as the rows API shows them.
 	op, body := e.export(ExportRequest{SourceKind: "table", SourceID: tb.ID, Format: "csv"}, query.Policy{})
-	recs, err := csv.NewReader(strings.NewReader(body)).ReadAll()
+	if !strings.HasPrefix(body, "\xEF\xBB\xBF") {
+		t.Fatal("csv export should start with a BOM by default")
+	}
+	recs, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(body, "\xEF\xBB\xBF"))).ReadAll()
 	if err != nil || len(recs) != n+1 {
 		t.Fatalf("csv rows %d err %v", len(recs), err)
 	}
@@ -845,7 +848,7 @@ func TestExports(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, body = e.export(ExportRequest{SourceKind: "query", SourceID: sq.ID, Format: "csv", Params: map[string]any{"max": int64(3)}}, query.Policy{})
-	if recs, _ := csv.NewReader(strings.NewReader(body)).ReadAll(); len(recs) != 4 || recs[0][0] != "Customer" {
+	if recs, _ := csv.NewReader(strings.NewReader(strings.TrimPrefix(body, "\xEF\xBB\xBF"))).ReadAll(); len(recs) != 4 || recs[0][0] != "Customer" {
 		t.Fatalf("%v", recs)
 	}
 	// Unknown sources are NOT_FOUND before an operation starts.

@@ -532,6 +532,176 @@
     "global": true
   },
   {
+    "name": "geo",
+    "doc": "Locations and areas. Use these with geo_point and geo_area fields: records.get returns their values as geometry tables and records.insert and records.update accept them.\n\nA point is a table {type = \"Point\", coordinates = {longitude, latitude}} and an area is a GeoJSON Polygon or MultiPolygon table. Everywhere a point is expected you can also pass {lat = .., lon = ..}, the text \"lat, lon\", or a GeoJSON Feature; everywhere an area is expected, a Feature or GeoJSON text. Coordinates are rounded to 7 decimal places. Areas that cross the 180° meridian are not supported.\n\nDistances are in metres along the Earth's surface (haversine) and areas in square metres (spherical approximation).",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "point",
+        "signature": "geo.point(lat, lon, alt?)",
+        "params": [
+          {
+            "name": "lat",
+            "type": "number",
+            "doc": "Latitude in degrees, -90 to 90."
+          },
+          {
+            "name": "lon",
+            "type": "number",
+            "doc": "Longitude in degrees, -180 to 180."
+          },
+          {
+            "name": "alt",
+            "type": "number",
+            "doc": "Altitude in metres, kept as the third coordinate.",
+            "optional": true
+          }
+        ],
+        "returns": "table",
+        "errors": [
+          "lat or lon is not a number",
+          "lat is outside -90 to 90 or lon is outside -180 to 180"
+        ],
+        "doc": "Builds a point. Note the argument order: latitude first, as people write coordinates; the stored coordinates are [longitude, latitude] as GeoJSON requires.",
+        "example": "local p = geo.point(51.50135, -0.14189)\nreturn p.coordinates[1]  -- -0.14189 (the longitude)"
+      },
+      {
+        "name": "lat",
+        "signature": "geo.lat(point)",
+        "params": [
+          {
+            "name": "point",
+            "type": "table|string",
+            "doc": "A point."
+          }
+        ],
+        "returns": "number",
+        "errors": [
+          "point is not a valid point"
+        ],
+        "doc": "Returns a point's latitude.",
+        "example": "return geo.lat(\"51.5, -0.14\")  -- 51.5"
+      },
+      {
+        "name": "lon",
+        "signature": "geo.lon(point)",
+        "params": [
+          {
+            "name": "point",
+            "type": "table|string",
+            "doc": "A point."
+          }
+        ],
+        "returns": "number",
+        "errors": [
+          "point is not a valid point"
+        ],
+        "doc": "Returns a point's longitude.",
+        "example": "return geo.lon(\"51.5, -0.14\")  -- -0.14"
+      },
+      {
+        "name": "distance",
+        "signature": "geo.distance(a, b)",
+        "params": [
+          {
+            "name": "a",
+            "type": "table|string",
+            "doc": "A point."
+          },
+          {
+            "name": "b",
+            "type": "table|string",
+            "doc": "A point."
+          }
+        ],
+        "returns": "number",
+        "errors": [
+          "a or b is not a valid point"
+        ],
+        "doc": "The great-circle distance between two points, in metres. It is symmetric: distance(a, b) equals distance(b, a).",
+        "example": "return geo.distance(geo.point(51.5074, -0.1278), geo.point(48.8566, 2.3522))  -- about 343,500"
+      },
+      {
+        "name": "within",
+        "signature": "geo.within(point, area)",
+        "params": [
+          {
+            "name": "point",
+            "type": "table|string",
+            "doc": "A point."
+          },
+          {
+            "name": "area",
+            "type": "table|string",
+            "doc": "A Polygon or MultiPolygon."
+          }
+        ],
+        "returns": "boolean",
+        "errors": [
+          "point is not a valid point",
+          "area is not a valid area"
+        ],
+        "doc": "Tests whether a point is inside an area. Holes are outside, and a point exactly on the boundary counts as inside.",
+        "example": "local area = records.get(\"Zones\", 1).Fence\nreturn geo.within(geo.point(5, 5), area)"
+      },
+      {
+        "name": "area",
+        "signature": "geo.area(area)",
+        "params": [
+          {
+            "name": "area",
+            "type": "table|string",
+            "doc": "A Polygon or MultiPolygon."
+          }
+        ],
+        "returns": "number",
+        "errors": [
+          "area is not a valid area"
+        ],
+        "doc": "The area in square metres (holes are subtracted).",
+        "example": "return geo.area(records.get(\"Zones\", 1).Fence) / 10000  -- hectares"
+      },
+      {
+        "name": "centroid",
+        "signature": "geo.centroid(area)",
+        "params": [
+          {
+            "name": "area",
+            "type": "table|string",
+            "doc": "A Polygon or MultiPolygon."
+          }
+        ],
+        "returns": "table",
+        "errors": [
+          "area is not a valid area"
+        ],
+        "doc": "The area-weighted centre of an area, as a point. For a concave area it can lie outside the area.",
+        "example": "return geo.centroid(records.get(\"Zones\", 1).Fence)"
+      },
+      {
+        "name": "bbox",
+        "signature": "geo.bbox(area)",
+        "params": [
+          {
+            "name": "area",
+            "type": "table|string",
+            "doc": "A Polygon or MultiPolygon."
+          }
+        ],
+        "returns": "table",
+        "errors": [
+          "area is not a valid area"
+        ],
+        "doc": "The bounding box as a list {minLon, minLat, maxLon, maxLat}.",
+        "example": "local b = geo.bbox(records.get(\"Zones\", 1).Fence)\nreturn b[3] - b[1]  -- width in degrees"
+      }
+    ]
+  },
+  {
     "name": "job",
     "doc": "The running job.",
     "contexts": [

@@ -52,12 +52,14 @@ If rows are rejected, the operation ends with [IMPORT_ROW_ERRORS](/docs/referenc
 ## Export data {#export}
 
 1. Open the **More actions** menu of a table or saved query and choose **Export…**. On a datasheet, choose **Export…** in the toolbar.
-2. Choose the **Format**: **CSV**, **Excel (.xlsx)** or **JSON** (an array of objects). For a query with parameters, fill in the values first.
-3. Choose **Export**. The export runs in the background. When the file is ready the download starts by itself. If it does not, the dialog keeps a **Download** link.
+2. On a datasheet, choose which **Records** to export: **Current view** (only the records matching the datasheet's filter, in its sort order) or **All records**. **Current view** is the default while a filter is active; otherwise **All records** is.
+3. Choose the **Format**: **CSV**, **Excel (.xlsx)** or **JSON** (an array of objects). For a query with parameters, fill in the values first.
+4. For CSV, leave **Excel compatible (UTF-8 with BOM)** checked if you will open the file in Excel on Windows. It starts the file with a byte-order mark so accented and non-Latin text (é, ü, 北京) shows correctly. Turn it off for tools that do not expect a byte-order mark. Your choice is remembered in this browser. Excel and JSON files are not affected.
+5. Choose **Export**. The export runs in the background. When the file is ready the download starts by itself. If it does not, the dialog keeps a **Download** link.
 
 Exports of saved queries are limited to 50,000 rows. Exported files are kept for 30 days.
 
-CSV files protect you from spreadsheet formula injection: text that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is prefixed with an apostrophe. Plain numbers are left alone. Column headers get the same treatment.
+CSV files protect you from spreadsheet formula injection: text that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is prefixed with an apostrophe. Plain numbers are left alone. Column headers get the same treatment. Importing a CSV with or without the byte-order mark works the same way, so an exported file can be imported again unchanged.
 
 ## From scripts {#scripts}
 

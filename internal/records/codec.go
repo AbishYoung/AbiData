@@ -111,6 +111,8 @@ func DecodeValue(c catalog.Column, v any) (any, error) {
 		return s, nil
 	case catalog.Attachments:
 		return decodeAttachments(c, v)
+	case catalog.GeoPoint, catalog.GeoArea:
+		return decodeGeo(c, v)
 	}
 	return nil, fault.Newf(fault.BadRequest, "%q has an unknown field type %q.", c.DisplayName, string(c.Type))
 }
@@ -318,6 +320,8 @@ func EncodeValue(c catalog.Column, v any) any {
 			return float64(n)
 		}
 		return passthrough(v)
+	case catalog.GeoPoint, catalog.GeoArea:
+		return encodeGeo(v)
 	}
 	return passthrough(v)
 }
@@ -353,6 +357,10 @@ func ResultFieldType(rt string) catalog.FieldType {
 		return catalog.Date
 	case "datetime":
 		return catalog.DateTime
+	case "geo_point":
+		return catalog.GeoPoint
+	case "geo_area":
+		return catalog.GeoArea
 	}
 	return catalog.LongText
 }

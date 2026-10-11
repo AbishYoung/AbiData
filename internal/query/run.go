@@ -32,7 +32,7 @@ const (
 type Result struct {
 	Columns []string `json:"columns"`
 	// Types names how each column is best displayed: text, integer, number,
-	// currency, boolean, date or datetime. Currency values are integers scaled
+	// currency, boolean, date, datetime, geo_point or geo_area (GeoJSON text). Currency values are integers scaled
 	// by 10^4, as stored. Types has one entry per column.
 	Types     []string `json:"column_types"`
 	Rows      [][]any  `json:"rows"`
@@ -181,8 +181,15 @@ func bindParams(names []string, params Params) ([]any, error) {
 				v = f
 			}
 		}
-		switch v.(type) {
+		switch x := v.(type) {
 		case nil, string, int64, float64, bool:
+		case map[string]any:
+			// An area parameter arrives as a GeoJSON object; it binds as its JSON text.
+			b, err := json.Marshal(x)
+			if err != nil {
+				return nil, fault.Newf(fault.BadRequest, "Parameter %s is not valid JSON.", key)
+			}
+			v = string(b)
 		default:
 			return nil, fault.Newf(fault.BadRequest, "Parameter %s must be a text, number, yes/no or empty value.", key)
 		}
@@ -226,9 +233,13 @@ func FieldDisplayType(c *catalog.Column) string {
 		return "date"
 	case catalog.DateTime:
 		return "datetime"
+	case catalog.GeoPoint:
+		return "geo_point"
+	case catalog.GeoArea:
+		return "geo_area"
 	case catalog.Calculated:
 		switch c.Options.ResultType {
-		case "integer", "number", "currency", "date", "datetime":
+		case "integer", "number", "currency", "date", "datetime", "geo_point", "geo_area":
 			return c.Options.ResultType
 		case "yes_no":
 			return "boolean"
@@ -312,6 +323,8 @@ func sampleTypes(res *Result) {
 				k = "number"
 			case string:
 				switch {
+				case looksLikeGeo(v) != "":
+					k = looksLikeGeo(v)
 				case dateSample.MatchString(v):
 					k = "date"
 				case datetimeSample.MatchString(v):

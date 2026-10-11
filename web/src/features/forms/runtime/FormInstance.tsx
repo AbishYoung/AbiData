@@ -6,7 +6,7 @@ import { AlertDialog } from "radix-ui";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, History, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, badgeWarning, btn, btnGhost, btnPrimary } from "@/components/styles";
+import { alertBox, badgeWarning, btn, btnGhost, btnPrimary, infoBox } from "@/components/styles";
 import { useStatusBar } from "@/lib/statusbar";
 import { findTable, type Column } from "@/lib/schema";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
@@ -29,6 +29,7 @@ import {
   type CalcState,
   type Fields,
 } from "./model";
+import { DELETED_BANNER } from "./gone";
 import { createSessionStore, useFormSession, useSessionState } from "./useFormSession";
 import { linkFilter, pagesFor, useQueryRows, useTableCount, useTablePages, type Link, type PageAccess } from "./sources";
 
@@ -191,6 +192,9 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   const calc = useSessionState(store, (s) => s.calc);
   const message = useSessionState(store, (s) => s.message);
   const conflict = useSessionState(store, (s) => s.conflict);
+  const conflictFields = useSessionState(store, (s) => s.conflictFields);
+  const deleted = useSessionState(store, (s) => s.deleted);
+  const notice = useSessionState(store, (s) => s.notice);
   const fieldErrors = useSessionState(store, (s) => s.fieldErrors);
   const confirm = useSessionState(store, (s) => s.confirm);
   const busy = useSessionState(store, (s) => s.busy);
@@ -206,7 +210,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
     return () => useTabs.getState().setDirty(env.ws, tabKey, false);
   }, [top, env.ws, tabKey, dirty, childDirtyCount]);
 
-  const navText = recordLabel(index, count, !!rec?.isNew);
+  const navText = deleted ? "Deleted record" : recordLabel(index, count, !!rec?.isNew);
   useEffect(() => {
     if (!top) return;
     setRecordNav(blocked ? null : navText);
@@ -277,12 +281,21 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       calc: isCurrent ? calc : (rowCalc[rowKey] ?? emptyCalc),
       fieldErrors: isCurrent ? fieldErrors : {},
       renderSubform: (control, fields) => (
-        <SubformHost control={control} fields={fields} recordId={isCurrent ? (rec?.id ?? null) : (access.rowAt(i)?.id ?? null)} registry={registry} />
+        <SubformHost
+          control={control}
+          fields={fields}
+          recordId={isCurrent ? (rec?.id ?? null) : (access.rowAt(i)?.id ?? null)}
+          parentGone={isCurrent && deleted}
+          registry={registry}
+        />
       ),
       actions: {
         commit: async (c, colId, v, d) => ((await toCurrent()) ? session.commitField(c, colId, v, d) : false),
         change: (c, colId, v) => {
           if (isCurrent) session.notifyChange(c, colId, v);
+        },
+        typing: (colId, v) => {
+          if (isCurrent) session.noteTyping(colId, v);
         },
         click: (c) => void toCurrent().then((ok) => (ok ? session.click(c) : undefined)),
         enterRow: () => {
@@ -307,7 +320,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       e.preventDefault();
       e.stopPropagation();
       void session.save();
-    } else if (e.key === "Escape" && !e.defaultPrevented && (dirty || message || conflict)) {
+    } else if (e.key === "Escape" && !e.defaultPrevented && (dirty || message || conflict || notice)) {
       e.preventDefault();
       e.stopPropagation();
       session.cancelEdit();
@@ -339,13 +352,13 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       busy={busy}
       dirty={dirty}
       canAdd={canAdd}
-      canDelete={canDelete && !!rec && !rec.isNew}
-      canSave={dirty && (rec?.isNew ? canAdd : canEdit)}
+      canDelete={canDelete && !!rec && !rec.isNew && !deleted}
+      canSave={dirty && !deleted && (rec?.isNew ? canAdd : canEdit)}
       onNav={(t) => void session.moveTo(t)}
       onSave={() => void session.save()}
       onUndo={() => session.cancelEdit()}
       onDelete={() => setDeleting(true)}
-      canHistory={top && !!writeTable && !!rec && !rec.isNew && rec.id !== null}
+      canHistory={top && !!writeTable && !!rec && !rec.isNew && rec.id !== null && !deleted}
       onHistory={() => setHistoryOpen(true)}
     />
   );
@@ -484,7 +497,11 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
           {message && <span>{message}</span>}
           {conflict && (
             <>
-              <span>This record was changed by someone else while you were editing.</span>
+              <span>
+                This record was changed by someone else while you were editing.
+                {conflictFields.length > 0 &&
+                  ` Both of you changed ${conflictFields.length === 1 ? "this field" : "these fields"}: ${conflictFields.map((f) => columnName(f) ?? f).join(", ")}.`}
+              </span>
               <button type="button" className={btn} onClick={() => session.keepMine()}>
                 Keep my changes
               </button>
@@ -498,6 +515,27 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
               Dismiss
             </button>
           )}
+        </div>
+      )}
+      {deleted && (
+        <div role="alert" className={`${alertBox} mx-2 mt-1 flex flex-wrap items-center gap-2`}>
+          <span>{DELETED_BANNER}</span>
+          {canAdd && (
+            <button type="button" className={btnPrimary} disabled={busy} onClick={() => void session.saveAsNew()}>
+              Save as new record
+            </button>
+          )}
+          <button type="button" className={btn} disabled={busy} onClick={() => session.discardDeleted()}>
+            Discard
+          </button>
+        </div>
+      )}
+      {notice && (
+        <div role="status" className={`${infoBox} mx-2 mt-1 flex flex-wrap items-center gap-2`}>
+          <span>{notice}</span>
+          <button type="button" className={btn} onClick={() => session.dismissMessage()}>
+            Dismiss
+          </button>
         </div>
       )}
       {body}
@@ -643,7 +681,20 @@ function Toolbar(props: {
 }
 
 /** A subform control: the child form in continuous view, linked to the master's record. */
-function SubformHost({ control, fields, recordId, registry }: { control: FormControl; fields: Fields; recordId: number | null; registry: Registry }) {
+function SubformHost({
+  control,
+  fields,
+  recordId,
+  parentGone,
+  registry,
+}: {
+  control: FormControl;
+  fields: Fields;
+  recordId: number | null;
+  /** The master record was deleted by someone else: its rows are gone with it. */
+  parentGone: boolean;
+  registry: Registry;
+}) {
   const env = useFormEnv();
   const sub = control.subform;
   const child = useQuery({
@@ -682,6 +733,7 @@ function SubformHost({ control, fields, recordId, registry }: { control: FormCon
   if (!sub) return null;
   if (child.isError) return <p role="alert" className="p-2 text-sm">{child.error.message}</p>;
   if (!child.data) return <SkeletonLines rows={2} label={`Loading ${name}…`} />;
+  if (parentGone) return <EmptyState kind="form" compact title={`The parent record was deleted, so ${name} is no longer available.`} />;
   const masterCol = sub.link_master_column_id;
   const value = masterCol === "" || masterCol === "id" ? recordId : fields[masterCol];
   const blocked = value === null || value === undefined;

@@ -194,6 +194,40 @@ func TestImportExportOverHTTP(t *testing.T) {
 			t.Fatalf("artifact traversal %d", st)
 		}
 	}
+	// CSV without a BOM, filtered and sorted like the rows endpoint; bad filters and sorts are 400.
+	_, page, _ := editor.do("GET", base+"/tables/"+tid+"/rows", nil)
+	var nameCol string
+	for k, v := range page["items"].([]any)[0].(map[string]any)["fields"].(map[string]any) {
+		if v == "Widget" {
+			nameCol = k
+		}
+	}
+	st, eop, _ := editor.do("POST", base+"/exports", map[string]any{"source_kind": "table", "source_id": tid, "format": "csv",
+		"bom": false, "filter": `{"col":"` + nameCol + `","op":"ne","value":"Widget"}`, "sort": "-id"})
+	if st != 202 {
+		t.Fatalf("view export %d %v", st, eop)
+	}
+	d := editor.waitOp(base, eop["id"].(string))
+	if d["status"] != "succeeded" {
+		t.Fatalf("%v", d)
+	}
+	_, vbody, _ := editor.download(base + "/operations/" + eop["id"].(string) + "/artifacts/" + d["result"].(map[string]any)["artifact"].(string))
+	if vrecs, err := csv.NewReader(bytes.NewReader(vbody)).ReadAll(); err != nil || len(vrecs) != 3 || vrecs[0][0] != "ID" || vrecs[1][0] != "3" || vrecs[2][0] != "2" {
+		t.Fatalf("view csv %v %q", err, vbody)
+	}
+	for _, bad := range []map[string]any{
+		{"filter": `{"col":"nope","op":"eq","value":1}`},
+		{"filter": `not json`},
+		{"sort": "nope"},
+	} {
+		body := map[string]any{"source_kind": "table", "source_id": tid, "format": "csv"}
+		for k, v := range bad {
+			body[k] = v
+		}
+		if st, b, _ := editor.do("POST", base+"/exports", body); st != 400 {
+			t.Fatalf("bad view %v: %d %v", bad, st, b)
+		}
+	}
 	if st, b, _ := editor.do("POST", base+"/exports", map[string]any{"source_kind": "table", "source_id": ids.New(), "format": "csv"}); st != 404 {
 		t.Fatalf("unknown table %d %v", st, b)
 	}

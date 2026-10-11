@@ -39,6 +39,7 @@ export const PARAM_TYPES: readonly { value: ParamType; label: string }[] = [
   { value: "yes_no", label: "Yes/No" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date and time" },
+  { value: "area", label: "Area (GeoJSON)" },
 ];
 
 /** Converts the raw prompt input to the JSON value sent to the server; throws a message when invalid. */
@@ -63,6 +64,10 @@ export function paramValue(type: ParamType, raw: ParamRaw | undefined): string |
     case "datetime":
       if (t === "") throw new Error("Enter a date and time.");
       return t.length === 16 ? `${t}:00Z` : t;
+    case "area":
+      // Placeholder until the map picker: the server validates the GeoJSON and names the problem.
+      if (!t.trim().startsWith("{")) throw new Error("Paste a GeoJSON Polygon or MultiPolygon.");
+      return t.trim();
   }
 }
 

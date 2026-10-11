@@ -33,6 +33,9 @@ func ConvertValue(from, to FieldType, v any) (out any, ok bool) {
 		}
 		v = string(b)
 	}
+	if isGeo(from) || isGeo(to) {
+		return convertGeo(from, to, v)
+	}
 	// Blank text holds no value, so it converts to "empty" in any non-text type without loss.
 	if s, isText := v.(string); isText && strings.TrimSpace(s) == "" && isTextual(from) {
 		switch to {

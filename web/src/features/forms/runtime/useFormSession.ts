@@ -6,7 +6,7 @@ import { keys } from "@/lib/events";
 import { useErrorStore } from "@/lib/errorStore";
 import type { Table } from "@/lib/schema";
 import { classifyFailure, type Row } from "@/features/datasheet/rowsApi";
-import { valuesEqual } from "@/features/datasheet/values";
+import { isReadOnlyColumn, valuesEqual } from "@/features/datasheet/values";
 import { formDeleteRecord, formEvent, formSave, type Form, type FormControl, type FormEventRequest, type FormEventResponse } from "../formsApi";
 import { createDebouncer } from "./debounce";
 import { useFormEnv, type ParentLink } from "./env";
@@ -38,6 +38,11 @@ import {
   type RecState,
 } from "./model";
 import { formQueryKey, lookupKeys, type Link, type PageAccess } from "./sources";
+import { rebase, takeTheirs } from "./merge3";
+import { asNewRecord, deletedNotice, deleterName, isNotFound, rowExists } from "./gone";
+
+/** How often a save is retried on its own after merging a concurrent change without conflicts. */
+export const MAX_AUTO_RETRIES = 3;
 
 export interface SessionState {
   index: number;
@@ -47,6 +52,12 @@ export interface SessionState {
   calcBase: CalcState;
   message: string | null;
   conflict: Row | null;
+  /** The fields both users changed differently (the rest was merged). */
+  conflictFields: string[];
+  /** The open record was deleted by someone else while it had unsaved edits. */
+  deleted: boolean;
+  /** Inline notice after the open record was deleted and the form moved on. */
+  notice: string | null;
   fieldErrors: Record<string, string>;
   confirm: { message: string; continuation: string; control: string } | null;
   busy: boolean;
@@ -86,6 +97,9 @@ const initial: SessionState = {
   calcBase: emptyCalc,
   message: null,
   conflict: null,
+  conflictFields: [],
+  deleted: false,
+  notice: null,
   fieldErrors: {},
   confirm: null,
   busy: false,
@@ -114,6 +128,8 @@ export interface Session {
   cancelEdit: () => void;
   deleteRecord: () => Promise<void>;
   commitField: (control: FormControl, colId: string, value: unknown, display?: string) => Promise<boolean>;
+  /** Text typed into a box but not committed yet; undefined clears it. */
+  noteTyping: (colId: string, value: unknown) => void;
   notifyChange: (control: FormControl, colId: string, value: unknown) => void;
   click: (control: FormControl) => Promise<void>;
   answerConfirm: (answer: boolean) => Promise<void>;
@@ -121,6 +137,10 @@ export interface Session {
   dismissMessage: () => void;
   keepMine: () => void;
   discardMine: () => void;
+  /** After the open record was deleted: keep the edits as a new record and save it. */
+  saveAsNew: () => Promise<boolean>;
+  /** After the open record was deleted: drop the edits and move to the nearest record. */
+  discardDeleted: () => void;
   calcFor: (rec: RecState) => Promise<FormEventResponse | null>;
 }
 
@@ -145,6 +165,10 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
   const inflight = useRef(new Set<AbortController>());
   const focusN = useRef(0);
   const pendingCommits = useRef(new Set<Promise<boolean>>());
+  // Text being typed into a box that has not committed yet (commit happens on blur), keyed by
+  // column, for the record it was typed into. If the record is deleted meanwhile, the typing
+  // counts as an unsaved edit instead of being lost.
+  const typing = useRef<{ recId: number | null; values: Map<string, unknown> }>({ recId: null, values: new Map() });
 
   const leaveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
   const get = store.getState;
@@ -202,7 +226,11 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
       const resp = await formEvent(env.ws, o.current.form.id, req, ac.signal);
       return mine === epoch.current ? resp : null;
     } catch (e) {
-      if (mine === epoch.current) showError(e);
+      if (mine === epoch.current) {
+        const cur = get().rec;
+        if (isNotFound(e) && cur && cur.id !== null && !cur.isNew && o.current.table) markGone();
+        else showError(e);
+      }
       return null;
     } finally {
       inflight.current.delete(ac);
@@ -240,7 +268,7 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
 
   function openRow(index: number, row: Row): void {
     abortInFlight();
-    set({ index, rec: recFromRow(row), message: null, conflict: null, fieldErrors: {}, wantOpen: false, skipId: null, calc: emptyCalc, calcBase: emptyCalc });
+    set({ index, rec: recFromRow(row), message: null, conflict: null, conflictFields: [], deleted: false, fieldErrors: {}, wantOpen: false, skipId: null, calc: emptyCalc, calcBase: emptyCalc });
     void dispatch(buildEvent("current")).then((resp) => resp && applyResponse(resp));
   }
 
@@ -248,7 +276,7 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     abortInFlight();
     const { link, count } = o.current;
     const defaults = link ? { [link.columnId]: link.value } : {};
-    set({ index: count, rec: newRec(defaults), message: null, conflict: null, fieldErrors: {}, wantOpen: false, skipId: null, calc: emptyCalc, calcBase: emptyCalc });
+    set({ index: count, rec: newRec(defaults), message: null, conflict: null, conflictFields: [], deleted: false, fieldErrors: {}, wantOpen: false, skipId: null, calc: emptyCalc, calcBase: emptyCalc });
     void dispatch(buildEvent("current")).then((resp) => resp && applyResponse(resp));
   }
 
@@ -278,6 +306,7 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     if (r !== "new" && r === st.index && st.rec && !st.rec.isNew) return true;
     if (r === "new" && st.rec?.isNew) return true;
     if (!(await leave())) return false;
+    if (get().notice !== null) set({ notice: null });
     if (r === "new") {
       startNew();
       return true;
@@ -290,15 +319,19 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
 
   // ---- save / revert / delete --------------------------------------------------------------
 
-  async function save(): Promise<boolean> {
+  async function save(attempt = 0): Promise<boolean> {
     const st = get();
     const rec = st.rec;
     if (!rec || !isDirty(rec)) return true;
+    // The record is gone: it can only be saved as a new record ("Save as new record").
+    if (st.deleted) return false;
+    // A conflict is open: the user decides first.
+    if (st.conflict) return false;
     const { form, canEdit, canAdd, table } = o.current;
     if (!table || (rec.isNew ? !canAdd : !canEdit)) return false;
     if (st.busy) return false;
     abortInFlight();
-    set({ busy: true, message: null, conflict: null, fieldErrors: {} });
+    set({ busy: true, message: null, conflict: null, conflictFields: [], fieldErrors: {}, notice: null });
     let resp: FormEventResponse;
     try {
       resp = await formSave(env.ws, form.id, {
@@ -310,8 +343,17 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     } catch (e) {
       set({ busy: false });
       const f = classifyFailure(e);
-      if (f.kind === "conflict") set({ conflict: f.current });
-      else if (f.kind === "fields") {
+      if (f.kind === "conflict") {
+        // Merge field by field: only fields both users changed need a decision.
+        const cur = get().rec;
+        if (!cur || cur.id !== rec.id) return false;
+        const merged = rebase(cur, f.current, eq);
+        set({ rec: merged.rec });
+        if (merged.conflicts.length === 0 && attempt < MAX_AUTO_RETRIES) return isDirty(merged.rec) ? save(attempt + 1) : true;
+        set({ conflict: f.current, conflictFields: merged.conflicts });
+      } else if (!rec.isNew && isNotFound(e)) {
+        markGone();
+      } else if (f.kind === "fields") {
         set({ fieldErrors: f.errors });
         const first = Object.keys(f.errors)[0];
         const ctl = first ? allControls().find((c) => c.bind?.column_id === first) : undefined;
@@ -338,21 +380,85 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
   }
 
   function cancelEdit(): void {
+    if (get().deleted) {
+      discardDeleted();
+      return;
+    }
     abortInFlight();
-    set((s) => ({ rec: s.rec ? revert(s.rec) : s.rec, calc: s.calcBase, message: null, conflict: null, fieldErrors: {} }));
+    set((s) => ({ rec: s.rec ? revert(s.rec) : s.rec, calc: s.calcBase, message: null, conflict: null, conflictFields: [], fieldErrors: {} }));
   }
 
+  /** Keeps the user's values for the conflicting fields; everything else is already merged. */
   function keepMine(): void {
-    const { conflict, rec } = get();
-    if (!conflict || !rec) return;
-    set({ rec: { ...rec, version: conflict._version, base: conflict.fields }, conflict: null });
+    if (!get().conflict) return;
+    set({ conflict: null, conflictFields: [] });
   }
 
+  /** Takes the other user's values for the conflicting fields; the user's other edits stay. */
   function discardMine(): void {
-    const { conflict } = get();
-    if (!conflict) return;
-    set({ rec: recFromRow(conflict), conflict: null, fieldErrors: {} });
+    const { conflict, conflictFields, rec } = get();
+    if (!conflict || !rec) return;
+    const next = conflictFields.length > 0 ? takeTheirs(rec, conflictFields) : recFromRow(conflict);
+    const fresh = conflictFields.length > 0 ? { ...next, display: { ...rec.display, ...(conflict.display ?? {}) } } : next;
+    set({ rec: fresh, conflict: null, conflictFields: [], fieldErrors: {} });
     invalidateSource();
+  }
+
+  // ---- the open record was deleted by someone else ---------------------------------------------
+
+  /**
+   * Called when the open record turns out to be gone (live update, NOT_FOUND on save or on an event).
+   * A clean buffer moves to the nearest record with a notice; unsaved edits stay on screen behind a banner.
+   */
+  function markGone(): void {
+    const st = get();
+    let rec = st.rec;
+    if (!rec || rec.id === null || rec.isNew || st.deleted) return;
+    const { table } = o.current;
+    abortInFlight();
+    const id = rec.id;
+    if (typing.current.recId === id) {
+      for (const [colId, value] of typing.current.values) {
+        if (!eq(colId, value, bufferOf(rec)[colId])) rec = setField(rec, colId, value, eq);
+      }
+    }
+    typing.current = { recId: null, values: new Map() };
+    if (isDirty(rec)) {
+      set({ rec, deleted: true, busy: false, conflict: null, conflictFields: [], message: null, fieldErrors: {}, confirm: null });
+    } else {
+      const generic = deletedNotice(null);
+      set({ rec: null, wantOpen: true, skipId: id, notice: generic, busy: false, conflict: null, conflictFields: [], deleted: false, calc: emptyCalc, calcBase: emptyCalc });
+      if (table) {
+        void deleterName(env.ws, table.id, id).then((name) => {
+          if (name) set((s) => (s.notice === generic ? { notice: deletedNotice(name) } : {}));
+        });
+      }
+    }
+    invalidateSource();
+    o.current.parent?.changed();
+  }
+
+  function discardDeleted(): void {
+    const { rec, deleted } = get();
+    if (!deleted || !rec || rec.id === null) return;
+    set({ rec: null, wantOpen: true, skipId: rec.id, deleted: false, notice: null, fieldErrors: {}, calc: emptyCalc, calcBase: emptyCalc });
+    invalidateSource();
+  }
+
+  async function saveAsNew(): Promise<boolean> {
+    const st = get();
+    const { rec, deleted } = st;
+    const { canAdd, table, link, count } = o.current;
+    if (!deleted || !rec || !canAdd || !table || st.busy) return false;
+    const cols = known();
+    const byId = new Map((table.columns ?? []).map((c) => [c.id, c]));
+    const writable = (id: string) => {
+      const c = byId.get(id);
+      return !!cols?.(id) && !!c && !isReadOnlyColumn(c);
+    };
+    const defaults = link ? { [link.columnId]: link.value } : {};
+    set({ rec: asNewRecord(rec, writable, defaults), deleted: false, index: count, conflict: null, conflictFields: [], fieldErrors: {}, message: null });
+    return save();
   }
 
   async function deleteRecord(): Promise<void> {
@@ -372,8 +478,14 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     } catch (e) {
       set({ busy: false });
       const f = classifyFailure(e);
-      if (f.kind === "conflict") set({ conflict: f.current });
-      else if (f.kind === "error") showError(f.error);
+      if (isNotFound(e)) markGone();
+      else if (f.kind === "conflict") {
+        const cur = get().rec;
+        if (!cur) return;
+        const merged = rebase(cur, f.current, eq);
+        set({ rec: merged.rec });
+        if (merged.theirsChanged || merged.conflicts.length > 0) set({ conflict: f.current, conflictFields: merged.conflicts });
+      } else if (f.kind === "error") showError(f.error);
     }
   }
 
@@ -407,6 +519,14 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
       if (resp) applyResponse(resp);
     }
     return true;
+  }
+
+  /** A text box reports what is typed but not committed yet; undefined clears it. */
+  function noteTyping(colId: string, value: unknown): void {
+    const recId = get().rec?.id ?? null;
+    if (typing.current.recId !== recId) typing.current = { recId, values: new Map() };
+    if (value === undefined) typing.current.values.delete(colId);
+    else typing.current.values.set(colId, value);
   }
 
   function notifyChange(control: FormControl, colId: string, value: unknown): void {
@@ -503,20 +623,49 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
       } else set({ wantOpen: false, rec: null });
       return;
     }
-    const row = opts.access.rowAt(Math.min(st.index, opts.count - 1));
-    if (row && row.id !== st.skipId) openRow(Math.min(st.index, opts.count - 1), row);
+    const want = Math.min(st.index, opts.count - 1);
+    // Pages are loaded around `index`: bring it inside the list so the wanted row can arrive.
+    if (want !== st.index) set({ index: want });
+    const row = opts.access.rowAt(want);
+    if (row && row.id !== st.skipId) openRow(want, row);
   });
 
-  // Live updates: follow the record when the source changes underneath a clean buffer.
+  // Live updates: follow the open record when the source changes underneath it (inserts and deletes
+  // of other records move it, a newer version is merged field by field, a vanished record is handled).
+  const goneChecked = useRef("");
   useEffect(() => {
     const st = get();
     const rec = st.rec;
-    if (!rec || rec.id === null || rec.isNew || isDirty(rec) || st.busy || st.wantOpen) return;
+    if (!rec || rec.id === null || rec.isNew || st.busy || st.wantOpen || st.deleted) return;
     const at = opts.access.indexOfId(rec.id);
-    if (at < 0) return;
+    if (at < 0) {
+      // Not in the loaded pages: confirm with the server before treating it as deleted.
+      const table = opts.table;
+      const here = opts.access.rowAt(Math.min(st.index, Math.max(0, opts.count - 1)));
+      if (!table || !opts.ready || (opts.count > 0 && !here)) return;
+      const key = `${rec.id}|${opts.count}|${here?.id ?? ""}:${here?._version ?? ""}`;
+      if (goneChecked.current === key) return;
+      goneChecked.current = key;
+      const id = rec.id;
+      void rowExists(env.ws, table.id, id).then((exists) => {
+        const cur = get().rec;
+        if (!exists && cur && cur.id === id && !cur.isNew) markGone();
+      });
+      return;
+    }
+    goneChecked.current = "";
     if (at !== st.index) set({ index: at });
     const row = opts.access.rowAt(at);
-    if (row && row._version > (rec.version ?? 0)) set({ rec: recFromRow(row) });
+    if (!row || row._version <= (rec.version ?? 0)) return;
+    if (!isDirty(rec)) {
+      set({ rec: recFromRow(row) });
+      return;
+    }
+    if (st.conflict) return;
+    const merged = rebase(rec, row, eq);
+    set({ rec: merged.rec });
+    if (merged.conflicts.length > 0) set({ conflict: row, conflictFields: merged.conflicts });
+    else if (merged.theirsChanged) void refreshCalc();
   });
 
   // Report dirtiness and register for flushing with the master form.
@@ -531,9 +680,9 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
   }, [parent]);
 
   return {
-    store, eq, moveTo, goTo, save, leave, cancelEdit, deleteRecord, commitField, notifyChange, click, answerConfirm, refreshCalc,
-    dismissMessage: () => set({ message: null }),
-    keepMine, discardMine, calcFor,
+    store, eq, moveTo, goTo, save: () => save(), leave, cancelEdit, deleteRecord, commitField, noteTyping, notifyChange, click, answerConfirm, refreshCalc,
+    dismissMessage: () => set({ message: null, notice: null }),
+    keepMine, discardMine, saveAsNew, discardDeleted, calcFor,
   };
 }
 
