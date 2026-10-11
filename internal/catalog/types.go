@@ -21,10 +21,12 @@ const (
 	Lookup     FieldType = "lookup"
 	Hyperlink  FieldType = "hyperlink"
 	Calculated FieldType = "calculated"
+	GeoPoint   FieldType = "geo_point" // ADR 0010: GeoJSON Point in TEXT
+	GeoArea    FieldType = "geo_area"  // ADR 0010: GeoJSON Polygon or MultiPolygon in TEXT
 )
 
 // FieldTypes lists every type in display order.
-var FieldTypes = []FieldType{Autonumber, ShortText, LongText, Integer, Number, Currency, YesNo, Date, DateTime, Lookup, Hyperlink, Calculated}
+var FieldTypes = []FieldType{Autonumber, ShortText, LongText, Integer, Number, Currency, YesNo, Date, DateTime, Lookup, Hyperlink, Calculated, GeoPoint, GeoArea}
 
 // Valid reports whether t is a known field type.
 func (t FieldType) Valid() bool {
@@ -46,7 +48,7 @@ const CurrencyScale = 10000
 type TypeOptions struct {
 	MaxLength  int    `json:"max_length,omitempty"`  // short_text
 	Expression string `json:"expression,omitempty"`  // calculated: SQL expression over this table's physical columns
-	ResultType string `json:"result_type,omitempty"` // calculated: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" (default "text")
+	ResultType string `json:"result_type,omitempty"` // calculated: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" | "geo_point" | "geo_area" (default "text")
 	Format     string `json:"format,omitempty"`      // display format hint (UI only)
 }
 

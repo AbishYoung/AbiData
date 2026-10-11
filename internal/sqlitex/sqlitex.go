@@ -116,6 +116,10 @@ func Open(ctx context.Context, path string, opts Options) (*Conn, error) {
 		return nil, fmt.Errorf("sqlitex: open %s (%s): %w", path, opts.Kind, err)
 	}
 	c := &Conn{c: raw, kind: opts.Kind, path: path, cache: newStmtCache(64)}
+	if err := registerGeo(raw); err != nil {
+		_ = raw.Close()
+		return nil, fmt.Errorf("sqlitex: register geo functions: %w", err)
+	}
 	if err := c.configure(opts); err != nil {
 		_ = c.Close()
 		return nil, err

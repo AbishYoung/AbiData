@@ -74,6 +74,9 @@ func columnDef(c Column) string {
 	case Hyperlink:
 		b.WriteString("TEXT")
 		tyCheck = fmt.Sprintf("%s IS NULL OR %s GLOB 'http*://*'", q, q)
+	case GeoPoint, GeoArea:
+		b.WriteString("TEXT")
+		tyCheck = geoTypeCheck(q, c.Type)
 	default:
 		b.WriteString("ANY")
 	}

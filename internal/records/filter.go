@@ -112,6 +112,9 @@ func (fc *filterCompiler) cond(f *Filter) (string, error) {
 	}
 	q := catalog.Quote(col.PhysicalName)
 
+	if sql, handled, err := fc.geoCond(col, q, f); handled || err != nil {
+		return sql, err
+	}
 	switch f.Op {
 	case OpIsNull:
 		return q + " IS NULL", nil

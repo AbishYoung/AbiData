@@ -30,6 +30,8 @@ const (
 	OpBetween  FilterOp = "between"
 	OpIsNull   FilterOp = "is_null"
 	OpNotNull  FilterOp = "not_null"
+	OpWithin   FilterOp = "within" // geo_point inside a GeoJSON area (ADR 0010)
+	OpNear     FilterOp = "near"   // geo_point within metres of a point (ADR 0010)
 )
 
 // Sort orders rows by a column (ID or "id").
