@@ -8,11 +8,13 @@ import { WorkspacesTab } from "./WorkspacesTab";
 import { UsersTab } from "./UsersTab";
 import { SettingsTab } from "./SettingsTab";
 import { LogsTab } from "./LogsTab";
+import { AdminApiKeysTab } from "@/features/apikeys/AdminApiKeysTab";
 
 const SECTIONS = [
   { id: "overview", label: "Overview" },
   { id: "workspaces", label: "Workspaces" },
   { id: "users", label: "Users" },
+  { id: "api-keys", label: "API keys" },
   { id: "settings", label: "Settings" },
   { id: "logs", label: "Live logs" },
 ] as const;
@@ -68,6 +70,9 @@ export function AdminPage({ me }: { me: Me }) {
           </Tabs.Content>
           <Tabs.Content value="users">
             <UsersTab selfId={me.user.id} />
+          </Tabs.Content>
+          <Tabs.Content value="api-keys">
+            <AdminApiKeysTab />
           </Tabs.Content>
           <Tabs.Content value="settings">
             <SettingsTab />
