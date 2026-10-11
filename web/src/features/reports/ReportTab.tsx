@@ -1,3 +1,5 @@
+import { Loader2 } from "lucide-react";
+import { EmptyState, SkeletonLines } from "@/components/EditorParts";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { alertBox, btn, btnPrimary } from "@/components/styles";
 import { ApiError } from "@/lib/api";
@@ -29,12 +31,12 @@ type Phase = "idle" | "prompt" | "running" | "measuring" | "ready" | "canceled" 
 export function ReportTab({ ws, reportId, tabKey, view }: { ws: string; reportId: string | null; tabKey: string; view: "report" | "design" }) {
   if (view === "design") {
     return (
-      <Suspense fallback={<p className="p-4 text-fg-muted">Loading designer…</p>}>
+      <Suspense fallback={<SkeletonLines rows={6} label="Loading designer…" />}>
         <ReportDesigner ws={ws} reportId={reportId} tabKey={tabKey} />
       </Suspense>
     );
   }
-  if (reportId === null) return <p className="p-4 text-fg-muted">No report selected.</p>;
+  if (reportId === null) return <EmptyState kind="report" title="No report selected" hint="Open a report from the navigation pane." />;
   return <ReportRun ws={ws} reportId={reportId} />;
 }
 
@@ -148,7 +150,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
       </div>
     );
   }
-  if (!def || !layout) return <p className="p-4 text-fg-muted">Loading report…</p>;
+  if (!def || !layout) return <SkeletonLines rows={6} label="Loading report…" />;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="report-viewer">
@@ -165,7 +167,8 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         />
       )}
       {(phase === "running" || phase === "measuring") && (
-        <div role="status" className="m-4 flex items-center gap-3 text-sm">
+        <div role="status" className="m-4 flex items-center gap-3 rounded-xl border border-border bg-surface p-4 text-sm shadow-sm">
+          <Loader2 size={16} aria-hidden="true" className="animate-spin text-accent motion-reduce:animate-none" />
           <span>
             {phase === "running" ? `Running report… ${count.toLocaleString()} rows received` : `Laying out ${count.toLocaleString()} rows…`}
           </span>
@@ -177,12 +180,16 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         </div>
       )}
       {(phase === "canceled" || phase === "idle") && (
-        <div className="m-4 flex items-center gap-3 text-sm">
-          <span role="status">Report not run.</span>
-          <button type="button" className={btnPrimary} onClick={start}>
-            Run report
-          </button>
-        </div>
+        <EmptyState
+          kind="report"
+          title="Report not run"
+          hint="Run the report to see its pages."
+          action={
+            <button type="button" className={btnPrimary} onClick={start}>
+              Run report
+            </button>
+          }
+        />
       )}
       {phase === "error" && (
         <div className="m-4">

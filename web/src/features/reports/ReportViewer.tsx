@@ -1,9 +1,10 @@
+import { ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Printer, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { Tip } from "@/components/Tip";
-import { btn } from "@/components/styles";
+import { btn, btnGhost } from "@/components/styles";
 import { PageView } from "./PageView";
 import { cssPageSize, type Pagination, type PageSetup, type ReportInstance, type ReportLayout } from "./paginate";
 import { fitWidthZoom, pageAtScroll } from "./viewerLogic";
@@ -108,11 +109,13 @@ export function ReportViewer({
     }
   }
 
-  const iconBtn = `${btn} px-2`;
+  const zoomBtn = (on: boolean) =>
+    `h-7 cursor-pointer rounded-md px-3 text-sm font-medium transition-colors ${on ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"}`;
+  const iconBtn = `${btnGhost} px-2`;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <style>{`@page { size: ${cssPageSize(pageSetup)}; margin: 0 }`}</style>
-      <div role="toolbar" aria-label="Report toolbar" className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
+      <div role="toolbar" aria-label="Report toolbar" className={docToolbar}>
         <Tip label="First page" shortcut="Home">
           <span className="inline-flex">
             <button type="button" className={iconBtn} aria-label="First page" disabled={current <= 1} onClick={() => goTo(1)}>
@@ -144,15 +147,16 @@ export function ReportViewer({
             </button>
           </span>
         </Tip>
-        <div role="group" aria-label="Zoom" className="ml-2 flex gap-1">
-          <button type="button" className={btn} aria-pressed={mode === "fit"} onClick={() => setMode("fit")}>
+        <ToolbarDivider />
+        <div role="group" aria-label="Zoom" className="flex gap-0.5 rounded-lg bg-surface-3 p-0.5">
+          <button type="button" className={zoomBtn(mode === "fit")} aria-pressed={mode === "fit"} onClick={() => setMode("fit")}>
             Fit width
           </button>
-          <button type="button" className={btn} aria-pressed={mode === "100"} onClick={() => setMode("100")}>
+          <button type="button" className={zoomBtn(mode === "100")} aria-pressed={mode === "100"} onClick={() => setMode("100")}>
             100%
           </button>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-1.5">
           {onChangeParams && (
             <button type="button" className={btn} onClick={onChangeParams}>
               <SlidersHorizontal size={14} aria-hidden="true" />
@@ -177,7 +181,7 @@ export function ReportViewer({
         data-testid="report-scroller"
         onScroll={onScroll}
         onKeyDown={onKeyDown}
-        className="min-h-0 flex-1 overflow-auto bg-surface-2"
+        className="min-h-0 flex-1 overflow-auto bg-bg"
       >
         <div style={{ height: virt.getTotalSize() + GAP, minWidth: paper.width * zoom + 32, position: "relative" }}>
           {virt.getVirtualItems().map((item) => {
