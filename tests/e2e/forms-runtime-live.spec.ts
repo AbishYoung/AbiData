@@ -184,6 +184,27 @@ test("deleting a record with unsaved edits keeps them; Save as new record create
   await other.close();
 });
 
+test("text typed but not yet committed counts as an unsaved edit when the record is deleted", async ({ page, browser, baseURL }) => {
+  await open(page, false);
+  await next(page).click();
+  await body(page).fill("typed, not blurred");
+  await expect(body(page)).toBeFocused();
+  const other = await otherUser(browser, baseURL);
+  await deleteRow(other.page, live.ids[1] ?? 0);
+
+  const banner = page.getByRole("alert").filter({ hasText: "This record was deleted by someone else. Your changes have not been saved." });
+  await expect(banner).toBeVisible();
+  await expect(body(page)).toHaveValue("typed, not blurred");
+  await expect(title(page)).toHaveValue("Beta");
+
+  await banner.getByRole("button", { name: "Save as new record" }).click();
+  await expect(banner).toBeHidden();
+  await expect.poll(async () => (await listRows(page)).length).toBe(3);
+  const made = (await listRows(page)).find((r) => r.fields[col(live.notes, "Body")] === "typed, not blurred");
+  expect(made?.fields[col(live.notes, "Title")]).toBe("Beta");
+  await other.close();
+});
+
 test("Save as new record respects required fields; Discard moves on", async ({ page, browser, baseURL }) => {
   await open(page, false);
   await title(page).fill("");

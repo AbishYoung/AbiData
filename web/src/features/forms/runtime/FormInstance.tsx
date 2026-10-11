@@ -294,6 +294,9 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
         change: (c, colId, v) => {
           if (isCurrent) session.notifyChange(c, colId, v);
         },
+        typing: (colId, v) => {
+          if (isCurrent) session.noteTyping(colId, v);
+        },
         click: (c) => void toCurrent().then((ok) => (ok ? session.click(c) : undefined)),
         enterRow: () => {
           if (!isCurrent && !store.getState().busy) void target();

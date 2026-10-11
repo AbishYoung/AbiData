@@ -128,6 +128,8 @@ export interface Session {
   cancelEdit: () => void;
   deleteRecord: () => Promise<void>;
   commitField: (control: FormControl, colId: string, value: unknown, display?: string) => Promise<boolean>;
+  /** Text typed into a box but not committed yet; undefined clears it. */
+  noteTyping: (colId: string, value: unknown) => void;
   notifyChange: (control: FormControl, colId: string, value: unknown) => void;
   click: (control: FormControl) => Promise<void>;
   answerConfirm: (answer: boolean) => Promise<void>;
@@ -163,6 +165,10 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
   const inflight = useRef(new Set<AbortController>());
   const focusN = useRef(0);
   const pendingCommits = useRef(new Set<Promise<boolean>>());
+  // Text being typed into a box that has not committed yet (commit happens on blur), keyed by
+  // column, for the record it was typed into. If the record is deleted meanwhile, the typing
+  // counts as an unsaved edit instead of being lost.
+  const typing = useRef<{ recId: number | null; values: Map<string, unknown> }>({ recId: null, values: new Map() });
 
   const leaveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
   const get = store.getState;
@@ -406,13 +412,19 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
    */
   function markGone(): void {
     const st = get();
-    const rec = st.rec;
+    let rec = st.rec;
     if (!rec || rec.id === null || rec.isNew || st.deleted) return;
     const { table } = o.current;
     abortInFlight();
     const id = rec.id;
+    if (typing.current.recId === id) {
+      for (const [colId, value] of typing.current.values) {
+        if (!eq(colId, value, bufferOf(rec)[colId])) rec = setField(rec, colId, value, eq);
+      }
+    }
+    typing.current = { recId: null, values: new Map() };
     if (isDirty(rec)) {
-      set({ deleted: true, busy: false, conflict: null, conflictFields: [], message: null, fieldErrors: {}, confirm: null });
+      set({ rec, deleted: true, busy: false, conflict: null, conflictFields: [], message: null, fieldErrors: {}, confirm: null });
     } else {
       const generic = deletedNotice(null);
       set({ rec: null, wantOpen: true, skipId: id, notice: generic, busy: false, conflict: null, conflictFields: [], deleted: false, calc: emptyCalc, calcBase: emptyCalc });
@@ -507,6 +519,14 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
       if (resp) applyResponse(resp);
     }
     return true;
+  }
+
+  /** A text box reports what is typed but not committed yet; undefined clears it. */
+  function noteTyping(colId: string, value: unknown): void {
+    const recId = get().rec?.id ?? null;
+    if (typing.current.recId !== recId) typing.current = { recId, values: new Map() };
+    if (value === undefined) typing.current.values.delete(colId);
+    else typing.current.values.set(colId, value);
   }
 
   function notifyChange(control: FormControl, colId: string, value: unknown): void {
@@ -660,7 +680,7 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
   }, [parent]);
 
   return {
-    store, eq, moveTo, goTo, save: () => save(), leave, cancelEdit, deleteRecord, commitField, notifyChange, click, answerConfirm, refreshCalc,
+    store, eq, moveTo, goTo, save: () => save(), leave, cancelEdit, deleteRecord, commitField, noteTyping, notifyChange, click, answerConfirm, refreshCalc,
     dismissMessage: () => set({ message: null, notice: null }),
     keepMine, discardMine, saveAsNew, discardDeleted, calcFor,
   };

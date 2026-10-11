@@ -14,6 +14,8 @@ import { lookupKeys } from "./sources";
 export interface ControlActions {
   commit: (control: FormControl, colId: string, value: unknown, display?: string) => Promise<boolean>;
   change: (control: FormControl, colId: string, value: unknown) => void;
+  /** Text typed but not committed yet (undefined: nothing pending), so it survives a deleted record. */
+  typing?: (colId: string, value: unknown) => void;
   click: (control: FormControl) => void;
   /** The user entered this row: make it the current record. */
   enterRow: () => void;
@@ -257,6 +259,7 @@ function TextControl({ control, id, col, colId, value, display, calcText, calcEr
     }
     const ok = await env.actions.commit(control, colId, parsed.value);
     setDraft(null);
+    env.actions.typing?.(colId, undefined);
     return ok;
   }
 
@@ -275,6 +278,7 @@ function TextControl({ control, id, col, colId, value, display, calcText, calcEr
       e.stopPropagation();
       setDraft(null);
       setParseError(null);
+      if (colId) env.actions.typing?.(colId, undefined);
     }
   }
 
@@ -298,6 +302,10 @@ function TextControl({ control, id, col, colId, value, display, calcText, calcEr
         onChange={(e) => {
           setDraft(e.target.value);
           setParseError(null);
+          if (colId && !readOnly) {
+            const typed = col ? parseDraft(col, e.target.value) : ({ ok: true, value: e.target.value === "" ? null : e.target.value } as const);
+            if (typed.ok) env.actions.typing?.(colId, typed.value);
+          }
           if (colId && control.events?.change) {
             const parsed = col ? parseDraft(col, e.target.value) : ({ ok: true, value: e.target.value } as const);
             if (parsed.ok) env.actions.change(control, colId, parsed.value);
