@@ -121,7 +121,19 @@ docker compose run --rm --no-deps --entrypoint /abidata abidata user create-admi
 docker compose start abidata
 ```
 
-The password is read from standard input.
+The password is read from standard input, or from `ABIDATA_PASSWORD` when that is set.
+
+### Recover a locked-out administrator {#recover-admin}
+
+If the last platform administrator has forgotten their password, reset it from the command line. As with `create-admin`, the server must be stopped:
+
+```sh
+docker compose stop abidata
+docker compose run --rm --no-deps --entrypoint /abidata abidata user reset-password --email you@example.com
+docker compose start abidata
+```
+
+Type the new password on standard input (at least 10 characters), or pass it in the `ABIDATA_PASSWORD` environment variable. All of that user's sessions end and their sign-in lockout is cleared. The reset is recorded in the audit log as `user.password_reset_cli`, without the password. Other administrators do not need this: they can use **Reset password…** on the **Users** tab of the Admin console.
 
 ## The sample workspace {#demo}
 

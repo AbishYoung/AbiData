@@ -82,3 +82,9 @@ export async function getEgressPolicy(): Promise<PlatformEgress> {
 export async function putEgressPolicy(body: PlatformEgress): Promise<PlatformEgress> {
   return api.requestData((c, init) => c.PUT("/api/v1/admin/settings/egress", { ...init, body }), { label: "Saving egress policy" });
 }
+
+export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
+  await api.request((c, init) => c.POST("/api/v1/admin/users/{id}/password", { ...init, params: { path: { id } }, body: { new_password: newPassword } }), {
+    label: "Resetting password",
+  });
+}
