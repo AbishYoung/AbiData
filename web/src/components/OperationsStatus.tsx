@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { Popover } from "radix-ui";
-import { cancelOperation, useActiveOperations, type OperationProgress } from "@/lib/operations";
+import { Activity } from "lucide-react";
+import {
+  cancelOperation,
+  useActiveOperations,
+  type OperationProgress,
+} from "@/lib/operations";
 import { ApiError } from "@/lib/api";
-import { btn } from "@/components/styles";
+import { btnSm } from "@/components/styles";
 
 /** Human label of an operation kind ("import" → "Import"). */
 export function operationLabel(kind: string): string {
@@ -22,20 +27,26 @@ function Row({ ws, op }: { ws: string; op: OperationProgress }) {
     try {
       await cancelOperation(ws, op.id);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "The operation could not be cancelled.");
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "The operation could not be cancelled.",
+      );
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <li className="border-b border-border py-2 last:border-b-0">
+    <li className="border-b border-border px-4 py-3 last:border-b-0">
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate font-medium">{label}</span>
-        <span className="text-fg-muted">{op.status === "queued" ? "Queued" : `${percent}%`}</span>
+        <span className="tabular text-xs text-fg-muted">
+          {op.status === "queued" ? "Queued" : `${percent}%`}
+        </span>
         <button
           type="button"
-          className={`${btn} !px-2 !py-0.5`}
+          className={btnSm}
           disabled={pending}
           aria-label={`Cancel ${label}`}
           onClick={() => void cancel()}
@@ -43,7 +54,12 @@ function Row({ ws, op }: { ws: string; op: OperationProgress }) {
           Cancel
         </button>
       </div>
-      <progress className="mt-1 h-2 w-full" max={100} value={percent} aria-label={`${label} progress`} />
+      <progress
+        className="mt-2 h-2 w-full accent-accent"
+        max={100}
+        value={percent}
+        aria-label={`${label} progress`}
+      />
       {op.message && <p className="m-0 mt-1 text-fg-muted">{op.message}</p>}
       {error && (
         <p role="alert" className="m-0 mt-1 text-danger">
@@ -60,7 +76,10 @@ export function OperationsStatus({ ws }: { ws: string }) {
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <button type="button" className="cursor-pointer rounded px-1 underline-offset-2 hover:underline">
+        <button
+          type="button"
+          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-surface-3"
+        >
           Background operations: {ops.length}
         </button>
       </Popover.Trigger>
@@ -70,10 +89,16 @@ export function OperationsStatus({ ws }: { ws: string }) {
           align="end"
           sideOffset={6}
           aria-label="Background operations"
-          className="z-50 w-80 rounded-md border border-border bg-surface p-3 text-sm text-fg shadow-lg"
+          className="ui-menu z-50 w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-border bg-surface text-sm text-fg shadow-lg"
         >
+          <div className="flex items-center gap-2 border-b border-border bg-surface-2/50 px-4 py-2.5">
+            <Activity size={14} aria-hidden="true" className="text-fg-muted" />
+            <span className="text-sm font-semibold">Background operations</span>
+          </div>
           {ops.length === 0 ? (
-            <p className="m-0 text-fg-muted">No background operations are running.</p>
+            <p className="m-0 px-4 py-6 text-center text-fg-muted">
+              No background operations are running.
+            </p>
           ) : (
             <ul className="m-0 list-none p-0" aria-live="polite">
               {ops.map((op) => (

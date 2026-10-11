@@ -2,17 +2,34 @@ import { useId, useState, type FormEvent } from "react";
 import { Dialog } from "radix-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTabs } from "@/app/tabs";
-import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
-import { deleteReport, inputFromReport, reportKeys, updateReport, type Report } from "@/features/reports/reportsApi";
+import {
+  alertBox,
+  btn,
+  btnPrimary,
+  input,
+  label as labelClass,
+  dialogDescription,
+  dialogFooter,
+  dialogOverlay,
+  dialogPanel,
+  dialogTitle,
+} from "@/components/styles";
+import {
+  deleteReport,
+  inputFromReport,
+  reportKeys,
+  updateReport,
+  type Report,
+} from "@/features/reports/reportsApi";
 import { ApiError } from "@/lib/api";
 import { applyExternalSave } from "@/features/reports/designer/reportDraftStore";
 
-const overlay = "fixed inset-0 bg-black/50";
-const content =
-  "fixed left-1/2 top-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 text-fg shadow-xl";
+const overlay = dialogOverlay;
+const content = `${dialogPanel} w-[min(26rem,calc(100vw-2rem))] p-5`;
 
 function message(e: unknown): string {
-  if (e instanceof ApiError) return e.recovery ? `${e.message} ${e.recovery}` : e.message;
+  if (e instanceof ApiError)
+    return e.recovery ? `${e.message} ${e.recovery}` : e.message;
   return "Something went wrong while contacting the server.";
 }
 
@@ -37,7 +54,12 @@ export function RenameReportDialog({ ws, report, onClose }: Props) {
     if (trimmed === "" || trimmed === report.name) return;
     setBusy(true);
     try {
-      const saved = await updateReport(ws, report.id, report.version, inputFromReport(report, { name: trimmed }));
+      const saved = await updateReport(
+        ws,
+        report.id,
+        report.version,
+        inputFromReport(report, { name: trimmed }),
+      );
       qc.setQueryData(reportKeys.one(ws, saved.id), saved);
       void qc.invalidateQueries({ queryKey: reportKeys.all(ws) });
       applyExternalSave(ws, saved);
@@ -54,23 +76,34 @@ export function RenameReportDialog({ ws, report, onClose }: Props) {
       <Dialog.Portal>
         <Dialog.Overlay className={overlay} />
         <Dialog.Content className={content}>
-          <Dialog.Title className="m-0 text-base font-semibold">Rename report</Dialog.Title>
-          <Dialog.Description className="sr-only">Enter a new name for the report.</Dialog.Description>
+          <Dialog.Title className={dialogTitle}>Rename report</Dialog.Title>
+          <Dialog.Description className="sr-only">
+            Enter a new name for the report.
+          </Dialog.Description>
           <form onSubmit={(e) => void submit(e)} className="mt-3">
             <label className={labelClass} htmlFor={fieldId}>
               Report name
             </label>
-            <input id={fieldId} className={input} value={name} onChange={(e) => setName(e.target.value)} />
+            <input
+              id={fieldId}
+              className={input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
             {error && (
               <p role="alert" className={`${alertBox} mt-3`}>
                 {error}
               </p>
             )}
-            <div className="mt-4 flex justify-end gap-2">
+            <div className={dialogFooter}>
               <button type="button" className={btn} onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className={btnPrimary} disabled={busy || trimmed === "" || trimmed === report.name}>
+              <button
+                type="submit"
+                className={btnPrimary}
+                disabled={busy || trimmed === "" || trimmed === report.name}
+              >
                 Rename
               </button>
             </div>
@@ -107,20 +140,28 @@ export function DeleteReportDialog({ ws, report, onClose }: Props) {
       <Dialog.Portal>
         <Dialog.Overlay className={overlay} />
         <Dialog.Content className={content}>
-          <Dialog.Title className="m-0 text-base font-semibold">Delete report “{report.name}”</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-fg-muted">
-            The report definition is permanently deleted. Tables and their data are not affected.
+          <Dialog.Title className={dialogTitle}>
+            Delete report “{report.name}”
+          </Dialog.Title>
+          <Dialog.Description className={dialogDescription}>
+            The report definition is permanently deleted. Tables and their data
+            are not affected.
           </Dialog.Description>
           {error && (
             <p role="alert" className={`${alertBox} mt-3`}>
               {error}
             </p>
           )}
-          <div className="mt-4 flex justify-end gap-2">
+          <div className={dialogFooter}>
             <button type="button" className={btn} onClick={onClose}>
               Cancel
             </button>
-            <button type="button" className={btnPrimary} disabled={busy} onClick={() => void remove()}>
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={busy}
+              onClick={() => void remove()}
+            >
               Delete report
             </button>
           </div>

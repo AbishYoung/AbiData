@@ -9,7 +9,8 @@ interface LoginFormProps {
 }
 
 export function errorText(e: unknown): string {
-  if (e instanceof ApiError) return e.recovery ? `${e.message} ${e.recovery}` : e.message;
+  if (e instanceof ApiError)
+    return e.recovery ? `${e.message} ${e.recovery}` : e.message;
   return "Something went wrong. Try again.";
 }
 
@@ -39,7 +40,11 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
+    <form
+      onSubmit={(e) => void handleSubmit(e)}
+      className="space-y-5"
+      noValidate
+    >
       {error && (
         <div role="alert" className={alertBox}>
           {error}
@@ -89,13 +94,24 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
           </Tip>
         </div>
         {capsLock && (
-          <p role="status" className="mt-1 flex items-center gap-1 text-xs font-medium text-fg">
-            <TriangleAlert size={12} aria-hidden="true" className="shrink-0 text-warning" />
+          <p
+            role="status"
+            className="mt-1 flex items-center gap-1 text-xs font-medium text-fg"
+          >
+            <TriangleAlert
+              size={12}
+              aria-hidden="true"
+              className="shrink-0 text-warning"
+            />
             Caps Lock is on.
           </p>
         )}
       </div>
-      <button type="submit" className={`${btnPrimary} w-full`} disabled={busy}>
+      <button
+        type="submit"
+        className={`${btnPrimary} h-10 w-full`}
+        disabled={busy}
+      >
         {busy ? "Signing in…" : "Sign in"}
       </button>
     </form>

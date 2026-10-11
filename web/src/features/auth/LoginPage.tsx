@@ -7,7 +7,10 @@ import { LoginForm } from "./LoginForm";
 export function LoginPage() {
   const navigate = useNavigate();
   return (
-    <AuthLayout title="Sign in">
+    <AuthLayout
+      title="Sign in"
+      subtitle="Welcome back. Enter your details to open your workspaces."
+    >
       <LoginForm
         onSubmit={async (email, password) => {
           const me = await login(email, password);
