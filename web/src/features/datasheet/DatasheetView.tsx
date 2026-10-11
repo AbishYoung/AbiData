@@ -875,8 +875,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           canEdit={canEdit}
           buffer={buffers.get(sheetIndex >= total ? "new" : (rowAt(sheetIndex)?.id ?? -1))}
           lookupFor={lookupFor}
-          onSave={(changes) => {
-            const row = rowAt(sheetIndex);
+          onSave={(changes, base) => {
+            // Save against the record as the sheet opened it, so a change made by someone else in the
+            // meantime is a conflict instead of being overwritten.
+            const row = sheetIndex >= total ? undefined : (base ?? rowAt(sheetIndex));
             const key: RowKey = sheetIndex >= total ? "new" : (row?.id ?? -1);
             return saveFromSheet(key, row, changes);
           }}

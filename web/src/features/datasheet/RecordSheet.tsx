@@ -30,7 +30,8 @@ interface Props {
   canEdit: boolean;
   buffer: RowBuffer | undefined;
   lookupFor: (col: Column) => LookupInfo | undefined;
-  onSave: (changes: FieldChange[]) => Promise<SheetSave>;
+  /** `base` is the record as the sheet showed it when editing began (its version is the base for If-Match). */
+  onSave: (changes: FieldChange[], base: Row | undefined) => Promise<SheetSave>;
   onGo: (index: number) => void;
   onClose: () => void;
   onDelete: () => void;
@@ -83,8 +84,9 @@ export function RecordSheet(props: Props) {
   const formId = useId();
   const loading = !isNew && !row;
   const key = isNew ? "new" : (row?.id ?? `loading-${index}`);
-  const [form, setForm] = useState<{ key: string | number; drafts: Record<string, Draft>; touched: ReadonlySet<string> }>(() => ({
+  const [form, setForm] = useState<{ key: string | number; base: Row | undefined; drafts: Record<string, Draft>; touched: ReadonlySet<string> }>(() => ({
     key,
+    base: row,
     drafts: Object.fromEntries(columns.map((c) => [c.id, initialDraft(c, row)])),
     touched: new Set(),
   }));
@@ -94,7 +96,7 @@ export function RecordSheet(props: Props) {
 
   // A different record (or one that finished loading) starts from its own values.
   if (form.key !== key) {
-    setForm({ key, drafts: Object.fromEntries(columns.map((c) => [c.id, initialDraft(c, row)])), touched: new Set() });
+    setForm({ key, base: row, drafts: Object.fromEntries(columns.map((c) => [c.id, initialDraft(c, row)])), touched: new Set() });
     setLocal({ key, errors: {} });
   }
   const drafts = form.drafts;
@@ -139,7 +141,7 @@ export function RecordSheet(props: Props) {
     }
     setBusy(true);
     try {
-      const outcome = await props.onSave(changes);
+      const outcome = await props.onSave(changes, form.base);
       if (outcome === "conflict") setAwaitingMerge(true);
       return outcome === "saved";
     } finally {
