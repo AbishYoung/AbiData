@@ -29,7 +29,7 @@ const (
 
 	apiKeySecretLen = 43
 	apiKeyTokenLen  = len(APIKeyPrefix) + 26 + 1 + apiKeySecretLen
-	apiKeyDomain    = "abidata-api-key-v1\x00"
+	apiKeyDomain    = "abidata-api-key-v1\x00" //nolint:gosec // domain-separation tag, not a credential
 	maxAPIKeyName   = 100
 
 	// A failed bearer attempt counts against the client address: more than

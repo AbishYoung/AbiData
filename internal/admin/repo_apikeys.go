@@ -44,8 +44,10 @@ func (k APIKey) Active(now time.Time) bool {
 	return k.ExpiresAt == nil || now.Before(*k.ExpiresAt)
 }
 
-const apiKeyCols = `k.id, k.workspace_id, k.name, k.role, k.secret_hash, k.created_by, COALESCE(u.display_name, ''), k.created_at, k.expires_at, k.last_used_at, k.revoked_at`
-const apiKeyFrom = ` FROM _adm_api_keys k LEFT JOIN _adm_users u ON u.id = k.created_by `
+const apiKeyCols = //nolint:gosec // column list, not a credential
+`k.id, k.workspace_id, k.name, k.role, k.secret_hash, k.created_by, COALESCE(u.display_name, ''), k.created_at, k.expires_at, k.last_used_at, k.revoked_at`
+const apiKeyFrom = //nolint:gosec // SQL fragment, not a credential
+` FROM _adm_api_keys k LEFT JOIN _adm_users u ON u.id = k.created_by `
 
 func scanAPIKey(r scanner) (APIKey, error) {
 	var k APIKey

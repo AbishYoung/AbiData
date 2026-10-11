@@ -587,17 +587,20 @@ func TestAPIKeyEventsStreamAndRevocation(t *testing.T) {
 	_, otherTok := k.mint("x", "viewer", nil)
 	r, _ := http.NewRequest("GET", k.srv.URL+"/api/v1/w/"+k.other+"/events", nil)
 	r.Header.Set("Authorization", "Bearer "+otherTok)
-	resp, _ := http.DefaultClient.Do(r)
-	resp.Body.Close()
-	if resp.StatusCode != 404 {
-		t.Fatalf("events of other workspace: %d", resp.StatusCode)
+	foreign, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign.Body.Close()
+	if foreign.StatusCode != 404 {
+		t.Fatalf("events of other workspace: %d", foreign.StatusCode)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", k.srv.URL+base+"/events", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // closed by the defer below
 	if err != nil {
 		t.Fatal(err)
 	}
