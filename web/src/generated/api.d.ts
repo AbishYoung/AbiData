@@ -1696,12 +1696,21 @@ export interface components {
             saved?: components["schemas"]["Row"];
         };
         ExportRequest: {
+            /**
+             * @description CSV only: start the file with a UTF-8 byte-order mark so Excel on Windows reads non-ASCII text correctly. Ignored for other formats.
+             * @default true
+             */
+            bom: boolean;
+            /** @description Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record. */
+            filter?: string;
             /** @enum {string} */
             format: "csv" | "xlsx" | "json";
             /** @description Query parameters (saved queries only). */
             params?: {
                 [key: string]: unknown;
             };
+            /** @description Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter. */
+            sort?: string;
             /** @description Table or saved query id. */
             source_id: string;
             /** @enum {string} */

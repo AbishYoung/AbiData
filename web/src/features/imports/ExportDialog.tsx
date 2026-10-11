@@ -7,6 +7,7 @@ import { recallParams, rememberParams, type ParamRaw } from "@/features/queries/
 import type { Params } from "@/features/queries/savedQueries";
 import { ApiError } from "@/lib/api";
 import { cancelOperation, operationArtifactUrl } from "@/lib/operations";
+import { loadCsvBom, saveCsvBom } from "./exportPrefs";
 import { isFinished, parseExportResult, startExport, type ExportRequest } from "./importsApi";
 import { useOperationDetail } from "./useOperationDetail";
 
@@ -16,7 +17,11 @@ export interface ExportSource {
   name: string;
   /** Parameters a saved query asks for; none for tables. */
   params?: readonly Param[];
+  /** A datasheet's current filter and sort, in the rows endpoint's parameter form. */
+  view?: { filter: string | null; sort: string | null; filtered: boolean };
 }
+
+type Scope = "view" | "all";
 
 type Format = ExportRequest["format"];
 
@@ -38,6 +43,8 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
   const headingRef = useRef<HTMLHeadingElement>(null);
   const downloadRef = useRef<HTMLAnchorElement>(null);
   const [format, setFormat] = useState<Format>("csv");
+  const [bom, setBom] = useState(loadCsvBom);
+  const [scope, setScope] = useState<Scope>(source.view?.filtered ? "view" : "all");
   const [asking, setAsking] = useState(false);
   const [opId, setOpId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -68,8 +75,12 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
         source_kind: source.kind,
         source_id: source.id,
         format,
+        bom: format === "csv" ? bom : true,
         ...(values ? { params: values } : {}),
+        ...(source.view && scope === "view" && source.view.filter ? { filter: source.view.filter } : {}),
+        ...(source.view && scope === "view" && source.view.sort ? { sort: source.view.sort } : {}),
       };
+      if (format === "csv") saveCsvBom(bom);
       const started = await startExport(ws, body);
       downloaded.current = false;
       setOpId(started.id);
@@ -130,10 +141,36 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
             Export “{source.name}”
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">
-            {source.kind === "table" ? "Exports every record of the table." : "Runs the query and exports its result."}
+            {source.kind === "table" ? "Exports the records of the table." : "Runs the query and exports its result."}
           </Dialog.Description>
 
           {opId === null ? (
+            <>
+            {source.view && (
+              <fieldset className="m-0 mt-3 border-0 p-0">
+                <legend className="mb-1 p-0 text-sm font-semibold">Records</legend>
+                <div className="space-y-2">
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <input type="radio" name={`${baseId}-scope`} checked={scope === "view"} aria-describedby={`${baseId}-scope-view`} onChange={() => setScope("view")} />
+                      Current view
+                    </label>
+                    <p id={`${baseId}-scope-view`} className="m-0 ml-6 text-sm text-fg-muted">
+                      {source.view.filtered ? "Only the records matching the filter, in the datasheet's sort order." : "Every record, in the datasheet's sort order."}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <input type="radio" name={`${baseId}-scope`} checked={scope === "all"} aria-describedby={`${baseId}-scope-all`} onChange={() => setScope("all")} />
+                      All records
+                    </label>
+                    <p id={`${baseId}-scope-all`} className="m-0 ml-6 text-sm text-fg-muted">
+                      Every record of the table, ignoring the filter and sort.
+                    </p>
+                  </div>
+                </div>
+              </fieldset>
+            )}
             <fieldset className="m-0 mt-3 border-0 p-0">
               <legend className="mb-1 p-0 text-sm font-semibold">Format</legend>
               <div className="space-y-2">
@@ -155,12 +192,24 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
                   </div>
                 ))}
               </div>
+              {format === "csv" && (
+                <div className="mt-3">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input type="checkbox" checked={bom} aria-describedby={`${baseId}-bom`} onChange={(e) => setBom(e.target.checked)} />
+                    Excel compatible (UTF-8 with BOM)
+                  </label>
+                  <p id={`${baseId}-bom`} className="m-0 ml-6 text-sm text-fg-muted">
+                    Lets Excel on Windows show accented and non-Latin text correctly. Turn it off for tools that do not expect a byte-order mark.
+                  </p>
+                </div>
+              )}
               {source.kind === "query" && (
                 <p className="m-0 mt-2 text-sm text-fg-muted">
                   {params.length > 0 ? "You will be asked for the query's parameter values. " : ""}Query exports are limited to 50,000 rows.
                 </p>
               )}
             </fieldset>
+            </>
           ) : (
             <div className="mt-3 space-y-2" aria-live="polite">
               {running && (

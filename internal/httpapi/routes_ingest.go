@@ -221,6 +221,14 @@ func (s *Server) registerIngest(api huma.API) {
 			if err := need(); err != nil {
 				return nil, err
 			}
+			if in.Body.Filter != "" || in.Body.Sort != "" {
+				// Same parser as the rows endpoint.
+				q, err := parseListQuery(0, 1, in.Body.Sort, in.Body.Filter)
+				if err != nil {
+					return nil, err
+				}
+				in.Body.View = &q
+			}
 			l, err := s.lease(ctx)
 			if err != nil {
 				return nil, err
