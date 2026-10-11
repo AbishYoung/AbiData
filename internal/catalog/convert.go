@@ -33,6 +33,15 @@ func ConvertValue(from, to FieldType, v any) (out any, ok bool) {
 		}
 		v = string(b)
 	}
+	// Blank text holds no value, so it converts to "empty" in any non-text type without loss.
+	if s, isText := v.(string); isText && strings.TrimSpace(s) == "" && isTextual(from) {
+		switch to {
+		case Integer, Lookup, Number, Currency, Date, DateTime, Hyperlink:
+			return nil, true
+		case YesNo:
+			return int64(0), true
+		}
+	}
 	switch to {
 	case ShortText, LongText, Hyperlink:
 		s, ok := textForm(from, v)
@@ -58,6 +67,8 @@ func ConvertValue(from, to FieldType, v any) (out any, ok bool) {
 	}
 	return nil, false
 }
+
+func isTextual(t FieldType) bool { return t == ShortText || t == LongText || t == Hyperlink }
 
 func isTemporal(t FieldType) bool { return t == Date || t == DateTime }
 

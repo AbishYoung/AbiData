@@ -85,7 +85,8 @@ func TestConvertValue(t *testing.T) {
 		{"text exp", ShortText, Integer, "1e3", i(1000), true},
 		{"text fraction", ShortText, Integer, "3.5", nil, false},
 		{"text junk", ShortText, Integer, "abc", nil, false},
-		{"text empty", ShortText, Integer, "", nil, false},
+		{"text empty", ShortText, Integer, "", nil, true},
+		{"text blank", ShortText, Integer, "  ", nil, true},
 		{"text NaN", ShortText, Integer, "NaN", nil, false},
 		{"text huge exp", ShortText, Integer, "1e999999999", nil, false},
 		{"currency divisible", Currency, Integer, i(50000), i(5), true},
@@ -166,7 +167,7 @@ func TestConvertValue(t *testing.T) {
 		{"text 0", ShortText, YesNo, "0", i(0), true},
 		{"text off", ShortText, YesNo, "off", i(0), true},
 		{"text maybe", ShortText, YesNo, "maybe", nil, false},
-		{"text empty", ShortText, YesNo, "", nil, false},
+		{"text empty", ShortText, YesNo, "", i(0), true},
 		{"date to yes", Date, YesNo, "2026-03-01", nil, false},
 
 		// to date

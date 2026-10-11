@@ -1298,8 +1298,12 @@ func (p *planner) conversionFailures(t *Table, old, nc Column) error {
 		return err
 	}
 	p.report.ConversionFailures = append(p.report.ConversionFailures, cf)
+	becomes := "empty"
+	if nc.Type == YesNo {
+		becomes = "No"
+	}
 	p.report.Breaking = append(p.report.Breaking, Issue{Kind: "conversion_failure", Object: "column", ID: nc.ID,
-		Message: fmt.Sprintf("%d values in %q cannot be converted from %s to %s; they would become empty.", n, nc.DisplayName, old.Type, nc.Type)})
+		Message: fmt.Sprintf("%d values in %q cannot be converted from %s to %s; they would become %s.", n, nc.DisplayName, old.Type, nc.Type, becomes)})
 	return nil
 }
 
@@ -1339,9 +1343,14 @@ func registerConvertFuncs(c *sqlitex.Conn) (func(), error) {
 		}
 	}
 	err := raw.CreateFunction("abidata_convert", 3, flags, func(ctx sqlite3.Context, args ...sqlite3.Value) {
-		out, ok := ConvertValue(FieldType(args[0].Text()), FieldType(args[1].Text()), argVal(args[2]))
+		to := FieldType(args[1].Text())
+		out, ok := ConvertValue(FieldType(args[0].Text()), to, argVal(args[2]))
 		if !ok {
-			ctx.ResultNull()
+			if to == YesNo {
+				ctx.ResultInt64(0) // yes_no is never empty: what cannot convert becomes "No"
+			} else {
+				ctx.ResultNull()
+			}
 			return
 		}
 		result(ctx, out)

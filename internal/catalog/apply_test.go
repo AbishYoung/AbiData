@@ -236,6 +236,40 @@ func TestTransactionalDDLBlockedConversionLeavesFileUnchanged(t *testing.T) {
 	}
 }
 
+// Converting to yes_no (which is never empty) must be forceable: unconvertible values become "No"
+// instead of NULL, which the NOT NULL column would reject and silently block the whole change.
+// Blank text is no data at all, so it is not reported as a conversion failure.
+func TestConvertToYesNoForcedAndBlankTextIsNotAFailure(t *testing.T) {
+	f := newFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Items", Columns: []ColumnSpec{{DisplayName: "Flag", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("Items")
+	flag, _ := tb.ColumnByPhysical("Flag")
+	f.exec(`INSERT INTO Items(Flag) VALUES ('yes'), ('maybe'), (''), ('0'), (NULL)`)
+
+	op := Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: flag.ID, Column: &ColumnSpec{DisplayName: "Flag", Type: YesNo}}
+	r, err := f.run(Preview, ApplyOptions{}, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.ConversionFailures) != 1 || r.ConversionFailures[0].Count != 1 || r.ConversionFailures[0].Samples[0].Value != "maybe" {
+		t.Fatalf("only 'maybe' is a failure: %+v", r.ConversionFailures)
+	}
+	for _, b := range r.Breaking {
+		if b.Kind == "constraint_violation" {
+			t.Fatalf("spurious constraint violation: %+v", r.Breaking)
+		}
+		if b.Kind == "conversion_failure" && !strings.Contains(b.Message, "would become No") {
+			t.Fatalf("message: %s", b.Message)
+		}
+	}
+	if _, err := f.run(Apply, ApplyOptions{Force: true}, op); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(f.query(`SELECT id, Flag FROM Items ORDER BY id`)); got != "[[1 1] [2 0] [3 0] [4 0] [5 0]]" {
+		t.Fatalf("%s", got)
+	}
+}
+
 func TestRestorePointHookOnlyForDestructiveApply(t *testing.T) {
 	f := newFixture(t)
 	calls := 0
