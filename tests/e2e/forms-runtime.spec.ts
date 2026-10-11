@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { signOut } from "./helpers";
+import { signIn, signOut } from "./helpers";
 import { createWorkspace, openWorkspace } from "./tabledesign-helpers";
 import { signInAs } from "./queries-helpers";
 import {
@@ -162,6 +162,56 @@ test("opening a form from the navigation pane with Enter focuses its first field
   await page.keyboard.press("Enter");
   const form = page.getByRole("group", { name: "Order", exact: true });
   await expect(form.getByLabel("Customer")).toBeFocused();
+});
+
+test("a parent or subform row deleted by someone else does not break the subform", async ({ page, browser, baseURL }) => {
+  await openWorkspace(page, WORKSPACE);
+  await openForm(page, data.ws, data.orderForm);
+  const form = page.getByRole("group", { name: "Order", exact: true });
+  await expect(form.getByText("Record 1 of 2")).toBeVisible();
+
+  const ctx = await browser.newContext({ baseURL: baseURL ?? "" });
+  const other = await ctx.newPage();
+  await signIn(other);
+  await other.getByRole("link", { name: new RegExp(WORKSPACE) }).click();
+  await expect(other).toHaveURL(/\/w\//);
+  const remove = async (t: { id: string }, id: number) => {
+    const row = await other.request.get(`/api/v1/w/${data.ws}/tables/${t.id}/rows/${id}`);
+    const version = ((await row.json()) as { _version: number })._version;
+    const me: { csrf_token: string } = await (await other.request.get("/api/v1/auth/me")).json();
+    const res = await other.request.delete(`/api/v1/w/${data.ws}/tables/${t.id}/rows/${id}`, {
+      headers: { "X-CSRF-Token": me.csrf_token, Origin: new URL(other.url()).origin, "If-Match": `"${version}"` },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  };
+
+  // A line deleted by someone else while it is open in the subform.
+  await addLine(page, "Widget", "2", "100");
+  const lineRows = await (await page.request.get(`/api/v1/w/${data.ws}/tables/${data.lines.id}/rows?limit=200`)).json();
+  const mine = (lineRows as { items: { id: number; fields: Record<string, unknown> }[] }).items.find(
+    (r) => r.fields[col(data.lines, "Order")] === data.order1 && r.fields[col(data.lines, "Qty")] === 2,
+  );
+  expect(mine).toBeTruthy();
+  await remove(data.lines, mine?.id ?? 0);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(form.getByLabel("Subtotal")).toBeVisible();
+
+  // The order itself deleted while the user has unsaved edits: banner, and the subform steps aside.
+  const total = form.getByLabel("Total", { exact: true });
+  await total.fill("77");
+  await total.blur();
+  await expect(bar(form).getByText("Unsaved changes")).toBeVisible();
+  await remove(data.orders, data.order1);
+  const banner = form.getByRole("alert").filter({ hasText: "This record was deleted by someone else. Your changes have not been saved." });
+  await expect(banner).toBeVisible();
+  await expect(form.getByText("The parent record was deleted")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await banner.getByRole("button", { name: "Discard" }).click();
+  await expect(banner).toBeHidden();
+  await expect(form.getByText("Record 1 of 1")).toBeVisible();
+  await expect(form.getByLabel("Customer")).toHaveValue(String(data.bob));
+  await expect(lines(page).getByRole("group", { name: "New record" })).toBeVisible();
+  await ctx.close();
 });
 
 test("viewers see the form read-only", async ({ page }) => {

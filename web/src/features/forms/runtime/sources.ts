@@ -72,7 +72,8 @@ export function useTablePages(ws: string, tableId: string | null, filter: string
 export function pagesFor(start: number, end: number, count: number, extra?: number): number[] {
   const set = new Set<number>();
   const add = (i: number) => {
-    if (i >= 0 && i < count) set.add(Math.floor(i / PAGE_SIZE));
+    // A position past the end (the list just shrank) still loads the last page, so the record that moved up can arrive.
+    if (count > 0 && i >= 0) set.add(Math.floor(Math.min(i, count - 1) / PAGE_SIZE));
   };
   for (let i = Math.max(0, start); i <= end; i += Math.max(1, Math.floor(PAGE_SIZE / 2))) add(i);
   add(end);

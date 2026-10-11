@@ -46,7 +46,7 @@ export function col(t: ApiTable, name: string): string {
   return c.id;
 }
 
-async function applySchema(page: Page, ws: string, table: unknown): Promise<ApiTable> {
+export async function applySchema(page: Page, ws: string, table: unknown): Promise<ApiTable> {
   const out = await apiPost<{ schema: { tables: ApiTable[] } }>(page, `/api/v1/w/${ws}/schema/apply`, {
     ops: [{ op: "create_table", table }],
   });
