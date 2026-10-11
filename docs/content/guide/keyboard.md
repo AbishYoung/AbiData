@@ -10,12 +10,20 @@ You can do most work from the keyboard. The full list of shortcuts, with Mac and
 
 ## The essentials {#essentials}
 
-- `Mod+K` opens the command palette. Type to search, use the arrow keys to move, `Enter` to run and `Esc` to close.
+- `Mod+K` opens the command palette (see [The command palette](#palette)). Type to search, use the arrow keys to move, `Enter` to run and `Esc` to close.
 - `?` opens this documentation when you are not typing in a field. The help button in the top bar, labelled **Open documentation**, does the same.
 - `Mod+S` saves the design you are editing: a table design, a query, a form, a report, a script or a job.
 - `Esc` closes dialogs and panels. In the documentation panel, the first `Esc` clears the search and the next one closes the panel.
 
 AbiData never uses `F1` or `Ctrl`/`Cmd` with `N`, `T`, `W`, `E`, `L` or `P`, so your browser's own shortcuts keep working.
+
+## The command palette {#palette}
+
+The palette is the fast way to do almost anything. With no text it lists the objects you opened lately (**Recent**) and the main actions. Type a few letters of a name or an action to narrow the list; letters need not be next to each other, so `cstmr` finds Customers.
+
+- **Objects.** Inside a workspace, every table, query, form, report, script and job is listed under its own heading with its icon. `Enter` opens it, the same as clicking it in the navigation pane. A heading shows up to five matches; choose **Show N more** to see the rest.
+- **Actions.** New table, New query, SQL console, New form, New report, New script, New job, Import data… and Workspace settings appear only when your role allows them in the interface. Switch workspace, theme, documentation, keyboard shortcuts, Change password… and Sign out are always there. Platform administrators also get Admin console and one entry for each of its tabs.
+- **Phones.** The palette fills the width of the screen and its rows are large enough to tap. The search button in the top bar opens it.
 
 ## Moving between areas {#areas}
 
@@ -56,7 +64,8 @@ In the form and report designers, every control can be reached without a mouse.
 
 ## Lists, grids and viewers {#lists}
 
-- **Command palette and documentation contents**: the arrow keys move the highlight. `Enter` opens the item. In the documentation contents, `Home` and `End` go to the first and last item.
+- **Command palette**: the arrow keys move the highlight, `Page Up` and `Page Down` move a page at a time, and `Enter` runs the highlighted result. `Home` and `End` go to the first and last result once the text cursor is already at the start or end of what you typed.
+- **Documentation contents**: the arrow keys move the highlight, `Enter` opens the item, and `Home` and `End` go to the first and last item.
 - **Query results**: arrow keys move between cells, `Page Up` and `Page Down` move one page, and `Home` and `End` go to the first and last row.
 - **Script Studio problems list**: the arrow keys and `Home` and `End` move through the problems, and `Enter` jumps to the line of the selected one.
 - **Report viewer**: `Page Up` and `Page Down` move between pages, and `Home` and `End` go to the first and last page.

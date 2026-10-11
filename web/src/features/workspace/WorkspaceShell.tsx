@@ -4,7 +4,7 @@ import { Dialog } from "radix-ui";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Menu, Search, X } from "lucide-react";
-import { api } from "@/lib/api";
+import { workspaceQuery } from "./workspaceQuery";
 import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
 import { useStatusBar } from "@/lib/statusbar";
 import type { Me } from "@/lib/session";
@@ -299,13 +299,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   const live = useLiveStore((s) => s.state);
   const recordNav = useStatusBar((s) => s.recordNav);
   useWorkspaceEvents(ws);
-  const workspace = useQuery({
-    queryKey: ["workspace", ws],
-    queryFn: () =>
-      api.requestData((c, init) => c.GET("/api/v1/w/{ws}", { ...init, params: { path: { ws } } }), {
-        label: "Opening workspace",
-      }),
-  });
+  const workspace = useQuery(workspaceQuery(ws));
   const role = workspace.data?.role;
   const compact = useIsCompact();
   const openSeq = useTabs((s) => s.openSeq);

@@ -115,8 +115,10 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 
 | Action | Mac | Windows / Linux | Where it applies |
 |---|---|---|---|
-| Move the highlight through the commands | `Arrow keys` | `Arrow keys` | Command palette (Up and Down) |
-| Run the highlighted command | `Enter` | `Enter` | Command palette |
+| Move the highlight through the results | `Arrow keys` | `Arrow keys` | Command palette (Up and Down) |
+| Move the highlight a page at a time | `PageDown` | `PageDown` | Command palette (PageUp: back a page) |
+| Go to the first result (End: last result) | `Home` | `Home` | Command palette (when the text cursor is already at the start, or at the end for End) |
+| Run the highlighted result, or show more results of its section | `Enter` | `Enter` | Command palette |
 | Close the dialog or side panel | `Esc` | `Esc` | Dialogs and side panels (the docs panel clears its search first; the merge dialog stays open) |
 | Open the first search result | `Enter` | `Enter` | Documentation search box |
 | Move through the search results (Down from the search box) | `Arrow keys` | `Arrow keys` | Documentation search results |

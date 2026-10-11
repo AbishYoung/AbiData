@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { openDocs } from "@/features/docs/docsStore";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { usePalette } from "./commands";
+import { trackRecentTabs } from "./recent";
 
 const TYPING =
   'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="grid"], [role="textbox"], [role="searchbox"], [role="combobox"], .monaco-editor';
@@ -13,6 +14,8 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 /** Global key bindings: Mod+K opens the command palette; ? opens the docs outside text fields. */
 export function GlobalShortcuts() {
+  // The palette lists the objects opened lately first.
+  useEffect(() => trackRecentTabs(), []);
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       if (e.isComposing) return;

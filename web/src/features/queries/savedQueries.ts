@@ -37,8 +37,8 @@ function listQueries(ws: string): Promise<Saved[]> {
 }
 
 /** Saved queries of the workspace. */
-export function useSavedQueries(ws: string) {
-  return useQuery({ queryKey: queryKeys.list(ws), queryFn: () => listQueries(ws) });
+export function useSavedQueries(ws: string, enabled = true) {
+  return useQuery({ queryKey: queryKeys.list(ws), queryFn: () => listQueries(ws), enabled });
 }
 
 export function useSavedQuery(ws: string, id: string | null) {

@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Tabs } from "radix-ui";
-import { Boxes, ChevronRight, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { Boxes, ChevronRight, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { pageTitle } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
+import { ADMIN_TABS, type AdminTab } from "./adminTabs";
 import { OverviewTab } from "./OverviewTab";
 import { WorkspacesTab } from "./WorkspacesTab";
 import { UsersTab } from "./UsersTab";
@@ -12,16 +13,18 @@ import { SettingsTab } from "./SettingsTab";
 import { LogsTab } from "./LogsTab";
 import { AdminApiKeysTab } from "@/features/apikeys/AdminApiKeysTab";
 
-const SECTIONS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "workspaces", label: "Workspaces", icon: Boxes },
-  { id: "users", label: "Users", icon: Users },
-  { id: "api-keys", label: "API keys", icon: KeyRound },
-  { id: "settings", label: "Settings", icon: Settings },
-  { id: "logs", label: "Live logs", icon: ScrollText },
-] as const;
+const TAB_ICONS: Record<AdminTab, LucideIcon> = {
+  overview: LayoutDashboard,
+  workspaces: Boxes,
+  users: Users,
+  "api-keys": KeyRound,
+  settings: Settings,
+  logs: ScrollText,
+};
 
-export type AdminTab = (typeof SECTIONS)[number]["id"];
+const SECTIONS = ADMIN_TABS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
+
+export type { AdminTab };
 
 /** Validates the `tab` search param; unknown or missing values fall back to the overview. */
 export function parseAdminTab(v: unknown): AdminTab {

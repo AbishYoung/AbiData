@@ -9,9 +9,10 @@ export type Column = components["schemas"]["Column"];
 export type FieldType = Column["field_type"];
 
 /** The workspace catalog; refreshed by schema.changed events. */
-export function useSchema(ws: string) {
+export function useSchema(ws: string, enabled = true) {
   return useQuery({
     queryKey: keys.schema(ws),
+    enabled,
     queryFn: () =>
       api.requestData((c, init) => c.GET("/api/v1/w/{ws}/schema", { ...init, params: { path: { ws } } }), {
         label: "Loading tables",

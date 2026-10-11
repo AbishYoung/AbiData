@@ -77,3 +77,21 @@ export const useTabs = create<TabsState>((set) => ({
 export function useWorkspaceTabs(ws: string) {
   return useTabs((s) => s.byWs[ws] ?? empty);
 }
+
+const NEW_TITLE: Partial<Record<TabKind, string>> = {
+  table: "New table",
+  query: "New query",
+  form: "New form",
+  report: "New report",
+  script: "New script",
+  job: "New job",
+};
+
+/** Opens a fresh unsaved object of `kind` in its designer; further ones are numbered ("New table 2"). */
+export function openNewObject(ws: string, kind: Exclude<TabKind, "settings">, view: TableView = "design"): void {
+  const { tabs } = useTabs.getState().byWs[ws] ?? empty;
+  let n = 1;
+  while (tabs.some((t) => t.key === `${kind}:new:${n}`)) n++;
+  const base = kind === "query" && view === "sql" ? "SQL console" : (NEW_TITLE[kind] ?? "New object");
+  useTabs.getState().open(ws, { key: `${kind}:new:${n}`, kind, objectId: null, view, title: n === 1 ? base : `${base} ${n}` });
+}

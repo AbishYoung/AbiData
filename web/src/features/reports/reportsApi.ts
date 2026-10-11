@@ -64,8 +64,8 @@ export function inputFromReport(r: Report, patch: Partial<ReportInput> = {}): Re
 }
 
 /** Reports of the workspace. */
-export function useReports(ws: string) {
-  return useQuery({ queryKey: reportKeys.list(ws), queryFn: () => listReports(ws) }, queryClient);
+export function useReports(ws: string, enabled = true) {
+  return useQuery({ queryKey: reportKeys.list(ws), queryFn: () => listReports(ws), enabled }, queryClient);
 }
 
 export function useReport(ws: string, id: string | null) {

@@ -69,6 +69,8 @@ export type ShortcutId =
   | "chart.edge"
   | "chart.clear"
   | "palette.move"
+  | "palette.page"
+  | "palette.edge"
   | "palette.run"
   | "dialog.close"
   | "docs.search"
@@ -190,8 +192,10 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "chart.edge", area: "Admin", action: "Move the crosshair to the first point (End: last point)", keys: "Home", scope: "Admin dashboard charts" },
   { id: "chart.clear", area: "Admin", action: "Hide the crosshair", keys: "Esc", scope: "Admin dashboard charts" },
 
-  { id: "palette.move", area: "Dialogs and panels", action: "Move the highlight through the commands", keys: "Arrows", scope: "Command palette (Up and Down)" },
-  { id: "palette.run", area: "Dialogs and panels", action: "Run the highlighted command", keys: "Enter", scope: "Command palette" },
+  { id: "palette.move", area: "Dialogs and panels", action: "Move the highlight through the results", keys: "Arrows", scope: "Command palette (Up and Down)" },
+  { id: "palette.page", area: "Dialogs and panels", action: "Move the highlight a page at a time", keys: "PageDown", scope: "Command palette (PageUp: back a page)" },
+  { id: "palette.edge", area: "Dialogs and panels", action: "Go to the first result (End: last result)", keys: "Home", scope: "Command palette (when the text cursor is already at the start, or at the end for End)" },
+  { id: "palette.run", area: "Dialogs and panels", action: "Run the highlighted result, or show more results of its section", keys: "Enter", scope: "Command palette" },
   { id: "dialog.close", area: "Dialogs and panels", action: "Close the dialog or side panel", keys: "Esc", scope: "Dialogs and side panels (the docs panel clears its search first; the merge dialog stays open)" },
   { id: "docs.search", area: "Dialogs and panels", action: "Open the first search result", keys: "Enter", scope: "Documentation search box" },
   { id: "docs.move", area: "Dialogs and panels", action: "Move through the search results (Down from the search box)", keys: "Arrows", scope: "Documentation search results" },
