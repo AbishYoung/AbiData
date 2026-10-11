@@ -65,8 +65,10 @@ make docker           # linux/amd64 and linux/arm64, build only
 5. Start it:
 
    ```sh
-   docker compose up -d --build
+   scripts/docker-prod.sh
    ```
+
+   The script checks that `ABIDATA_PUBLIC_URL` is https, creates the secrets if they are missing, runs `docker compose up -d --build`, waits until the server is healthy, and tells you whether setup is still pending. `scripts/docker-prod.sh down`, `logs` and `status` stop the stack, follow the logs and list the containers. Plain `docker compose up -d --build` does the same start without the checks.
 
 6. Create the first administrator: see [First run](#first-run).
 
@@ -81,6 +83,15 @@ The compose file defines:
 | `caddy-data`, `caddy-config` | Caddy's certificates and configuration |
 
 The two secret files are passed as `ABIDATA_SESSION_KEY_FILE` and `ABIDATA_MANIFEST_KEY_FILE`. See [Configuration](/docs/operations/configuration) for every setting.
+
+### Ports {#ports}
+
+| Script | Binds | Serves |
+|---|---|---|
+| `scripts/docker-prod.sh` | 80 and 443 on all interfaces (Caddy) | `https://$ABIDATA_SITE`; the app's own port 8080 is not published |
+| `scripts/docker-dev.sh` | `127.0.0.1:8080` only (set `ABIDATA_DEV_PORT` for another port) | `http://localhost:8080`, the app alone without Caddy, debug logging |
+
+The development stack uses its own Compose project (`abidata-dev`) and volumes, so it can run next to a production stack on the same machine without sharing data. Stop it with `scripts/docker-dev.sh down`; `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes its data. Never expose the development port beyond the machine: it serves plain http.
 
 ### Tell AbiData about the proxy {#proxy}
 

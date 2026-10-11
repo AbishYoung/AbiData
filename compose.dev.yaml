@@ -1,0 +1,16 @@
+# Development override: the app alone on a loopback port, plain http, no Caddy.
+# Use scripts/docker-dev.sh (it also picks a separate project name, so dev data
+# never mixes with a production stack on the same machine).
+services:
+  abidata:
+    # Not on the production stack's fixed internal subnet, so a dev and a
+    # production stack can run on one machine at the same time.
+    networks: !reset
+      - default
+    ports:
+      - "127.0.0.1:${ABIDATA_DEV_PORT:-8080}:8080"
+    environment:
+      ABIDATA_PUBLIC_URL: http://localhost:${ABIDATA_DEV_PORT:-8080}
+      ABIDATA_BOOTSTRAP_ADMIN_EMAIL: ${ABIDATA_BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      ABIDATA_TRUSTED_PROXIES: ""
+      ABIDATA_LOG_LEVEL: ${ABIDATA_LOG_LEVEL:-debug}
