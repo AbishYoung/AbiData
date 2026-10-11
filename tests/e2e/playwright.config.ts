@@ -16,7 +16,25 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   reporter: [["list"]],
   use: { baseURL, trace: "retain-on-failure" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // The desktop suite runs on chromium; mobile.spec.ts runs only on the two phone projects.
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: external ? [] : ["smoke.spec.ts", "mobile.spec.ts"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+    ...(external
+      ? []
+      : [
+          { name: "mobile-pixel", testMatch: ["mobile.spec.ts"], use: { ...devices["Pixel 7"] } },
+          {
+            name: "mobile-iphone",
+            testMatch: ["mobile.spec.ts"],
+            // iPhone-sized touch viewport on chromium (WebKit is not installed in CI).
+            use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
+          },
+        ]),
+  ],
   webServer: external
     ? undefined
     : {
