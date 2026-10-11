@@ -98,6 +98,11 @@ func New(deps Deps) *Server {
 	cfg.SchemasPath = ""
 	cfg.CreateHooks = nil // no $schema links in bodies
 	cfg.Info.Description = "AbiData REST API. Errors use the {\"error\":{...}} envelope."
+	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"apiKey":  {Type: "http", Scheme: "bearer", Description: "A workspace API key (abd_...). Valid only on /api/v1/w/{ws}/... routes of its own workspace, and never on key management; see the API access guide."},
+		"session": {Type: "apiKey", In: "cookie", Name: "abidata_session", Description: "The browser session cookie (`__Host-abidata_session` over https). Unsafe methods also need X-CSRF-Token and a matching Origin."},
+	}
+	cfg.Security = []map[string][]string{{"apiKey": {}}, {"session": {}}}
 	api := humachi.New(r, cfg)
 	api.UseMiddleware(s.authenticate)
 	s.router, s.api = r, api

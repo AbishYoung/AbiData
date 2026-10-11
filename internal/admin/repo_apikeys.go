@@ -80,7 +80,7 @@ func scanAPIKey(r scanner) (APIKey, error) {
 // Keys revoked or expired more than 90 days ago are purged first.
 func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
 	return s.Write(ctx, func(tx *sqlitex.Tx) error {
-		now := time.Now()
+		now := k.CreatedAt
 		cutoff := sqlitex.FormatTime(now.Add(-apiKeyRetention))
 		if _, err := tx.Exec(ctx, `DELETE FROM _adm_api_keys WHERE workspace_id = ?1 AND
 			((revoked_at IS NOT NULL AND revoked_at < ?2) OR (expires_at IS NOT NULL AND expires_at < ?2))`,
