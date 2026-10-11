@@ -215,9 +215,9 @@ func metaString(op *huma.Operation, key string) string {
 // methods, then workspace membership and role for /w/{ws} routes.
 func (s *Server) authenticate(hctx huma.Context, next func(huma.Context)) {
 	op := hctx.Operation()
-	// An Authorization header means API-key auth and nothing else: cookies are
-	// never read, so a browser's ambient credentials cannot mix in.
-	if authz := hctx.Header("Authorization"); authz != "" {
+	// A bearer Authorization header means API-key auth and nothing else: cookies
+	// are never read, so a browser's ambient credentials cannot mix in.
+	if authz := hctx.Header("Authorization"); isBearer(authz) {
 		s.authenticateKey(hctx, op, authz, next)
 		return
 	}
@@ -373,9 +373,17 @@ func (s *Server) authenticateKey(hctx huma.Context, op *huma.Operation, authz st
 	next(huma.WithContext(hctx, context.WithValue(ctx, keyMembership, m)))
 }
 
-// rejectBearer refuses an Authorization header on a raw route that only
-// accepts session cookies (metrics, the admin log stream).
-func rejectBearer(r *http.Request) bool { return r.Header.Get("Authorization") != "" }
+// isBearer reports whether an Authorization header value uses the Bearer
+// scheme. Other schemes (for example Basic auth added by a proxy in front of
+// the whole site) are not API-key attempts and leave cookie auth untouched.
+func isBearer(authz string) bool {
+	scheme, _, _ := strings.Cut(authz, " ")
+	return strings.EqualFold(scheme, "Bearer")
+}
+
+// rejectBearer refuses a bearer credential on a raw route that only accepts
+// session cookies (metrics, the admin log stream).
+func rejectBearer(r *http.Request) bool { return isBearer(r.Header.Get("Authorization")) }
 
 func constantEq(a, b string) bool {
 	if len(a) != len(b) || a == "" {

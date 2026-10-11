@@ -4068,6 +4068,7 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    "Cache-Control"?: string;
                     [name: string]: unknown;
                 };
                 content: {

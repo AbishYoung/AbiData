@@ -481,7 +481,7 @@ func (s *Server) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var resolve func(ctx context.Context) (Membership, error)
 	recheck := 5 * time.Minute
-	if authz := r.Header.Get("Authorization"); authz != "" {
+	if authz := r.Header.Get("Authorization"); isBearer(authz) {
 		recheck = keyStreamRecheck
 		if s.keyRecheck > 0 {
 			recheck = s.keyRecheck

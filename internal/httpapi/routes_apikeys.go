@@ -110,7 +110,10 @@ func (s *Server) registerAPIKeys(api huma.API) {
 			Role          string `json:"role" enum:"viewer,editor,builder"`
 			ExpiresInDays *int   `json:"expires_in_days,omitempty" minimum:"1" maximum:"3650" doc:"Omit for a key that does not expire."`
 		}
-	}) (*struct{ Body APIKeyCreated }, error) {
+	}) (*struct {
+		CacheControl string `header:"Cache-Control"`
+		Body         APIKeyCreated
+	}, error) {
 		m, _ := MembershipFrom(ctx)
 		p, _ := PrincipalFrom(ctx)
 		var ttl time.Duration
@@ -127,7 +130,10 @@ func (s *Server) registerAPIKeys(api huma.API) {
 			details["expires_at"] = k.ExpiresAt
 		}
 		s.audit(ctx, "apikey.create", "api_key", k.ID, details)
-		return &struct{ Body APIKeyCreated }{Body: APIKeyCreated{APIKeyDTO: apiKeyDTO(k, time.Now()), Token: token}}, nil
+		return &struct {
+			CacheControl string `header:"Cache-Control"`
+			Body         APIKeyCreated
+		}{CacheControl: "no-store", Body: APIKeyCreated{APIKeyDTO: apiKeyDTO(k, time.Now()), Token: token}}, nil
 	})
 
 	huma.Register(api, huma.Operation{

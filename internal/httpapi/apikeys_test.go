@@ -362,6 +362,27 @@ func TestAPIKeyHeaderOverridesCookies(t *testing.T) {
 	}
 }
 
+// A proxy in front of the whole site may add Basic auth; that is not an API
+// key attempt and must not disturb cookie sessions.
+func TestNonBearerAuthorizationLeavesCookiesAlone(t *testing.T) {
+	k := newKeyEnv(t)
+	r, _ := http.NewRequest("GET", k.srv.URL+k.rows(), nil)
+	r.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+	resp, err := k.owner.http.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("cookie session with Basic header: %d", resp.StatusCode)
+	}
+	// It does not unlock anything either: unsafe requests still need CSRF.
+	if st, _, _ := k.owner.do("POST", k.rows(), map[string]any{"fields": map[string]any{k.col: "x"}}, noCSRF,
+		func(r *http.Request) { r.Header.Set("Authorization", "Basic dXNlcjpwYXNz") }); st != 403 {
+		t.Fatalf("Basic header skipped CSRF: %d", st)
+	}
+}
+
 func TestAPIKeyCSRFAndCORS(t *testing.T) {
 	k := newKeyEnv(t)
 	_, tok := k.mint("a", "editor", nil)
