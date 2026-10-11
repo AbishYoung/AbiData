@@ -28,6 +28,8 @@ const env = {
   ABIDATA_BACKUP_DIR: join(tmp, "backups"),
   ABIDATA_PUBLIC_URL: `http://${ADDR}`,
   ABIDATA_LISTEN_ADDR: ADDR,
+  // Specs assume an empty install; the demo workspace is covered by cmd/abidata/demo_test.go.
+  ABIDATA_DEMO_WORKSPACE: "false",
 };
 mkdirSync(env.ABIDATA_DATA_DIR, { recursive: true });
 mkdirSync(env.ABIDATA_BACKUP_DIR, { recursive: true });
