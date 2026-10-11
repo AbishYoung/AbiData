@@ -164,6 +164,16 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await expect(page.getByRole("region", { name: "Server statistics" }).getByText("Memory (heap)", { exact: true })).toBeVisible();
   await expectNoAxeViolations(page);
 
+  // The selected tab lives in the URL: deep link, reload and back/forward keep it.
+  await page.getByRole("tab", { name: "Users" }).click();
+  await expect(page).toHaveURL(/\/admin\?tab=users$/);
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Users", selected: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeVisible();
+  await page.goto("/admin?tab=bogus");
+  await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeVisible();
+
   // Workspaces
   await page.getByRole("tab", { name: "Workspaces" }).click();
   const wsName = `Admin WS ${RUN}`;

@@ -56,7 +56,9 @@ test("owner adds a member who must already have an account", async ({ page }) =>
 
   const panel = await openSettings(page);
   await expect(panel.getByText(/platform administrator creates/)).toBeVisible();
-  await expect(panel.getByRole("link", { name: /Admin console/ })).toBeVisible();
+  const adminLink = panel.getByRole("link", { name: /Admin console/ });
+  await expect(adminLink).toBeVisible();
+  await expect(adminLink).toHaveAttribute("href", /\/admin\?tab=users$/);
   await expect(panel.locator("tr[data-member-id]")).toHaveCount(1);
   await axeBothSchemes(page);
 

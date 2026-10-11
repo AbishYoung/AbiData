@@ -12,7 +12,7 @@ import { ME_KEY, fetchMe, fetchSetupPending, type Me } from "@/lib/session";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SetupPage } from "@/features/auth/SetupPage";
 import { PickerPage } from "@/features/workspace/PickerPage";
-import { AdminPage } from "@/features/admin/AdminPage";
+import { AdminPage, parseAdminTab } from "@/features/admin/AdminPage";
 import { WorkspaceShell } from "@/features/workspace/WorkspaceShell";
 import { alertBox, btn } from "@/components/styles";
 
@@ -108,9 +108,22 @@ const workspaceRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => authRoute,
   path: "/admin",
+  // The default tab is omitted from the URL so plain /admin stays the overview.
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+    const tab = parseAdminTab(search.tab);
+    return tab === "overview" ? {} : { tab };
+  },
   component: function AdminRoutePage() {
     const { me } = adminRoute.useRouteContext();
-    return <AdminPage me={me} />;
+    const search = adminRoute.useSearch();
+    const navigate = adminRoute.useNavigate();
+    return (
+      <AdminPage
+        me={me}
+        tab={parseAdminTab(search.tab)}
+        onTabChange={(tab) => void navigate({ search: tab === "overview" ? {} : { tab } })}
+      />
+    );
   },
 });
 

@@ -255,7 +255,7 @@ function MembersPanelInner({ ws, selfId, isPlatformAdmin }: { ws: string; selfId
         {isPlatformAdmin ? (
           <>
             {" "}
-            (in <Link to="/admin" className="text-accent underline">Admin console &rsaquo; Users</Link>)
+            (in <Link to="/admin" search={{ tab: "users" }} className="text-accent underline">Admin console &rsaquo; Users</Link>)
           </>
         ) : null}
         .
