@@ -216,12 +216,15 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 				if c.Bind != nil && c.Bind.ColumnID != "id" && t != nil {
 					targets["column:"+c.Bind.ColumnID] = c.Bind.ColumnID
 				}
+				if c.Map != nil && c.Map.OverlayQueryID != "" {
+					targets["query:"+c.Map.OverlayQueryID] = c.Map.OverlayQueryID
+				}
 			}
 		}
 		for k, v := range targets {
 			kind := k
-			if strings.HasPrefix(k, "column:") {
-				kind = "column"
+			if pre, _, ok := strings.Cut(k, ":"); ok {
+				kind = pre
 			}
 			if _, err := tx.Exec(ctx, `INSERT OR IGNORE INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('report', ?, ?, ?, 'exact')`, r.ID, kind, v); err != nil {
 				return err
@@ -280,6 +283,9 @@ func format(v any, spec string, f *field, tz *time.Location) any {
 	}
 	kind, arg, _ := strings.Cut(spec, ":")
 	if kind == "" {
+		if text, ok := geoText(v, ft); ok {
+			return text
+		}
 		switch ft {
 		case catalog.Currency:
 			kind = "currency"

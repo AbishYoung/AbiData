@@ -160,6 +160,11 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 				vals[c.ID] = now.Format("2006-01-02 15:04")
 			case c.Type == "page_number", c.Type == "page_count":
 				// resolved by the paginator
+			case c.Type == "map":
+				// A map draws the geometry itself, never its formatted text.
+				if c.Bind != nil && r != nil {
+					vals[c.ID] = geoValue(r.vals[c.Bind.ColumnID])
+				}
 			case c.Bind != nil && r != nil:
 				if text, ok := r.vals[displayKey(c.Bind.ColumnID)]; ok && r.vals[c.Bind.ColumnID] != nil {
 					vals[c.ID] = fmtv(c, text, nil)

@@ -42,7 +42,7 @@ type Band struct {
 type ReportControl struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
-	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now"`
+	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now,map"`
 	X         int               `json:"x"`
 	Y         int               `json:"y"`
 	W         int               `json:"w"`
@@ -53,6 +53,7 @@ type ReportControl struct {
 	Bind      *forms.Bind       `json:"bind,omitempty"`
 	Calc      *forms.Calc       `json:"calc,omitempty"`
 	Aggregate *Aggregate        `json:"aggregate,omitempty"`
+	Map       *forms.MapOptions `json:"map,omitempty"`
 }
 
 // Aggregate is a structured aggregate (never parsed from text, D12).
@@ -186,6 +187,21 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 			names[c.Name] = true
 			switch c.Type {
 			case "label", "textbox", "line", "rect", "page_number", "page_count", "now":
+				if c.Map != nil {
+					return bad("%s: only map controls have map settings.", where)
+				}
+			case "map":
+				if c.Bind == nil || c.Calc != nil || c.Aggregate != nil {
+					return bad("%s: a map must be bound to a location or area field.", where)
+				}
+				if t != nil {
+					if col, ok := t.Column(c.Bind.ColumnID); ok && !forms.IsGeoColumn(col) {
+						return bad("%s: a map must be bound to a location or area field.", where)
+					}
+				}
+				if err := forms.ValidateMapOptions(where, c.Map); err != nil {
+					return err
+				}
 			default:
 				return bad("%s has unknown type %q.", where, c.Type)
 			}

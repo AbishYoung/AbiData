@@ -83,6 +83,8 @@ type Server struct {
 	started  time.Time
 	// keyRecheck overrides keyStreamRecheck (tests).
 	keyRecheck time.Duration
+	// cspValue caches the Content-Security-Policy; the maps setting changes it.
+	cspValue atomic.Pointer[string]
 }
 
 // New builds the server and registers every route.
@@ -94,7 +96,7 @@ func New(deps Deps) *Server {
 	installHumaErrors(log)
 	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now()}
 	r := chi.NewMux()
-	r.Use(s.requestID, securityHeaders, s.accessLog)
+	r.Use(s.requestID, s.securityHeaders, s.accessLog)
 
 	cfg := huma.DefaultConfig("AbiData API", deps.Version)
 	cfg.OpenAPIPath = "/api/v1/openapi"
@@ -127,6 +129,7 @@ func New(deps Deps) *Server {
 	s.registerReports(api)
 	s.registerJobs(api)
 	s.registerEgress(api)
+	s.registerMaps(api)
 	s.registerIngest(api)
 	s.registerBackups(api)
 	s.registerAPIKeys(api)

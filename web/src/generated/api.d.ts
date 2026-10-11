@@ -108,6 +108,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/settings/maps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The base map tile settings */
+        get: operations["adminGetMaps"];
+        /** Replace the base map tile settings (an empty tile URL turns tiles off) */
+        put: operations["adminPutMaps"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/stats": {
         parameters: {
             query?: never;
@@ -1573,6 +1591,7 @@ export interface components {
             id: string;
             locked?: boolean;
             lookup?: components["schemas"]["Lookup"];
+            map?: components["schemas"]["MapOptions"];
             name: string;
             style?: {
                 [key: string]: string;
@@ -1581,7 +1600,7 @@ export interface components {
             /** Format: int64 */
             tab_index: number;
             /** @enum {string} */
-            type: "label" | "textbox" | "combobox" | "checkbox" | "button" | "line" | "rect" | "subform";
+            type: "label" | "textbox" | "combobox" | "checkbox" | "button" | "line" | "rect" | "subform" | "map";
             visible?: boolean;
             /** Format: int64 */
             w: number;
@@ -2047,6 +2066,19 @@ export interface components {
             relationship_id?: string;
             relationship_name?: string;
         };
+        MapOptions: {
+            /** @description Output name of the overlay query's geo column. */
+            overlay_geo_column?: string;
+            /** @description Output name of the column used as each overlay shape's label. */
+            overlay_label_column?: string;
+            overlay_query_id?: string;
+        };
+        MapsSettings: {
+            /** @description Plain-text attribution shown on maps, for example © OpenStreetMap contributors. */
+            attribution: string;
+            /** @description Tile URL template with {z}, {x} and {y} (optionally {s} as the first host label, and {r}); https only, or http for localhost. Empty turns tiles off. */
+            tile_url: string;
+        };
         Marker: {
             /** Format: int64 */
             column: number;
@@ -2060,6 +2092,8 @@ export interface components {
         };
         MeBody: {
             csrf_token: string;
+            /** @description Base map tiles; an empty tile_url means maps draw without tiles. */
+            maps: components["schemas"]["MapsSettings"];
             memberships: components["schemas"]["MembershipDTO"][] | null;
             user: components["schemas"]["UserDTO"];
         };
@@ -2378,12 +2412,13 @@ export interface components {
             /** Format: int64 */
             h: number;
             id: string;
+            map?: components["schemas"]["MapOptions"];
             name: string;
             style?: {
                 [key: string]: string;
             };
             /** @enum {string} */
-            type: "label" | "textbox" | "line" | "rect" | "page_number" | "page_count" | "now";
+            type: "label" | "textbox" | "line" | "rect" | "page_number" | "page_count" | "now" | "map";
             /** Format: int64 */
             w: number;
             /** Format: int64 */
@@ -3185,6 +3220,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Global"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminGetMaps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapsSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminPutMaps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MapsSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapsSettings"];
                 };
             };
             /** @description Bad Request */

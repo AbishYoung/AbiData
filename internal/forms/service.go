@@ -290,6 +290,11 @@ func writeDeps(ctx context.Context, tx *sqlitex.Tx, f Form) error {
 				return err
 			}
 		}
+		if c.Map != nil && c.Map.OverlayQueryID != "" {
+			if err := add("query", c.Map.OverlayQueryID); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
