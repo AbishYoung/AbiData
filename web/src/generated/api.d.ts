@@ -1616,8 +1616,10 @@ export interface components {
         };
         Criterion: {
             /** @enum {string} */
-            op: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "like" | "contains" | "starts" | "ends" | "in" | "between" | "is_null" | "not_null";
+            op: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "like" | "contains" | "starts" | "ends" | "in" | "between" | "is_null" | "not_null" | "within";
             param?: string;
+            ref_alias?: string;
+            ref_column_id?: string;
             /** Format: int64 */
             row: number;
             value?: unknown;
@@ -1983,6 +1985,8 @@ export interface components {
             kind: "inner" | "left";
             left_alias: string;
             left_column_id: string;
+            /** @enum {string} */
+            op?: "eq" | "within" | "";
             right_alias: string;
             right_column_id: string;
         };
@@ -2275,7 +2279,7 @@ export interface components {
         Param: {
             name: string;
             /** @enum {string} */
-            type: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime";
+            type: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" | "area";
         };
         ParamDoc: {
             doc: string;

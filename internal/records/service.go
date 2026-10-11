@@ -465,6 +465,8 @@ func typeRuleMessage(c catalog.Column) string {
 		return fmt.Sprintf("%q must be a web address starting with http:// or https://.", c.DisplayName)
 	case catalog.YesNo:
 		return fmt.Sprintf("%q must be Yes or No.", c.DisplayName)
+	case catalog.GeoPoint, catalog.GeoArea:
+		return geoTypeRuleMessage(c)
 	}
 	return fmt.Sprintf("The value for %q is not valid.", c.DisplayName)
 }

@@ -11,6 +11,7 @@ import (
 
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
+	"abidata/internal/geo"
 	rec "abidata/internal/records"
 	"abidata/internal/script"
 	"abidata/internal/script/host"
@@ -94,6 +95,9 @@ func ValueToLua(r *script.Run, c catalog.Column, v any) lua.LValue {
 		if s, ok := v.(string); ok {
 			return script.DecimalFactory(r, s)
 		}
+	}
+	if raw, ok := v.(geo.Raw); ok { // geo_point and geo_area: a table mirroring the GeoJSON
+		return script.ToLua(r, raw.Object())
 	}
 	return script.ToLua(r, v)
 }

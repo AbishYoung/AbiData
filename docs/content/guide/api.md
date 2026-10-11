@@ -122,7 +122,11 @@ Send and receive each field in this JSON form. `null` clears a field.
 | Date | `"2026-03-01"` |
 | Date and time | RFC 3339 such as `"2026-03-01T12:30:00Z"` (returned in UTC with milliseconds) |
 | Hyperlink | string starting with `http://` or `https://` |
+| Location (`geo_point`) | a GeoJSON `Point` object such as `{"type":"Point","coordinates":[-0.14189,51.50135]}` (longitude first). Also accepted when sending: `{"lat":51.50135,"lon":-0.14189}`, the string `"51.50135, -0.14189"` and a GeoJSON `Feature`. Responses always use the `Point` form, rounded to 7 decimals |
+| Area (`geo_area`) | a GeoJSON `Polygon` or `MultiPolygon` object, normalised on write (rings closed, outer rings counter-clockwise, holes clockwise, 7 decimals). A `Feature` is accepted when sending. At most 10,000 positions and 1 MiB; areas crossing the 180° meridian are refused |
 | Autonumber, calculated | read-only; sending them is refused |
+
+A geometry that is not valid is refused with [VALIDATION_FAILED](/docs/reference/errors#validation-failed) and a message naming the field and the problem. A calculated field whose result type is Location or Area is returned as GeoJSON in the same way.
 
 ## Read rows {#read}
 
@@ -145,11 +149,17 @@ curl -sS "${H[@]}" "$ABIDATA/api/v1/w/$WS/tables/$T/rows?limit=2&sort=-$PRICE"
 - `limit` is 1 to 500 (default 200). Page with `offset`: while the response has a `next_offset`, request again with `offset=<next_offset>`. When it is missing you have the last page.
 - `sort` is a comma-separated list of field ids (or `id`), each optionally prefixed with `-` for descending.
 - `filter` is a JSON filter, URL-encoded. A condition is `{"col": <field id or "id">, "op": ..., "value": ...}`. The operators are `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `contains`, `starts`, `ends`, `in`, `between` (both take a list), `is_null` and `not_null`. Combine conditions with `{"and": [...]}` and `{"or": [...]}`.
+- Location fields add two operators (and take `is_null` and `not_null`; every other operator is refused). `within` takes a GeoJSON `Polygon` or `MultiPolygon` as the value and matches locations inside it, boundary included and holes excluded. `near` takes `{"lat": .., "lon": .., "metres": ..}` (or `[lat, lon, metres]`, or the text `"lat,lon,metres"`) and matches locations at most that many metres away. Both scan the table; there is no spatial index.
 
 ```bash
 curl -sS -G "${H[@]}" "$ABIDATA/api/v1/w/$WS/tables/$T/rows" \
   --data-urlencode "filter={\"and\":[{\"col\":\"$NAME\",\"op\":\"starts\",\"value\":\"W\"},{\"col\":\"$PRICE\",\"op\":\"lt\",\"value\":50}]}" \
   --data-urlencode "limit=100"
+```
+
+```bash
+curl -sS -G "${H[@]}" "$ABIDATA/api/v1/w/$WS/tables/$T/rows" \
+  --data-urlencode "filter={\"col\":\"$SPOT\",\"op\":\"near\",\"value\":{\"lat\":51.5,\"lon\":-0.14,\"metres\":500}}"
 ```
 
 Count matching rows (capped at 100,000, with `"capped": true` when it was reached):

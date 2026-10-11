@@ -268,6 +268,15 @@ func toInput(c catalog.Column, v any) (any, error) {
 				return json.Number(strconv.FormatInt(int64(x), 10)), nil
 			}
 		}
+	case catalog.GeoPoint, catalog.GeoArea:
+		// Text only ("lat, lon", WKT POINT(lon lat) or GeoJSON); DecodeValue parses it.
+		if x, ok := v.(string); ok {
+			s := strings.TrimSpace(x)
+			if s == "" {
+				return nil, nil
+			}
+			return s, nil
+		}
 	case catalog.Date:
 		if x, ok := v.(string); ok {
 			s := strings.TrimSpace(x)
