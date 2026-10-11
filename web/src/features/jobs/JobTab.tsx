@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Play, Save, Trash2 } from "lucide-react";
 import { useTabs, useWorkspaceTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { Tip } from "@/components/Tip";
 import { ApiError } from "@/lib/api";
 import { listScripts, scriptKeys } from "@/features/scripts/scriptsApi";
 import { DeleteJobDialog, RunWithArgsDialog } from "./JobDialogs";
@@ -199,10 +200,12 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <h2 className="m-0 mr-2 text-base font-semibold">{job ? job.name : "New job"}</h2>
-        <button type="button" className={btnPrimary} disabled={(job !== null && !isDirty) || save.isPending} onClick={submit}>
-          <Save size={16} aria-hidden="true" />
-          Save
-        </button>
+        <Tip label="Save the job" shortcut="Mod+S">
+          <button type="button" className={btnPrimary} disabled={(job !== null && !isDirty) || save.isPending} onClick={submit}>
+            <Save size={16} aria-hidden="true" />
+            Save
+          </button>
+        </Tip>
         {job && (
           <>
             <button type="button" className={btn} disabled={isDirty || runNow.isPending} onClick={() => runNow.mutate()}>
@@ -340,15 +343,17 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
               field(
                 "cron",
                 "Cron expression",
-                <input
-                  id="job-cron"
-                  className={`${input} font-mono`}
-                  spellCheck={false}
-                  autoComplete="off"
-                  aria-invalid={errors.cron ? true : undefined}
-                  aria-describedby={describe("cron", "cron-hint")}
-                  {...register("cron", { validate: (x) => (x.trim() === "" ? "Enter a cron expression or choose another schedule." : true) })}
-                />,
+                <Tip label="Five fields: minute hour day month weekday. For example 30 9 * * 1-5 runs at 09:30 on weekdays." side="right">
+                  <input
+                    id="job-cron"
+                    className={`${input} font-mono`}
+                    spellCheck={false}
+                    autoComplete="off"
+                    aria-invalid={errors.cron ? true : undefined}
+                    aria-describedby={describe("cron", "cron-hint")}
+                    {...register("cron", { validate: (x) => (x.trim() === "" ? "Enter a cron expression or choose another schedule." : true) })}
+                  />
+                </Tip>,
                 "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly.",
               )}
             <p aria-live="polite" className="m-0 text-sm text-fg-muted">

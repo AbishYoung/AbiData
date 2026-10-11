@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api";
 import { Modal } from "@/features/queries/Modal";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
 import { ErrorBox, td, th } from "@/features/admin/ui";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary } from "@/components/styles";
 import { STATUS_LABEL, keyStatus } from "./apiKeyLogic";
 import { adminListApiKeys, adminRevokeApiKey, apiKeyKeys, type ApiKey } from "./apiKeysApi";
@@ -102,9 +103,11 @@ export function AdminApiKeysTab() {
                   <td className={td}>
                     <div className="flex justify-end">
                       {st === "active" && (
-                        <button type="button" className={btn} onClick={() => setRevoking(k)} aria-label={`Revoke API key ${k.name} of ${k.workspace_name ?? "workspace"}`}>
-                          Revoke
-                        </button>
+                        <Tip label="Stop this key from working right away">
+                          <button type="button" className={btn} onClick={() => setRevoking(k)} aria-label={`Revoke API key ${k.name} of ${k.workspace_name ?? "workspace"}`}>
+                            Revoke
+                          </button>
+                        </Tip>
                       )}
                     </div>
                   </td>
