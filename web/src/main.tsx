@@ -11,9 +11,12 @@ import { ActivityBanner } from "./components/ActivityBanner";
 import { DocsPanel } from "./features/docs/DocsPanel";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { GlobalShortcuts } from "./features/palette/GlobalShortcuts";
+import { UpdateToast } from "./components/UpdateToast";
 import { applyTheme, loadThemePref } from "./lib/theme";
+import { registerServiceWorker } from "./lib/pwa";
 
 applyTheme(loadThemePref());
+registerServiceWorker();
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Missing #root element");
@@ -27,6 +30,7 @@ createRoot(rootElement).render(
       <CommandPalette />
       <DocsPanel />
       <GlobalShortcuts />
+      <UpdateToast />
     </QueryClientProvider>
   </StrictMode>,
 );

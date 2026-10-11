@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "gen:api": "openapi-typescript ../internal/httpapi/openapi.json -o src/generated/api.d.ts",
-    "gen:shortcuts": "node scripts/gen-shortcuts.mjs"
+    "gen:shortcuts": "node scripts/gen-shortcuts.mjs",
+    "gen:icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

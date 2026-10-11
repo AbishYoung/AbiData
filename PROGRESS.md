@@ -146,3 +146,10 @@ Environment: git works via /usr/bin/git. Keep ≤ 3 concurrent Sonnet packets (s
 - Workspace settings > Members (owners only, first panel; `web/src/features/members/`): list, add by email (existing accounts only), role select, remove. Demote/remove confirm dialog lists the member's active API keys with a default-on "Also revoke N API keys" checkbox (L2). Last-owner refusal from the server is shown in the dialog.
 - API: member routes (list/add/update/remove) are now `session_only` as well as owner-only; apikeys_test covers PATCH/DELETE with keys. No added-date column: memberships store none.
 - Tests: `memberLogic.test.ts`, `tests/e2e/members.spec.ts` (axe light+dark).
+
+## PWA (installable web app)
+- `web/public/manifest.webmanifest`, `sw.js`, `offline.html`, `icons/` (+ `favicon.svg`); index.html links them (theme-color light/dark, apple-touch-icon, apple-mobile-web-app-*; viewport has `viewport-fit=cover`, body gets `env(safe-area-inset-*)` padding in tokens.css).
+- Icons are generated from `web/public/icons/icon.svg` by `npm --prefix web run gen:icons` (Playwright Chromium from tests/e2e; not part of `make gen`/CI) and the PNGs are committed.
+- Service worker: Vite plugin `pwaServiceWorker` (vite.config.ts) injects a content-derived version and the precache list (entry JS/CSS, index.html, offline page, icons) into dist/sw.js. Hashed `/assets/*` cache-first; navigations network-first, then cached index.html, then offline.html; `/api/*`, `/metrics`, `/healthz`, `/readyz`, event streams, non-GET and cross-origin are never intercepted. No auto skipWaiting: `lib/pwa.ts` (production + secure context only) shows a sticky "A new version is available / Reload" toast (`UpdateToast`; `Toasts` gained optional `action`/`sticky`) and posts SKIP_WAITING.
+- Server: manifest as `application/manifest+json`, `sw.js`/index/manifest/offline `no-cache`, icons 1 day, assets immutable; missing sw.js/manifest/offline/icons/assets 404 rather than SPA fallback; CSP gains `manifest-src 'self'`.
+- Tests: `TestPWAStaticHeaders`, `tests/e2e/pwa.spec.ts`. Guide: `docs/content/guide/mobile.md`.

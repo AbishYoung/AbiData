@@ -70,8 +70,11 @@ func newEnv(t *testing.T) *env {
 	t.Cleanup(func() { _ = wm.Shutdown(ctx) })
 	cfg := config.Config{PublicURL: testOrigin, DataDir: dir}
 	spa := fstest.MapFS{
-		"index.html":       {Data: []byte("<!doctype html><title>AbiData</title>")},
-		"assets/app-1a.js": {Data: []byte("console.log(1)")},
+		"index.html":           {Data: []byte("<!doctype html><title>AbiData</title>")},
+		"assets/app-1a.js":     {Data: []byte("console.log(1)")},
+		"sw.js":                {Data: []byte("self.skipWaiting")},
+		"manifest.webmanifest": {Data: []byte(`{"name":"AbiData"}`)},
+		"icons/icon-192.png":   {Data: []byte("png")},
 	}
 	hub := events.NewHub(1000)
 	recSvc := &records.Service{Schemas: nil, Events: hub}
@@ -364,6 +367,49 @@ func TestHeadersSPAAndValidation(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != 503 {
 		t.Error("readyz not 503 while draining")
+	}
+}
+
+func TestPWAStaticHeaders(t *testing.T) {
+	e := newEnv(t)
+	type res struct {
+		StatusCode int
+		Header     http.Header
+	}
+	get := func(p string) res {
+		resp, err := http.Get(e.srv.URL + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return res{resp.StatusCode, resp.Header}
+	}
+	if r := get("/manifest.webmanifest"); r.StatusCode != 200 || r.Header.Get("Content-Type") != "application/manifest+json" || r.Header.Get("Cache-Control") != "no-cache" {
+		t.Errorf("manifest: %d %v", r.StatusCode, r.Header)
+	}
+	if r := get("/sw.js"); r.StatusCode != 200 || r.Header.Get("Cache-Control") != "no-cache" || !strings.HasPrefix(r.Header.Get("Content-Type"), "text/javascript") {
+		t.Errorf("sw.js: %d %v", r.StatusCode, r.Header)
+	}
+	if r := get("/icons/icon-192.png"); r.StatusCode != 200 || !strings.Contains(r.Header.Get("Cache-Control"), "max-age=86400") {
+		t.Errorf("icon: %d %v", r.StatusCode, r.Header)
+	}
+	if r := get("/"); r.Header.Get("Cache-Control") != "no-cache" {
+		t.Errorf("index cache: %v", r.Header)
+	}
+	if r := get("/assets/app-1a.js"); !strings.Contains(r.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("asset cache: %v", r.Header)
+	}
+	csp := get("/").Header.Get("Content-Security-Policy")
+	for _, d := range []string{"manifest-src 'self'", "worker-src 'self'", "default-src 'self'"} {
+		if !strings.Contains(csp, d) {
+			t.Errorf("CSP lacks %q: %s", d, csp)
+		}
+	}
+	// Missing build artifacts are 404, never the SPA shell.
+	for _, p := range []string{"/offline.html", "/favicon.svg", "/icons/nope.png", "/assets/nope.js"} {
+		if r := get(p); r.StatusCode != 404 {
+			t.Errorf("%s: %d, want 404", p, r.StatusCode)
+		}
 	}
 }
 
