@@ -309,8 +309,9 @@ func TestMembersRoleGuard(t *testing.T) {
 	// The last owner cannot be removed or demoted.
 	_, me, _ := o.do("GET", "/api/v1/auth/me", nil)
 	oid := me["user"].(map[string]any)["id"].(string)
-	if st, _, _ := o.do("PATCH", "/api/v1/w/"+ws+"/members/"+oid, map[string]string{"role": "editor"}); st != 400 {
-		t.Fatalf("demoted last owner: %d", st)
+	if st, body, _ := o.do("PATCH", "/api/v1/w/"+ws+"/members/"+oid, map[string]string{"role": "editor"}); st != 400 ||
+		!strings.Contains(body["error"].(map[string]any)["message"].(string), "at least one owner") {
+		t.Fatalf("demoted last owner: %d %v", st, body)
 	}
 	if st, _, _ := o.do("DELETE", "/api/v1/w/"+ws+"/members/"+oid, nil); st != 400 {
 		t.Fatalf("removed last owner: %d", st)

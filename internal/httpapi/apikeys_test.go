@@ -216,9 +216,10 @@ func TestAPIKeyRoleCapAndRouteScope(t *testing.T) {
 	// Owner-only routes are out of reach for every key role.
 	for _, tok := range []string{viewer, editor, builder} {
 		for _, c := range [][2]string{{"GET", base + "/members"}, {"POST", base + "/members"}, {"GET", base + "/backups"},
-			{"POST", base + "/backups"}, {"GET", base + "/api-keys"}, {"POST", base + "/api-keys"}} {
+			{"POST", base + "/backups"}, {"GET", base + "/api-keys"}, {"POST", base + "/api-keys"},
+			{"PATCH", base + "/members/someone"}, {"DELETE", base + "/members/someone"}} {
 			var body any
-			if c[0] == "POST" {
+			if c[0] == "POST" || c[0] == "PATCH" {
 				body = map[string]any{"name": "x", "role": "viewer", "email": "a@b.co"}
 			}
 			if st, _, _ := (bearer{k.env, tok}).do(c[0], c[1], body); st != 403 {

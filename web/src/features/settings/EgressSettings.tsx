@@ -3,6 +3,7 @@ import { alertBox, btn } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { BackupsPanel } from "@/features/backups/BackupsPanel";
 import { ApiKeysPanel } from "@/features/apikeys/ApiKeysPanel";
+import { MembersPanel } from "@/features/members/MembersPanel";
 import { getEgressHosts, settingsKeys } from "./settingsApi";
 
 /** Read-only list of the outbound hosts the platform administrator allows. */
@@ -60,6 +61,7 @@ export function EgressSettings({ ws }: { ws: string }) {
     <div data-testid="workspace-settings" className="min-h-0 flex-1 overflow-y-auto p-4">
       <h2 className="m-0 text-base font-semibold">Workspace settings</h2>
       <AllowedHosts ws={ws} />
+      <MembersPanel ws={ws} />
       <BackupsPanel ws={ws} />
       <ApiKeysPanel ws={ws} />
     </div>

@@ -41,7 +41,9 @@ func (s *Server) removeWorkspaceFiles(id ids.WorkspaceID) {
 
 func (s *Server) registerWorkspace(api huma.API) {
 	tags := []string{"workspace"}
-	owner := map[string]any{metaRole: string(admin.RoleOwner)}
+	// Membership is managed by signed-in owners only: sessionOnly keeps API keys
+	// out even if a key were ever issued a higher role.
+	owner := map[string]any{metaRole: string(admin.RoleOwner), metaSessionOnly: true}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getWorkspace", Method: http.MethodGet, Path: "/api/v1/w/{ws}", Tags: tags,
