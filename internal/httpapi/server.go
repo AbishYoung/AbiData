@@ -77,6 +77,8 @@ type Server struct {
 	api      huma.API
 	draining atomic.Bool
 	started  time.Time
+	// keyRecheck overrides keyStreamRecheck (tests).
+	keyRecheck time.Duration
 }
 
 // New builds the server and registers every route.
@@ -118,6 +120,7 @@ func New(deps Deps) *Server {
 	s.registerEgress(api)
 	s.registerIngest(api)
 	s.registerBackups(api)
+	s.registerAPIKeys(api)
 	s.registerDocs(api)
 
 	r.NotFound(s.notFound)
@@ -166,6 +169,10 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 
 // metricsHandler serves Prometheus metrics to platform admins (session auth).
 func (s *Server) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	if rejectBearer(r) {
+		writeError(w, r, s.log, errUnauth)
+		return
+	}
 	c, err := r.Cookie(s.cookieName())
 	if err != nil {
 		writeError(w, r, s.log, errUnauth)

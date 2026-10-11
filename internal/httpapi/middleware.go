@@ -56,6 +56,8 @@ func clientIP(ctx context.Context) string {
 const (
 	metaAccess = "access" // "public" | "session" (default) | "platform_admin"
 	metaRole   = "role"   // admin.Role minimum for /w/{ws} routes (default viewer)
+	// metaSessionOnly (bool) refuses API-key callers even if their role would pass.
+	metaSessionOnly = "session_only"
 )
 
 // --- chi (outer) middleware -------------------------------------------------
@@ -193,6 +195,14 @@ func isUnsafe(method string) bool {
 	return true
 }
 
+func metaBool(op *huma.Operation, key string) bool {
+	if op == nil || op.Metadata == nil {
+		return false
+	}
+	v, _ := op.Metadata[key].(bool)
+	return v
+}
+
 func metaString(op *huma.Operation, key string) string {
 	if op == nil || op.Metadata == nil {
 		return ""
@@ -205,6 +215,12 @@ func metaString(op *huma.Operation, key string) string {
 // methods, then workspace membership and role for /w/{ws} routes.
 func (s *Server) authenticate(hctx huma.Context, next func(huma.Context)) {
 	op := hctx.Operation()
+	// An Authorization header means API-key auth and nothing else: cookies are
+	// never read, so a browser's ambient credentials cannot mix in.
+	if authz := hctx.Header("Authorization"); authz != "" {
+		s.authenticateKey(hctx, op, authz, next)
+		return
+	}
 	access := metaString(op, metaAccess)
 	unsafe := isUnsafe(hctx.Method())
 
@@ -281,6 +297,25 @@ func (s *Server) resolveMembership(ctx context.Context, p auth.Principal, raw st
 	if err != nil {
 		return Membership{}, err
 	}
+	return s.openWorkspace(ctx, id, role)
+}
+
+// resolveKeyMembership gives an API key the role it was issued with in its own
+// workspace; any other workspace is NOT_FOUND, exactly as for a non-member.
+func (s *Server) resolveKeyMembership(ctx context.Context, p auth.Principal, raw string) (Membership, error) {
+	id, err := ids.ParseWorkspaceID(raw)
+	if err != nil || id != p.KeyWorkspace {
+		return Membership{}, fault.E(fault.NotFound)
+	}
+	// A key can never act as owner, whatever the row says.
+	role := p.KeyRole
+	if role == admin.RoleOwner || !role.Valid() {
+		return Membership{}, fault.E(fault.Forbidden)
+	}
+	return s.openWorkspace(ctx, id, role)
+}
+
+func (s *Server) openWorkspace(ctx context.Context, id ids.WorkspaceID, role admin.Role) (Membership, error) {
 	ws, err := s.deps.Admin.GetWorkspace(ctx, id)
 	if errors.Is(err, admin.ErrNotFound) {
 		return Membership{}, fault.E(fault.NotFound)
@@ -298,6 +333,49 @@ func (s *Server) resolveMembership(ctx context.Context, p auth.Principal, raw st
 	}
 	return Membership{Workspace: ws, Role: role}, nil
 }
+
+// isWorkspaceRoute reports whether op lives under /api/v1/w/{ws}.
+func isWorkspaceRoute(op *huma.Operation) bool {
+	return op != nil && strings.HasPrefix(op.Path, "/api/v1/w/{ws}")
+}
+
+// authenticateKey serves requests that carry an Authorization header. Keys
+// work only on workspace routes of their own workspace, never on admin, auth,
+// metrics or key-management routes. They are exempt from the Origin and CSRF
+// checks: the credential is a header a browser never attaches on its own and
+// the server sends no CORS headers, so a foreign page cannot supply it.
+func (s *Server) authenticateKey(hctx huma.Context, op *huma.Operation, authz string, next func(huma.Context)) {
+	p, err := s.deps.Auth.AuthenticateAPIKey(hctx.Context(), authz, clientIP(hctx.Context()))
+	if err != nil {
+		writeHumaError(hctx, s.log, err)
+		return
+	}
+	ctx := obs.WithUser(hctx.Context(), p.UserID)
+	hctx = huma.WithContext(hctx, context.WithValue(ctx, keyPrincipal, p))
+	if !isWorkspaceRoute(op) || metaBool(op, metaSessionOnly) {
+		writeHumaError(hctx, s.log, fault.New(fault.Forbidden, "API keys can only be used on workspace data routes."))
+		return
+	}
+	m, err := s.resolveKeyMembership(hctx.Context(), p, hctx.Param("ws"))
+	if err != nil {
+		writeHumaError(hctx, s.log, err)
+		return
+	}
+	min := admin.Role(metaString(op, metaRole))
+	if min == "" {
+		min = admin.RoleViewer
+	}
+	if !m.Role.AtLeast(min) {
+		writeHumaError(hctx, s.log, fault.E(fault.Forbidden))
+		return
+	}
+	ctx = obs.WithWorkspace(hctx.Context(), string(m.Workspace.ID))
+	next(huma.WithContext(hctx, context.WithValue(ctx, keyMembership, m)))
+}
+
+// rejectBearer refuses an Authorization header on a raw route that only
+// accepts session cookies (metrics, the admin log stream).
+func rejectBearer(r *http.Request) bool { return r.Header.Get("Authorization") != "" }
 
 func constantEq(a, b string) bool {
 	if len(a) != len(b) || a == "" {

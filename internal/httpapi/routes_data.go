@@ -13,6 +13,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"abidata/internal/admin"
+	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/events"
 	"abidata/internal/fault"
@@ -297,6 +298,17 @@ func (s *Server) registerData(api huma.API) {
 				names[m.UserID] = m.DisplayName
 			}
 		}
+		// Writes made through an API key are attributed to "apikey:<id>".
+		for _, e := range entries {
+			if auth.IsAPIKeyActor(e.UserID) {
+				if ks, err := s.deps.Admin.ListAPIKeys(ctx, l.ID()); err == nil {
+					for _, k := range ks {
+						names[auth.ActorID(k.ID)] = auth.APIKeyDisplayName(k.Name)
+					}
+				}
+				break
+			}
+		}
 		out := &struct {
 			Body struct {
 				Tracked bool          `json:"tracked" doc:"Whether the table currently records history."`
@@ -455,24 +467,47 @@ func parseListQuery(offset, limit int, sortParam, filterParam string) (records.L
 	return q, nil
 }
 
+// keyStreamRecheck is how often a bearer-authenticated event stream re-reads
+// its key: revoking a key ends its streams within this interval.
+const keyStreamRecheck = 30 * time.Second
+
 // eventsHandler serves the per-workspace SSE stream (plain chi route: huma
-// does not model streaming). Authorization mirrors the huma middleware.
+// does not model streaming). Authorization mirrors the huma middleware: an
+// Authorization header means API-key auth only (cookies ignored).
 func (s *Server) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie(s.cookieName())
-	if err != nil {
-		writeError(w, r, s.log, errUnauth)
-		return
-	}
-	p, err := s.deps.Auth.Authenticate(r.Context(), c.Value)
-	if err != nil {
-		writeError(w, r, s.log, err)
-		return
-	}
 	ws := r.PathValue("ws")
 	if ws == "" {
 		ws = chiParam(r, "ws")
 	}
-	m, err := s.resolveMembership(r.Context(), p, ws)
+	var resolve func(ctx context.Context) (Membership, error)
+	recheck := 5 * time.Minute
+	if authz := r.Header.Get("Authorization"); authz != "" {
+		recheck = keyStreamRecheck
+		if s.keyRecheck > 0 {
+			recheck = s.keyRecheck
+		}
+		resolve = func(ctx context.Context) (Membership, error) {
+			p, err := s.deps.Auth.AuthenticateAPIKey(ctx, authz, clientIP(r.Context()))
+			if err != nil {
+				return Membership{}, err
+			}
+			return s.resolveKeyMembership(ctx, p, ws)
+		}
+	} else {
+		c, err := r.Cookie(s.cookieName())
+		if err != nil {
+			writeError(w, r, s.log, errUnauth)
+			return
+		}
+		resolve = func(ctx context.Context) (Membership, error) {
+			p, err := s.deps.Auth.Authenticate(ctx, c.Value)
+			if err != nil {
+				return Membership{}, err
+			}
+			return s.resolveMembership(ctx, p, ws)
+		}
+	}
+	m, err := resolve(r.Context())
 	if err != nil {
 		writeError(w, r, s.log, err)
 		return
@@ -483,17 +518,13 @@ func (s *Server) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	builder.Store(m.Role.AtLeast(admin.RoleBuilder))
 	events.Stream(w, r, s.deps.Events.Bus(string(m.Workspace.ID)), events.StreamOptions{
 		Authorize: func(ctx context.Context) error {
-			p2, err := s.deps.Auth.Authenticate(ctx, c.Value)
-			if err != nil {
-				return err
-			}
-			m2, err := s.resolveMembership(ctx, p2, ws)
+			m2, err := resolve(ctx)
 			if err == nil {
 				builder.Store(m2.Role.AtLeast(admin.RoleBuilder))
 			}
 			return err
 		},
-		Recheck: 5 * time.Minute,
+		Recheck: recheck,
 		Filter:  func(ev events.Event) bool { return ev.Type != events.JobRun || builder.Load() },
 	})
 }

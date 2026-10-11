@@ -198,6 +198,13 @@ type Repository interface {
 	PutSetting(ctx context.Context, key, value string) error
 	ListSettings(ctx context.Context) (map[string]string, error)
 
+	// API keys
+	CreateAPIKey(ctx context.Context, k APIKey) error // ErrTooManyKeys at MaxActiveAPIKeys
+	GetAPIKey(ctx context.Context, id string) (APIKey, error)
+	ListAPIKeys(ctx context.Context, ws ids.WorkspaceID) ([]APIKey, error) // "" lists all; newest first
+	RevokeAPIKey(ctx context.Context, id string, at time.Time) error
+	TouchAPIKey(ctx context.Context, id string, at time.Time) error
+
 	// Audit
 	Audit(ctx context.Context, e AuditEntry) error
 	ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) // newest first
