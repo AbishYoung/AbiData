@@ -209,7 +209,7 @@ flowchart LR
 - One process serves the API and the embedded web app. Each workspace is one SQLite file, opened on demand. The admin database holds users, sessions, API keys, platform settings and the audit log.
 - Scripts run in a Lua sandbox with no file, process or network access except through reviewed functions. Jobs are started by the scheduler or by hand, and only they can make outbound requests, through the egress gateway.
 - Caddy terminates TLS in the provided Compose stack. The server trusts `X-Forwarded-For` only from the proxy addresses you configure.
-- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md) and [workspace API keys](docs/adr/0009-workspace-api-keys.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
+- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [gopher-lua fork](docs/adr/0004-gopher-lua-fork.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md) and [workspace API keys](docs/adr/0009-workspace-api-keys.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
 
 ## Security
 
@@ -223,7 +223,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 
 | Path | Contents |
 |---|---|
-| `cmd/abidata` | The binary: `serve`, `user create-admin`, `demo`, `healthcheck` |
+| `cmd/abidata` | The binary: `serve`, `user create-admin`, `demo`, `healthcheck`, `version` |
 | `internal/` | Server packages: `httpapi`, `auth`, `admin`, `workspace`, `catalog`, `records`, `query`, `forms`, `reports`, `script`, `scripts`, `jobs`, `egress`, `backup`, `ingest`, `events`, `demo`, `docsrv` and others |
 | `web/` | The React app (Vite, TypeScript, Vitest). Design system notes: [web/src/components/DESIGN.md](web/src/components/DESIGN.md) |
 | `tests/e2e/` | Playwright end-to-end tests |
