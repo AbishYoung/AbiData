@@ -77,8 +77,8 @@ type Compiled struct {
 	SQL      string
 	Columns  []string
 	Types    []string // display type per column ("" when unknown); see Result.Types
-	Editable bool   // single table, no grouping/distinct, selects id and _version
-	TableID  string // the editable table
+	Editable bool     // single table, no grouping/distinct, selects id and _version
+	TableID  string   // the editable table
 	Deps     Deps
 }
 
