@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -105,49 +106,105 @@ func TestJobRoutes(t *testing.T) {
 	}
 }
 
-func TestEgressSettingsRoutes(t *testing.T) {
+func TestEgressPolicyRoutes(t *testing.T) {
 	e := newEnv(t)
-	ws, root, o, b, _, _ := roles(t, e)
-	path := "/api/v1/w/" + ws + "/settings/egress"
-	if st, _, _ := b.do("PUT", path, map[string]any{"items": []any{}}); st != 403 {
-		t.Fatalf("builder changed allowlist: %d", st)
+	ws, root, o, b, ed, _ := roles(t, e)
+	admPath := "/api/v1/admin/settings/egress"
+	hostsPath := "/api/v1/w/" + ws + "/egress-hosts"
+
+	// The per-workspace routes are gone.
+	if st, _, _ := o.do("GET", "/api/v1/w/"+ws+"/settings/egress", nil); st != 404 && st != 405 {
+		t.Fatalf("workspace egress route still present: %d", st)
+	}
+	// Fresh install: empty allowlist (fail closed).
+	st, body, _ := root.do("GET", admPath, nil)
+	if items, ok := body["allowlist"].([]any); st != 200 || !ok || len(items) != 0 {
+		t.Fatalf("default policy %d %v", st, body)
+	}
+	if st, _, _ := o.do("PUT", admPath, map[string]any{"allowlist": []any{}}); st != 403 {
+		t.Fatalf("owner changed platform policy: %d", st)
+	}
+	if st, _, _ := o.do("GET", admPath, nil); st != 403 {
+		t.Fatalf("owner read the admin policy: %d", st)
 	}
 	for _, bad := range []map[string]any{
-		{"pattern": "http://x.com"}, {"pattern": "*"}, {"pattern": "a.com", "ports": "0"}, {"pattern": "x.com/path"},
+		{"pattern": "http://x.com"}, {"pattern": "*"}, {"pattern": "a.com", "ports": "0"}, {"pattern": "x.com/path"}, {"pattern": "bad host"},
 	} {
-		if st, body, _ := o.do("PUT", path, map[string]any{"items": []any{bad}}); st != 400 {
+		if st, body, _ := root.do("PUT", admPath, map[string]any{"allowlist": []any{bad}}); st != 400 {
 			t.Fatalf("%v accepted: %d %v", bad, st, body)
 		}
 	}
-	if st, _, _ := o.do("PUT", path, map[string]any{"items": []any{map[string]any{"pattern": "a.com"}, map[string]any{"pattern": "A.com."}}}); st != 400 {
+	if st, _, _ := root.do("PUT", admPath, map[string]any{"allowlist": []any{map[string]any{"pattern": "a.com"}, map[string]any{"pattern": "A.com."}}}); st != 400 {
 		t.Fatal("duplicate accepted")
 	}
-	st, body, _ := o.do("PUT", path, map[string]any{"items": []any{
+	st, body, _ = root.do("PUT", admPath, map[string]any{"allow_http": true, "allowlist": []any{
 		map[string]any{"pattern": " API.Example.com. ", "note": "rates"}, map[string]any{"pattern": "*.cdn.test", "ports": "443, 8443"},
 	}})
 	if st != 200 {
 		t.Fatalf("%d %v", st, body)
 	}
-	items := body["items"].([]any)
-	if items[0].(map[string]any)["pattern"] != "*.cdn.test" || items[0].(map[string]any)["ports"] != "443,8443" ||
-		items[1].(map[string]any)["pattern"] != "api.example.com" || items[1].(map[string]any)["ports"] != "443" {
-		t.Fatalf("%v", items)
+	items := body["allowlist"].([]any)
+	if items[0].(map[string]any)["pattern"] != "api.example.com" || items[0].(map[string]any)["ports"] != "443" ||
+		items[1].(map[string]any)["pattern"] != "*.cdn.test" || items[1].(map[string]any)["ports"] != "443,8443" || body["allow_http"] != true {
+		t.Fatalf("%v", body)
 	}
-	if hosts := body["platform"].(map[string]any)["hosts"].([]any); len(hosts) != 1 || hosts[0] != "*" {
-		t.Fatalf("default platform policy %v", body["platform"])
+	// Members who can build scripts see host patterns and ports, not notes.
+	for _, c := range []*client{o, b} {
+		st, body, _ = c.do("GET", hostsPath, nil)
+		hs, _ := body["items"].([]any)
+		if st != 200 || len(hs) != 2 || hs[0].(map[string]any)["pattern"] != "api.example.com" || body["allow_http"] != true {
+			t.Fatalf("hosts %d %v", st, body)
+		}
+		if _, leaked := hs[0].(map[string]any)["note"]; leaked {
+			t.Fatalf("note leaked %v", hs[0])
+		}
 	}
-	if st, _, _ := o.do("PUT", "/api/v1/admin/settings/egress", map[string]any{"hosts": []string{"*"}}); st != 403 {
-		t.Fatal("owner changed platform policy")
+	if st, _, _ := ed.do("GET", hostsPath, nil); st != 403 {
+		t.Fatalf("editor read hosts: %d", st)
 	}
-	if st, body, _ := root.do("PUT", "/api/v1/admin/settings/egress", map[string]any{"hosts": []string{"*.example.com", "bad host"}}); st != 400 {
-		t.Fatalf("bad platform host %d %v", st, body)
+	if st, _, _ := o.do("PUT", hostsPath, map[string]any{}); st != 405 && st != 404 {
+		t.Fatalf("hosts route is writable: %d", st)
 	}
-	if st, _, _ := root.do("PUT", "/api/v1/admin/settings/egress", map[string]any{"hosts": []string{"*.Example.com"}, "allow_http": true}); st != 200 {
-		t.Fatal("platform policy")
+}
+
+func TestEgressPolicyMigration(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	adm := e.s.deps.Admin
+	// Fresh install: nothing stored, nothing allowed, nothing to migrate.
+	if err := MigrateEgressPolicy(ctx, adm, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatal(err)
 	}
-	_, body, _ = o.do("GET", path, nil)
-	if p := body["platform"].(map[string]any); p["allow_http"] != true || p["hosts"].([]any)[0] != "*.example.com" {
-		t.Fatalf("%v", p)
+	g, err := LoadGlobalEgress(ctx, adm)
+	if err != nil || len(g.Allowlist) != 0 {
+		t.Fatalf("%+v %v", g, err)
+	}
+	// Old shape: "*" dropped, specific hosts kept.
+	if err := adm.PutSetting(ctx, EgressSettingKey, `{"hosts":["*","*.example.com"],"allow_http":true}`); err != nil {
+		t.Fatal(err)
+	}
+	g, err = LoadGlobalEgress(ctx, adm) // converted in memory before the startup migration ran
+	if err != nil || len(g.Allowlist) != 1 || g.Allowlist[0].Pattern != "*.example.com" {
+		t.Fatalf("%+v %v", g, err)
+	}
+	var logs strings.Builder
+	if err := MigrateEgressPolicy(ctx, adm, slog.New(slog.NewTextHandler(&logs, nil))); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "wildcard_dropped=true") {
+		t.Fatalf("no warning logged: %s", logs.String())
+	}
+	raw, _ := adm.GetSetting(ctx, EgressSettingKey)
+	if strings.Contains(raw, `"hosts"`) || !strings.Contains(raw, `"allowlist"`) {
+		t.Fatalf("not rewritten: %s", raw)
+	}
+	// Idempotent.
+	logs.Reset()
+	if err := MigrateEgressPolicy(ctx, adm, slog.New(slog.NewTextHandler(&logs, nil))); err != nil || logs.Len() != 0 {
+		t.Fatalf("second run: %v %q", err, logs.String())
+	}
+	if g2, _ := LoadGlobalEgress(ctx, adm); len(g2.Allowlist) != 1 || !g2.AllowHTTP {
+		t.Fatalf("%+v", g2)
 	}
 }
 

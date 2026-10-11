@@ -81,3 +81,7 @@ These are fixed in this version:
 - Import upload size: 100 MiB.
 - Script time budgets and string limits: see [Scripts](/docs/guide/scripts#contexts).
 - Backup retention: see [Backup strategy](/docs/operations/backup-strategy#retention).
+
+## Settings that live in the admin console {#console-settings}
+
+Some operator settings are not environment variables because administrators change them while the server runs. The outbound-request allowlist is one of them: no environment variable lets jobs reach the internet, and a fresh install allows nothing. Add hosts under **Settings**, **Outbound requests** in the admin console. See [Security](/docs/operations/security#egress).

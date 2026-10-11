@@ -79,7 +79,6 @@ func TestPatterns(t *testing.T) {
 // server can stand in for an allowed internet host.
 type env struct {
 	g      *Gateway
-	allow  []Entry
 	global Global
 	lookup func(host string) []netip.Addr
 	mu     sync.Mutex
@@ -87,14 +86,9 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	e := &env{global: Global{Hosts: []string{"*"}, AllowHTTP: true}}
+	e := &env{global: Global{AllowHTTP: true}}
 	e.g = New(Config{
-		Global: func(context.Context) (Global, error) { e.mu.Lock(); defer e.mu.Unlock(); return e.global, nil },
-		Allowlist: func(context.Context, ids.WorkspaceID) ([]Entry, error) {
-			e.mu.Lock()
-			defer e.mu.Unlock()
-			return e.allow, nil
-		},
+		Global:    func(context.Context) (Global, error) { e.mu.Lock(); defer e.mu.Unlock(); return e.global, nil },
 		PerMinute: func(ids.WorkspaceID) int { return 10000 },
 		Routable: func(a netip.Addr) bool {
 			return a == netip.MustParseAddr("127.0.0.1") || PublicRoutable(a)
@@ -115,7 +109,7 @@ func newEnv(t *testing.T) *env {
 func (e *env) permit(host, ports string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.allow = append(e.allow, Entry{Pattern: host, Ports: ports})
+	e.global.Allowlist = append(e.global.Allowlist, Entry{Pattern: host, Ports: ports})
 }
 
 // server returns a test server, its port, and a hit counter.
@@ -208,16 +202,23 @@ func TestPolicyDenials(t *testing.T) {
 	e.lookup = func(string) []netip.Addr { return []netip.Addr{netip.MustParseAddr("127.0.0.1")} }
 	e.permit("ok.test", port)
 	e.permit("*.wild.test", "")
+	open := e.global // allowlist built above, http enabled
+	noHTTP := open
+	noHTTP.AllowHTTP = false
+	off := open
+	off.Disabled = true
+	other := Global{AllowHTTP: true, Allowlist: []Entry{{Pattern: "*.example.com"}}}
 	cases := map[string]Global{
-		"http://other.test:" + port + "/":         e.global,                                                // not in allowlist
-		"http://ok.test:1/":                       e.global,                                                // port not listed
-		"http://ok.test:" + port + "/":            {Hosts: []string{"*"}},                                  // http not enabled
-		"https://a.wild.test:" + port + "/":       e.global,                                                // wildcard listed with 443 only
-		"http://u:p@ok.test:" + port + "/":        e.global,                                                // credentials in URL
-		"ftp://ok.test/":                          e.global,                                                // scheme
-		"file:///etc/passwd":                      e.global,                                                // scheme
-		"http://ok.test:" + port + "/?global=off": {Hosts: []string{"*.example.com"}, AllowHTTP: true},     // global ∩ workspace
-		"http://ok.test:" + port + "/?disabled":   {Hosts: []string{"*"}, AllowHTTP: true, Disabled: true}, // egress off
+		"http://other.test:" + port + "/":       open,              // not in allowlist
+		"http://ok.test:1/":                     open,              // port not listed
+		"http://ok.test:" + port + "/":          noHTTP,            // http not enabled
+		"https://a.wild.test:" + port + "/":     open,              // wildcard listed with 443 only
+		"http://u:p@ok.test:" + port + "/":      open,              // credentials in URL
+		"ftp://ok.test/":                        open,              // scheme
+		"file:///etc/passwd":                    open,              // scheme
+		"http://ok.test:" + port + "/?other":    other,             // host not on this allowlist
+		"http://ok.test:" + port + "/?disabled": off,               // egress off
+		"http://ok.test:" + port + "/?empty":    {AllowHTTP: true}, // empty allowlist
 	}
 	for raw, g := range cases {
 		e.mu.Lock()
@@ -356,7 +357,6 @@ func TestRateLimit(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	g := New(Config{
 		PerMinute: func(ids.WorkspaceID) int { return 2 },
-		Allowlist: func(context.Context, ids.WorkspaceID) ([]Entry, error) { return nil, nil },
 		Now:       func() time.Time { return now },
 	})
 	do := func() error { _, err := g.Do(context.Background(), ws, Request{URL: "https://x.test/"}); return err }
@@ -385,7 +385,53 @@ func TestDeniedMessage(t *testing.T) {
 	e := newEnv(t)
 	_, err := e.g.Do(context.Background(), ws, Request{URL: "https://nope.test/"})
 	var fe *fault.Error
-	if !errors.As(err, &fe) || !strings.Contains(fe.Message, "The workspace allowlist does not include nope.test:443") {
+	if !errors.As(err, &fe) || !strings.Contains(fe.Message, "The platform allowlist does not include nope.test:443") || !strings.Contains(fe.Message, "ask a platform administrator") {
 		t.Fatalf("%#v", err)
+	}
+}
+
+func TestDefaultPolicyDeniesEverything(t *testing.T) {
+	// No Global configured: the fail-closed default applies.
+	g := New(Config{})
+	defer g.Close()
+	for _, u := range []string{"https://example.com/", "http://example.com/", "https://1.1.1.1/"} {
+		if _, err := g.Do(context.Background(), ws, Request{URL: u}); code(err) != fault.EgressDenied {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	// An explicit empty allowlist behaves the same.
+	g2 := New(Config{Global: func(context.Context) (Global, error) { return Global{AllowHTTP: true}, nil }})
+	defer g2.Close()
+	if _, err := g2.Do(context.Background(), ws, Request{URL: "https://example.com/"}); code(err) != fault.EgressDenied {
+		t.Errorf("empty allowlist: %v", err)
+	}
+}
+
+func TestParseGlobal(t *testing.T) {
+	// Fresh shape round-trips.
+	g, migrated, dropped, err := ParseGlobal(`{"allowlist":[{"pattern":"api.test","ports":"443"}],"allow_http":true}`)
+	if err != nil || migrated || dropped || len(g.Allowlist) != 1 || !g.AllowHTTP {
+		t.Fatalf("%+v %v %v %v", g, migrated, dropped, err)
+	}
+	// Old shape with only a wildcard: nothing is kept (fail closed) and the drop is reported.
+	g, migrated, dropped, err = ParseGlobal(`{"hosts":["*"]}`)
+	if err != nil || !migrated || !dropped || len(g.Allowlist) != 0 || g.Allowlist == nil {
+		t.Fatalf("%+v %v %v %v", g, migrated, dropped, err)
+	}
+	// Old shape with specific hosts: they become entries; "*" is dropped; junk is ignored.
+	g, migrated, dropped, err = ParseGlobal(`{"hosts":["*","API.Example.com.","*.cdn.test","bad host"],"allow_http":true,"disabled":true}`)
+	if err != nil || !migrated || !dropped || !g.Disabled || !g.AllowHTTP {
+		t.Fatalf("%+v %v %v %v", g, migrated, dropped, err)
+	}
+	if len(g.Allowlist) != 2 || g.Allowlist[0].Pattern != "api.example.com" || g.Allowlist[1].Pattern != "*.cdn.test" || g.Allowlist[0].Ports != "443,80" {
+		t.Fatalf("%+v", g.Allowlist)
+	}
+	// An empty policy object is an empty (denying) allowlist.
+	g, _, _, err = ParseGlobal(`{}`)
+	if err != nil || g.Allowlist == nil || len(g.Allowlist) != 0 {
+		t.Fatalf("%+v %v", g, err)
+	}
+	if _, _, _, err := ParseGlobal(`not json`); err == nil {
+		t.Fatal("garbage accepted")
 	}
 }

@@ -1085,7 +1085,49 @@
         ],
         "type": "object"
       },
-      "EgressEntry": {
+      "EgressHost": {
+        "additionalProperties": false,
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "ports": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern",
+          "ports"
+        ],
+        "type": "object"
+      },
+      "EgressHosts": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_http": {
+            "type": "boolean"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EgressHost"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "allow_http",
+          "disabled"
+        ],
+        "type": "object"
+      },
+      "Entry": {
         "additionalProperties": false,
         "properties": {
           "note": {
@@ -1548,21 +1590,22 @@
           "allow_http": {
             "type": "boolean"
           },
-          "disabled": {
-            "type": "boolean"
-          },
-          "hosts": {
+          "allowlist": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Entry"
             },
+            "maxItems": 200,
             "type": [
               "array",
               "null"
             ]
+          },
+          "disabled": {
+            "type": "boolean"
           }
         },
         "required": [
-          "hosts"
+          "allowlist"
         ],
         "type": "object"
       },
@@ -3171,25 +3214,6 @@
         ],
         "type": "object"
       },
-      "PutEgressAllowlistRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/EgressEntry"
-            },
-            "maxItems": 200,
-            "type": [
-              "array",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "type": "object"
-      },
       "Quota": {
         "additionalProperties": false,
         "properties": {
@@ -4666,29 +4690,6 @@
         ],
         "type": "object"
       },
-      "WorkspaceEgress": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/EgressEntry"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Global",
-            "readOnly": true
-          }
-        },
-        "required": [
-          "items",
-          "platform"
-        ],
-        "type": "object"
-      },
       "WorkspaceInfo": {
         "additionalProperties": false,
         "properties": {
@@ -4957,7 +4958,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "The platform egress policy",
+        "summary": "The platform egress policy and allowlist",
         "tags": [
           "admin"
         ]
@@ -5036,7 +5037,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Replace the platform egress policy",
+        "summary": "Replace the platform egress policy and allowlist",
         "tags": [
           "admin"
         ]
@@ -6682,6 +6683,87 @@
         "summary": "Create a new workspace from this backup (owner); the caller owns it",
         "tags": [
           "backups"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/egress-hosts": {
+      "get": {
+        "operationId": "getEgressHosts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressHosts"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "The outbound hosts the platform allows (read-only)",
+        "tags": [
+          "workspace"
         ]
       }
     },
@@ -12404,186 +12486,6 @@
         "summary": "Replace a script (If-Match: version)",
         "tags": [
           "scripts"
-        ]
-      }
-    },
-    "/api/v1/w/{ws}/settings/egress": {
-      "get": {
-        "operationId": "getEgressAllowlist",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "ws",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceEgress"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          }
-        },
-        "summary": "The workspace's outbound HTTP allowlist (owner)",
-        "tags": [
-          "workspace"
-        ]
-      },
-      "put": {
-        "operationId": "putEgressAllowlist",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "ws",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PutEgressAllowlistRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceEgress"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Bad Request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          }
-        },
-        "summary": "Replace the workspace's outbound HTTP allowlist (owner)",
-        "tags": [
-          "workspace"
         ]
       }
     },

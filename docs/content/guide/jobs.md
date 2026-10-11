@@ -84,13 +84,13 @@ A job can produce files with `artifacts.save(name, content, { mime = "text/csv" 
 
 ## Outbound requests and the egress allowlist {#egress}
 
-Only jobs can call `fetch`. A request is allowed only when both the platform policy and the workspace allowlist allow it.
+Only jobs can call `fetch`. A request is allowed only when the **platform allowlist** includes the host and port. The allowlist is managed by platform administrators and is the same for every workspace; owners and builders cannot change it. If a job needs a new host, ask a platform administrator to add it (Admin, **Settings**, **Outbound requests**). A fresh install allows nothing.
 
-To allow a host, an owner opens **Workspace settings** and adds it to the **Egress allowlist**:
+Builders and owners can see which hosts are currently allowed under **Workspace settings**. Entries follow these rules:
 
 - A pattern is an exact host (`api.example.com`) or `*.example.com` for any subdomain.
-- Ports default to 443. List other ports explicitly. The workspace list holds at most 200 entries.
-- Only `https` is used, unless the administrator allows `http`, in which case you must also list port 80.
+- Ports default to 443. Other ports are allowed only when listed. The list holds at most 200 entries.
+- Only `https` is used, unless the administrator allows `http`, in which case the port (for example 80) must also be listed.
 
 Whatever the allowlist says, these are always refused: private, loopback, link-local and other non-public addresses, including after a redirect or a DNS change. At most 5 redirects are followed.
 

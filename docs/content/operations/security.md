@@ -34,7 +34,7 @@ This page summarises what AbiData defends against, what it assumes, and what is 
 ## What it does not defend against {#limits}
 
 - A malicious or compromised host, container runtime or volume.
-- Someone holding a builder or owner role. A builder can run scripts that read and write every table in the workspace, and an owner can add outbound hosts.
+- Someone holding a builder or owner role. A builder can run scripts that read and write every table in the workspace.
 - Weak passwords chosen by users above the minimum, and users sharing accounts.
 - Transport security. TLS is provided by your reverse proxy. Run AbiData over HTTPS only. Without it, cookies are not marked `Secure`.
 - Denial of service from the network. Put rate limits at the proxy if the service is exposed to the internet.
@@ -45,26 +45,28 @@ Roles are per workspace: viewer, editor, builder, owner. The full table is in [M
 
 - **Viewer** reads. **Editor** also writes records.
 - **Builder** designs objects, writes scripts, creates jobs, imports data and uses the SQL console. Treat this as a powerful role, since scripts and SQL reach all of the workspace's tables.
-- **Owner** also manages members, the egress allowlist and backups, including restore, which replaces all data.
+- **Owner** also manages members and backups, including restore, which replaces all data.
 - **Platform administrator** is a separate flag on the account. It allows creating workspaces and users, setting platform policy, and reading server logs and metrics.
 
 Give people the lowest role that lets them do their work. Remove accounts of people who leave by disabling them in the admin area.
 
 ## Egress policy {#egress}
 
-Scripts can reach the internet only from jobs, only with `fetch`, and only to hosts that both of these allow:
+Scripts can reach the internet only from jobs, only with `fetch`, and only to hosts on the **platform allowlist**. Only platform administrators edit it, in the admin console under **Settings**, **Outbound requests**. It is global: every workspace shares it, and owners cannot extend it.
 
-1. The **platform policy**, set by an administrator. By default workspaces may be granted any host, over https only. The administrator can restrict the host list, allow plain `http`, or switch all outbound requests off.
-2. The **workspace allowlist**, set by an owner: hosts (exact or `*.domain`) and ports (default 443).
+- Each entry is a host (exact, or `*.domain` for subdomains), the ports allowed (default 443) and an optional note. There is no "any host" entry.
+- A fresh install has an empty list, so no outbound request is possible until you add hosts (fail closed).
+- Requests use https only. A switch allows plain `http` as well (the port must still be listed), and another switch turns all outbound requests off without losing the list.
+- Changes are written to the audit log (`egress.policy`).
 
-Regardless of either list:
+Regardless of the list:
 
 - Addresses that are not public are refused: loopback, private ranges, link-local, carrier-grade NAT, documentation and test ranges, multicast and reserved space for IPv4, and anything outside global unicast for IPv6. This is checked on the address actually connected to, so a DNS answer that changes between lookups cannot slip through.
 - Redirects are followed at most 5 times, and each hop is checked again. Credentials in headers are not forwarded to a different host.
 - Responses are capped (2 MiB by default, 10 MiB at most), including after decompression.
 - Each workspace is limited to 60 requests per minute, and every request is logged with host, status, size and duration.
 
-See [Jobs](/docs/guide/jobs#egress) for how owners configure it. Denied requests fail with [EGRESS_DENIED](/docs/reference/errors#egress-denied).
+See [Jobs](/docs/guide/jobs#egress) for what job authors see. Denied requests fail with [EGRESS_DENIED](/docs/reference/errors#egress-denied).
 
 ## Your checklist {#checklist}
 
@@ -73,6 +75,6 @@ See [Jobs](/docs/guide/jobs#egress) for how owners configure it. Denied requests
 3. Keep `ABIDATA_DEBUG_ADDR` off, or bound to a private address.
 4. Keep the secrets out of images and repositories. Use `_FILE` variables. Restrict file mode to 600.
 5. Limit who holds the builder, owner and platform administrator roles.
-6. Keep the platform egress policy as narrow as you can.
+6. Keep the platform egress allowlist as narrow as you can: list the exact hosts your jobs need.
 7. Copy the backups and the keys off the host: see [Backup strategy](/docs/operations/backup-strategy).
 8. Keep the image up to date: see [Upgrade](/docs/operations/upgrade).

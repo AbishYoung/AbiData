@@ -34,6 +34,7 @@ On SIGTERM the server stops accepting new requests (`/readyz` answers 503), stop
 - **Workspaces.** Each workspace is migrated the first time it is opened after the upgrade, inside a transaction, and again after a restore. A workspace that fails to migrate does not open; the others keep working.
 - **Interrupted restores.** If the previous process stopped in the middle of a restore, the server finishes or reverts it before opening any workspace.
 - **Job schedule.** Runs that were in progress are marked `interrupted`, and next run times are recalculated.
+- **Outbound request policy.** The egress allowlist is now one platform-wide list that administrators edit (ADR 0008); workspace owners no longer have their own list. At start, a stored policy in the old shape is converted: its specific hosts become allowlist entries (ports 443, plus 80 if plain http was enabled) and the old catch-all `*` is dropped, because it meant "each workspace decides". The server logs a warning when it drops `*`. Workspace allowlists from earlier versions are ignored, not migrated. **After upgrading, review Settings, Outbound requests in the admin console and add the hosts your jobs call; until then those jobs fail with `EGRESS_DENIED`.** A fresh install allows no outbound requests.
 
 Migrations never run partly: each is one transaction.
 
