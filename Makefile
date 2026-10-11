@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 ABIDATA_BOOTSTRAP_ADMIN_EMAIL ?= admin@example.com
 
-.PHONY: dev dev-web test lint gen build docker docker-local e2e web-deps web-build clean
+.PHONY: dev dev-web test lint gen build docker docker-local e2e screenshots web-deps web-build clean
 
 web/node_modules: web/package-lock.json
 	npm --prefix web ci
@@ -55,6 +55,10 @@ docker-local:
 
 e2e:
 	npm --prefix tests/e2e test
+
+# Regenerates docs/images/*. Needs `npm --prefix tests/e2e ci` and `npx playwright install chromium` once.
+screenshots:
+	node scripts/screenshots.mjs
 
 clean:
 	rm -rf bin .data web/node_modules
