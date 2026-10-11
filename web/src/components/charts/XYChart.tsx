@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { summarizeChart } from "./chartSummary";
 import {
   areaPath,
+  nonZeroRuns,
   formatClock,
   formatStamp,
   linePath,
@@ -231,7 +232,7 @@ export function XYChart(props: XYChartProps) {
                   <g key={s.key}>
                     <path d={areaPath(xs, y0, y1)} style={{ fill: s.color }} fillOpacity={stacked ? 0.8 : 0.16} />
                     <path
-                      d={linePath(xs, y1)}
+                      d={stacked ? nonZeroRuns(s.values).map(([a, b]) => linePath(xs.slice(a, b), y1.slice(a, b))).join(" ") : linePath(xs, y1)}
                       fill="none"
                       style={{ stroke: s.color }}
                       strokeWidth={1.75}

@@ -14,6 +14,7 @@ import {
   nearestIndex,
   niceNumber,
   niceTicks,
+  nonZeroRuns,
   stackSeries,
   timeTicks,
 } from "./scale";
@@ -193,5 +194,15 @@ describe("summarizeChart", () => {
   });
   it("says so when empty", () => {
     expect(summarizeChart("Memory", [], [], String)).toBe("Memory. No data yet.");
+  });
+});
+
+describe("nonZeroRuns", () => {
+  it("returns only the stretches where a stacked series has data", () => {
+    expect(nonZeroRuns([0, 0, 0])).toEqual([]);
+    expect(nonZeroRuns([0, 2, 3, 0, null, 1])).toEqual([
+      [1, 3],
+      [5, 6],
+    ]);
   });
 });
