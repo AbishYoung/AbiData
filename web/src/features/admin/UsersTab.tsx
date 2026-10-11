@@ -82,7 +82,7 @@ function NewUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
         <Field
           id="user-password"
           label="Initial password"
-          hint={`At least ${MIN_PASSWORD} characters (at most 1,024). A long passphrase is best. The user can change it after signing in.`}
+          hint={`At least ${MIN_PASSWORD} characters (at most 1,024). A long passphrase is best. Share it with the user over a secure channel.`}
           error={errors.password?.message}
         >
           {(aria) => (
