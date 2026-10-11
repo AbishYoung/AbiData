@@ -21,6 +21,13 @@ const SECTIONS = [
   { id: "logs", label: "Live logs", icon: ScrollText },
 ] as const;
 
+export type AdminTab = (typeof SECTIONS)[number]["id"];
+
+/** Validates the `tab` search param; unknown or missing values fall back to the overview. */
+export function parseAdminTab(v: unknown): AdminTab {
+  return SECTIONS.some((t) => t.id === v) ? (v as AdminTab) : "overview";
+}
+
 function Forbidden() {
   return (
     <main className="mx-auto max-w-lg p-6">
@@ -36,7 +43,7 @@ function Forbidden() {
 }
 
 /** Full-page admin console (platform admins only; the server enforces it on every call). */
-export function AdminPage({ me }: { me: Me }) {
+export function AdminPage({ me, tab, onTabChange }: { me: Me; tab: AdminTab; onTabChange: (tab: AdminTab) => void }) {
   if (!me.user.is_platform_admin) return <Forbidden />;
   return (
     <div className="flex min-h-full flex-col">
@@ -59,7 +66,7 @@ export function AdminPage({ me }: { me: Me }) {
           <h1 className={`m-0 ${pageTitle}`}>Admin console</h1>
           <p className="m-0 mt-1 text-sm text-fg-muted">Monitor the server and manage workspaces, users, API keys and platform settings.</p>
         </div>
-        <Tabs.Root defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
+        <Tabs.Root value={tab} onValueChange={(v) => onTabChange(parseAdminTab(v))} className="flex min-h-0 flex-1 flex-col">
           <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <Tabs.Trigger

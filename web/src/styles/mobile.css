@@ -89,5 +89,9 @@
 /* Safe-area helpers for the shell (the viewport meta uses viewport-fit=cover). */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+/* Compact workspace header: 44px controls get 4px of air above and below, and clear the notch and rounded corners. */
+.shell-header {
+  padding: calc(env(safe-area-inset-top) + 0.25rem) max(0.5rem, env(safe-area-inset-right)) 0.25rem max(0.5rem, env(safe-area-inset-left));
+}
 /* Pages outside the workspace shell (sign-in, picker, admin) clear the status bar and home indicator themselves. */
 #root > :not([data-shell]) { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }

@@ -220,8 +220,16 @@ func serve() error {
 				metrics.JobRuns.WithLabelValues(r.Status).Inc()
 			}
 			if r.Status == jobs.StatusFailed || r.Status == jobs.StatusTimedOut {
-				sampler.RecordFailure(obs.Failure{Kind: "job", WorkspaceID: string(id), Subject: r.JobID, Status: r.Status,
-					Message: r.ErrorMessage, At: time.Now()})
+				// Resolve the job name off the scheduler path (it opens the workspace); a deleted job just has no name.
+				f := obs.Failure{Kind: "job", WorkspaceID: string(id), Subject: r.JobID, Status: r.Status, Message: r.ErrorMessage, At: time.Now()}
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					if j, err := jobStore.Job(ctx, id, f.Subject); err == nil {
+						f.SubjectName = j.Name
+					}
+					sampler.RecordFailure(f)
+				}()
 			}
 		},
 		Active: func(ctx context.Context, id ids.WorkspaceID) bool {

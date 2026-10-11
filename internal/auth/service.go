@@ -320,6 +320,15 @@ func ValidatePassword(pw string) error {
 	return nil
 }
 
+// ValidateDisplayName rejects names that could pass for an API key's attribution label
+// (keys appear as `API key "name"` in history and audit views). Whitespace and case are ignored.
+func ValidateDisplayName(name string) error {
+	if strings.HasPrefix(strings.ToLower(strings.Join(strings.Fields(name), " ")), "api key") {
+		return fault.New(fault.BadRequest, `Display names cannot start with "API key"; that wording is reserved for API keys.`)
+	}
+	return nil
+}
+
 // CreateUser creates a user with a hashed password.
 func (s *Service) CreateUser(ctx context.Context, email, displayName, password string, platformAdmin bool) (admin.User, error) {
 	email, err := NormalizeEmail(email)
@@ -327,6 +336,9 @@ func (s *Service) CreateUser(ctx context.Context, email, displayName, password s
 		return admin.User{}, err
 	}
 	if err := ValidatePassword(password); err != nil {
+		return admin.User{}, err
+	}
+	if err := ValidateDisplayName(displayName); err != nil {
 		return admin.User{}, err
 	}
 	if strings.TrimSpace(displayName) == "" {

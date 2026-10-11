@@ -89,6 +89,7 @@ type Failure struct {
 	Kind        string // "job" or "backup"
 	WorkspaceID string
 	Subject     string // job id, or backup kind
+	SubjectName string // job name resolved when recorded; empty for backups or if the job no longer exists
 	Status      string
 	Message     string
 }

@@ -116,6 +116,11 @@ export function failureTone(failed: number): Tone {
   return failed === 0 ? "success" : "danger";
 }
 
+/** Label for a failed job run: the job's name, or a placeholder when the job was deleted. */
+export function failureJobLabel(name: string | undefined): string {
+  return name ? name : "Deleted job";
+}
+
 // ----- table rows ------------------------------------------------------------
 
 export type WorkspaceRow = NonNullable<AdminOverview["workspaces"]>[number];

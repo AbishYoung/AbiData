@@ -12,6 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"abidata/internal/admin"
+	"abidata/internal/auth"
 	"abidata/internal/backup"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
@@ -229,6 +230,11 @@ func (s *Server) registerAdmin(api huma.API) {
 		p, _ := PrincipalFrom(ctx)
 		if in.ID == p.UserID && ((in.Body.Disabled != nil && *in.Body.Disabled) || (in.Body.IsPlatformAdmin != nil && !*in.Body.IsPlatformAdmin)) {
 			return nil, fault.New(fault.BadRequest, "You cannot disable yourself or remove your own platform admin role.")
+		}
+		if in.Body.DisplayName != nil {
+			if err := auth.ValidateDisplayName(*in.Body.DisplayName); err != nil {
+				return nil, err
+			}
 		}
 		if err := s.deps.Admin.UpdateUser(ctx, in.ID, admin.UserPatch{DisplayName: in.Body.DisplayName,
 			IsPlatformAdmin: in.Body.IsPlatformAdmin, Disabled: in.Body.Disabled}); err != nil {

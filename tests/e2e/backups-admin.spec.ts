@@ -164,6 +164,16 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await expect(page.getByRole("region", { name: "Server statistics" }).getByText("Memory (heap)", { exact: true })).toBeVisible();
   await expectNoAxeViolations(page);
 
+  // The selected tab lives in the URL: deep link, reload and back/forward keep it.
+  await page.getByRole("tab", { name: "Users" }).click();
+  await expect(page).toHaveURL(/\/admin\?tab=users$/);
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Users", selected: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeVisible();
+  await page.goto("/admin?tab=bogus");
+  await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeVisible();
+
   // Workspaces
   await page.getByRole("tab", { name: "Workspaces" }).click();
   const wsName = `Admin WS ${RUN}`;
@@ -200,6 +210,10 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   dialog = page.getByRole("dialog", { name: "New user" });
   await expect(dialog.getByText(/At least 10 characters/)).toBeVisible();
   await dialog.getByLabel("Email").fill(email);
+  await dialog.getByLabel("Display name").fill("api KEY imposter");
+  await dialog.getByLabel("Initial password").fill("long-enough-password");
+  await dialog.getByRole("button", { name: "Create user" }).click();
+  await expect(dialog.getByText(/cannot start with .API key./)).toBeVisible();
   await dialog.getByLabel("Display name").fill("Casey Created");
   await dialog.getByLabel("Initial password").fill("short");
   await dialog.getByRole("button", { name: "Create user" }).click();
@@ -212,6 +226,13 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await expect(userRow).toContainText("Disabled");
   await userRow.getByRole("button", { name: `Enable ${email}` }).click();
   await expect(userRow).toContainText("Active");
+  // Why an action is unavailable shows as a tooltip (Tip), not a native title.
+  const selfRow = page.getByRole("row", { name: new RegExp(ADMIN_EMAIL) });
+  const selfDisable = selfRow.getByRole("button", { name: `Disable ${ADMIN_EMAIL}` });
+  await expect(selfDisable).toBeDisabled();
+  await expect(selfDisable).not.toHaveAttribute("title", /.+/);
+  await selfDisable.locator("xpath=..").hover();
+  await expect(page.getByRole("tooltip").filter({ hasText: "You cannot disable yourself" }).first()).toBeVisible();
   await expectNoAxeViolations(page);
 });
 

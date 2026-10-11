@@ -12,7 +12,8 @@ func TestAdminOverview(t *testing.T) {
 	ws, root, o, _, _, _ := roles(t, e)
 	sampler := obs.NewSampler(obs.NewMetrics())
 	e.s.deps.Series = sampler
-	sampler.RecordFailure(obs.Failure{Kind: "job", WorkspaceID: ws, Subject: "job1", Status: "failed", Message: "boom", At: time.Now()})
+	sampler.RecordFailure(obs.Failure{Kind: "job", WorkspaceID: ws, Subject: "job1", SubjectName: "Nightly sync", Status: "failed", Message: "boom", At: time.Now()})
+	sampler.RecordFailure(obs.Failure{Kind: "job", WorkspaceID: ws, Subject: "gone", Status: "failed", Message: "bye", At: time.Now()})
 	sampler.RecordFailure(obs.Failure{Kind: "backup", WorkspaceID: ws, Subject: "scheduled", Status: "failed", Message: "disk full", At: time.Now()})
 	sampler.Sample()
 
@@ -51,8 +52,18 @@ func TestAdminOverview(t *testing.T) {
 		t.Fatalf("workspaces %v", wss)
 	}
 	fails := body["failures"].([]any)
-	if len(fails) != 2 || fails[0].(map[string]any)["workspace_name"] != "Jobs" {
+	if len(fails) != 3 || fails[0].(map[string]any)["workspace_name"] != "Jobs" {
 		t.Fatalf("failures %v", fails)
+	}
+	names := map[string]string{}
+	for _, f := range fails {
+		fm := f.(map[string]any)
+		if fm["kind"] == "job" {
+			names[fm["subject"].(string)] = fm["subject_name"].(string)
+		}
+	}
+	if names["job1"] != "Nightly sync" || names["gone"] != "" {
+		t.Fatalf("job names %v", names)
 	}
 	var sawFailedBackup bool
 	for _, b := range body["backups"].([]any) {

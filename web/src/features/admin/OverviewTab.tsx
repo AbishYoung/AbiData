@@ -28,6 +28,7 @@ import {
   BACKUP_STATUS,
   backupSummary,
   errorTone,
+  failureJobLabel,
   failureTone,
   latencyTone,
   lastValue,
@@ -478,6 +479,7 @@ function FailuresTable({ rows, nowMs }: { rows: NonNullable<AdminOverview["failu
                       {f.kind === "job" ? <KindIcon kind="job" size="sm" /> : <IconChip icon={Archive} />}
                       {f.kind === "job" ? "Job run" : "Backup"} {f.status.replace("_", " ")}
                     </div>
+                    {f.kind === "job" && <div className="text-sm">{failureJobLabel(f.subject_name)}</div>}
                     <div className="text-xs text-fg-muted">{f.workspace_name || f.workspace_id}</div>
                   </td>
                   <td className={`${td} max-w-xs`}>

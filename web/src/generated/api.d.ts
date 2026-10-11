@@ -2171,6 +2171,8 @@ export interface components {
             status: string;
             /** @description Job ID, or the backup kind. */
             subject: string;
+            /** @description Job name resolved when the failure was recorded; empty for backups and for jobs that no longer exist. */
+            subject_name: string;
             workspace_id: string;
             workspace_name: string;
         };
