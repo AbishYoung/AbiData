@@ -144,6 +144,17 @@ func (m *memStore) allRuns() []Run {
 	return out
 }
 
+func (m *memStore) inFlight() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range m.index {
+		if e.RunningRunID != "" || e.QueuedRunID != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *memStore) entry(id string) IndexEntry {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -262,6 +273,11 @@ func (r *rig) settle() {
 			if run.Status == StatusRunning || run.Status == StatusQueued && r.exec.gate == nil {
 				busy = true
 			}
+		}
+		// A run can be claimed in the index before its row is written, so an
+		// ungated rig also waits for the index to show nothing in flight.
+		if r.exec.gate == nil && r.store.inFlight() {
+			busy = true
 		}
 		if !busy {
 			r.s.mu.Lock()

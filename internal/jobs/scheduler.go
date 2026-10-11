@@ -175,7 +175,7 @@ type Scheduler struct {
 	// queuedArgs holds the arguments of queued runs until they start (not persisted:
 	// a queued run that survives a restart is marked interrupted).
 	queuedArgs map[string]map[string]any
-	wg         sync.WaitGroup
+	runs       inflight // started runs not yet finished
 	// base is the parent of every run's context; Shutdown cancels it after the
 	// grace period, and runs stopped that way are recorded as interrupted.
 	base        context.Context
@@ -206,7 +206,39 @@ func New(cfg Config) *Scheduler {
 		perWS: map[ids.WorkspaceID]chan struct{}{}, wsLocks: map[ids.WorkspaceID]*sync.Mutex{}, firing: map[ids.WorkspaceID]bool{}, cancel: map[string]context.CancelFunc{}, queuedArgs: map[string]map[string]any{},
 	}
 	s.base, s.stopRuns = context.WithCancel(context.Background())
+	s.runs.c = sync.NewCond(&s.runs.mu)
 	return s
+}
+
+// inflight counts started runs. Unlike a WaitGroup it allows a run to start
+// while someone waits: a queued run can be released by a finishing one during
+// Shutdown, and a Run now can race with Shutdown.
+type inflight struct {
+	mu sync.Mutex
+	c  *sync.Cond
+	n  int
+}
+
+func (f *inflight) add() {
+	f.mu.Lock()
+	f.n++
+	f.mu.Unlock()
+}
+
+func (f *inflight) done() {
+	f.mu.Lock()
+	if f.n--; f.n == 0 {
+		f.c.Broadcast()
+	}
+	f.mu.Unlock()
+}
+
+func (f *inflight) wait() {
+	f.mu.Lock()
+	for f.n > 0 {
+		f.c.Wait()
+	}
+	f.mu.Unlock()
 }
 
 // wsLock returns the mutex serializing ws's index updates.
@@ -352,14 +384,14 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 // Wait blocks until all started runs have finished (tests and shutdown).
-func (s *Scheduler) Wait() { s.wg.Wait() }
+func (s *Scheduler) Wait() { s.runs.wait() }
 
 // Shutdown gives running runs up to grace to finish, then cancels the rest;
 // those are recorded as interrupted (brief <deployment>). Stop the loop first.
 func (s *Scheduler) Shutdown(grace time.Duration) bool {
 	s.closed.Store(true)
 	done := make(chan struct{})
-	go func() { s.wg.Wait(); close(done) }()
+	go func() { s.runs.wait(); close(done) }()
 	select {
 	case <-done:
 		return true
@@ -660,12 +692,15 @@ func (s *Scheduler) slot(ws ids.WorkspaceID) chan struct{} {
 func (s *Scheduler) start(ws ids.WorkspaceID, job Job, run Run) {
 	s.mu.Lock()
 	ctx, cancel := context.WithCancel(s.base)
+	if s.closed.Load() {
+		cancel() // shutting down: record the run as cancelled without running it
+	}
 	s.cancel[cancelKey(ws, run.ID)] = cancel
 	slot := s.slot(ws)
 	s.mu.Unlock()
-	s.wg.Add(1)
+	s.runs.add()
 	go func() {
-		defer s.wg.Done()
+		defer s.runs.done()
 		defer cancel()
 		// Per-workspace quota first, then the global pool.
 		select {
