@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { useEffect } from "react";
 import type { TableView } from "@/app/tabs";
 import { alertBox } from "@/components/styles";
@@ -92,7 +93,7 @@ function QueryDraftHost({ ws, queryId, tabKey, view }: { ws: string; queryId: st
       </div>
     );
   }
-  if (!entry) return <p className="p-4 text-fg-muted">Loading query…</p>;
+  if (!entry) return <SkeletonLines rows={6} label="Loading query…" />;
   if (view === "sql") return entry.kind === "visual" ? <ReadOnlySql ws={ws} tabKey={tabKey} /> : <SqlEditor ws={ws} tabKey={tabKey} />;
   return entry.kind === "visual" ? <QueryDesigner ws={ws} tabKey={tabKey} /> : <SqlEditor ws={ws} tabKey={tabKey} />;
 }

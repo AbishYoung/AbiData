@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { TriangleAlert } from "lucide-react";
+import { ListTree, TriangleAlert } from "lucide-react";
+import { KindIcon } from "@/components/objectKinds";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
@@ -191,7 +192,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKeyDown} data-testid="table-design">
-      <div className="flex flex-wrap items-end gap-3 border-b border-border bg-surface px-3 py-2">
+      <div className="flex flex-wrap items-end gap-2 border-b border-border bg-surface px-3 py-2 shadow-xs">
         <div className="min-w-56 flex-1">
           <label className={labelClass} htmlFor={nameId}>
             Table name
@@ -211,8 +212,10 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
           )}
         </div>
         <button type="button" className={btn} onClick={() => setIndexesOpen(true)}>
+          <ListTree size={14} aria-hidden="true" />
           Indexes ({draft.indexes.length})
         </button>
+        <span aria-hidden="true" className="mb-1.5 h-5 w-px bg-border" />
         <Tip
           label={dirty ? "Review the changes before anything is applied" : "Change a field or the table first"}
           shortcut={dirty ? "Mod+S" : undefined}
@@ -283,9 +286,9 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
           />
         </div>
 
-        <aside aria-label="Properties" className="w-80 shrink-0 space-y-5 overflow-y-auto border-l border-border bg-surface p-3">
-          <section aria-labelledby={`${nameId}-field-props`}>
-            <h2 id={`${nameId}-field-props`} className="m-0 mb-2 text-sm font-semibold">
+        <aside aria-label="Properties" className="w-80 shrink-0 space-y-4 overflow-y-auto border-l border-border bg-bg p-3">
+          <section aria-labelledby={`${nameId}-field-props`} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+            <h2 id={`${nameId}-field-props`} className="m-0 mb-3 text-sm font-semibold text-fg">
               Field properties{selected && selected.displayName.trim() ? `: ${selected.displayName.trim()}` : ""}
             </h2>
             {selected ? (
@@ -299,12 +302,15 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
                 onIndexedChange={(state) => edit((d) => withFieldIndexed(d, entry.original, selected.id, state, ulid()))}
               />
             ) : (
-              <p className="m-0 text-sm text-fg-muted">Select a field to edit its properties.</p>
+              <div className="flex flex-col items-center gap-2 py-4 text-center">
+                <KindIcon kind="table" size="lg" />
+                <p className="m-0 text-sm text-fg-muted">Select a field to edit its properties.</p>
+              </div>
             )}
           </section>
 
-          <section aria-labelledby={`${nameId}-table-props`}>
-            <h2 id={`${nameId}-table-props`} className="m-0 mb-2 text-sm font-semibold">
+          <section aria-labelledby={`${nameId}-table-props`} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+            <h2 id={`${nameId}-table-props`} className="m-0 mb-3 text-sm font-semibold text-fg">
               Table properties
             </h2>
             <div className="space-y-3">

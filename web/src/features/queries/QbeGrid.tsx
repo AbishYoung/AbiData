@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
+import { EmptyState } from "@/components/EditorParts";
 import { Tip } from "@/components/Tip";
 import { input } from "@/components/styles";
 import { CriteriaCell } from "./CriteriaCell";
@@ -26,9 +27,9 @@ const TOTALS: { value: GroupFn; label: string }[] = [
 ];
 
 const iconBtn =
-  "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40";
-const rowHead = "sticky left-0 z-10 border-b border-r border-border bg-surface-2 px-2 py-1 text-left align-top text-sm font-semibold";
-const cell = "border-b border-r border-border px-2 py-1 align-top";
+  "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40";
+const rowHead = "sticky left-0 z-10 border-b border-r border-border bg-surface-2 px-3 py-1.5 text-left align-top text-xs font-semibold text-fg-muted";
+const cell = "border-b border-r border-border px-2 py-1.5 align-top";
 
 export interface QbeGridProps {
   model: VisualModel;
@@ -45,10 +46,10 @@ export function QbeGrid({ model, infos, showTotals, onChange, onMove, onRemove, 
   const { fields } = model;
   const rows = criteriaRowCount(model);
   if (fields.length === 0) {
-    return <p className="m-0 p-3 text-sm text-fg-muted">No fields yet. Double-click a column in a box, or choose Add field.</p>;
+    return <EmptyState kind="query" title="No fields yet" hint="Double-click a column in a box, or choose Add field." compact />;
   }
   return (
-    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Field grid scroll area" data-testid="qbe-grid">
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface" tabIndex={0} role="region" aria-label="Field grid scroll area" data-testid="qbe-grid">
       <table className="border-collapse text-sm">
         <caption className="sr-only">Query fields: one column per field</caption>
         <thead>
@@ -59,7 +60,7 @@ export function QbeGrid({ model, infos, showTotals, onChange, onMove, onRemove, 
             {fields.map((f, i) => {
               const label = fieldLabel(f, infos);
               return (
-                <th key={i} scope="col" className="min-w-48 border-b border-r border-border bg-surface-2 px-2 py-1 text-left align-top font-semibold">
+                <th key={i} scope="col" className="min-w-48 border-b border-r border-border bg-surface-2 px-2 py-1 text-left align-top text-xs font-semibold text-fg-muted">
                   <div className="flex items-center justify-between gap-1">
                     <span>Field {i + 1}</span>
                     <span className="flex">
