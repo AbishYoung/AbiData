@@ -12,6 +12,7 @@ import { useTabs, useWorkspaceTabs, type Tab, type TableView } from "@/app/tabs"
 import { NavPane } from "@/features/nav/NavPane";
 import { NavDrawer } from "@/features/nav/NavDrawer";
 import { useIsCompact } from "@/lib/useMediaQuery";
+import { useFocusOpenedTab } from "./focusOpened";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
 import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
@@ -246,6 +247,8 @@ function TabContent({ ws, role, onOpenNav }: { ws: string; role: WorkspaceRole |
   const { tabs, active } = useWorkspaceTabs(ws);
   const tab = tabs.find((t) => t.key === active);
   const compact = useIsCompact();
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusOpenedTab(panelRef, !compact);
   if (!tab) {
     return <EmptyWorkspace {...(onOpenNav ? { onOpenNav } : {})} />;
   }
@@ -288,7 +291,7 @@ function TabContent({ ws, role, onOpenNav }: { ws: string; role: WorkspaceRole |
     );
   }
   return (
-    <div id="document-panel" role="tabpanel" aria-label={tab.title} className="flex min-h-0 flex-1 flex-col">
+    <div ref={panelRef} id="document-panel" role="tabpanel" aria-label={tab.title} className="flex min-h-0 flex-1 flex-col">
       {content}
     </div>
   );

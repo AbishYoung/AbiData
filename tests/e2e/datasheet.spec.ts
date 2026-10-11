@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { signIn } from "./helpers";
 import {
   callApi,
   cellAt,
@@ -355,6 +356,24 @@ test("keyboard-only flow edits and saves a cell", async ({ page }) => {
   await expect(page.getByText("New record").first()).toBeVisible();
   await pressMod(page, "f");
   await expect(page.getByRole("searchbox", { name: "Filter records" })).toBeFocused();
+});
+
+test("opening a table from the navigation pane with Enter moves the focus into its datasheet", async ({ page }) => {
+  await signIn(page);
+  await page.goto(`/w/${f.ws}`);
+  const nav = page.getByRole("navigation", { name: "Navigation pane" });
+  await page.keyboard.press("Shift"); // the next focus comes from the keyboard, as for a real keyboard user
+  await nav.getByRole("button", { name: "Everything", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const grid = page.getByRole("grid", { name: "Everything datasheet" });
+  await expect(grid).toBeFocused();
+  await page.keyboard.press("ArrowDown"); // arrow keys act on the grid straight away
+  await expect(page.getByText("Record 2 of")).toBeVisible();
+
+  // A mouse click leaves the focus where it is: nothing is stolen from a pointer user.
+  await nav.getByRole("button", { name: "People", exact: true }).click();
+  await expect(page.getByRole("grid", { name: "People datasheet" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "People datasheet" })).not.toBeFocused();
 });
 
 test("persists column widths and order", async ({ page }) => {
