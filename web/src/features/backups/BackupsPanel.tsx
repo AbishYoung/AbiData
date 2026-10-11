@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { ME_KEY } from "@/lib/session";
 import { useTabs } from "@/app/tabs";
 import { Modal } from "@/features/queries/Modal";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary, input, label } from "@/components/styles";
 import {
   backupKeys,
@@ -258,10 +259,12 @@ export function BackupsPanel({ ws }: { ws: string }) {
         Backups
       </h3>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <button type="button" className={btnPrimary} onClick={() => backUp.mutate()} disabled={backUp.isPending} aria-busy={backUp.isPending}>
-          <DatabaseBackup size={14} aria-hidden="true" />
-          {backUp.isPending ? "Backing up…" : "Back up now"}
-        </button>
+        <Tip label="Create a backup of this workspace now">
+          <button type="button" className={btnPrimary} onClick={() => backUp.mutate()} disabled={backUp.isPending} aria-busy={backUp.isPending}>
+            <DatabaseBackup size={14} aria-hidden="true" />
+            {backUp.isPending ? "Backing up…" : "Back up now"}
+          </button>
+        </Tip>
         <span role="status" aria-live="polite" className="text-sm text-fg-muted">
           {status?.text ?? ""}
           {status?.open && (
@@ -325,19 +328,25 @@ export function BackupsPanel({ ws }: { ws: string }) {
                   <td className="px-2 py-1.5">{who(b)}</td>
                   <td className="px-2 py-1.5">
                     <div className="flex flex-wrap justify-end gap-2">
-                      <button type="button" className={btn} onClick={() => setRestoring(b)} aria-label={`Restore backup from ${abs}`}>
-                        <History size={14} aria-hidden="true" />
-                        Restore
-                      </button>
-                      <button type="button" className={btn} onClick={() => setCloning(b)} aria-label={`Restore backup from ${abs} as new workspace`}>
-                        <Copy size={14} aria-hidden="true" />
-                        Restore as new workspace…
-                      </button>
-                      {b.kind === "manual" && (
-                        <button type="button" className={btn} onClick={() => setDeleting(b)} aria-label={`Delete backup from ${abs}`}>
-                          <Trash2 size={14} aria-hidden="true" />
-                          Delete
+                      <Tip label="Replace this workspace's data with the backup">
+                        <button type="button" className={btn} onClick={() => setRestoring(b)} aria-label={`Restore backup from ${abs}`}>
+                          <History size={14} aria-hidden="true" />
+                          Restore
                         </button>
+                      </Tip>
+                      <Tip label="Make a new workspace from this backup; this workspace is not changed">
+                        <button type="button" className={btn} onClick={() => setCloning(b)} aria-label={`Restore backup from ${abs} as new workspace`}>
+                          <Copy size={14} aria-hidden="true" />
+                          Restore as new workspace…
+                        </button>
+                      </Tip>
+                      {b.kind === "manual" && (
+                        <Tip label="Permanently delete this backup file">
+                          <button type="button" className={btn} onClick={() => setDeleting(b)} aria-label={`Delete backup from ${abs}`}>
+                            <Trash2 size={14} aria-hidden="true" />
+                            Delete
+                          </button>
+                        </Tip>
                       )}
                     </div>
                   </td>

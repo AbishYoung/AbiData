@@ -6,6 +6,7 @@ import { Modal, selectClass } from "@/features/queries/Modal";
 import { openDocs } from "@/features/docs/docsStore";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
 import { alertBox, btn, btnPrimary, input, label } from "@/components/styles";
+import { Tip } from "@/components/Tip";
 import { EXPIRY_OPTIONS, ROLE_OPTIONS, STATUS_LABEL, keyNameError, keyStatus } from "./apiKeyLogic";
 import { apiKeyKeys, createApiKey, listApiKeys, revokeApiKey, type ApiKey, type CreatedApiKey, type KeyRole } from "./apiKeysApi";
 
@@ -272,7 +273,7 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-2 py-2 text-fg-muted">
-                  No API keys yet.
+                  No API keys yet. Create one to let a script or bot use this workspace.
                 </td>
               </tr>
             )}
@@ -284,7 +285,11 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
                     <KeyRound size={13} aria-hidden="true" className="mr-1 inline" />
                     {k.name}
                   </th>
-                  <td className="px-2 py-1.5">{k.role.charAt(0).toUpperCase() + k.role.slice(1)}</td>
+                  <td className="px-2 py-1.5">
+                    <Tip label={ROLE_OPTIONS.find((r) => r.value === k.role)?.help ?? k.role}>
+                      <span>{k.role.charAt(0).toUpperCase() + k.role.slice(1)}</span>
+                    </Tip>
+                  </td>
                   <td className="px-2 py-1.5">
                     <time dateTime={k.created_at}>{absoluteTime(k.created_at)}</time>
                     <span className="block text-xs text-fg-muted">by {k.created_by_name || "a former member"}</span>
@@ -299,9 +304,11 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
                   <td className="px-2 py-1.5">
                     <div className="flex justify-end">
                       {st === "active" && (
-                        <button type="button" className={btn} onClick={() => setRevoking(k)} aria-label={`Revoke API key ${k.name}`}>
-                          Revoke
-                        </button>
+                        <Tip label="Stop this key from working right away">
+                          <button type="button" className={btn} onClick={() => setRevoking(k)} aria-label={`Revoke API key ${k.name}`}>
+                            Revoke
+                          </button>
+                        </Tip>
                       )}
                     </div>
                   </td>

@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from "
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, Search, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { DeleteScriptDialog } from "./DeleteScriptDialog";
@@ -117,6 +118,13 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
             aria-invalid={trimmed !== "" && !nameValid}
             aria-describedby={hintId}
             onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter in the only text field creates the script, as Save would.
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                save();
+              }
+            }}
           />
         </div>
         <div>
@@ -128,10 +136,12 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
             <option value="job">Job</option>
           </select>
         </div>
-        <button type="button" className={btnPrimary} disabled={!nameValid || create.isPending} onClick={save}>
-          <Save size={16} aria-hidden="true" />
-          Save
-        </button>
+        <Tip label="Create the script">
+          <button type="button" className={btnPrimary} disabled={!nameValid || create.isPending} onClick={save}>
+            <Save size={16} aria-hidden="true" />
+            Save
+          </button>
+        </Tip>
       </div>
       <p id={hintId} className="m-0 px-3 py-1 text-sm text-fg-muted">
         {kind === "module"
@@ -226,14 +236,18 @@ function SavedBody({ ws, script, tabKey }: { ws: string; script: Script; tabKey:
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <h2 className="m-0 mr-2 text-base font-semibold">{script.name}</h2>
         <span className="mr-2 text-fg-muted">{KIND_LABEL[script.kind]}</span>
-        <button type="button" className={btnPrimary} disabled={!dirty || save.isPending} onClick={doSave}>
-          <Save size={16} aria-hidden="true" />
-          Save
-        </button>
-        <button type="button" className={btn} disabled={!dirty} onClick={revert}>
-          <Undo2 size={16} aria-hidden="true" />
-          Revert
-        </button>
+        <Tip label="Save the script" shortcut="Mod+S">
+          <button type="button" className={btnPrimary} disabled={!dirty || save.isPending} onClick={doSave}>
+            <Save size={16} aria-hidden="true" />
+            Save
+          </button>
+        </Tip>
+        <Tip label="Discard unsaved changes">
+          <button type="button" className={btn} disabled={!dirty} onClick={revert}>
+            <Undo2 size={16} aria-hidden="true" />
+            Revert
+          </button>
+        </Tip>
         <button type="button" className={btn} onClick={() => setConfirmDelete(true)}>
           <Trash2 size={16} aria-hidden="true" />
           Delete

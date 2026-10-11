@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { btn, input } from "@/components/styles";
 import { findMatches, isTruncated, segments, stepMatch } from "./logSearch";
 
@@ -52,24 +53,28 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
             }
           }}
         />
-        <button
-          type="button"
-          className={btn}
-          aria-label="Previous match"
-          disabled={matches.length === 0}
-          onClick={() => setCurrent(stepMatch(index, matches.length, -1))}
-        >
-          <ChevronUp size={14} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className={btn}
-          aria-label="Next match"
-          disabled={matches.length === 0}
-          onClick={() => setCurrent(stepMatch(index, matches.length, 1))}
-        >
-          <ChevronDown size={14} aria-hidden="true" />
-        </button>
+        <Tip label="Previous match" shortcut="Shift+Enter">
+          <button
+            type="button"
+            className={btn}
+            aria-label="Previous match"
+            disabled={matches.length === 0}
+            onClick={() => setCurrent(stepMatch(index, matches.length, -1))}
+          >
+            <ChevronUp size={14} aria-hidden="true" />
+          </button>
+        </Tip>
+        <Tip label="Next match" shortcut="Enter">
+          <button
+            type="button"
+            className={btn}
+            aria-label="Next match"
+            disabled={matches.length === 0}
+            onClick={() => setCurrent(stepMatch(index, matches.length, 1))}
+          >
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        </Tip>
         <span role="status" className="text-sm text-fg-muted">
           {status}
         </span>
