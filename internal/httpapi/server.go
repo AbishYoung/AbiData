@@ -65,8 +65,11 @@ type Deps struct {
 	Egress     *egress.Gateway
 	Ingest     *ingest.Service // imports and exports; nil: ingest routes answer NOT_FOUND
 	Backups    *backup.Service // backups and restores; nil: backup routes answer NOT_FOUND
-	Version    string
-	SPA        fs.FS // contents of web/dist; nil serves nothing
+	// OnSetup runs after the first administrator is created through the setup
+	// endpoint (nil: nothing). It must not fail setup: log and return.
+	OnSetup func(ctx context.Context, firstAdmin admin.User)
+	Version string
+	SPA     fs.FS // contents of web/dist; nil serves nothing
 }
 
 // Server is the HTTP handler.

@@ -123,6 +123,16 @@ docker compose start abidata
 
 The password is read from standard input.
 
+## The sample workspace {#demo}
+
+When you finish setup with the setup token, AbiData also creates a workspace called **Northwind Traders** and makes you its owner, so a new install has something to explore straight away. It holds a small trading company: employees, customers, products, orders and order lines (about 25 customers, 20 products and 60 orders dated over the last six months, so the data looks current when you install), four or more saved queries (sales by month, top customers, low stock, open orders), a customer form, a product catalogue report, and a scheduled job that refreshes each product's low-stock flag every morning at 06:30. Nothing in it uses the network.
+
+It is an ordinary workspace: change it, back it up, or suspend it from the administration pages when you no longer need it. You can rename it or add your own tables next to the sample ones.
+
+- Set `ABIDATA_DEMO_WORKSPACE=false` before first start to skip it. See [Configuration](/docs/operations/configuration).
+- Setup never fails because of the sample workspace; if it could not be built the reason is in the server log (look for `subsystem":"demo"`).
+- Setup through `user create-admin` does not create it. To add it later to any install, stop the server and run `abidata demo --owner you@example.com` (in Docker: `docker compose run --rm --no-deps --entrypoint /abidata abidata demo --owner you@example.com`). It does nothing if a workspace named Northwind Traders already exists.
+
 After you sign in, create workspaces and user accounts as the administrator. People do not register themselves: an administrator creates each account and an owner adds it to a workspace. See [Members and roles](/docs/guide/members-and-roles).
 
 ## Check that it works {#check}

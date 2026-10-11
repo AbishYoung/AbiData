@@ -26,6 +26,8 @@ Each object opens in a tab. Builders and owners also get a view switcher on the 
 
 ## Where to start {#start}
 
+A new install includes a **Northwind Traders** sample workspace: open it to see tables, queries, a form, a report and a scheduled job working together.
+
 1. Create a table and add a few fields: [Tables](/docs/guide/tables).
 2. Type some records into the datasheet, or [import a CSV file](/docs/guide/imports-exports).
 3. Invite your team and choose their roles: [Members and roles](/docs/guide/members-and-roles).

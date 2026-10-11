@@ -23,6 +23,7 @@ import (
 	"abidata/internal/backup"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/demo"
 	"abidata/internal/docsrv"
 	"abidata/internal/egress"
 	"abidata/internal/events"
@@ -239,7 +240,15 @@ func serve() error {
 	schedDone := make(chan struct{})
 	go func() { sched.Start(schedCtx); close(schedDone) }()
 
-	api := httpapi.New(httpapi.Deps{Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
+	demoBuilder := demo.NewBuilder(adm, wm, sched, obs.Subsystem(log, "demo"))
+	var onSetup func(context.Context, admin.User)
+	if cfg.DemoWorkspace {
+		onSetup = func(ctx context.Context, u admin.User) {
+			createDemoAfterSetup(ctx, demoBuilder, u, obs.Subsystem(log, "demo"))
+		}
+	}
+
+	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
