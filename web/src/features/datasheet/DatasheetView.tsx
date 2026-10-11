@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api";
 import { keys } from "@/lib/events";
 import { useErrorStore } from "@/lib/errorStore";
 import { useStatusBar } from "@/lib/statusbar";
+import { useIsCompact } from "@/lib/useMediaQuery";
 import { useTabs } from "@/app/tabs";
 import type { Column, Schema, Table } from "@/lib/schema";
 import { alertBox, badge, badgeWarning, btn } from "@/components/styles";
@@ -12,6 +13,8 @@ import { KindIcon } from "@/components/objectKinds";
 import { docFooter } from "@/components/EditorParts";
 import { Grid, HEADER_HEIGHT, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
+import { CARD_SLOT, CardList } from "./CardList";
+import { RecordSheet, type FieldChange, type SheetSave } from "./RecordSheet";
 import { ExportDialog } from "@/features/imports/ExportDialog";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
@@ -104,9 +107,16 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set());
   const [merge, setMerge] = useState<MergeState | null>(null);
   const [del, setDel] = useState<DeleteState | null>(null);
+  const compact = useIsCompact();
+  const [viewMode, setViewMode] = useState<"cards" | "grid">("cards");
+  /** Phones show record cards by default; the grid stays one tap away. Desktop is always the grid. */
+  const mode: "cards" | "grid" = compact ? viewMode : "grid";
+  /** Index of the record open in the full-screen sheet; `total` means the new record. */
+  const [sheetIndex, setSheetIndex] = useState<number | null>(null);
 
   const buffersRef = useRef<ReadonlyMap<RowKey, RowBuffer>>(buffers);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const cardScrollRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorHandle>(null);
   const anchorRef = useRef<number | null>(null);
@@ -149,10 +159,17 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     scrollMargin: HEADER_HEIGHT,
     scrollPaddingStart: HEADER_HEIGHT,
   });
-  const items = virtualizer.getVirtualItems();
+  const cardVirtualizer = useVirtualizer({
+    count: total,
+    getScrollElement: () => cardScrollRef.current,
+    estimateSize: () => CARD_SLOT,
+    overscan: 6,
+  });
+  const items = mode === "cards" ? cardVirtualizer.getVirtualItems() : virtualizer.getVirtualItems();
 
   const pageSet = new Set<number>();
   for (const v of items) if (v.index < total) pageSet.add(Math.floor(v.index / PAGE_SIZE));
+  if (sheetIndex !== null && sheetIndex < total) pageSet.add(Math.floor(sheetIndex / PAGE_SIZE));
   const pages = [...pageSet].sort((a, b) => a - b);
 
   const pageQueries = useQueries({
@@ -307,6 +324,26 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     const saving: RowBuffer = { ...buf, status: "saving", errors: {} };
     updateBuffers((m) => m.set(key, saving));
     applyOutcome(key, buf, await persistBuffer(ws, tableId, buf));
+  }
+
+  /** Save from the phone record sheet: goes through the same buffer, validation and conflict handling as the grid. */
+  async function saveFromSheet(key: RowKey, row: Row | undefined, changes: FieldChange[]): Promise<SheetSave> {
+    updateBuffers((m) => {
+      let b = m.get(key);
+      for (const c of changes) b = applyChange(b, key, row, c.col, c.value, c.display);
+      if (b) m.set(key, b);
+      else m.delete(key);
+    });
+    if (!hasChanges(buffersRef.current.get(key))) return "saved";
+    await saveRow(key);
+    const left = buffersRef.current.get(key);
+    if (!left) return "saved";
+    return left.status === "conflict" ? "conflict" : "failed";
+  }
+
+  function openSheet(index: number) {
+    setActive({ row: index, col: 0 });
+    setSheetIndex(index);
   }
 
   // ---- merge dialog -------------------------------------------------------------
@@ -616,6 +653,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       }
       setSelected(new Set());
       setDel(null);
+      setSheetIndex(null);
       focusGrid();
     } catch (e) {
       const failure = classifyFailure(e);
@@ -724,6 +762,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           if (row) setHistoryRow(row.id);
         }}
         filterRef={filterRef}
+        compact={compact}
+        mode={mode}
+        onMode={setViewMode}
       />
       {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name }} onClose={() => setExportOpen(false)} />}
       {historyRow !== null && (
@@ -751,12 +792,28 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
               {filterActive
                 ? "No records match the filter. Use Clear filter to see every record."
                 : canEdit
-                  ? "This table has no records yet. Type in the New record row below to add the first one."
+                  ? mode === "cards"
+                    ? "This table has no records yet. Tap New record to add the first one."
+                    : "This table has no records yet. Type in the New record row below to add the first one."
                   : "This table has no records yet."}
             </p>
           </div>
         </div>
       )}
+      {mode === "cards" && (
+        <CardList
+          label={`${table.display_name} records`}
+          scrollRef={cardScrollRef}
+          virtualizer={cardVirtualizer}
+          columns={columns}
+          rowAt={rowAt}
+          buffers={buffers}
+          canEdit={canEdit}
+          onOpen={openSheet}
+          onNew={() => openSheet(total)}
+        />
+      )}
+      {mode === "grid" && (
       <Grid
         gridId={gridId}
         label={`${table.display_name} datasheet`}
@@ -790,6 +847,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onCommit={commitEdit}
         onCancel={cancelEdit}
       />
+      )}
       <div className={docFooter}>
         <span className="tabular-nums">
           {countReady ? `${formatCount(total)}${capped ? "+" : ""} ${total === 1 ? "record" : "records"}` : "Counting records…"}
@@ -802,6 +860,34 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           {!canEdit && <span className={badge}>Read-only</span>}
         </span>
       </div>
+      {sheetIndex !== null && mode === "cards" && (
+        <RecordSheet
+          tableName={table.display_name}
+          columns={columns}
+          index={sheetIndex}
+          total={total}
+          isNew={canEdit && sheetIndex >= total}
+          row={rowAt(sheetIndex)}
+          canEdit={canEdit}
+          buffer={buffers.get(sheetIndex >= total ? "new" : (rowAt(sheetIndex)?.id ?? -1))}
+          lookupFor={lookupFor}
+          onSave={(changes) => {
+            const row = rowAt(sheetIndex);
+            const key: RowKey = sheetIndex >= total ? "new" : (row?.id ?? -1);
+            return saveFromSheet(key, row, changes);
+          }}
+          onGo={openSheet}
+          onClose={() => setSheetIndex(null)}
+          onDelete={() => {
+            const row = rowAt(sheetIndex);
+            if (row) setDel({ ids: [row.id], busy: false, error: null });
+          }}
+          onHistory={() => {
+            const row = rowAt(sheetIndex);
+            if (row) setHistoryRow(row.id);
+          }}
+        />
+      )}
       {merge && (
         <MergeDialog
           columns={allColumns}
