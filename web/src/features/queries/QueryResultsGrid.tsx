@@ -101,7 +101,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                 key={`${c}-${i}`}
                 role="columnheader"
                 aria-colindex={i + 1}
-                className="truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted"
+                className={`truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted ${i === 0 ? "compact:sticky compact:left-0 compact:z-[2] compact:bg-surface-2" : ""}`}
                 title={c}
               >
                 {c}
@@ -131,7 +131,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                       aria-colindex={ci + 1}
                       title={text}
                       onClick={() => setActive({ row: vi.index, col: ci })}
-                      className={`truncate border-b border-r border-border px-3 text-sm leading-8 ${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
+                      className={`truncate border-b border-r border-border px-3 text-sm leading-8 ${ci === 0 ? `compact:sticky compact:left-0 compact:z-[1] ${isActive ? "" : "compact:bg-surface"} ` : ""}${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
                     >
                       {text}
                     </div>

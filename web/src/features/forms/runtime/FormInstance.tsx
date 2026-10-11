@@ -1,5 +1,5 @@
 import { EmptyState, SkeletonLines, ToolbarDivider, docToolbar } from "@/components/EditorParts";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertDialog } from "radix-ui";
@@ -12,7 +12,8 @@ import { findTable, type Column } from "@/lib/schema";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { useSavedQuery } from "@/features/queries/savedQueries";
 import { formKeys, getForm, type Form, type FormControl, type FormSection } from "../formsApi";
-import { ControlView, domId, type ControlEnv } from "./Controls";
+import { ControlView, StackedContext, domId, type ControlEnv } from "./Controls";
+import { useIsCompact } from "@/lib/useMediaQuery";
 import { ParentContext, useFormEnv, type ParentLink } from "./env";
 import {
   applyCalc,
@@ -57,8 +58,13 @@ function Band({
   env: ControlEnv;
   renderOnly?: (c: FormControl) => boolean;
 }) {
+  const stacked = useContext(StackedContext);
   const controls = useMemo(() => section.controls ?? [], [section.controls]);
-  const ordered = useMemo(() => tabOrder(controls).filter((c) => !renderOnly || renderOnly(c)), [controls, renderOnly]);
+  const ordered = useMemo(() => {
+    const list = tabOrder(controls).filter((c) => !renderOnly || renderOnly(c));
+    // Stacked (phone) layout reads top to bottom, left to right, as designed.
+    return stacked ? [...list].sort((a, b) => a.y - b.y || a.x - b.x) : list;
+  }, [controls, renderOnly, stacked]);
   return (
     <>
       {ordered.map((c) => {
@@ -101,6 +107,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   const setRecordNav = useStatusBar((s) => s.setRecordNav);
   const layout = form.layout;
   const view = top ? form.default_view : "continuous";
+  const stacked = useIsCompact();
 
   // ---- record source ----------------------------------------------------------------
   const kind = form.source_kind;
@@ -349,6 +356,22 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
     body = <SkeletonLines rows={4} label="Loading records…" />;
   } else if (!rec && view === "single") {
     body = <EmptyState kind="form" compact title="No records" hint={canAdd ? "Use New record to add one." : "There is nothing to show yet."} />;
+  } else if (view === "single" && stacked) {
+    const band = (name: string, section: FormSection) =>
+      (section.controls?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-2">
+          <Band section={section} prefix={`${uid}${name}`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
+        </div>
+      );
+    body = (
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" data-current="true">
+        <div className="flex flex-col gap-3 p-3">
+          {band("h", header)}
+          {band("d", sections.detail)}
+          {band("f", footer)}
+        </div>
+      </div>
+    );
   } else if (view === "single") {
     body = (
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
@@ -452,6 +475,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
 
   const rootCls = top ? "flex min-h-0 flex-1 flex-col" : "flex h-full min-h-0 flex-col";
   return (
+    <StackedContext.Provider value={stacked && view === "single"}>
     <div ref={rootRef} role="group" aria-label={label} onKeyDown={onKeyDown} className={rootCls}>
       {toolbar}
       {(message || conflict) && (
@@ -499,6 +523,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
         }}
       />
     </div>
+    </StackedContext.Provider>
   );
 }
 

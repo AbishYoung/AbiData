@@ -8,8 +8,12 @@ import { formatDuration, formatStamp, runDuration } from "./format";
 import { jobKeys, listRuns, type Run } from "./jobsApi";
 import { isRunActive, RunStatus, statusLabel, TRIGGER_LABEL } from "./RunStatus";
 import { useNow } from "./useNow";
+import { useIsCompact } from "@/lib/useMediaQuery";
 
 const ROW_HEIGHT = 32;
+/** Phones show each run as a small card instead of a seven-column row. */
+const CARD_HEIGHT = 84;
+const CARD = "flex flex-wrap content-center items-center gap-x-3 gap-y-0.5 px-3 text-xs";
 const GRID = "grid grid-cols-[8.5rem_5.5rem_3.5rem_6rem_6rem_5rem_minmax(8rem,1fr)] items-center gap-2 px-2";
 
 /** One-line error text of a run for the table. */
@@ -39,11 +43,13 @@ export function RunHistory({
   const live = runs.some((r) => isRunActive(r.status));
   const now = useNow(live);
 
+  const compact = useIsCompact();
+  const rowHeight = compact ? CARD_HEIGHT : ROW_HEIGHT;
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtual = useVirtualizer({
     count: runs.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 8,
   });
   const items = virtual.getVirtualItems();
@@ -79,7 +85,7 @@ export function RunHistory({
       {runs.length > 0 && (
         <div role="table" aria-label="Runs, newest first" aria-rowcount={runs.length + 1} className="min-h-0 flex-1 text-sm">
           <div role="rowgroup">
-            <div role="row" className={`${GRID} h-8 border-b border-border bg-surface-2 text-xs font-semibold text-fg-muted`}>
+            <div role="row" className={`${GRID} h-8 border-b border-border bg-surface-2 text-xs font-semibold text-fg-muted ${compact ? "sr-only" : ""}`}>
               <span role="columnheader">Status</span>
               <span role="columnheader">Trigger</span>
               <span role="columnheader">Attempt</span>
@@ -94,7 +100,7 @@ export function RunHistory({
             role="rowgroup"
             tabIndex={0}
             className="overflow-y-auto"
-            style={{ height: Math.min(virtual.getTotalSize(), 288), paddingTop: padTop, paddingBottom: padBottom }}
+            style={{ height: Math.min(virtual.getTotalSize(), compact ? 420 : 288), paddingTop: padTop, paddingBottom: padBottom }}
           >
             <div role="presentation" style={{ display: "contents" }}>
               {items.map((vi) => {
@@ -111,8 +117,8 @@ export function RunHistory({
                     data-status={r.status}
                     data-trigger={r.trigger_kind}
                     onClick={() => onSelect(r.id)}
-                    className={`${GRID} cursor-pointer border-b border-border transition-colors hover:bg-surface-2/60 ${r.id === selected ? "bg-accent-soft/60" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
-                    style={{ height: ROW_HEIGHT }}
+                    className={`${compact ? CARD : GRID} cursor-pointer border-b border-border transition-colors hover:bg-surface-2/60 ${r.id === selected ? "bg-accent-soft/60" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
+                    style={{ height: rowHeight }}
                   >
                     <span role="cell">
                       <button
@@ -129,11 +135,11 @@ export function RunHistory({
                       </button>
                     </span>
                     <span role="cell">{TRIGGER_LABEL[r.trigger_kind] ?? r.trigger_kind}</span>
-                    <span role="cell">{r.attempt}</span>
+                    <span role="cell" className={compact ? "hidden" : ""}>{r.attempt}</span>
                     <span role="cell">{formatStamp(r.queued_at)}</span>
-                    <span role="cell">{formatStamp(r.started_at)}</span>
+                    <span role="cell" className={compact ? "hidden" : ""}>{formatStamp(r.started_at)}</span>
                     <span role="cell">{d === null ? "" : formatDuration(d)}</span>
-                    <span role="cell" className="truncate text-danger" title={err}>
+                    <span role="cell" className={`truncate text-danger ${compact ? "basis-full" : ""}`} title={err}>
                       {err}
                     </span>
                   </div>

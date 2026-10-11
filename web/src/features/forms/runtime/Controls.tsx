@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import type { Column } from "@/lib/schema";
@@ -54,7 +54,15 @@ const TONES: Record<string, string> = {
   danger: "text-danger",
 };
 
-function posStyle(c: FormControl, fill: boolean): CSSProperties {
+/** True while a form is laid out as a single column (phones) instead of at its designed pixel positions. */
+export const StackedContext = createContext(false);
+
+function posStyle(c: FormControl, fill: boolean, stacked: boolean): CSSProperties {
+  if (stacked && !fill) {
+    if (c.type === "label") return { position: "relative", width: "100%" };
+    if (c.type === "line") return { position: "relative", width: "100%", height: 1 };
+    return { position: "relative", width: "100%", height: Math.max(c.h, 44) };
+  }
   return fill ? { width: "100%", height: "100%" } : { position: "absolute", left: c.x, top: c.y, width: c.w, height: c.h };
 }
 
@@ -80,6 +88,7 @@ const inputCls =
 
 /** One control of a form, in the band of one record. */
 export function ControlView({ control: c, siblings, domPrefix, fields, display, recordId, env, fill = false, labelledBy }: Props) {
+  const stacked = useContext(StackedContext);
   const p = effectiveProps(c, env.overrides[c.name]);
   const colId = c.bind?.column_id;
   const col = colId ? env.columnOf(colId) : undefined;
@@ -88,7 +97,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
   const tone = TONES[p.tone] ?? "";
   const weight = c.style?.weight === "bold" ? "font-semibold" : "";
   const align = c.style?.align === "center" ? "text-center" : c.style?.align === "right" ? "text-right" : "";
-  const style = posStyle(c, fill);
+  const style = posStyle(c, fill, stacked);
 
   switch (c.type) {
     case "label":
@@ -100,6 +109,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
     case "line":
       return <div style={style} aria-hidden="true" data-control-name={c.name} className="border-t border-border" />;
     case "rect":
+      if (stacked) return null;
       return <div style={style} aria-hidden="true" data-control-name={c.name} className="rounded border border-border" />;
     case "button":
       return (
