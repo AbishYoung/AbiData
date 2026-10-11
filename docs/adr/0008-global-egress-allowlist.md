@@ -3,7 +3,7 @@
 Status: Accepted · 2026-10-10
 
 ## Context
-The brief (`<egress>`) makes the effective outbound policy the intersection of two lists: the platform administrator's policy (`_adm_settings` key `egress_policy`, a host list where `*` means "any host the workspace asks for") and each workspace's `_sys_egress_allowlist`, which workspace owners edit. In practice this lets any owner decide which internet hosts the server may contact, and most installs left the platform list at `*`. The product owner wants outbound access to be an operator decision, not a per-workspace one.
+The brief (`<egress>`) makes the effective outbound policy the intersection of two lists: the platform administrator's policy (`_adm_settings` key `egress_policy`, a host list where `*` means "any host the workspace asks for") and each workspace's `_sys_egress_allowlist`, which workspace owners edit. With the default platform list (`*`), this let any owner decide which internet hosts the server may contact. The product owner wants outbound access to be an operator decision, not a per-workspace one.
 
 ## Decision
 - **The platform allowlist is the single source of truth.** `egress.Global` now holds `allowlist` (entries with `pattern`, `ports`, `note`: an exact host or `*.domain`, ports defaulting to 443) plus the existing switches `allow_http` and `disabled`. A request must match an entry's pattern and port, on every hop including redirects.
