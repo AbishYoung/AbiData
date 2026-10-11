@@ -211,6 +211,80 @@ test("the datasheet toolbar exports JSON", async ({ page }) => {
   expect(Array.isArray(data) ? data.length : -1).toBe(3);
 });
 
+test("CSV exports start with a UTF-8 BOM, which can be turned off and is remembered; a filtered export holds only the matching rows", async ({ page }) => {
+  await openWorkspace(page, WS);
+  const table = await createTable(page, "Cafes", [{ name: "Name", type: "short_text" }]);
+  await insertRows(page, table, [{ Name: "Café Müller" }, { Name: "北京" }, { Name: "Cafe Zoë" }]);
+  await page.reload();
+
+  // Table menu export: default is "Excel compatible", and the bytes start with EF BB BF.
+  await openTableMenu(page, "Cafes");
+  await page.getByRole("menuitem", { name: "Export…" }).click();
+  let dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
+  const bomBox = dialog.getByRole("checkbox", { name: "Excel compatible (UTF-8 with BOM)" });
+  await expect(bomBox).toBeChecked();
+  await expect(dialog.getByRole("radio", { name: "Current view" })).toHaveCount(0);
+  let download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Export", exact: true }).click();
+  let bytes = await readFile(await (await download).path());
+  expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+  expect(bytes.subarray(3).toString("utf8").replace(/\r\n/g, "\n").trim().split("\n")).toEqual(["ID,Name", "1,Café Müller", "2,北京", "3,Cafe Zoë"]);
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  // Turning it off applies and is remembered for the next export.
+  await openTableMenu(page, "Cafes");
+  await page.getByRole("menuitem", { name: "Export…" }).click();
+  dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
+  await dialog.getByRole("checkbox", { name: "Excel compatible (UTF-8 with BOM)" }).uncheck();
+  download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Export", exact: true }).click();
+  bytes = await readFile(await (await download).path());
+  expect(bytes.subarray(0, 3).toString("utf8")).toBe("ID,");
+  expect(bytes.toString("utf8")).toContain("北京");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await openTableMenu(page, "Cafes");
+  await page.getByRole("menuitem", { name: "Export…" }).click();
+  await expect(page.getByRole("dialog", { name: /Export “Cafes”/ }).getByRole("checkbox", { name: "Excel compatible (UTF-8 with BOM)" })).not.toBeChecked();
+  dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
+  await dialog.getByRole("checkbox", { name: "Excel compatible (UTF-8 with BOM)" }).check();
+  download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Export", exact: true }).click();
+  bytes = await readFile(await (await download).path());
+  expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  // Datasheet export: with a filter active "Current view" is the default and holds only the matching rows.
+  await nav(page).getByRole("button", { name: "Cafes", exact: true }).click();
+  await expect(page.getByRole("grid", { name: "Cafes datasheet" })).toBeVisible();
+  const tools = page.getByRole("toolbar", { name: "Datasheet tools" });
+  await tools.getByRole("button", { name: "Export…" }).click();
+  dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
+  await expect(dialog.getByRole("radio", { name: "All records" })).toBeChecked();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("searchbox", { name: "Filter records" }).fill("Caf");
+  await expect(page.getByRole("grid", { name: "Cafes datasheet" })).not.toContainText("北京");
+  await tools.getByRole("button", { name: "Export…" }).click();
+  dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
+  await expect(dialog.getByRole("radio", { name: "Current view" })).toBeChecked();
+  download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Export", exact: true }).click();
+  bytes = await readFile(await (await download).path());
+  expect(bytes.subarray(3).toString("utf8").replace(/\r\n/g, "\n").trim().split("\n")).toEqual(["ID,Name", "1,Café Müller", "3,Cafe Zoë"]);
+  await expect(dialog.getByText(/Export ready: 2 rows/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  // "All records" ignores the filter.
+  await tools.getByRole("button", { name: "Export…" }).click();
+  dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
+  await dialog.getByRole("radio", { name: "All records" }).check();
+  download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Export", exact: true }).click();
+  bytes = await readFile(await (await download).path());
+  expect(bytes.toString("utf8")).toContain("北京");
+  await expectNoAxeViolations(page);
+});
+
 test("the import wizard can be completed with the keyboard alone", async ({ page }) => {
   await openWorkspace(page, WS);
   const button = nav(page).getByRole("button", { name: "Import…" });

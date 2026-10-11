@@ -753,7 +753,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         mode={mode}
         onMode={setViewMode}
       />
-      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name }} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive } }} onClose={() => setExportOpen(false)} />}
       {historyRow !== null && (
         <RowHistoryPanel
           ws={ws}
