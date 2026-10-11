@@ -10,6 +10,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/events"
 	"abidata/internal/fault"
+	"abidata/internal/files"
 	"abidata/internal/ids"
 	"abidata/internal/query"
 	"abidata/internal/records"
@@ -55,6 +56,7 @@ type FormInput struct {
 type Service struct {
 	Schemas *catalog.Cache
 	Records *records.Service
+	Files   *files.Service // file attachments for the files module (nil: unavailable)
 	Queries *query.Service
 	Scripts *scripts.Service
 	Runner  *script.Runner

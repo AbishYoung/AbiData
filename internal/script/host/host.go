@@ -8,6 +8,7 @@ import (
 
 	"abidata/internal/catalog"
 	"abidata/internal/egress"
+	"abidata/internal/files"
 	"abidata/internal/records"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -32,6 +33,10 @@ type Data struct {
 
 	// afterCommit runs when the enclosing db.transaction commits (change feed).
 	afterCommit []func()
+
+	// Files backs the files module (nil: file functions answer FORBIDDEN). Reads
+	// and creates run against Lease as UserID.
+	Files *files.Service
 
 	// Fetch performs an egress-checked HTTP request (job context only; nil when
 	// the run has no network access).

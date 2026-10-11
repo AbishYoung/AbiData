@@ -494,7 +494,7 @@ end
 	_, err = s.Runner.Exec(ctx, script.ExecRequest{Kind: script.Report, Workspace: in.Lease.ID(), TZ: in.Caller.TZ,
 		Principal: script.Principal{UserID: in.Caller.UserID}, Proto: proto, Entry: "__eval",
 		Budget: script.Budget{Wall: MaxRunTime, MaxString: 1 << 20},
-		Host:   &host.Data{Lease: in.Lease, Schemas: s.Schemas, Records: s.Records, Builder: in.Caller.Builder, UserID: in.Caller.UserID},
+		Host:   &host.Data{Lease: in.Lease, Schemas: s.Schemas, Records: s.Records, Builder: in.Caller.Builder, UserID: in.Caller.UserID, Files: s.Files},
 		Globals: func(r *script.Run) map[string]lua.LValue {
 			return map[string]lua.LValue{
 				"__next": r.L.NewFunction(func(L *lua.LState) int {

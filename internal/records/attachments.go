@@ -25,6 +25,11 @@ func decodeAttachments(c catalog.Column, v any) (any, error) {
 	switch x := v.(type) {
 	case []any:
 		raw = x
+	case map[string]any:
+		// A Lua script's empty table arrives as an empty map.
+		if len(x) != 0 {
+			return nil, badf(c, "must be a list of file ids.")
+		}
 	case []string:
 		raw = make([]any, len(x))
 		for i, s := range x {

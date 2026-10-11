@@ -222,7 +222,7 @@ func serve() error {
 		Queries: querySvc, Ops: opsSvc, Artifacts: arts, RestorePoint: restorePoint}
 	jobStore := &jobs.SQLStore{Admin: adm, Workspaces: wm}
 	jobSvc := &jobs.Service{Scripts: scriptSvc, Events: hub}
-	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts, Ingest: ingestSvc}
+	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Files: fileSvc, Egress: gateway, Artifacts: arts, Ingest: ingestSvc}
 	sched := jobs.New(jobs.Config{Store: jobStore, Executor: executor, Workers: cfg.JobWorkers, Log: obs.Subsystem(log, "jobs"),
 		PerWorkspace: func(id ids.WorkspaceID) int { return quota(id).MaxConcurrentJobs },
 		Publish: func(id ids.WorkspaceID, r jobs.Run) {
@@ -299,8 +299,8 @@ func serve() error {
 	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Config: cfg, Log: log, Metrics: metrics, Series: sampler, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
-		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
-		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
+		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Files: fileSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
+		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Files: fileSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			UIEventBudgetMS: func(id ids.WorkspaceID) int { return quota(id).UIEventBudgetMS },
 			Enqueue:         enqueue},
 		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Files: fileSvc, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus, Docs: site,

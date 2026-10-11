@@ -90,6 +90,13 @@ func ValueToLua(r *script.Run, c catalog.Column, v any) lua.LValue {
 	if ft == catalog.Calculated {
 		ft = rec.ResultFieldType(c.Options.ResultType)
 	}
+	if ids, ok := v.([]string); ok { // attachments: a list of file ids
+		t := r.L.CreateTable(len(ids), 0)
+		for _, id := range ids {
+			t.Append(lua.LString(id))
+		}
+		return t
+	}
 	if ft == catalog.Currency {
 		if s, ok := v.(string); ok {
 			return script.DecimalFactory(r, s)
