@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { matchesShortcut } from "@/lib/shortcuts";
+import { Tip } from "@/components/Tip";
 
 export function isSaveKey(e: globalThis.KeyboardEvent): boolean {
   return matchesShortcut(e, "design.save");
@@ -27,10 +28,33 @@ export function useSaveShortcut(save: () => void): void {
 const TOOLBAR_BTN =
   "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-surface hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-export function ToolbarButton({ icon: Icon, label, disabled, onClick }: { icon: LucideIcon; label: string; disabled: boolean; onClick: () => void }) {
+/**
+ * Icon-only designer toolbar button. Its tooltip is the label, or the reason
+ * it is unavailable while disabled. The span wrapper keeps the tooltip working
+ * on a disabled button (see WhyDisabled).
+ */
+export function ToolbarButton({
+  icon: Icon,
+  label,
+  disabled,
+  disabledReason,
+  shortcut,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  disabled: boolean;
+  disabledReason?: string;
+  shortcut?: string;
+  onClick: () => void;
+}) {
   return (
-    <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick} className={TOOLBAR_BTN}>
-      <Icon size={16} aria-hidden="true" />
-    </button>
+    <Tip label={disabled && disabledReason ? disabledReason : label} shortcut={shortcut}>
+      <span className="inline-flex">
+        <button type="button" aria-label={label} disabled={disabled} onClick={onClick} className={TOOLBAR_BTN}>
+          <Icon size={16} aria-hidden="true" />
+        </button>
+      </span>
+    </Tip>
   );
 }

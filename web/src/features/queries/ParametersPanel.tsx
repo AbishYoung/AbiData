@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { btn, input } from "@/components/styles";
 import { selectClass } from "./Modal";
 import { PARAM_NAME_PATTERN, type ParamType, type VisualModel } from "./model";
@@ -55,9 +56,11 @@ export function ParametersPanel({
                     </option>
                   ))}
                 </select>
-                <button type="button" className={btn} aria-label={`Remove parameter ${p.name || i + 1}`} onClick={() => onRemove(i)}>
-                  <Trash2 size={14} aria-hidden="true" />
-                </button>
+                <Tip label={`Remove parameter ${p.name || i + 1}`}>
+                  <button type="button" className={btn} aria-label={`Remove parameter ${p.name || i + 1}`} onClick={() => onRemove(i)}>
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
+                </Tip>
               </li>
             );
           })}

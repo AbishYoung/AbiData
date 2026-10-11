@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { Check, Copy, Play, Save } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary } from "@/components/styles";
 import { Modal } from "./Modal";
 import { SaveDialog } from "./dialogs";
@@ -114,17 +115,21 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
           Run
         </button>
         {canSave && (
-          <button
-            type="button"
-            className={btn}
-            onClick={() => {
-              if (entry.savedId) void doSave().then((err) => setSaveError(err));
-              else setSaving(true);
-            }}
-          >
-            <Save size={14} aria-hidden="true" />
-            Save
-          </button>
+          <Tip label="Save the query" shortcut="Mod+S">
+            <span className="inline-flex">
+              <button
+                type="button"
+                className={btn}
+                onClick={() => {
+                  if (entry.savedId) void doSave().then((err) => setSaveError(err));
+                  else setSaving(true);
+                }}
+              >
+                <Save size={14} aria-hidden="true" />
+                Save
+              </button>
+            </span>
+          </Tip>
         )}
         <CopyButton text={sql} />
         {saveError && (
@@ -142,6 +147,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
           spellCheck={false}
           className="min-h-48 w-full flex-1 resize-none rounded-md border border-border bg-surface p-2 font-mono text-sm text-fg"
           value={sql}
+          placeholder={"SELECT id, name\nFROM customers\nWHERE city = 'Leeds'\nORDER BY name;"}
           onChange={(e) => {
             const text = e.target.value;
             patch(key, (d) => ({ ...d, sqlText: text }));

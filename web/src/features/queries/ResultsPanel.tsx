@@ -1,4 +1,5 @@
 import { RefreshCw, SlidersHorizontal, Table2 } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn } from "@/components/styles";
 import { useTabs } from "@/app/tabs";
 import { QueryResultsGrid } from "./QueryResultsGrid";
@@ -26,10 +27,14 @@ export function ResultsPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <button type="button" className={btn} onClick={runner.refresh} disabled={runner.running}>
-          <RefreshCw size={14} aria-hidden="true" />
-          Refresh
-        </button>
+        <Tip label={runner.running ? "Wait for the query to finish" : "Run the query again with the current parameters"}>
+          <span className="inline-flex">
+            <button type="button" className={btn} onClick={runner.refresh} disabled={runner.running}>
+              <RefreshCw size={14} aria-hidden="true" />
+              Refresh
+            </button>
+          </span>
+        </Tip>
         {runner.hasParams && (
           <button type="button" className={btn} onClick={runner.changeParams} disabled={runner.running}>
             <SlidersHorizontal size={14} aria-hidden="true" />

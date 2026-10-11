@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertDialog } from "radix-ui";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, History, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
+import { Tip } from "@/components/Tip";
 import { alertBox, btn, btnPrimary } from "@/components/styles";
 import { useStatusBar } from "@/lib/statusbar";
 import { findTable, type Column } from "@/lib/schema";
@@ -551,19 +552,35 @@ function Toolbar(props: {
     <div role="toolbar" aria-label={`${label} actions`} className="flex flex-wrap items-center gap-1 border-b border-border bg-surface px-2 py-1">
       {top && (
         <>
-          <button type="button" className={`${btn} ${small}`} aria-label="First record" disabled={busy || count === 0 || (index === 0 && !rec?.isNew)} onClick={() => props.onNav("first")}>
-            <ChevronFirst size={16} aria-hidden="true" />
-          </button>
-          <button type="button" className={`${btn} ${small}`} aria-label="Previous record" aria-keyshortcuts="Alt+ArrowUp" disabled={busy || index === 0} onClick={() => props.onNav("prev")}>
-            <ChevronLeft size={16} aria-hidden="true" />
-          </button>
+          <Tip label="First record">
+            <span className="inline-flex">
+              <button type="button" className={`${btn} ${small}`} aria-label="First record" disabled={busy || count === 0 || (index === 0 && !rec?.isNew)} onClick={() => props.onNav("first")}>
+                <ChevronFirst size={16} aria-hidden="true" />
+              </button>
+            </span>
+          </Tip>
+          <Tip label="Previous record" shortcut="Alt+↑">
+            <span className="inline-flex">
+              <button type="button" className={`${btn} ${small}`} aria-label="Previous record" aria-keyshortcuts="Alt+ArrowUp" disabled={busy || index === 0} onClick={() => props.onNav("prev")}>
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+            </span>
+          </Tip>
           <span className="min-w-28 px-1 text-center text-sm">{props.navText}</span>
-          <button type="button" className={`${btn} ${small}`} aria-label="Next record" aria-keyshortcuts="Alt+ArrowDown" disabled={busy || index >= count - 1} onClick={() => props.onNav("next")}>
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
-          <button type="button" className={`${btn} ${small}`} aria-label="Last record" disabled={busy || count === 0 || (index >= count - 1 && !rec?.isNew)} onClick={() => props.onNav("last")}>
-            <ChevronLast size={16} aria-hidden="true" />
-          </button>
+          <Tip label="Next record" shortcut="Alt+↓">
+            <span className="inline-flex">
+              <button type="button" className={`${btn} ${small}`} aria-label="Next record" aria-keyshortcuts="Alt+ArrowDown" disabled={busy || index >= count - 1} onClick={() => props.onNav("next")}>
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </span>
+          </Tip>
+          <Tip label="Last record">
+            <span className="inline-flex">
+              <button type="button" className={`${btn} ${small}`} aria-label="Last record" disabled={busy || count === 0 || (index >= count - 1 && !rec?.isNew)} onClick={() => props.onNav("last")}>
+                <ChevronLast size={16} aria-hidden="true" />
+              </button>
+            </span>
+          </Tip>
         </>
       )}
       {props.canAdd && (

@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { input } from "@/components/styles";
 import { CriteriaCell } from "./CriteriaCell";
 import { selectClass } from "./Modal";
@@ -62,21 +63,31 @@ export function QbeGrid({ model, infos, showTotals, onChange, onMove, onRemove, 
                   <div className="flex items-center justify-between gap-1">
                     <span>Field {i + 1}</span>
                     <span className="flex">
-                      <button type="button" className={iconBtn} aria-label={`Move ${label} left`} disabled={i === 0} onClick={() => onMove(i, -1)}>
-                        <ArrowLeft size={14} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        className={iconBtn}
-                        aria-label={`Move ${label} right`}
-                        disabled={i === fields.length - 1}
-                        onClick={() => onMove(i, 1)}
-                      >
-                        <ArrowRight size={14} aria-hidden="true" />
-                      </button>
-                      <button type="button" className={iconBtn} aria-label={`Remove ${label}`} onClick={() => onRemove(i)}>
-                        <Trash2 size={14} aria-hidden="true" />
-                      </button>
+                      <Tip label={`Move ${label} left`}>
+                        <span className="inline-flex">
+                          <button type="button" className={iconBtn} aria-label={`Move ${label} left`} disabled={i === 0} onClick={() => onMove(i, -1)}>
+                            <ArrowLeft size={14} aria-hidden="true" />
+                          </button>
+                        </span>
+                      </Tip>
+                      <Tip label={`Move ${label} right`}>
+                        <span className="inline-flex">
+                          <button
+                            type="button"
+                            className={iconBtn}
+                            aria-label={`Move ${label} right`}
+                            disabled={i === fields.length - 1}
+                            onClick={() => onMove(i, 1)}
+                          >
+                            <ArrowRight size={14} aria-hidden="true" />
+                          </button>
+                        </span>
+                      </Tip>
+                      <Tip label={`Remove ${label}`}>
+                        <button type="button" className={iconBtn} aria-label={`Remove ${label}`} onClick={() => onRemove(i)}>
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
+                      </Tip>
                     </span>
                   </div>
                 </th>

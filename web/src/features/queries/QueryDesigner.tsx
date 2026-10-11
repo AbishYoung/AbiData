@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FilePlus2, Link2, Pencil, Play, Save, SaveAll, Table2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary } from "@/components/styles";
+import { WhyDisabled } from "@/components/designer/WhyDisabled";
 import { ApiError } from "@/lib/api";
 import { useSchema } from "@/lib/schema";
 import { AddFieldDialog, AddJoinDialog, AddSourceDialog, ConvertDialog, EditJoinDialog, SaveDialog } from "./dialogs";
@@ -165,16 +166,12 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
               <SaveAll size={14} aria-hidden="true" />
               Save as
             </button>
-            <button
-              type="button"
-              className={btn}
-              disabled={!canConvert}
-              title={canConvert ? undefined : "Save the query, and fix any errors, to convert it"}
-              onClick={() => setDialog("convert")}
-            >
-              <Pencil size={14} aria-hidden="true" />
-              Convert to SQL
-            </button>
+            <WhyDisabled disabled={!canConvert} reason="Save the query, and fix any errors, to convert it">
+              <button type="button" className={btn} disabled={!canConvert} onClick={() => setDialog("convert")}>
+                <Pencil size={14} aria-hidden="true" />
+                Convert to SQL
+              </button>
+            </WhyDisabled>
           </>
         )}
         <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
@@ -182,14 +179,18 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
           <Table2 size={14} aria-hidden="true" />
           Add table or query
         </button>
-        <button type="button" className={btn} onClick={() => setDialog("join")} disabled={model.sources.length < 2}>
-          <Link2 size={14} aria-hidden="true" />
-          Add join
-        </button>
-        <button type="button" className={btn} onClick={() => setDialog("field")} disabled={model.sources.length === 0}>
-          <FilePlus2 size={14} aria-hidden="true" />
-          Add field
-        </button>
+        <WhyDisabled disabled={model.sources.length < 2} reason="Add at least two tables or queries to join them">
+          <button type="button" className={btn} onClick={() => setDialog("join")} disabled={model.sources.length < 2}>
+            <Link2 size={14} aria-hidden="true" />
+            Add join
+          </button>
+        </WhyDisabled>
+        <WhyDisabled disabled={model.sources.length === 0} reason="Add a table or query first">
+          <button type="button" className={btn} onClick={() => setDialog("field")} disabled={model.sources.length === 0}>
+            <FilePlus2 size={14} aria-hidden="true" />
+            Add field
+          </button>
+        </WhyDisabled>
         {notice && (
           <span role="alert" className="text-sm text-danger">
             {notice}

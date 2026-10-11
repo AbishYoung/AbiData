@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { AreaField, CheckField, Group, SelectField, TextField } from "@/components/designer/fields";
+import { Tip } from "@/components/Tip";
 import { btn } from "@/components/styles";
 import { CONTROL_NAME } from "@/features/forms/designer/layoutModel";
 import type { Schema } from "@/lib/schema";
@@ -353,15 +354,25 @@ const SMALL_BTN = `${btn} !px-2 !py-1`;
 function RowButtons({ label, index, count, onMove, onRemove }: { label: string; index: number; count: number; onMove: (dir: 1 | -1) => void; onRemove: () => void }) {
   return (
     <div className="mt-1 flex gap-1">
-      <button type="button" className={SMALL_BTN} aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => onMove(-1)}>
-        <ArrowUp size={14} aria-hidden="true" />
-      </button>
-      <button type="button" className={SMALL_BTN} aria-label={`Move ${label} down`} disabled={index >= count - 1} onClick={() => onMove(1)}>
-        <ArrowDown size={14} aria-hidden="true" />
-      </button>
-      <button type="button" className={SMALL_BTN} aria-label={`Remove ${label}`} onClick={onRemove}>
-        <Trash2 size={14} aria-hidden="true" />
-      </button>
+      <Tip label={`Move ${label} up`}>
+        <span className="inline-flex">
+          <button type="button" className={SMALL_BTN} aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => onMove(-1)}>
+            <ArrowUp size={14} aria-hidden="true" />
+          </button>
+        </span>
+      </Tip>
+      <Tip label={`Move ${label} down`}>
+        <span className="inline-flex">
+          <button type="button" className={SMALL_BTN} aria-label={`Move ${label} down`} disabled={index >= count - 1} onClick={() => onMove(1)}>
+            <ArrowDown size={14} aria-hidden="true" />
+          </button>
+        </span>
+      </Tip>
+      <Tip label={`Remove ${label}`}>
+        <button type="button" className={SMALL_BTN} aria-label={`Remove ${label}`} onClick={onRemove}>
+          <Trash2 size={14} aria-hidden="true" />
+        </button>
+      </Tip>
     </div>
   );
 }

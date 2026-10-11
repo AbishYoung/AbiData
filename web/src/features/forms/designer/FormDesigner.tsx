@@ -17,6 +17,7 @@ import {
 import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { ToolbarButton, useSaveShortcut } from "@/components/designer/toolbar";
+import { Tip } from "@/components/Tip";
 import { handleCanvasKey } from "@/components/designer/canvasKeys";
 import { ApiError } from "@/lib/api";
 import { LuaEditor } from "@/features/scripts/LuaEditor";
@@ -402,6 +403,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
     if (id) void qc.invalidateQueries({ queryKey: formKeys.one(ws, id) });
   }
 
+  const saveOff = save.isPending || (!dirty && draft.saved !== null);
   const panels: [DesignerPanel, string][] = [
     ["layout", "Layout"],
     ["module", "Module"],
@@ -427,10 +429,14 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
             </button>
           ))}
         </div>
-        <button type="button" className={btnPrimary} disabled={save.isPending || (!dirty && draft.saved !== null)} onClick={doSave}>
-          <Save size={16} aria-hidden="true" />
-          Save
-        </button>
+        <Tip label={saveOff ? "Nothing to save" : "Save the form"} shortcut={saveOff ? undefined : "Mod+S"}>
+          <span className="inline-flex">
+            <button type="button" className={btnPrimary} disabled={saveOff} onClick={doSave}>
+              <Save size={16} aria-hidden="true" />
+              Save
+            </button>
+          </span>
+        </Tip>
         <span className="ml-auto text-fg-muted">{dirty ? "Unsaved changes" : "Saved"}</span>
       </div>
       {(err || notice) && (
@@ -486,9 +492,9 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
               </div>
               <div className="flex min-h-0 min-w-0 flex-col">
                 <div role="toolbar" aria-label="Arrange controls" className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
-                  <ToolbarButton icon={BoxSelect} label="Select all controls" disabled={state.controls.length === 0} onClick={() => select(state.controls.map((c) => c.id))} />
-                  <ToolbarButton icon={Copy} label="Duplicate selected controls" disabled={selection.size === 0} onClick={duplicateSelected} />
-                  <ToolbarButton icon={Trash2} label="Delete selected controls" disabled={selection.size === 0} onClick={removeSelected} />
+                  <ToolbarButton icon={BoxSelect} label="Select all controls" disabled={state.controls.length === 0} disabledReason="Add a control first" shortcut="Mod+A" onClick={() => select(state.controls.map((c) => c.id))} />
+                  <ToolbarButton icon={Copy} label="Duplicate selected controls" disabled={selection.size === 0} disabledReason="Select controls to duplicate" shortcut="Mod+D" onClick={duplicateSelected} />
+                  <ToolbarButton icon={Trash2} label="Delete selected controls" disabled={selection.size === 0} disabledReason="Select controls to delete" shortcut="Delete" onClick={removeSelected} />
                   <span aria-hidden="true" className="mx-1 h-5 border-l border-border" />
                   {(
                     [
@@ -498,7 +504,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                       [AlignEndHorizontal, "bottom"],
                     ] as [LucideIcon, AlignMode][]
                   ).map(([icon, mode]) => (
-                    <ToolbarButton key={mode} icon={icon} label={`Align ${mode}`} disabled={selection.size < 2} onClick={() => applyOp((s, ids) => alignControls(s, ids, mode))} />
+                    <ToolbarButton key={mode} icon={icon} label={`Align ${mode}`} disabled={selection.size < 2} disabledReason="Select two or more controls to align" onClick={() => applyOp((s, ids) => alignControls(s, ids, mode))} />
                   ))}
                   {(
                     [
@@ -506,7 +512,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                       [AlignVerticalSpaceAround, "vertical"],
                     ] as [LucideIcon, DistributeAxis][]
                   ).map(([icon, axis]) => (
-                    <ToolbarButton key={axis} icon={icon} label={`Distribute ${axis}ly`} disabled={selection.size < 3} onClick={() => applyOp((s, ids) => distributeControls(s, ids, axis))} />
+                    <ToolbarButton key={axis} icon={icon} label={`Distribute ${axis}ly`} disabled={selection.size < 3} disabledReason="Select three or more controls to distribute" onClick={() => applyOp((s, ids) => distributeControls(s, ids, axis))} />
                   ))}
                 </div>
                 <p className="m-0 border-b border-border px-3 py-1 text-xs text-fg-muted">
