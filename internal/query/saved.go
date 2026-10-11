@@ -442,6 +442,9 @@ func (svc *Service) RunSaved(ctx context.Context, l *workspace.Lease, p Policy, 
 	if err != nil {
 		return Result{}, err
 	}
+	if err := CheckParams(s.Parameters, params); err != nil {
+		return Result{}, err
+	}
 	return Run(ctx, l, p, s.SQL, params, limit)
 }
 

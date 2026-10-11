@@ -254,6 +254,9 @@ func (s *Server) registerQueries(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
+			if err := query.CheckParams(m.Parameters, params); err != nil {
+				return nil, err
+			}
 			r, err := query.Run(ctx, l, s.policy(ctx), c.SQL, params, limit)
 			if err != nil {
 				return nil, err

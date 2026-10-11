@@ -348,8 +348,13 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 		default:
 			return out, bad("Unknown sort %q.", f.Sort)
 		}
+		// A count is a plain number whatever the column holds, so its criteria are not typed by the column.
+		critCol := col
+		if agg == "COUNT" {
+			critCol = nil
+		}
 		for _, c := range f.Criteria {
-			cond, err := criterion(valueExpr, col, c, params)
+			cond, err := criterion(valueExpr, critCol, c, params)
 			if err != nil {
 				return out, fault.Newf(fault.BadRequest, "Field %d criteria: %s", i+1, fault.Classify(err).DisplayMessage())
 			}
@@ -461,6 +466,10 @@ func criterion(expr string, col *catalog.Column, c Criterion, params map[string]
 			p, ok := params[strings.ToLower(c.Param)]
 			if !ok {
 				return "", bad("Parameter %q is not declared.", c.Param)
+			}
+			if col != nil && col.Type == catalog.Currency {
+				// Currency is stored in ten-thousandths; the person types an amount such as 12.50.
+				return "CAST(ROUND(:" + p.Name + " * 10000.0) AS INTEGER)", nil
 			}
 			return ":" + p.Name, nil
 		}
