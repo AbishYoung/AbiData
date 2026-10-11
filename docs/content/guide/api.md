@@ -99,7 +99,7 @@ curl -sS -H "Authorization: Bearer $KEY" "$ABIDATA/api/v1/w/$WS/schema"
 }
 ```
 
-The response carries an `ETag` of the schema version. Send it back as `If-None-Match` to get `304` when nothing changed. The examples below use these shell variables:
+The response carries an `ETag` that is the schema version; compare it between calls to notice that a table or field changed. The examples below use these shell variables:
 
 ```bash
 export T=01J9Z4A1...        # table id
@@ -219,7 +219,7 @@ If somebody changed the row since you read it, nothing is written and the respon
 {"error":{"code":"CONCURRENT_MODIFICATION","title":"Changed by someone else","message":"...","recovery":"...","request_id":"...","details":{"current":{"id":8,"_version":3,"fields":{"...":"..."}}}}}
 ```
 
-`details.current` is the row as it is now. Re-apply your change on top of it and retry with `If-Match: "3"`. Leaving out `If-Match` is a `400`/`422` error. The same header is required to delete.
+`details.current` is the row as it is now. Re-apply your change on top of it and retry with `If-Match: "3"`. Leaving out `If-Match` is a `400 BAD_REQUEST`. The same header is required to delete.
 
 ## Delete a row {#delete}
 
@@ -259,20 +259,20 @@ If any operation fails, the response is the error for that operation and `detail
 
 ## Run a saved query {#queries}
 
-Saved queries are read with the viewer role. List them to find the id, then run one. `params` fills the query's parameters by name and `limit` caps the rows (up to 50,000).
+Saved queries are run with the viewer role. List them to find the id, then run one. `params` fills the query's parameters by name and `limit` caps the rows (up to 50,000).
 
 ```bash
-curl -sS "${H[@]}" "$ABIDATA/api/v1/w/$WS/queries"          # items[].id and items[].name
+curl -sS "${H[@]}" "$ABIDATA/api/v1/w/$WS/queries"          # items[].id, items[].name, items[].parameters
 
 curl -sS "${H[@]}" -X POST "$ABIDATA/api/v1/w/$WS/queries/$QUERY/run" \
-  -d '{"params": {"min_price": 10}, "limit": 1000}'
+  -d '{"params": {"prefix": "W%"}, "limit": 1000}'
 ```
 
 ```json
-{"columns":["Name","Price"],"rows":[["Widget","21.0000"],["Gadget","24.5000"]],"truncated":false}
+{"columns":["Name","Price"],"rows":[["Widget",210000]],"truncated":false}
 ```
 
-`truncated` is `true` when the row limit cut the result short. Reports run the same way at `POST /api/v1/w/$WS/reports/<id>/run`; see the OpenAPI document.
+Query results are plain values in rows of arrays, in the order of `columns`. They are the stored values, not the display form that the row routes return: for example a currency column is a whole number of ten-thousandths (`210000` is 21.0000), and yes/no is `0` or `1`. `truncated` is `true` when the row limit cut the result short. Reports run the same way at `POST /api/v1/w/$WS/reports/<id>/run`; see the OpenAPI document.
 
 ## Start a job {#jobs}
 
@@ -287,10 +287,10 @@ curl -sS -i "${H[@]}" -X POST "$ABIDATA/api/v1/w/$WS/jobs/$JOB/run" -d '{"args":
 ```
 HTTP/1.1 202 Accepted
 
-{"id":"01J9Z5...","job_id":"01J9Z4...","trigger_kind":"manual","status":"queued","attempt":1,"triggered_by":"apikey:01J9Z3...","queued_at":"2026-03-01T12:30:00Z","rows_read":0,"rows_written":0}
+{"id":"01J9Z5...","job_id":"01J9Z4...","trigger_kind":"manual","status":"queued","attempt":1,"triggered_by":"apikey:01J9Z3...","queued_at":"2026-03-01T12:30:00.000Z","rows_read":0,"rows_written":0}
 ```
 
-`args` are merged over the job's own arguments for this run only. The run is recorded as triggered by the key. Poll `GET /api/v1/w/$WS/runs/<run id>` until `status` is `succeeded`, `failed` or `cancelled`; the response includes the log. A job that is already running and set to skip overlapping runs is refused with `409`.
+`args` are merged over the job's own arguments for this run only. The run is recorded as triggered by the key. Poll `GET /api/v1/w/$WS/runs/<run id>` until `status` is `succeeded`, `failed`, `cancelled` or `interrupted`; the response includes the log. A job that is already running and set to skip overlapping runs is refused with `409`.
 
 ## Watch for changes (events) {#events}
 
@@ -301,18 +301,18 @@ curl -sS -N -H "Authorization: Bearer $KEY" "$ABIDATA/api/v1/w/$WS/events"
 ```
 
 ```
-id: 41
+id: 1791691013331012
 event: hello
 data: {}
 
-id: 42
+id: 1791691013331013
 event: rows.changed
 data: {"table_id":"01J9Z4A1...","op":"insert","ids":[8],"versions":[1]}
 ```
 
 - `rows.changed` carries the table, the operation and the changed row ids and versions. Fetch the rows if you need their values.
 - `table.invalidated`, `schema.changed` and `design.changed` mean you should reload tables, the schema, or a saved object. `job.run` (builders only) reports job progress. `reset` means you missed too many events: reload everything.
-- Every event has an `id`. After a dropped connection, reconnect with the header `Last-Event-ID: <last id>` and the server replays what you missed.
+- Every event has a numeric `id` that increases. After a dropped connection, reconnect with the header `Last-Event-ID: <last id>` and the server replays what you missed.
 - The server checks the key again about every 30 seconds. A revoked or expired key ends the stream, and the next connection attempt gets `401`. Reconnect logic should stop on `401`, `403` and `404` instead of retrying.
 - Heartbeat comment lines (`: ping`) arrive every 15 seconds.
 
@@ -335,9 +335,9 @@ Branch on `error.code`, which is stable; show `message` and `recovery` to people
 | 409 | [IDEMPOTENCY_CONFLICT](/docs/reference/errors#idempotency-conflict) | The `Idempotency-Key` was used with a different request |
 | 422 | [REQUIRED_FIELD](/docs/reference/errors#required-field), [VALIDATION_FAILED](/docs/reference/errors#validation-failed) | A value was refused; the message names the field |
 | 429 | [RATE_LIMITED](/docs/reference/errors#rate-limited) | Too many requests: wait for `Retry-After` seconds |
-| 503 | [WORKSPACE_MAINTENANCE](/docs/reference/errors#workspace-maintenance), [WORKSPACE_BUSY](/docs/reference/errors#workspace-busy) | A restore is running or the workspace is busy: retry after `Retry-After` |
+| 503 | [WORKSPACE_MAINTENANCE](/docs/reference/errors#workspace-maintenance), [WORKSPACE_BUSY](/docs/reference/errors#workspace-busy) | A restore is running or the workspace is busy: retry shortly, honouring `Retry-After` when present |
 
-Retry `429` and `503` after the `Retry-After` delay, with growing waits. Do not retry other `4xx` errors unchanged.
+Retry `429` and `503` after the `Retry-After` delay (when sent), with growing waits. Do not retry other `4xx` errors unchanged.
 
 ## Rate limits {#limits}
 

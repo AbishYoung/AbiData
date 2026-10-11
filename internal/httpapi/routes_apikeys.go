@@ -39,8 +39,16 @@ type APIKeyCreated struct {
 
 func apiKeyDTO(k admin.APIKey, now time.Time) APIKeyDTO {
 	return APIKeyDTO{ID: k.ID, WorkspaceID: string(k.WorkspaceID), Name: k.Name, Role: string(k.Role), CreatedBy: k.CreatedBy,
-		CreatedByName: k.CreatedByName, CreatedAt: k.CreatedAt, ExpiresAt: k.ExpiresAt, LastUsedAt: k.LastUsedAt,
-		Revoked: k.RevokedAt != nil, RevokedAt: k.RevokedAt, Expired: k.ExpiresAt != nil && !now.Before(*k.ExpiresAt)}
+		CreatedByName: k.CreatedByName, CreatedAt: k.CreatedAt.UTC(), ExpiresAt: utc(k.ExpiresAt), LastUsedAt: utc(k.LastUsedAt),
+		Revoked: k.RevokedAt != nil, RevokedAt: utc(k.RevokedAt), Expired: k.ExpiresAt != nil && !now.Before(*k.ExpiresAt)}
+}
+
+func utc(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	u := t.UTC()
+	return &u
 }
 
 type apiKeyList struct {
