@@ -152,10 +152,7 @@ func wrapAuth(d *Denial, err error) error {
 					return &fault.Error{Code: fault.SQLNotAllowed, Message: "Not allowed: function " + name + " is not allowed.", Cause: err}
 				}
 			}
-			if i := strings.LastIndex(msg, ": "); i >= 0 {
-				msg = msg[i+2:]
-			}
-			return fault.SQLError(msg, err)
+			return fault.SQLError(fault.SQLiteMessage(se), err)
 		}
 	}
 	if strings.Contains(err.Error(), "multiple statements") {

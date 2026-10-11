@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"abidata/internal/catalog"
@@ -68,15 +67,16 @@ func TestCompileJoinGroupCriteriaParams(t *testing.T) {
 	want := `SELECT "c"."Name" AS "Name", SUM("o"."Amount") AS "Total", COUNT("i"."Name") AS "Lines" FROM "Orders" AS "o" ` +
 		`INNER JOIN "Customers" AS "c" ON "o"."Customer" = "c"."id" LEFT JOIN "Items" AS "i" ON "o"."Item" = "i"."id" ` +
 		`WHERE (("c"."City" LIKE 'Lon%' ESCAPE '\') OR ("c"."City" = 'Paris')) GROUP BY "c"."Name", "c"."City" ` +
-		`HAVING (SUM("o"."Amount") > :min_total) ORDER BY "c"."Name" ASC`
+		`HAVING (SUM("o"."Amount") > CAST(ROUND(:min_total * 10000.0) AS INTEGER)) ORDER BY "c"."Name" ASC`
 	if c.SQL != want {
 		t.Fatalf("got\n%s\nwant\n%s", c.SQL, want)
 	}
 	if c.Editable || len(c.Deps.Tables) != 3 {
 		t.Fatalf("%+v", c)
 	}
-	// Amounts are stored ×10⁴: Ada 2.5000 + 1.0000, Bo 9.9900; Bo matches the second criteria row (Paris).
-	r, err := Run(f.ctx, f.l, Policy{}, c.SQL, Params{"min_total": json.Number("30000")}, 0)
+	// Amounts are stored ×10⁴ (Ada 2.5000 + 1.0000, Bo 9.9900) but the parameter is an amount as
+	// typed, 3.00; Bo matches the second criteria row (Paris).
+	r, err := Run(f.ctx, f.l, Policy{}, c.SQL, Params{"min_total": "3.00"}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,4 +128,44 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// A currency criterion with a parameter compares an amount as typed (2.00) with the stored
+// ten-thousandths, and a count is a plain number whatever column it counts.
+func TestCurrencyParamIsScaledAndCountCriteriaAreNotTyped(t *testing.T) {
+	f, sch := shopSchema(t)
+	m := Model{
+		Sources: []Source{{Alias: "o", TableID: "01J00000000000000000000D01"}},
+		Fields: []Field{
+			{Alias: "o", ColumnID: "01J00000000000000000000D04"},
+			{Alias: "o", ColumnID: "01J00000000000000000000D05", Criteria: []Criterion{{Op: "ge", Param: "min"}}},
+		},
+		Parameters: []Param{{Name: "min", Type: "currency"}},
+	}
+	c, err := Compile(sch, m, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for param, wantRows := range map[string]int{"2.00": 2, "2.5": 2, "2.5001": 1, "10": 0, "1": 3} {
+		r, err := Run(f.ctx, f.l, Policy{}, c.SQL, Params{"min": param}, 0)
+		if err != nil || len(r.Rows) != wantRows {
+			t.Errorf("min=%v: %d rows (want %d): %v", param, len(r.Rows), wantRows, err)
+		}
+	}
+
+	byCustomer := Model{
+		Sources: []Source{{Alias: "o", TableID: "01J00000000000000000000D01"}},
+		Fields: []Field{
+			{Alias: "o", ColumnID: "01J00000000000000000000D02", Group: "group_by"},
+			{Alias: "o", ColumnID: "01J00000000000000000000D05", Group: "count", OutputName: "N", Criteria: []Criterion{{Op: "gt", Value: float64(1)}}},
+		},
+	}
+	c, err = Compile(sch, byCustomer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Run(f.ctx, f.l, Policy{}, c.SQL, nil, 0)
+	if err != nil || len(r.Rows) != 1 || r.Rows[0][1] != int64(2) {
+		t.Fatalf("count criterion: %+v %v (%s)", r, err, c.SQL)
+	}
 }

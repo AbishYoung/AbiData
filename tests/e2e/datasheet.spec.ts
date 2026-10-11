@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { signIn } from "./helpers";
 import {
   callApi,
   cellAt,
@@ -292,6 +293,32 @@ test("resolves a concurrent edit in the merge dialog", async ({ page }) => {
   await expect(await cellAt(grid, await rowIndexOf(grid, "Alpha final"), "Name")).toHaveText("Alpha final");
 });
 
+test("an edit in progress never lands on another record when a live update shifts the rows", async ({ page }) => {
+  const grid = await openTable(page, f, "Everything");
+  await expect.poll(() => countOf(grid)).toBe(5);
+  const nameId = f.cols.Name ?? "";
+  const a = await insertRow(page, f, { [nameId]: "Shift A" });
+  const b = await insertRow(page, f, { [nameId]: "Shift B" });
+  await expect.poll(() => countOf(grid)).toBe(7);
+
+  const n = await rowIndexOf(grid, "Shift A");
+  await clickCell(grid, n, "Name");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Typed into A");
+  // Another user deletes the record under the open editor; Shift B moves up into its place.
+  const del = await callApi(page, "DELETE", `/api/v1/w/${f.ws}/tables/${f.everythingId}/rows/${a.id}`, undefined, { "If-Match": `"${a._version}"` });
+  expect(del.status).toBe(204);
+  await expect.poll(() => countOf(grid)).toBe(6);
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect((await getRow(page, f, f.everythingId, b.id)).fields[nameId]).toBe("Shift B");
+  await page.keyboard.press("Escape");
+  const cleanup = await callApi(page, "DELETE", `/api/v1/w/${f.ws}/tables/${f.everythingId}/rows/${b.id}`, undefined, { "If-Match": `"${b._version}"` });
+  expect(cleanup.status).toBe(204);
+});
+
 async function pressMod(page: Page, key: string): Promise<void> {
   await page.keyboard.press(`ControlOrMeta+${key}`);
 }
@@ -329,6 +356,24 @@ test("keyboard-only flow edits and saves a cell", async ({ page }) => {
   await expect(page.getByText("New record").first()).toBeVisible();
   await pressMod(page, "f");
   await expect(page.getByRole("searchbox", { name: "Filter records" })).toBeFocused();
+});
+
+test("opening a table from the navigation pane with Enter moves the focus into its datasheet", async ({ page }) => {
+  await signIn(page);
+  await page.goto(`/w/${f.ws}`);
+  const nav = page.getByRole("navigation", { name: "Navigation pane" });
+  await page.keyboard.press("Shift"); // the next focus comes from the keyboard, as for a real keyboard user
+  await nav.getByRole("button", { name: "Everything", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const grid = page.getByRole("grid", { name: "Everything datasheet" });
+  await expect(grid).toBeFocused();
+  await page.keyboard.press("ArrowDown"); // arrow keys act on the grid straight away
+  await expect(page.getByText("Record 2 of")).toBeVisible();
+
+  // A mouse click leaves the focus where it is: nothing is stolen from a pointer user.
+  await nav.getByRole("button", { name: "People", exact: true }).click();
+  await expect(page.getByRole("grid", { name: "People datasheet" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "People datasheet" })).not.toBeFocused();
 });
 
 test("persists column widths and order", async ({ page }) => {

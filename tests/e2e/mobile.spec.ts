@@ -178,7 +178,29 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
   await sheet.getByRole("button", { name: "Previous record" }).tap();
   await expect(sheet.getByLabel("Name")).toHaveValue("Ann");
 
+  // Someone else changes the record while the sheet is open: saving is a conflict, not a silent overwrite.
+  await sheet.getByLabel("City").fill("Mine");
+  const theirs = await page.evaluate(async () => {
+    const ws = location.pathname.split("/")[2];
+    const me = (await (await fetch("/api/v1/auth/me")).json()) as { csrf_token: string };
+    const h = { "X-CSRF-Token": me.csrf_token, "Content-Type": "application/json" };
+    const schema = (await (await fetch(`/api/v1/w/${ws}/schema`)).json()) as { tables: { id: string; display_name: string; columns: { id: string; display_name: string }[] }[] };
+    const t = schema.tables.find((x) => x.display_name === "Customers")!;
+    const city = t.columns.find((c) => c.display_name === "City")!.id;
+    const rows = (await (await fetch(`/api/v1/w/${ws}/tables/${t.id}/rows?limit=1`)).json()) as { items: { id: number; _version: number }[] };
+    const r = rows.items[0]!;
+    const res = await fetch(`/api/v1/w/${ws}/tables/${t.id}/rows/${r.id}`, { method: "PATCH", headers: { ...h, "If-Match": `"${r._version}"` }, body: JSON.stringify({ fields: { [city]: "Theirs" } }) });
+    return res.status;
+  });
+  expect(theirs).toBe(200);
+  await page.waitForTimeout(1000); // the live update reaches the page behind the sheet
+  await sheet.getByRole("button", { name: "Save", exact: true }).tap();
+  await expect(page.getByRole("dialog", { name: "Someone else changed this record" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Someone else changed this record" }).getByRole("button", { name: "Discard mine" }).tap();
+  await expect(cards.getByRole("button", { name: /Ann/ })).toContainText("Theirs");
+
   // Validation errors stay in the sheet.
+  await cards.getByRole("button", { name: /Ann/ }).tap();
   await sheet.getByRole("button", { name: "Close record" }).tap();
   await expect(sheet).toHaveCount(0);
 

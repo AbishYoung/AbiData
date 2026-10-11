@@ -119,6 +119,12 @@ func serve() error {
 			st := admin.StatusNeedsRepair
 			_ = adm.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st})
 		}
+		if len(drift) == 0 {
+			if err := query.RefreshCompiled(ctx, c, s); err != nil {
+				// Stale stored SQL is not fatal: the query still runs from its model.
+				wsLog.Warn("refreshing compiled queries failed", "workspace_id", id, "err", err)
+			}
+		}
 		if afterOpen != nil {
 			go afterOpen(id)
 		}

@@ -7,6 +7,8 @@ import (
 
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
+	"abidata/internal/sqlitex"
+	"abidata/internal/workspace"
 )
 
 func TestSavedQueriesLifecycle(t *testing.T) {
@@ -77,5 +79,65 @@ func TestSavedQueriesLifecycle(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("breaking issues for base query: %d (%+v)", n, rep.Breaking)
+	}
+}
+
+func TestRefreshCompiledRewritesStaleSQL(t *testing.T) {
+	f, _ := shopSchema(t)
+	ctx := context.Background()
+	cache := catalog.NewCache()
+	svc := &Service{Schemas: cache}
+	q, err := svc.Put(ctx, f.l, "", 0, SavedInput{Name: "Names", Kind: "visual", Visual: &Model{
+		Sources: []Source{{Alias: "c", TableID: "01J00000000000000000000C01"}},
+		Fields:  []Field{{Alias: "c", ColumnID: "01J00000000000000000000C02"}}}}, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate SQL stored by an older compiler, and a workspace never refreshed.
+	if err := f.l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+		if _, err := tx.Exec(ctx, `UPDATE _sys_queries SET sql_text = 'SELECT 1' WHERE id = ?`, q.ID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM _sys_meta WHERE key = 'query_compiler'`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	refresh := func() {
+		t.Helper()
+		if err := f.l.Maintenance(ctx, func(c *sqlitex.Conn) error {
+			sch, err := catalog.Load(ctx, c)
+			if err != nil {
+				return err
+			}
+			return RefreshCompiled(ctx, c, sch)
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stored := func() string {
+		t.Helper()
+		var sql string
+		if err := f.l.Read(ctx, func(r sqlitex.Querier) error {
+			return r.QueryRow(ctx, `SELECT sql_text FROM _sys_queries WHERE id = ?`, q.ID).Scan(&sql)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return sql
+	}
+	refresh()
+	if got := stored(); got != q.SQL {
+		t.Fatalf("stale SQL not refreshed: %q want %q", got, q.SQL)
+	}
+	// Once the version is recorded, a refresh leaves stored SQL alone.
+	if err := f.l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE _sys_queries SET sql_text = 'SELECT 2' WHERE id = ?`, q.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	refresh()
+	if got := stored(); got != "SELECT 2" {
+		t.Fatalf("refresh ran twice: %q", got)
 	}
 }

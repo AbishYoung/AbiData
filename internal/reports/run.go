@@ -161,6 +161,10 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 			case c.Type == "page_number", c.Type == "page_count":
 				// resolved by the paginator
 			case c.Bind != nil && r != nil:
+				if text, ok := r.vals[displayKey(c.Bind.ColumnID)]; ok && r.vals[c.Bind.ColumnID] != nil {
+					vals[c.ID] = fmtv(c, text, nil)
+					break
+				}
 				vals[c.ID] = fmtv(c, r.vals[c.Bind.ColumnID], byKey[c.Bind.ColumnID])
 			case c.Calc != nil && r != nil:
 				if msg, bad := r.errs[c.ID]; bad {
@@ -177,6 +181,9 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 					sp.to = rowIdx + 1
 				}
 				f := byKey[c.Aggregate.ColumnID]
+				if c.Aggregate.Func == "count" {
+					f = nil // a count is a plain number, whatever the counted column holds
+				}
 				vals[c.ID] = fmtv(c, aggValue(c.Aggregate, sp.from, sp.to), f)
 			case c.Type == "textbox":
 				vals[c.ID] = c.Caption
@@ -245,6 +252,9 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 	return emit(Instance{Band: "report_footer", Values: render(&lay.Bands.ReportFooter, last, -1, all, 0, all)})
 }
 
+// displayKey is the key under which a lookup column's display text is fetched.
+func displayKey(colID string) string { return "display:" + colID }
+
 func sameGroup(a, b *row, level int) bool {
 	for i := 0; i <= level; i++ {
 		if compare(a.keys[i], b.keys[i]) != 0 {
@@ -279,6 +289,29 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 			fields = append(fields, field{key: c.ID, name: c.PhysicalName, col: c})
 			keyExpr[c.ID] = catalog.Quote(c.PhysicalName)
 		}
+		// A lookup column prints the parent's display text (like the datasheet), not the parent's ID.
+		for i := range t.Columns {
+			c := &t.Columns[i]
+			if c.Type != catalog.Lookup {
+				continue
+			}
+			rel, ok := in.Schema.Relationship(c.LookupRelationshipID)
+			if !ok {
+				continue
+			}
+			parent, ok := in.Schema.Table(rel.ParentTableID)
+			if !ok {
+				continue
+			}
+			disp, ok := parent.Column(c.LookupDisplayColumnID)
+			if !ok {
+				continue
+			}
+			key := displayKey(c.ID)
+			fields = append(fields, field{key: key, name: key})
+			keyExpr[key] = fmt.Sprintf(`(SELECT p.%s FROM %s p WHERE p."id" = %s)`,
+				catalog.Quote(disp.PhysicalName), catalog.Quote(parent.PhysicalName), catalog.Quote(c.PhysicalName))
+		}
 	case "query":
 		saved, err := s.Queries.Get(ctx, in.Lease, rep.SourceID)
 		if err != nil {
@@ -301,24 +334,32 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 			textKey[f.key] = true
 		}
 	}
+	// order returns the ORDER BY terms for a column. A lookup sorts by its display text and then by
+	// ID, so parents that share a name stay apart.
+	order := func(colID string, desc bool, nocase bool) []string {
+		var terms []string
+		if expr, ok := keyExpr[displayKey(colID)]; ok {
+			terms = append(terms, expr+" COLLATE NOCASE")
+		}
+		k := keyExpr[colID]
+		if nocase && textKey[colID] {
+			k += " COLLATE NOCASE"
+		}
+		terms = append(terms, k)
+		if desc {
+			for i := range terms {
+				terms[i] += " DESC"
+			}
+		}
+		return terms
+	}
 	for _, g := range rep.ReportLayout.Groups {
 		if g.ColumnID != "" {
-			k := keyExpr[g.ColumnID]
-			if textKey[g.ColumnID] {
-				k += " COLLATE NOCASE"
-			}
-			if g.ReportSort == "desc" {
-				k += " DESC"
-			}
-			orderKeys = append(orderKeys, k)
+			orderKeys = append(orderKeys, order(g.ColumnID, g.ReportSort == "desc", true)...)
 		}
 	}
 	for _, so := range rep.ReportLayout.Sorts {
-		k := keyExpr[so.ColumnID]
-		if so.Desc {
-			k += " DESC"
-		}
-		orderKeys = append(orderKeys, k)
+		orderKeys = append(orderKeys, order(so.ColumnID, so.Desc, false)...)
 	}
 	if rep.SourceKind == "table" {
 		orderKeys = append(orderKeys, `"id"`)

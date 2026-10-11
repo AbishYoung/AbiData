@@ -236,6 +236,40 @@ func TestTransactionalDDLBlockedConversionLeavesFileUnchanged(t *testing.T) {
 	}
 }
 
+// Converting to yes_no (which is never empty) must be forceable: unconvertible values become "No"
+// instead of NULL, which the NOT NULL column would reject and silently block the whole change.
+// Blank text is no data at all, so it is not reported as a conversion failure.
+func TestConvertToYesNoForcedAndBlankTextIsNotAFailure(t *testing.T) {
+	f := newFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Items", Columns: []ColumnSpec{{DisplayName: "Flag", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("Items")
+	flag, _ := tb.ColumnByPhysical("Flag")
+	f.exec(`INSERT INTO Items(Flag) VALUES ('yes'), ('maybe'), (''), ('0'), (NULL)`)
+
+	op := Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: flag.ID, Column: &ColumnSpec{DisplayName: "Flag", Type: YesNo}}
+	r, err := f.run(Preview, ApplyOptions{}, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.ConversionFailures) != 1 || r.ConversionFailures[0].Count != 1 || r.ConversionFailures[0].Samples[0].Value != "maybe" {
+		t.Fatalf("only 'maybe' is a failure: %+v", r.ConversionFailures)
+	}
+	for _, b := range r.Breaking {
+		if b.Kind == "constraint_violation" {
+			t.Fatalf("spurious constraint violation: %+v", r.Breaking)
+		}
+		if b.Kind == "conversion_failure" && !strings.Contains(b.Message, "would become No") {
+			t.Fatalf("message: %s", b.Message)
+		}
+	}
+	if _, err := f.run(Apply, ApplyOptions{Force: true}, op); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(f.query(`SELECT id, Flag FROM Items ORDER BY id`)); got != "[[1 1] [2 0] [3 0] [4 0] [5 0]]" {
+		t.Fatalf("%s", got)
+	}
+}
+
 func TestRestorePointHookOnlyForDestructiveApply(t *testing.T) {
 	f := newFixture(t)
 	calls := 0
@@ -262,7 +296,7 @@ func TestRenameColumnBreaksSavedQuery(t *testing.T) {
 	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "People", Columns: []ColumnSpec{{DisplayName: "Forename", Type: ShortText}}}})
 	tb, _ := f.schema().TableByPhysical("People")
 	first, _ := tb.ColumnByPhysical("Forename")
-	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By first', 'sql', 'SELECT "First" FROM "People"', ?, 'u')`,
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By first', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`,
 		ids.New(), sqlitex.Now())
 	op := Op{Kind: OpRenameColumn, TableID: tb.ID, ColumnID: first.ID, PhysicalName: "GivenName"}
 	r, err := f.run(Preview, ApplyOptions{}, op)
@@ -280,6 +314,40 @@ func TestRenameColumnBreaksSavedQuery(t *testing.T) {
 	}
 	if _, ok := f.schema().Tables[0].ColumnByPhysical("GivenName"); !ok {
 		t.Fatal("rename not applied")
+	}
+}
+
+// A query broken by an earlier, confirmed change must not block later changes that do not touch it.
+func TestAlreadyBrokenQueryDoesNotBlockUnrelatedChanges(t *testing.T) {
+	f := newFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "People", Columns: []ColumnSpec{{DisplayName: "Forename", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("People")
+	fn, _ := tb.ColumnByPhysical("Forename")
+	broken, other := ids.New(), ids.New()
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By forename', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`, broken, sqlitex.Now())
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'All people', 'sql', 'SELECT id FROM "People"', ?, 'u')`, other, sqlitex.Now())
+
+	// Dropping the field breaks "By forename" only; the builder confirms.
+	drop := Op{Kind: OpDropColumn, TableID: tb.ID, ColumnID: fn.ID}
+	r, err := f.run(Preview, ApplyOptions{}, drop)
+	if err != nil || len(r.Breaking) != 1 || r.Breaking[0].ID != broken {
+		t.Fatalf("drop preview: %+v %v", r, err)
+	}
+	if _, err := f.run(Apply, ApplyOptions{Force: true}, drop); err != nil {
+		t.Fatal(err)
+	}
+
+	// An unrelated new table is no longer blocked by the query that is already broken.
+	create := Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Things", Columns: []ColumnSpec{{DisplayName: "Label", Type: ShortText}}}}
+	r, err = f.run(Apply, ApplyOptions{}, create)
+	if err != nil || len(r.Breaking) != 0 {
+		t.Fatalf("unrelated change blocked: %+v %v", r, err)
+	}
+	// A change that breaks a query that still works is reported as before.
+	tb, _ = f.schema().TableByPhysical("People")
+	r, err = f.run(Preview, ApplyOptions{}, Op{Kind: OpDropTable, TableID: tb.ID})
+	if err != nil || len(r.Breaking) != 1 || r.Breaking[0].ID != other {
+		t.Fatalf("working query not reported: %+v %v", r, err)
 	}
 }
 

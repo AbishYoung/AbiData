@@ -89,6 +89,26 @@ test("the error dialog's Learn more opens that error's section", async ({ page }
   await expect(dialog).toBeHidden();
 });
 
+test("closing the docs returns the focus to where it was", async ({ page }) => {
+  await openWorkspaceAgain(page);
+  const help = page.getByRole("button", { name: "Open documentation" });
+  await help.focus();
+  await page.keyboard.press("Enter");
+  await expect(panel(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel(page)).toBeHidden();
+  await expect(help).toBeFocused();
+
+  // Opened with "?" from another control, closed with the Close button.
+  const workspaces = page.getByRole("link", { name: "Workspaces" });
+  await workspaces.focus();
+  await page.keyboard.press("?");
+  await expect(panel(page)).toBeVisible();
+  await panel(page).getByRole("button", { name: "Close documentation" }).click();
+  await expect(panel(page)).toBeHidden();
+  await expect(workspaces).toBeFocused();
+});
+
 test("works with the keyboard alone", async ({ page }) => {
   await openWorkspaceAgain(page);
   await page.locator("body").click({ position: { x: 5, y: 5 } });

@@ -88,6 +88,12 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 				return fault.New(fault.ConcurrentModification, "The table design was changed by someone else since you opened it. Nothing was changed; reload and try again.").
 					WithDetails(map[string]any{"schema_version": s.Version})
 			}
+			// What is already broken before this change must not block it: a query broken by an earlier
+			// confirmed change would otherwise stop every later, unrelated change.
+			baseline, err := baselineBreakage(ctx, tx, s, e.Validators)
+			if err != nil {
+				return err
+			}
 			p := &planner{ctx: ctx, tx: tx, s: s, report: &report, now: e.clock(), user: opt.UserID,
 				touched: map[string]bool{}, created: map[string]string{}}
 			for i, op := range ops {
@@ -99,6 +105,7 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 			if err := p.impact(e.Validators); err != nil {
 				return err
 			}
+			p.dropPreexisting(baseline)
 			if err := p.finish(ops); err != nil {
 				return err
 			}
@@ -1298,8 +1305,12 @@ func (p *planner) conversionFailures(t *Table, old, nc Column) error {
 		return err
 	}
 	p.report.ConversionFailures = append(p.report.ConversionFailures, cf)
+	becomes := "empty"
+	if nc.Type == YesNo {
+		becomes = "No"
+	}
 	p.report.Breaking = append(p.report.Breaking, Issue{Kind: "conversion_failure", Object: "column", ID: nc.ID,
-		Message: fmt.Sprintf("%d values in %q cannot be converted from %s to %s; they would become empty.", n, nc.DisplayName, old.Type, nc.Type)})
+		Message: fmt.Sprintf("%d values in %q cannot be converted from %s to %s; they would become %s.", n, nc.DisplayName, old.Type, nc.Type, becomes)})
 	return nil
 }
 
@@ -1339,9 +1350,14 @@ func registerConvertFuncs(c *sqlitex.Conn) (func(), error) {
 		}
 	}
 	err := raw.CreateFunction("abidata_convert", 3, flags, func(ctx sqlite3.Context, args ...sqlite3.Value) {
-		out, ok := ConvertValue(FieldType(args[0].Text()), FieldType(args[1].Text()), argVal(args[2]))
+		to := FieldType(args[1].Text())
+		out, ok := ConvertValue(FieldType(args[0].Text()), to, argVal(args[2]))
 		if !ok {
-			ctx.ResultNull()
+			if to == YesNo {
+				ctx.ResultInt64(0) // yes_no is never empty: what cannot convert becomes "No"
+			} else {
+				ctx.ResultNull()
+			}
 			return
 		}
 		result(ctx, out)
@@ -1393,6 +1409,11 @@ func (p *planner) impact(validators []Validator) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	return p.checkObjects(validators)
+}
+
+// checkObjects reports the saved queries, forms, reports and scripts the current schema breaks.
+func (p *planner) checkObjects(validators []Validator) error {
 	// Validators run first: they may recompile derived SQL (visual queries) in
 	// this transaction before every saved query is re-prepared.
 	for _, v := range validators {
@@ -1404,6 +1425,41 @@ func (p *planner) impact(validators []Validator) error {
 		p.report.Warnings = append(p.report.Warnings, w...)
 	}
 	return p.checkSavedQueries()
+}
+
+func issueKey(i Issue) string { return i.Kind + "|" + i.Object + "|" + i.ID }
+
+// baselineBreakage returns the objects that are already broken in schema s, before any change.
+func baselineBreakage(ctx context.Context, tx *sqlitex.Tx, s *Schema, validators []Validator) (map[string]bool, error) {
+	bp := &planner{ctx: ctx, tx: tx, s: s, report: &ImpactReport{}}
+	if err := bp.checkObjects(validators); err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, b := range bp.report.Breaking {
+		out[issueKey(b)] = true
+	}
+	return out, nil
+}
+
+// dropPreexisting removes breaking findings about objects that were already broken before the change.
+// Data findings (conversions, constraints, foreign keys) always stay.
+func (p *planner) dropPreexisting(baseline map[string]bool) {
+	if len(baseline) == 0 {
+		return
+	}
+	kept := p.report.Breaking[:0]
+	for _, b := range p.report.Breaking {
+		switch b.Kind {
+		case "fk_violation", "constraint_violation", "conversion_failure":
+		default:
+			if b.ID != "" && baseline[issueKey(b)] {
+				continue
+			}
+		}
+		kept = append(kept, b)
+	}
+	p.report.Breaking = kept
 }
 
 func (p *planner) checkSavedQueries() error {

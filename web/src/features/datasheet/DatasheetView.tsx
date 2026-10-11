@@ -259,8 +259,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   function moveTo(raw: Cell) {
     const next = clampCell(raw, dims);
     if (next.row !== activeCell.row) {
-      const k = keyAt(activeCell.row);
-      if (k !== undefined) void saveRow(k);
+      // Leaving a record saves it. Go by the buffers rather than the row now at the old index: a
+      // live update may have moved the record being edited.
+      const destination = keyAt(next.row);
+      for (const k of [...buffersRef.current.keys()]) if (k !== destination) void saveRow(k);
     }
     setActive(next);
     revealCell(next);
@@ -439,7 +441,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     const ed = editing;
     if (!ed) return;
     const col = columns[ed.cell.col];
-    const key = keyAt(ed.cell.row);
+    // The record being edited is the one the editor opened on, not whatever sits at that grid
+    // index now: a live update (another user deleting or inserting a row) may have shifted it.
+    const key: RowKey | undefined = ed.row ? ed.row.id : canEdit ? "new" : undefined;
     if (col && key !== undefined) {
       updateBuffers((m) => {
         const next = applyChange(m.get(key), key, ed.row, col, value, display);
@@ -871,8 +875,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           canEdit={canEdit}
           buffer={buffers.get(sheetIndex >= total ? "new" : (rowAt(sheetIndex)?.id ?? -1))}
           lookupFor={lookupFor}
-          onSave={(changes) => {
-            const row = rowAt(sheetIndex);
+          onSave={(changes, base) => {
+            // Save against the record as the sheet opened it, so a change made by someone else in the
+            // meantime is a conflict instead of being overwritten.
+            const row = sheetIndex >= total ? undefined : (base ?? rowAt(sheetIndex));
             const key: RowKey = sheetIndex >= total ? "new" : (row?.id ?? -1);
             return saveFromSheet(key, row, changes);
           }}

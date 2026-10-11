@@ -155,6 +155,15 @@ test("keyboard only: navigate, new record, save, delete", async ({ page }) => {
   await expectNoAxeViolations(page);
 });
 
+test("opening a form from the navigation pane with Enter focuses its first field", async ({ page }) => {
+  await openWorkspace(page, WORKSPACE);
+  await page.keyboard.press("Shift"); // keyboard modality, as for a real keyboard user
+  await page.getByRole("navigation", { name: "Navigation pane" }).getByRole("button", { name: data.orderForm.name, exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const form = page.getByRole("group", { name: "Order", exact: true });
+  await expect(form.getByLabel("Customer")).toBeFocused();
+});
+
 test("viewers see the form read-only", async ({ page }) => {
   await openWorkspace(page, WORKSPACE);
   await addViewerMember(page);

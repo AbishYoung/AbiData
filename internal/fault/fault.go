@@ -145,6 +145,12 @@ func Newf(code Code, format string, args ...any) *Error {
 	return &Error{Code: code, Message: fmt.Sprintf(format, args...)}
 }
 
+// SQLiteMessage is the part of a SQLite error that describes the problem ("no such column: x",
+// "near \"SELEC\": syntax error"), without the leading result-code name ("SQL logic error: ").
+func SQLiteMessage(se *sqlite3.Error) string {
+	return strings.TrimPrefix(se.Error(), se.Code().Error()+": ")
+}
+
 // SQLError reports a statement SQLite rejected (syntax error, no such table). msg is SQLite's
 // own text; the message is a sentence and the advice is about the statement, not form fields.
 func SQLError(msg string, cause error) *Error {

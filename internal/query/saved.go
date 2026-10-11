@@ -442,6 +442,9 @@ func (svc *Service) RunSaved(ctx context.Context, l *workspace.Lease, p Policy, 
 	if err != nil {
 		return Result{}, err
 	}
+	if err := CheckParams(s.Parameters, params); err != nil {
+		return Result{}, err
+	}
 	return svc.runSQL(ctx, l, p, s.SQL, s.Visual, params, limit)
 }
 
@@ -454,6 +457,9 @@ func (svc *Service) Run(ctx context.Context, l *workspace.Lease, p Policy, sql s
 func (svc *Service) RunModel(ctx context.Context, l *workspace.Lease, p Policy, m Model, params Params, limit int) (Result, error) {
 	c, err := svc.CompileModel(ctx, l, m)
 	if err != nil {
+		return Result{}, err
+	}
+	if err := CheckParams(m.Parameters, params); err != nil {
 		return Result{}, err
 	}
 	sch, err := svc.Schemas.Get(ctx, l)
@@ -470,8 +476,12 @@ func (svc *Service) runSQL(ctx context.Context, l *workspace.Lease, p Policy, sq
 	}
 	var hints []string
 	if visual != nil {
+		// Run the model compiled against the current schema and compiler, not
+		// the SQL stored at save time, so compiler fixes (such as scaling
+		// currency parameters) reach queries saved before them.
 		if c, err := svc.CompileModel(ctx, l, *visual); err == nil {
 			hints = c.Types
+			sql = c.SQL
 		}
 	}
 	return RunTyped(ctx, l, p, sch, hints, sql, params, limit)
@@ -544,4 +554,45 @@ func SchemaValidator(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema) (
 		}
 	}
 	return breaking, nil, nil
+}
+
+// CompilerVersion changes whenever the visual query compiler starts producing
+// different SQL for the same model (for example scaling currency parameters).
+const CompilerVersion = "2"
+
+// RefreshCompiled recompiles every visual query's stored SQL once per
+// compiler version, so consumers of the stored SQL (reports, exports) get the
+// current compiler's output for queries saved by an older server. Queries that
+// no longer compile are left as they are; the designer reports them.
+func RefreshCompiled(ctx context.Context, c *sqlitex.Conn, sch *catalog.Schema) error {
+	var have string
+	err := c.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'query_compiler'`).Scan(&have)
+	if err == nil && have == CompilerVersion {
+		return nil
+	}
+	return c.Immediate(ctx, func(tx *sqlitex.Tx) error {
+		all, err := loadAll(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for range maxNesting + 1 { // sources before their dependents
+			for _, s := range all {
+				if s.Kind != "visual" {
+					continue
+				}
+				old := s.SQL
+				if _, err := fill(ctx, tx.Conn, sch, all, s); err != nil {
+					continue
+				}
+				if s.SQL != old {
+					if err := save(ctx, tx, s); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO _sys_meta(key, value) VALUES ('query_compiler', ?)
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value`, CompilerVersion)
+		return err
+	})
 }
