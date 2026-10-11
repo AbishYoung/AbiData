@@ -176,7 +176,10 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
   // New record from the floating button.
   await page.getByRole("button", { name: "New record" }).tap();
   await expect(sheet.getByText("New record", { exact: true })).toBeVisible();
+  // Nothing entered yet: Add record is disabled instead of silently closing the sheet.
+  await expect(sheet.getByRole("button", { name: "Add record" })).toBeDisabled();
   await sheet.getByLabel("Name").fill("Cleo");
+  await expect(sheet.getByRole("button", { name: "Add record" })).toBeEnabled();
   await sheet.getByLabel("City").fill("Ogdenville");
   await sheet.getByRole("button", { name: "Add record" }).tap();
   await expect(sheet).toHaveCount(0);

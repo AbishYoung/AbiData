@@ -254,7 +254,7 @@ export function RecordSheet(props: Props) {
               <button type="button" className={`${btn} flex-1`} onClick={close}>
                 Cancel
               </button>
-              <button type="submit" form={formId} className={`${btnPrimary} flex-1`} disabled={busy || loading || (!dirty && !isNew)}>
+              <button type="submit" form={formId} className={`${btnPrimary} flex-1`} disabled={busy || loading || !dirty}>
                 {busy ? "Saving…" : isNew ? "Add record" : "Save"}
               </button>
             </div>
