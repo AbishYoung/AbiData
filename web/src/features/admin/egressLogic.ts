@@ -31,10 +31,13 @@ export function patternError(raw: string): string | null {
   if (/[/:@]/.test(p)) return "Enter the host only, without a scheme, port, path or credentials.";
   if (p.includes("*")) return "Use * only at the start, as *.example.com.";
   if (isIPv4(p)) return wild ? "A wildcard cannot be combined with an IP address." : null;
-  for (const label of p.split(".")) {
+  const labels = p.split(".");
+  if (wild && labels.length < 2) return "A wildcard must be under a domain, as *.example.com, not a whole top-level domain.";
+  if (/^\d*$/.test(labels[labels.length - 1] ?? "")) return "A host name cannot end in a number. Enter a valid IP address or a host name.";
+  for (const label of labels) {
     if (label === "") return "A host name cannot have empty parts.";
     if (label.length > 63) return "Each part of a host name can be at most 63 characters.";
-    if (!/^[a-z0-9-]+$/.test(label)) return "Use letters, digits, hyphens and dots only.";
+    if (!/^[a-z0-9-]+$/.test(label)) return "Use letters, digits, hyphens and dots only. Write internationalised names in their xn-- form.";
   }
   return null;
 }

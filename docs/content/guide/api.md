@@ -61,7 +61,7 @@ curl -sS -H "Authorization: Bearer $KEY" "$ABIDATA/api/v1/w/$WS"
 ```
 
 - **Base URL**: your server's address plus `/api/v1`. Workspace data lives under `/api/v1/w/<workspace id>/`. The workspace id is in the address bar when you have the workspace open (`/w/<workspace id>`).
-- **If an `Authorization` header is present, it is the only credential used.** Cookies are ignored. A wrong, expired or revoked key gets `401 UNAUTHENTICATED` with the same generic message whichever part was wrong.
+- **If an `Authorization: Bearer` header is present, it is the only credential used.** Cookies are ignored. A wrong, expired or revoked key gets `401 UNAUTHENTICATED` with the same generic message whichever part was wrong.
 - Requests that change data need **no** `Origin` header and no CSRF token. Those protect browser sessions; a key is never sent by a browser on its own. The server sends no CORS headers, so web pages on other sites cannot use a key even if they had it. That is also why you must never put a key in browser code (see [Keep keys safe](#safety)).
 - Send `Content-Type: application/json` with request bodies. Responses are JSON, except downloads and the event stream.
 
@@ -342,7 +342,7 @@ Retry `429` and `503` after the `Retry-After` delay (when sent), with growing wa
 ## Rate limits {#limits}
 
 - Each key may send **600 requests a minute**, as a steady 10 per second with bursts of up to 100. Beyond that, requests get `429 RATE_LIMITED` with a `Retry-After` header. Other keys are not affected. Page through large tables with `limit=500` and use [batches](#batch) for bulk writes instead of many single requests.
-- A client address that sends **more than 30 requests with bad keys in a minute** is refused for the rest of that minute, even with a correct key. This slows down anyone guessing keys. A bot with a revoked or mistyped key should stop, not loop.
+- A client address that sends **more than 30 requests with wrong keys in a minute** gets 429 for further wrong keys for the rest of that minute. This slows down anyone guessing keys. A correct key from the same address is still served, and text that is not shaped like a key is rejected without counting. A bot with a revoked or mistyped key should stop, not loop.
 - The workspace's own limits (storage quota, busy-workspace protection) still apply to key requests.
 
 ## Keep keys safe {#safety}

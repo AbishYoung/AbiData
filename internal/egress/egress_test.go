@@ -65,13 +65,21 @@ func TestPatterns(t *testing.T) {
 			t.Errorf("%q should be valid", p)
 		}
 	}
-	for _, p := range []string{"", "*", "*.", "a..b", "exa mple.com", "http://x.com", "x.com/path", "*.1.2.3.4", "a_b.com", "*.*.com"} {
+	for _, p := range []string{"", "*", "*.", "a..b", "exa mple.com", "http://x.com", "x.com/path", "*.1.2.3.4", "a_b.com", "*.*.com",
+		"*.com", "*.2.3.4", "host.123", "999.1.2.3"} {
 		if ValidPattern(p) {
 			t.Errorf("%q should be invalid", p)
 		}
 	}
-	if !ValidPorts("443, 8443") || ValidPorts("0") || ValidPorts("443,x") || ValidPorts("70000") {
+	if !ValidPorts("443, 8443") || ValidPorts("0") || ValidPorts("443,x") || ValidPorts("70000") || ValidPorts("+443") || ValidPorts("443,") {
 		t.Error("ports validation")
+	}
+	if n, ok := NormPorts(" 0443 , 80"); !ok || n != "443,80" {
+		t.Errorf("NormPorts = %q, %v", n, ok)
+	}
+	// Stored lists are compared numerically, so a non-canonical list still matches.
+	if !portListed("0443", "443") || portListed("443", "0443x") {
+		t.Error("portListed is not numeric")
 	}
 }
 
@@ -219,6 +227,7 @@ func TestPolicyDenials(t *testing.T) {
 		"http://ok.test:" + port + "/?other":    other,             // host not on this allowlist
 		"http://ok.test:" + port + "/?disabled": off,               // egress off
 		"http://ok.test:" + port + "/?empty":    {AllowHTTP: true}, // empty allowlist
+		"http://ök.test:" + port + "/":          open,              // non-ASCII host name
 	}
 	for raw, g := range cases {
 		e.mu.Lock()

@@ -258,6 +258,14 @@ func (g *Gateway) check(u *url.URL, global Global) error {
 	if host == "" {
 		return fmt.Errorf("%w: The URL has no host", errDenied)
 	}
+	// Match only plain ASCII names: the dialer applies IDNA mapping, so a
+	// non-ASCII name could be checked in one form and dialed in another.
+	// Internationalised names must be written in their xn-- form.
+	for i := 0; i < len(host); i++ {
+		if host[i] >= 0x80 || host[i] == '%' {
+			return fmt.Errorf("%w: Use the ASCII (xn--) form of internationalised host names", errDenied)
+		}
+	}
 	port := u.Port()
 	if port == "" {
 		port = "443"
@@ -292,12 +300,38 @@ func portListed(ports, port string) bool {
 	if strings.TrimSpace(ports) == "" {
 		ports = "443"
 	}
+	want, err := strconv.Atoi(port)
+	if err != nil {
+		return false
+	}
 	for _, p := range strings.Split(ports, ",") {
-		if strings.TrimSpace(p) == port {
+		if n, err := strconv.Atoi(strings.TrimSpace(p)); err == nil && n == want {
 			return true
 		}
 	}
 	return false
+}
+
+// NormPorts returns a ports list in canonical form ("443,8443": decimal, no
+// signs, zeros or spaces) and whether it is well formed. Empty means 443.
+func NormPorts(s string) (string, bool) {
+	if strings.TrimSpace(s) == "" {
+		return "443", true
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" || strings.Trim(p, "0123456789") != "" {
+			return "", false
+		}
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 1 || n > 65535 {
+			return "", false
+		}
+		out = append(out, strconv.Itoa(n))
+	}
+	return strings.Join(out, ","), true
 }
 
 // ValidPattern reports whether an allowlist pattern is well formed.
@@ -313,7 +347,19 @@ func ValidPattern(p string) bool {
 	if a, err := netip.ParseAddr(strings.Trim(p, "[]")); err == nil {
 		return !wild && a.IsValid()
 	}
-	for _, label := range strings.Split(p, ".") {
+	labels := strings.Split(p, ".")
+	// A wildcard needs a registrable-looking domain under it: "*.com" would
+	// allow a whole top-level domain. (Public suffixes such as "*.co.uk" are
+	// not detected; keep entries narrow.)
+	if wild && len(labels) < 2 {
+		return false
+	}
+	// Host names never end in a numeric label; this also keeps a wildcard
+	// such as "*.2.3.4" from matching the IP address 1.2.3.4.
+	if strings.Trim(labels[len(labels)-1], "0123456789") == "" {
+		return false
+	}
+	for _, label := range labels {
 		if label == "" || len(label) > 63 {
 			return false
 		}
@@ -328,16 +374,8 @@ func ValidPattern(p string) bool {
 
 // ValidPorts reports whether a ports list is well formed (1–65535, comma-separated).
 func ValidPorts(s string) bool {
-	if strings.TrimSpace(s) == "" {
-		return true
-	}
-	for _, p := range strings.Split(s, ",") {
-		n, err := strconv.Atoi(strings.TrimSpace(p))
-		if err != nil || n < 1 || n > 65535 {
-			return false
-		}
-	}
-	return true
+	_, ok := NormPorts(s)
+	return ok
 }
 
 // Request is one outbound call.

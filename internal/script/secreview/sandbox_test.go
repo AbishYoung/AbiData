@@ -167,7 +167,7 @@ func TestWatchdogKillsBystander(t *testing.T) {
 	rn := script.NewRunner(4, 4)
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
-	rn.SoftLimit = ms.HeapAlloc + 64*mib
+	rn.SetSoftLimit(ms.HeapAlloc + 64*mib)
 	spin, _ := script.Compile(`local x = 0 while true do x = x + 1 end`, "spin")
 	jobErr := make(chan error, 1)
 	go func() {

@@ -479,7 +479,20 @@ func TestAPIKeyRateLimits(t *testing.T) {
 		t.Fatalf("other key limited too: %d", st)
 	}
 
-	// Failed attempts throttle the client address, valid key or not.
+	// Malformed tokens are rejected without counting against the address, so
+	// junk traffic (from anywhere, if the proxy is not trusted) cannot lock
+	// out valid keys.
+	junk := bearer{k.env, "x"}
+	for range auth.KeyFailMax + 5 {
+		if st, _, _ := junk.do("GET", "/api/v1/docs", nil); st == 429 {
+			t.Fatal("malformed token counted as a failed attempt")
+		}
+	}
+	if st, _, _ := (bearer{k.env, tok2}).do("GET", k.rows(), nil); st != 200 {
+		t.Fatalf("junk tokens locked out a valid key: %d", st)
+	}
+
+	// Well-formed wrong keys throttle the client address...
 	bad := bearer{k.env, "abd_01ARZ3NDEKTSV4RRFFQ69G5FAV_" + strings.Repeat("a", 43)}
 	var last int
 	var lastHdr http.Header
@@ -489,8 +502,44 @@ func TestAPIKeyRateLimits(t *testing.T) {
 	if last != 429 || lastHdr.Get("Retry-After") == "" {
 		t.Fatalf("failed attempts not throttled: %d", last)
 	}
-	if st, _, _ := (bearer{k.env, tok2}).do("GET", k.rows(), nil); st != 429 {
-		t.Fatalf("throttled address still served: %d", st)
+	// ...but a correct key from that address is still served.
+	if st, _, _ := (bearer{k.env, tok2}).do("GET", k.rows(), nil); st != 200 {
+		t.Fatalf("valid key refused by the address limit: %d", st)
+	}
+}
+
+// A busy key keeps its event stream: rechecks re-read the key without
+// spending its request budget.
+func TestAPIKeyStreamSurvivesKeyRateLimit(t *testing.T) {
+	k := newKeyEnv(t)
+	k.s.keyRecheck = 50 * time.Millisecond
+	_, tok := k.mint("busy", "viewer", nil)
+	k.au.KeyRatePerMinute = 6 // burst 1
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", k.srv.URL+"/api/v1/w/"+k.ws+"/events", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // closed by the defer below
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("events %d", resp.StatusCode)
+	}
+	// The stream used the only token; ordinary requests are now limited.
+	if st, _, _ := (bearer{k.env, tok}).do("GET", k.rows(), nil); st != 429 {
+		t.Fatalf("expected the key to be rate limited, got %d", st)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = io.Copy(io.Discard, resp.Body)
+	}()
+	select {
+	case <-done:
+		t.Fatal("stream ended while the key was rate limited")
+	case <-time.After(500 * time.Millisecond): // ten rechecks
 	}
 }
 

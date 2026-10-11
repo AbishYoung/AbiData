@@ -9,7 +9,7 @@ describe("patternError (mirrors the server's ValidPattern)", () => {
     }
   });
   it("rejects what the server rejects", () => {
-    for (const p of ["", "*", "*.", "a..b", "exa mple.com", "http://x.com", "x.com/path", "*.1.2.3.4", "a_b.com", "*.*.com", "x.com:8080", "u@x.com"]) {
+    for (const p of ["", "*", "*.", "a..b", "exa mple.com", "http://x.com", "x.com/path", "*.1.2.3.4", "a_b.com", "*.*.com", "x.com:8080", "u@x.com", "*.com", "*.2.3.4", "host.123", "999.1.2.3", "ök.test"]) {
       expect(patternError(p), p).not.toBeNull();
     }
   });

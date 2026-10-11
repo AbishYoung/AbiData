@@ -58,8 +58,8 @@ Give people the lowest role that lets them do their work. Remove accounts of peo
 - A key has the viewer, editor or builder role and **never owner**, so it can never manage members, backups, the egress allowlist, settings or other keys. The same role checks as for people apply to every route.
 - A key is bound to one workspace. It works only on that workspace's `/api/v1/w/<id>/...` routes; other workspaces answer "not found", and `/api/v1/admin`, `/api/v1/auth`, `/metrics` and the log stream refuse keys.
 - The secret is shown once. The database holds only HMAC-SHA256 of it under the server's session key (`session_key`), so a leaked admin database yields no usable key. Changing the session key therefore also invalidates every API key as well as every session.
-- When a request has an `Authorization` header, only that credential is considered and cookies are ignored. Such requests skip the `Origin` and CSRF checks because a browser never attaches that header by itself. The server sends **no CORS headers** and must keep it that way, or any website could try to use a key it obtained.
-- Each key is limited to 600 requests a minute. Clients that send more than 30 bad keys in a minute are refused for the rest of the minute. Behind a proxy, set `ABIDATA_TRUSTED_PROXIES` so the limit sees the real client address.
+- When a request has an `Authorization: Bearer` header, only that credential is considered and cookies are ignored. Such requests skip the `Origin` and CSRF checks because a browser never attaches that header by itself. The server sends **no CORS headers** and must keep it that way, or any website could try to use a key it obtained.
+- Each key is limited to 600 requests a minute. A client address that sends more than 30 wrong keys in a minute is refused further attempts for the rest of the minute; correct keys from that address keep working. Behind a proxy, set `ABIDATA_TRUSTED_PROXIES` so the limit sees the real client address.
 - Writes are attributed to the key (`API key "name"`) in record history, audit entries and `created_by` fields. Creating and revoking keys is audited.
 - Keys belong to the workspace. Removing the owner who created one does not stop it. Owners revoke keys in the workspace settings; platform administrators can revoke any key in the admin console (**API keys**). A workspace holds at most 25 active keys.
 - A key with the builder role can run scripts and SQL like a builder. Hand out builder keys only to code you trust as much as a builder.
@@ -68,7 +68,7 @@ Give people the lowest role that lets them do their work. Remove accounts of peo
 
 Scripts can reach the internet only from jobs, only with `fetch`, and only to hosts on the **platform allowlist**. Only platform administrators edit it, in the admin console under **Settings**, **Outbound requests**. It is global: every workspace shares it, and owners cannot extend it.
 
-- Each entry is a host (exact, or `*.domain` for subdomains), the ports allowed (default 443) and an optional note. There is no "any host" entry.
+- Each entry is a host (exact, or `*.domain` for subdomains), the ports allowed (default 443) and an optional note. There is no "any host" entry, and a wildcard must sit under a domain (`*.example.com`, not `*.com`). Public suffixes such as `*.co.uk` are not detected, so keep wildcards narrow. Write internationalised names in their ASCII `xn--` form; other non-ASCII host names are refused.
 - A fresh install has an empty list, so no outbound request is possible until you add hosts (fail closed).
 - Requests use https only. A switch allows plain `http` as well (the port must still be listed), and another switch turns all outbound requests off without losing the list.
 - Changes are written to the audit log (`egress.policy`).

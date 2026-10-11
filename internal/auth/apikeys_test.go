@@ -211,17 +211,28 @@ func TestAPIKeyFailedAttemptsThrottleByAddress(t *testing.T) {
 			t.Fatalf("attempt %d: %v", i, err)
 		}
 	}
-	// Past the limit even a valid key from that address waits...
-	_, err := s.AuthenticateAPIKey(ctx, "Bearer "+tok, "203.0.113.9")
+	// Past the limit further wrong keys from that address wait...
+	_, err := s.AuthenticateAPIKey(ctx, bad, "203.0.113.9")
 	if fe := fault.Classify(err); fe.Code != fault.RateLimited || fe.RetryAfter <= 0 {
 		t.Fatalf("not throttled: %v", err)
 	}
-	// ...other addresses are unaffected, and the window passes.
-	if _, err := s.AuthenticateAPIKey(ctx, "Bearer "+tok, "203.0.113.10"); err != nil {
-		t.Fatalf("other address: %v", err)
-	}
-	c.t = c.t.Add(KeyFailWindow + time.Second)
+	// ...but a correct key from the same address is served, so junk from a
+	// shared address cannot lock valid keys out.
 	if _, err := s.AuthenticateAPIKey(ctx, "Bearer "+tok, "203.0.113.9"); err != nil {
+		t.Fatalf("valid key refused by the address limit: %v", err)
+	}
+	// Malformed tokens are not recorded at all.
+	for range KeyFailMax * 2 {
+		if _, err := s.AuthenticateAPIKey(ctx, "Bearer junk", "198.51.100.7"); code(err) != fault.Unauthenticated {
+			t.Fatalf("malformed token: %v", err)
+		}
+	}
+	if _, err := s.AuthenticateAPIKey(ctx, bad, "198.51.100.7"); code(err) != fault.Unauthenticated {
+		t.Fatalf("malformed tokens counted: %v", err)
+	}
+	// The window passes.
+	c.t = c.t.Add(KeyFailWindow + time.Second)
+	if _, err := s.AuthenticateAPIKey(ctx, bad, "203.0.113.9"); code(err) != fault.Unauthenticated {
 		t.Fatalf("after window: %v", err)
 	}
 }

@@ -77,7 +77,7 @@ func TestRunnerTimeoutAndWatchdog(t *testing.T) {
 		t.Fatalf("timeout: %v after %v", err, time.Since(start))
 	}
 	// Watchdog: with a tiny soft limit, a long-budget run is cancelled as a limit error.
-	rn.SoftLimit = 1
+	rn.SetSoftLimit(1)
 	_, err = rn.Exec(context.Background(), ExecRequest{Kind: Job, Workspace: ws, Budget: Budget{Wall: 10 * time.Second, MaxString: 1 << 20},
 		Proto: mustProto(t, `local t = {} while true do t[#t+1] = {} end`)})
 	if k, _ := kindOf(err); k != KindLimit {

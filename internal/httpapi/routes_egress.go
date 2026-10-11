@@ -72,12 +72,26 @@ func MigrateEgressPolicy(ctx context.Context, a *admin.Store, log *slog.Logger) 
 	if err := a.PutSetting(ctx, EgressSettingKey, string(b)); err != nil {
 		return err
 	}
-	attrs := []any{slog.Int("entries", len(g.Allowlist)), slog.Bool("wildcard_dropped", dropped)}
-	if dropped {
-		log.Warn("egress policy migrated: the old \"*\" host (each workspace decides) was dropped and per-workspace allowlists are no longer used; review the platform allowlist in Admin > Settings", attrs...)
-	} else {
-		log.Info("egress policy migrated to the platform allowlist", attrs...)
+	// Every migrated host is now reachable from every workspace, where before
+	// each workspace also had to list it, so the result always needs review.
+	kept := make([]string, 0, len(g.Allowlist))
+	keptSet := map[string]bool{}
+	for _, e := range g.Allowlist {
+		kept = append(kept, e.Pattern)
+		keptSet[e.Pattern] = true
 	}
+	var old struct {
+		Hosts []string `json:"hosts"`
+	}
+	_ = json.Unmarshal([]byte(v), &old)
+	discarded := []string{}
+	for _, h := range old.Hosts {
+		if n := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(h)), "."); n != "*" && !keptSet[n] {
+			discarded = append(discarded, h)
+		}
+	}
+	log.Warn("egress policy migrated to one platform allowlist: every listed host is now reachable from every workspace's jobs and per-workspace allowlists are no longer used; review it in Admin > Settings, especially wildcard entries",
+		slog.Any("allowlist", kept), slog.Any("discarded_invalid", discarded), slog.Bool("wildcard_dropped", dropped))
 	return nil
 }
 
@@ -89,14 +103,12 @@ func validateEgress(items []egress.Entry) ([]egress.Entry, error) {
 	out := make([]egress.Entry, 0, len(items))
 	for i, e := range items {
 		e.Pattern = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(e.Pattern), "."))
-		e.Ports = strings.ReplaceAll(strings.TrimSpace(e.Ports), " ", "")
-		if e.Ports == "" {
-			e.Ports = "443"
-		}
 		if !egress.ValidPattern(e.Pattern) {
 			return nil, fault.Newf(fault.BadRequest, "Entry %d: %q is not a host name or *.domain pattern.", i+1, e.Pattern).WithDetails(map[string]any{"index": i, "field": "pattern"})
 		}
-		if !egress.ValidPorts(e.Ports) {
+		ports, ok := egress.NormPorts(e.Ports)
+		e.Ports = ports
+		if !ok {
 			return nil, fault.Newf(fault.BadRequest, "Entry %d: ports must be numbers from 1 to 65535, separated by commas.", i+1).WithDetails(map[string]any{"index": i, "field": "ports"})
 		}
 		if seen[e.Pattern] {

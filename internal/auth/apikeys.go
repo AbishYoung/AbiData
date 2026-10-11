@@ -202,30 +202,21 @@ func (s *Service) claimTouch(k admin.APIKey, now time.Time) bool {
 
 // AuthenticateAPIKey resolves an Authorization header value ("Bearer abd_…").
 // Every failure other than throttling returns the same UNAUTHENTICATED error,
-// whichever part of the token was wrong; failures count against ip.
+// whichever part of the token was wrong. Only well-formed tokens that fail
+// count against ip, and a correct key is never refused by that per-address
+// limit: otherwise anyone sharing a client address (NAT, or an untrusted
+// proxy) could lock out every valid key behind it by sending junk.
 func (s *Service) AuthenticateAPIKey(ctx context.Context, authorization, ip string) (Principal, error) {
 	now := s.now()
-	failKey := "apikey-ip:" + limitKeyIP(ip)
-	if a, err := s.repo.GetLoginAttempts(ctx, failKey); err != nil {
-		return Principal{}, err
-	} else if a.Count >= KeyFailMax && now.Before(a.WindowStart.Add(KeyFailWindow)) {
-		return Principal{}, &fault.Error{Code: fault.RateLimited, RetryAfter: a.WindowStart.Add(KeyFailWindow).Sub(now),
-			Message: "Too many failed attempts to use an API key. Wait before trying again."}
-	}
-	fail := func() (Principal, error) {
-		if _, err := s.repo.RecordLoginFailure(ctx, failKey, now, KeyFailWindow); err != nil {
-			s.logWarn("recording failed API key attempt", err)
-		}
-		return Principal{}, fault.E(fault.Unauthenticated)
-	}
-
 	scheme, tok, found := strings.Cut(authorization, " ")
 	if !found || !strings.EqualFold(scheme, "Bearer") {
-		return fail()
+		return Principal{}, fault.E(fault.Unauthenticated)
 	}
 	keyID, secret, ok := ParseAPIKeyToken(tok)
 	if !ok {
-		return fail()
+		// Malformed tokens cost nothing to reject and are never recorded, so
+		// they cannot fill the attempt table or lock anyone out.
+		return Principal{}, fault.E(fault.Unauthenticated)
 	}
 	k, err := s.repo.GetAPIKey(ctx, keyID)
 	missing := errors.Is(err, admin.ErrNotFound)
@@ -241,7 +232,7 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, authorization, ip stri
 	}
 	match := subtle.ConstantTimeCompare(s.HashAPIKeySecret(secret), want) == 1
 	if missing || !match || !k.Active(now) {
-		return fail()
+		return Principal{}, s.keyFailure(ctx, ip, now)
 	}
 	if ok, wait := s.allowKey(k.ID, now); !ok {
 		return Principal{}, &fault.Error{Code: fault.RateLimited, RetryAfter: wait,
@@ -252,8 +243,46 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, authorization, ip stri
 			s.logWarn("recording API key use", err)
 		}
 	}
+	return keyPrincipal(k), nil
+}
+
+// keyFailure applies the per-address limit to a failed attempt with a
+// well-formed token: refused while over the limit, otherwise recorded.
+func (s *Service) keyFailure(ctx context.Context, ip string, now time.Time) error {
+	failKey := "apikey-ip:" + limitKeyIP(ip)
+	if a, err := s.repo.GetLoginAttempts(ctx, failKey); err != nil {
+		return err
+	} else if a.Count >= KeyFailMax && now.Before(a.WindowStart.Add(KeyFailWindow)) {
+		return &fault.Error{Code: fault.RateLimited, RetryAfter: a.WindowStart.Add(KeyFailWindow).Sub(now),
+			Message: "Too many failed attempts to use an API key. Wait before trying again."}
+	}
+	if _, err := s.repo.RecordLoginFailure(ctx, failKey, now, KeyFailWindow); err != nil {
+		s.logWarn("recording failed API key attempt", err)
+	}
+	return fault.E(fault.Unauthenticated)
+}
+
+// RecheckAPIKey re-reads a key already authenticated on a long-lived
+// connection (event streams). It spends no rate-limit token and touches no
+// failure counter, so a busy key keeps its streams; it fails only when the
+// key is gone, revoked or expired.
+func (s *Service) RecheckAPIKey(ctx context.Context, keyID string) (Principal, error) {
+	k, err := s.repo.GetAPIKey(ctx, keyID)
+	if errors.Is(err, admin.ErrNotFound) {
+		return Principal{}, fault.E(fault.Unauthenticated)
+	}
+	if err != nil {
+		return Principal{}, err
+	}
+	if !k.Active(s.now()) {
+		return Principal{}, fault.E(fault.Unauthenticated)
+	}
+	return keyPrincipal(k), nil
+}
+
+func keyPrincipal(k admin.APIKey) Principal {
 	return Principal{UserID: ActorID(k.ID), DisplayName: APIKeyDisplayName(k.Name), APIKeyID: k.ID, APIKeyName: k.Name,
-		KeyWorkspace: k.WorkspaceID, KeyRole: k.Role}, nil
+		KeyWorkspace: k.WorkspaceID, KeyRole: k.Role}
 }
 
 func (s *Service) logWarn(msg string, err error) {

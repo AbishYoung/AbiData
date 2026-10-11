@@ -486,11 +486,21 @@ func (s *Server) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		if s.keyRecheck > 0 {
 			recheck = s.keyRecheck
 		}
+		// The first check is a full authentication; rechecks only re-read the
+		// key, so the stream does not spend the key's rate-limit budget.
+		var keyID string
 		resolve = func(ctx context.Context) (Membership, error) {
-			p, err := s.deps.Auth.AuthenticateAPIKey(ctx, authz, clientIP(r.Context()))
+			var p auth.Principal
+			var err error
+			if keyID == "" {
+				p, err = s.deps.Auth.AuthenticateAPIKey(ctx, authz, clientIP(r.Context()))
+			} else {
+				p, err = s.deps.Auth.RecheckAPIKey(ctx, keyID)
+			}
 			if err != nil {
 				return Membership{}, err
 			}
+			keyID = p.APIKeyID
 			return s.resolveKeyMembership(ctx, p, ws)
 		}
 	} else {
@@ -521,8 +531,17 @@ func (s *Server) eventsHandler(w http.ResponseWriter, r *http.Request) {
 			m2, err := resolve(ctx)
 			if err == nil {
 				builder.Store(m2.Role.AtLeast(admin.RoleBuilder))
+				return nil
 			}
-			return err
+			// End the stream only on a definite answer (signed out, revoked,
+			// removed, workspace gone); a passing failure such as a busy
+			// database keeps it open until the next recheck.
+			switch fault.Classify(err).Code {
+			case fault.Unauthenticated, fault.Forbidden, fault.NotFound, fault.WorkspaceMaintenance:
+				return err
+			}
+			s.log.Warn("event stream recheck failed", "err", err)
+			return nil
 		},
 		Recheck: recheck,
 		Filter:  func(ev events.Event) bool { return ev.Type != events.JobRun || builder.Load() },

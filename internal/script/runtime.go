@@ -10,6 +10,7 @@ import (
 	"runtime/metrics"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
@@ -207,9 +208,9 @@ type Runner struct {
 	active   map[*activeRun]struct{}
 	activeMu sync.Mutex
 	wake     chan struct{}
-	// SoftLimit is the heap size above which the watchdog cancels runs
+	// softLimit is the heap size above which the watchdog cancels runs
 	// (default 75% of GOMEMLIMIT, or 1 GiB when no limit is set).
-	SoftLimit uint64
+	softLimit atomic.Uint64
 	// PerWorkspace, when set, returns a workspace's concurrent-script quota
 	// (0 = the runner default); it is clamped to [1, global].
 	PerWorkspace func(ws ids.WorkspaceID) int
@@ -238,10 +239,14 @@ func NewRunner(global, perWorkspace int) *Runner {
 		soft = uint64(lim) / 4 * 3
 	}
 	r := &Runner{global: make(chan struct{}, global), perWS: perWorkspace, wsSlots: map[ids.WorkspaceID]chan struct{}{},
-		pool: make(chan *VM, global), active: map[*activeRun]struct{}{}, wake: make(chan struct{}, 1), SoftLimit: soft}
+		pool: make(chan *VM, global), active: map[*activeRun]struct{}{}, wake: make(chan struct{}, 1)}
+	r.softLimit.Store(soft)
 	go r.watchdog()
 	return r
 }
+
+// SetSoftLimit changes the heap size above which the watchdog cancels runs.
+func (rn *Runner) SetSoftLimit(bytes uint64) { rn.softLimit.Store(bytes) }
 
 func (rn *Runner) slots(ws ids.WorkspaceID) chan struct{} {
 	n := rn.perWS
@@ -389,7 +394,7 @@ func (rn *Runner) watchdog() {
 		}
 		<-t.C
 		metrics.Read(sample)
-		if sample[0].Value.Kind() != metrics.KindUint64 || sample[0].Value.Uint64() < rn.SoftLimit {
+		if sample[0].Value.Kind() != metrics.KindUint64 || sample[0].Value.Uint64() < rn.softLimit.Load() {
 			continue
 		}
 		rn.activeMu.Lock()
