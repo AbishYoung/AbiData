@@ -318,6 +318,26 @@ test("dialogs are bottom sheets and menus fit the screen", async ({ page }) => {
   await page.keyboard.press("Escape");
 });
 
+test("the import wizard step labels are not truncated on a phone", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(WS()) }).tap();
+  await page.getByRole("button", { name: "Open navigation" }).tap();
+  await page.getByRole("navigation", { name: "Navigation pane" }).getByRole("button", { name: "Import…" }).tap();
+  const w = page.getByRole("dialog", { name: "Import data" });
+  await w.getByLabel("File to import").setInputFiles({ name: "steps.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Qty\nApple,3\n") });
+  await w.getByRole("button", { name: "Upload and preview" }).tap();
+  await expect(w.getByRole("heading", { name: "Preview and map columns" })).toBeVisible();
+  // The current step's label shows in full; the others collapse to their number.
+  const truncated = await w.getByRole("list", { name: "Steps" }).evaluate((ol) =>
+    Array.from(ol.querySelectorAll("li > span.truncate"))
+      .filter((el) => el.getBoundingClientRect().width > 1)
+      .filter((el) => el.scrollWidth > el.clientWidth)
+      .map((el) => el.textContent),
+  );
+  expect(truncated).toEqual([]);
+  await page.keyboard.press("Escape");
+});
+
 test("touch targets are at least 44px and key pages do not scroll sideways", async ({ page }) => {
   await signIn(page);
   await page.getByRole("link", { name: new RegExp(WS()) }).tap();
