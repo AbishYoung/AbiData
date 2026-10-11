@@ -344,7 +344,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
 
   let body: ReactNode;
   if (blocked) {
-    body = <EmptyState kind="form" compact title="Save this record first" hint={`Then you can add ${label}.`} />;
+    body = <EmptyState kind="form" compact title={`Save this record first to add ${label}.`} />;
   } else if (!ready) {
     body = <SkeletonLines rows={4} label="Loading records…" />;
   } else if (!rec && view === "single") {

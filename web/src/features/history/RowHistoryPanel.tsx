@@ -1,5 +1,4 @@
 import { EmptyState, SkeletonLines } from "@/components/EditorParts";
-import { Tip } from "@/components/Tip";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog } from "radix-ui";
@@ -63,7 +62,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
         <EmptyState
           icon={History}
           compact
-          title="History is off for this table"
+          title="History is off for this table."
           hint={isBuilder ? "A builder can turn on Track history in Design." : "Ask a builder to turn on Track history."}
         />
       </div>
@@ -108,11 +107,9 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
             <Dialog.Title className="m-0 mr-auto min-w-0 text-base font-semibold tracking-tight">
               History{table ? ` of record ${rowId} in ${table.display_name}` : ` of record ${rowId}`}
             </Dialog.Title>
-            <Tip label="Close history" shortcut="Esc">
-              <Dialog.Close className={iconBtn} aria-label="Close history">
-                <X size={16} aria-hidden="true" />
-              </Dialog.Close>
-            </Tip>
+            <Dialog.Close className={iconBtn} aria-label="Close history">
+              <X size={16} aria-hidden="true" />
+            </Dialog.Close>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg px-4 py-4">{body}</div>
         </Dialog.Content>

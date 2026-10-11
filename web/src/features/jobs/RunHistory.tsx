@@ -73,7 +73,7 @@ export function RunHistory({
       )}
       {q.isSuccess && runs.length === 0 && (
         <div role="status">
-          <EmptyState kind="job" compact title="This job has not run yet" hint="Use Run now to start it, or wait for its schedule." />
+          <EmptyState kind="job" compact title="This job has not run yet." hint="Use Run now to start it, or wait for its schedule." />
         </div>
       )}
       {runs.length > 0 && (
