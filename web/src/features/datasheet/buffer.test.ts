@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "@/lib/api";
-import { applyChange, hasChanges, patchRequest, persistBuffer, type RowBuffer } from "./buffer";
+import { applyChange, hasChanges, patchRequest, persistBuffer, persistWithMerge, rebaseBuffer, type RowBuffer } from "./buffer";
 import { classifyFailure } from "./rowsApi";
 import { col, row } from "./testutil";
 
@@ -146,5 +146,134 @@ describe("persistBuffer", () => {
 
   it("classifies unknown thrown values as errors", () => {
     expect(classifyFailure(new Error("boom")).kind).toBe("error");
+  });
+});
+
+describe("base values", () => {
+  const original = row(7, 3, { c_name: "Alice", c_amount: "10.0000", c_note: "hello" }, { c_name: "shown" });
+
+  it("keeps the values a field had when editing started, even after further edits", () => {
+    let buf = applyChange(undefined, 7, original, name, "A");
+    buf = applyChange(buf, 7, original, name, "AB");
+    expect(buf?.base).toEqual({ c_name: "Alice" });
+    expect(buf?.baseDisplay).toEqual({ c_name: "shown" });
+    buf = applyChange(buf, 7, original, note, "bye");
+    expect(buf?.base).toEqual({ c_name: "Alice", c_note: "hello" });
+  });
+
+  it("forgets the base of a field the user reverted", () => {
+    let buf = applyChange(undefined, 7, original, name, "A");
+    buf = applyChange(buf, 7, original, note, "bye");
+    buf = applyChange(buf, 7, original, name, "Alice");
+    expect(buf?.changes).toEqual({ c_note: "bye" });
+    expect(buf?.base).toEqual({ c_note: "hello" });
+    expect(applyChange(buf, 7, original, note, "hello")).toBeUndefined();
+  });
+
+  it("rebases onto the server record the user resolved against", () => {
+    const buf = applyChange(undefined, 7, original, name, "Mine") as RowBuffer;
+    const current = row(7, 9, { c_name: "Theirs" }, { c_name: "T" });
+    expect(rebaseBuffer(buf, current, { c_name: "Mine" })).toMatchObject({
+      baseVersion: 9,
+      changes: { c_name: "Mine" },
+      base: { c_name: "Theirs" },
+      baseDisplay: { c_name: "T" },
+    });
+  });
+});
+
+describe("persistWithMerge", () => {
+  const columns = [name, amount, note];
+  const original = row(7, 3, { c_name: "Alice", c_amount: "10.0000", c_note: "hello" });
+
+  /** A server that answers PATCHes from a script of statuses and bodies, recording what it received. */
+  function scripted(replies: { status: number; body: unknown }[], captured: Captured[]): ApiClient {
+    let i = 0;
+    return new ApiClient({
+      baseUrl: "http://localhost",
+      fetch: async (req) => {
+        captured.push({
+          method: req.method,
+          url: new URL(req.url).pathname,
+          ifMatch: req.headers.get("If-Match"),
+          idempotencyKey: null,
+          body: await req.clone().json().catch(() => null),
+        });
+        const r = replies[Math.min(i++, replies.length - 1)] as { status: number; body: unknown };
+        return new Response(JSON.stringify(r.body), { status: r.status, headers: { "Content-Type": "application/json" } });
+      },
+    });
+  }
+  const conflict = (current: unknown) => ({
+    status: 409,
+    body: { error: { code: "CONCURRENT_MODIFICATION", title: "Changed", message: "Someone else saved.", details: { current } } },
+  });
+
+  function edited(): RowBuffer {
+    let buf = applyChange(undefined, 7, original, name, "Mine");
+    buf = applyChange(buf, 7, original, note, "mine note");
+    return buf as RowBuffer;
+  }
+
+  it("retries silently with only my fields when the other user changed different ones", async () => {
+    const captured: Captured[] = [];
+    const theirs = row(7, 4, { c_name: "Alice", c_amount: "11.0000", c_note: "hello" });
+    const saved = row(7, 5, { c_name: "Mine", c_amount: "11.0000", c_note: "mine note" });
+    const client = scripted([conflict(theirs), { status: 200, body: saved }], captured);
+    const outcome = await persistWithMerge("ws1", "t1", columns, edited(), client);
+    expect(outcome).toEqual({ kind: "ok", row: saved, created: false, merged: true });
+    expect(captured).toHaveLength(2);
+    expect(captured[1]).toMatchObject({ ifMatch: '"4"', body: { fields: { c_name: "Mine", c_note: "mine note" } } });
+  });
+
+  it("returns the conflicting field for the dialog and the rest as auto", async () => {
+    const captured: Captured[] = [];
+    const theirs = row(7, 4, { c_name: "Theirs", c_amount: "10.0000", c_note: "hello" });
+    const outcome = await persistWithMerge("ws1", "t1", columns, edited(), scripted([conflict(theirs)], captured));
+    expect(captured).toHaveLength(1);
+    expect(outcome.kind).toBe("merge");
+    if (outcome.kind !== "merge") return;
+    expect(outcome.fields.map((f) => f.colId)).toEqual(["c_name"]);
+    expect(outcome.fields[0]).toMatchObject({ base: "Alice", mine: "Mine", theirs: "Theirs" });
+    expect(outcome.auto).toEqual({ c_note: "mine note" });
+    expect(outcome.current).toEqual(theirs);
+  });
+
+  it("does nothing more when the server already holds my values", async () => {
+    const captured: Captured[] = [];
+    const theirs = row(7, 4, { c_name: "Mine", c_amount: "10.0000", c_note: "mine note" });
+    const outcome = await persistWithMerge("ws1", "t1", columns, edited(), scripted([conflict(theirs)], captured));
+    expect(outcome).toEqual({ kind: "ok", row: theirs, created: false });
+    expect(captured).toHaveLength(1);
+  });
+
+  it("merges again when another save lands during the retry, then turns real conflicts into the dialog", async () => {
+    const captured: Captured[] = [];
+    const first = row(7, 4, { c_name: "Alice", c_amount: "11.0000", c_note: "hello" });
+    const second = row(7, 5, { c_name: "Theirs", c_amount: "11.0000", c_note: "hello" });
+    const outcome = await persistWithMerge("ws1", "t1", columns, edited(), scripted([conflict(first), conflict(second)], captured));
+    expect(captured).toHaveLength(2);
+    expect(outcome.kind).toBe("merge");
+    if (outcome.kind === "merge") {
+      expect(outcome.fields.map((f) => f.colId)).toEqual(["c_name"]);
+      expect(outcome.current._version).toBe(5);
+    }
+  });
+
+  it("gives up after the bounded number of retries and asks about everything still differing", async () => {
+    const captured: Captured[] = [];
+    const versions = [4, 5, 6, 7, 8].map((v) => conflict(row(7, v, { c_name: "Alice", c_amount: String(v), c_note: "hello" })));
+    const outcome = await persistWithMerge("ws1", "t1", columns, edited(), scripted(versions, captured), 3);
+    expect(captured).toHaveLength(4); // the first save plus three retries
+    expect(outcome.kind).toBe("merge");
+    if (outcome.kind === "merge") {
+      expect(outcome.fields.map((f) => f.colId).sort()).toEqual(["c_name", "c_note"]);
+      expect(outcome.auto).toEqual({});
+    }
+  });
+
+  it("passes other failures through", async () => {
+    const outcome = await persistWithMerge("ws1", "t1", columns, edited(), scripted([{ status: 404, body: { error: { code: "NOT_FOUND", title: "Gone", message: "Deleted." } } }], []));
+    expect(outcome.kind).toBe("error");
   });
 });
