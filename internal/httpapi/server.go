@@ -29,6 +29,7 @@ import (
 	"abidata/internal/docsrv"
 	"abidata/internal/egress"
 	"abidata/internal/events"
+	"abidata/internal/files"
 	"abidata/internal/forms"
 	"abidata/internal/ingest"
 	"abidata/internal/jobs"
@@ -66,6 +67,7 @@ type Deps struct {
 	Egress     *egress.Gateway
 	Ingest     *ingest.Service // imports and exports; nil: ingest routes answer NOT_FOUND
 	Backups    *backup.Service // backups and restores; nil: backup routes answer NOT_FOUND
+	Files      *files.Service  // file attachments (ADR 0011); nil: file routes answer NOT_FOUND
 	// OnSetup runs after the first administrator is created through the setup
 	// endpoint (nil: nothing). It must not fail setup: log and return.
 	OnSetup func(ctx context.Context, firstAdmin admin.User)
@@ -129,6 +131,7 @@ func New(deps Deps) *Server {
 	s.registerEgress(api)
 	s.registerIngest(api)
 	s.registerBackups(api)
+	s.registerFiles(api)
 	s.registerAPIKeys(api)
 	s.registerDocs(api)
 

@@ -30,6 +30,10 @@ type Metrics struct {
 	BackupDuration prometheus.Histogram     // backup_duration_seconds
 	BackupBytes    prometheus.Histogram     // backup_size_bytes
 	WALBytes       *prometheus.GaugeVec     // wal_size_bytes{workspace}
+	FilesUploaded  prometheus.Counter       // files_uploaded_total
+	FileBytes      prometheus.Counter       // file_upload_bytes_total
+	FilesPurged    prometheus.Counter       // files_purged_total
+	FilePurgeBytes prometheus.Counter       // file_purged_bytes_total
 }
 
 func hist(name, help string, buckets []float64) prometheus.HistogramOpts {
@@ -73,12 +77,21 @@ func NewMetrics() *Metrics {
 		Namespace: namespace, Name: "wal_size_bytes", Help: "SQLite WAL file size per workspace."},
 		[]string{"workspace"})
 
+	counter := func(name, help string) prometheus.Counter {
+		return prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Name: name, Help: help})
+	}
+	m.FilesUploaded = counter("files_uploaded_total", "File attachments uploaded.")
+	m.FileBytes = counter("file_upload_bytes_total", "Bytes of file attachments uploaded.")
+	m.FilesPurged = counter("files_purged_total", "File attachments removed by the janitor.")
+	m.FilePurgeBytes = counter("file_purged_bytes_total", "Bytes freed by removing file attachments.")
+
 	m.reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		m.HTTPRequests, m.OpenWorkspaces, m.WriterGateWait, m.WriterGateHold, m.ReaderPoolWait,
 		m.ScriptRuns, m.ScriptDuration, m.JobRuns, m.EgressRequests,
 		m.BackupDuration, m.BackupBytes, m.WALBytes,
+		m.FilesUploaded, m.FileBytes, m.FilesPurged, m.FilePurgeBytes,
 	)
 	return m
 }

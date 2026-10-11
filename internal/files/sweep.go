@@ -93,6 +93,12 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 	nowS := sqlitex.FormatTime(now)
 	lock := s.wsLock(l.ID())
 	err := l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+		// A backup copying blobs holds the lock for reading; never wait for it
+		// while holding the writer. Try again on the next pass.
+		if !lock.TryLock() {
+			return nil
+		}
+		defer lock.Unlock()
 		// Files that lost their last reference without the trigger noticing
 		// (should not happen) start their grace period now.
 		if _, err := tx.Exec(ctx, `UPDATE _sys_files SET last_unreferenced_at = ? WHERE state = 'attached' AND last_unreferenced_at IS NULL
@@ -151,8 +157,6 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 		// Remove blobs no remaining row shares. This happens inside the writer
 		// transaction: an upload adopting the same hash cannot interleave. If the
 		// commit fails, the rows reappear and the next pass deletes them again.
-		lock.Lock()
-		defer lock.Unlock()
 		done := map[string]bool{}
 		for _, c := range gone {
 			if done[c.sha] {
@@ -212,7 +216,9 @@ func (s *Service) sweepOrphans(ctx context.Context, l *workspace.Lease, bk Bucke
 	}
 	lock := s.wsLock(l.ID())
 	err = l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
-		lock.Lock()
+		if !lock.TryLock() {
+			return nil
+		}
 		defer lock.Unlock()
 		for _, o := range orphans {
 			// Re-check on the writer: a row may have adopted the blob meanwhile.

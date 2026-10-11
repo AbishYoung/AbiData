@@ -36,6 +36,7 @@ func TestDefaults(t *testing.T) {
 		BackupDir:         "/var/lib/abidata-backups",
 		JobWorkers:        runtime.GOMAXPROCS(0),
 		MaxOpenWorkspaces: 128,
+		MaxFileBytes:      25 << 20,
 		Synchronous:       "NORMAL",
 		LogLevel:          slog.LevelInfo,
 		DemoWorkspace:     true,

@@ -27,6 +27,7 @@ import (
 	"abidata/internal/docsrv"
 	"abidata/internal/egress"
 	"abidata/internal/events"
+	"abidata/internal/files"
 	"abidata/internal/forms"
 	"abidata/internal/httpapi"
 	"abidata/internal/ids"
@@ -203,6 +204,11 @@ func serve() error {
 		return w.Quota
 	}
 	runner.PerWorkspace = func(id ids.WorkspaceID) int { return quota(id).ScriptConcurrency }
+	fileSvc := &files.Service{DataDir: cfg.DataDir, MaxFileBytes: cfg.MaxFileBytes,
+		Quota:    func(id ids.WorkspaceID) int64 { return quota(id).MaxFileBytes },
+		OnUpload: func(n int64) { metrics.FilesUploaded.Inc(); metrics.FileBytes.Add(float64(n)) },
+		OnPurge:  func(n int, b int64) { metrics.FilesPurged.Add(float64(n)); metrics.FilePurgeBytes.Add(float64(b)) }}
+	backups.Files = fileSvc
 	arts := &artifacts.Store{Dir: filepath.Join(cfg.DataDir, "artifacts"), Quota: func(id ids.WorkspaceID) int64 { return quota(id).ArtifactBytes }}
 	gateway := egress.New(egress.Config{
 		Global:    func(ctx context.Context) (egress.Global, error) { return httpapi.LoadGlobalEgress(ctx, adm) },
@@ -297,7 +303,7 @@ func serve() error {
 		Forms: &forms.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub,
 			UIEventBudgetMS: func(id ids.WorkspaceID) int { return quota(id).UIEventBudgetMS },
 			Enqueue:         enqueue},
-		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus, Docs: site,
+		Jobs: jobSvc, Ops: opsSvc, Artifacts: arts, Files: fileSvc, Egress: gateway, Ingest: ingestSvc, Backups: backups, Logs: logBus, Docs: site,
 		Version: version, SPA: spa})
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api, ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10,
@@ -311,7 +317,7 @@ func serve() error {
 	}
 	janitorCtx, stopJanitor := context.WithCancel(context.Background())
 	go sampler.Run(janitorCtx)
-	go janitor(janitorCtx, log, wm, adm, arts, ingestSvc)
+	go janitor(janitorCtx, log, wm, adm, arts, ingestSvc, fileSvc)
 	go backups.RunSchedule(janitorCtx, 10*time.Minute)
 
 	errc := make(chan error, 1)
@@ -371,9 +377,10 @@ func serve() error {
 // artifactRetention is how long job and export artifacts are kept.
 const artifactRetention = 30 * 24 * time.Hour
 
-func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store, arts *artifacts.Store, ing *ingest.Service) {
+func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store, arts *artifacts.Store, ing *ingest.Service, fl *files.Service) {
 	t := time.NewTicker(5 * time.Minute)
 	defer t.Stop()
+	var lastFull time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -388,7 +395,14 @@ func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *
 			if err := records.PurgeIdempotency(ctx, l, time.Now()); err != nil {
 				log.Warn("purge idempotency keys", "subsystem", "janitor", "workspace_id", id, "err", err)
 			}
+			sweepFiles(ctx, log, fl, l)
 			l.Release()
+		}
+		// Workspaces that nobody has opened still get their expired files purged,
+		// once a day (opening each one is not free, so not on every tick).
+		if time.Since(lastFull) > 24*time.Hour {
+			lastFull = time.Now()
+			sweepClosedWorkspaces(ctx, log, wm, adm, fl)
 		}
 		if n, err := arts.Sweep(artifactRetention, time.Now()); err != nil {
 			log.Warn("sweep artifacts", "subsystem", "janitor", "err", err)
@@ -406,6 +420,41 @@ func janitor(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *
 		} else if n > 0 {
 			log.Info("purged sessions", "subsystem", "janitor", "count", n)
 		}
+	}
+}
+
+// sweepFiles purges expired file attachments of one open workspace.
+func sweepFiles(ctx context.Context, log *slog.Logger, fl *files.Service, l *workspace.Lease) {
+	res, err := fl.Sweep(ctx, l, time.Now())
+	if err != nil {
+		log.Warn("sweep files", "subsystem", "janitor", "workspace_id", l.ID(), "err", err)
+		return
+	}
+	if n := res.PurgedPending + res.PurgedUnreferenced + res.Orphans; n > 0 {
+		log.Info("purged files", "subsystem", "janitor", "workspace_id", l.ID(), "pending", res.PurgedPending,
+			"unreferenced", res.PurgedUnreferenced, "orphans", res.Orphans, "bytes", res.Bytes)
+	}
+}
+
+func sweepClosedWorkspaces(ctx context.Context, log *slog.Logger, wm *workspace.Manager, adm *admin.Store, fl *files.Service) {
+	list, err := adm.ListWorkspaces(ctx)
+	if err != nil {
+		log.Warn("list workspaces for file sweep", "subsystem", "janitor", "err", err)
+		return
+	}
+	for _, w := range list {
+		if ctx.Err() != nil {
+			return
+		}
+		if w.Status != admin.StatusActive {
+			continue
+		}
+		l, err := wm.Acquire(ctx, w.ID)
+		if err != nil {
+			continue
+		}
+		sweepFiles(ctx, log, fl, l)
+		l.Release()
 	}
 }
 

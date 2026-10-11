@@ -95,6 +95,7 @@ type Quota struct {
 	ArtifactBytes     int64 `json:"artifact_bytes,omitempty"`
 	UIEventBudgetMS   int   `json:"ui_event_budget_ms,omitempty"`
 	ScriptConcurrency int   `json:"script_concurrency,omitempty"`
+	MaxFileBytes      int64 `json:"max_file_bytes,omitempty"` // total bytes of attached files (ADR 0011); 0 = 5 GiB
 }
 
 // Workspace is the admin-side record of a workspace.
