@@ -58,7 +58,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
   return (
     <div className="space-y-4">
       <section aria-label="Preview">
-        <h4 className="m-0 mb-1 text-sm font-semibold">Preview</h4>
+        <h4 className="m-0 mb-1.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Preview</h4>
         <p className="m-0 mb-1 text-sm text-fg-muted">
           {view.source_name}: {rowCount.toLocaleString()} {rowCount === 1 ? "row" : "rows"}, {columns.length} {columns.length === 1 ? "column" : "columns"}. Types are guessed from the first 1,000 values.
         </p>
@@ -72,7 +72,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
         <PreviewGrid view={view} />
       </section>
 
-      <fieldset className="m-0 rounded-md border border-border p-3">
+      <fieldset className="m-0 rounded-xl border border-border bg-surface p-4 shadow-xs">
         <legend className="px-1 text-sm font-semibold">Import into</legend>
         <div className="flex flex-wrap gap-x-6 gap-y-1">
           <label className="flex items-center gap-2 text-sm">
@@ -134,17 +134,17 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
 
       {state.target === "new" ? (
         <section aria-label="Fields of the new table">
-          <h4 className="m-0 mb-1 text-sm font-semibold">Fields of the new table</h4>
-          <div role="region" aria-label="New table fields" tabIndex={0} className="max-h-72 overflow-auto rounded-md border border-border">
+          <h4 className="m-0 mb-1.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Fields of the new table</h4>
+          <div role="region" aria-label="New table fields" tabIndex={0} className="max-h-72 overflow-auto rounded-lg border border-border">
             <table className="w-full border-collapse text-sm">
               <caption className="sr-only">One row per source column. Choose its field name, type and whether it is required.</caption>
               <thead>
-                <tr className="bg-surface-2 text-left">
-                  <th scope="col" className="px-2 py-1">Include</th>
-                  <th scope="col" className="px-2 py-1">Source column</th>
-                  <th scope="col" className="px-2 py-1">Field name</th>
-                  <th scope="col" className="px-2 py-1">Type</th>
-                  <th scope="col" className="px-2 py-1">Required</th>
+                <tr className="sticky top-0 bg-surface-2 text-left text-xs font-semibold text-fg-muted">
+                  <th scope="col" className="px-3 py-1.5">Include</th>
+                  <th scope="col" className="px-3 py-1.5">Source column</th>
+                  <th scope="col" className="px-3 py-1.5">Field name</th>
+                  <th scope="col" className="px-3 py-1.5">Type</th>
+                  <th scope="col" className="px-3 py-1.5">Required</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,7 +154,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
                   const patch = (p: Partial<typeof c>) =>
                     onChange({ ...state, newColumns: state.newColumns.map((x, j) => (j === i ? { ...x, ...p } : x)) });
                   return (
-                    <tr key={c.source} className="border-t border-border">
+                    <tr key={c.source} className="border-t border-border even:bg-surface-2/30">
                       <td className="px-2 py-1">
                         <input type="checkbox" aria-label={`Include ${label}`} checked={c.include} onChange={(e) => patch({ include: e.target.checked })} />
                       </td>
@@ -183,22 +183,22 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
         </section>
       ) : (
         <section aria-label="Column mapping">
-          <h4 className="m-0 mb-1 text-sm font-semibold">Column mapping</h4>
-          <div role="region" aria-label="Column mapping table" tabIndex={0} className="max-h-72 overflow-auto rounded-md border border-border">
+          <h4 className="m-0 mb-1.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Column mapping</h4>
+          <div role="region" aria-label="Column mapping table" tabIndex={0} className="max-h-72 overflow-auto rounded-lg border border-border">
             <table className="w-full border-collapse text-sm">
               <caption className="sr-only">Choose which field each source column goes into, or skip it.</caption>
               <thead>
-                <tr className="bg-surface-2 text-left">
-                  <th scope="col" className="px-2 py-1">Source column</th>
-                  <th scope="col" className="px-2 py-1">Detected type</th>
-                  <th scope="col" className="px-2 py-1">Import into</th>
+                <tr className="sticky top-0 bg-surface-2 text-left text-xs font-semibold text-fg-muted">
+                  <th scope="col" className="px-3 py-1.5">Source column</th>
+                  <th scope="col" className="px-3 py-1.5">Detected type</th>
+                  <th scope="col" className="px-3 py-1.5">Import into</th>
                 </tr>
               </thead>
               <tbody>
                 {columns.map((c) => {
                   const label = c.original || c.name;
                   return (
-                    <tr key={c.index} className="border-t border-border">
+                    <tr key={c.index} className="border-t border-border even:bg-surface-2/30">
                       <td className="px-2 py-1">{label}</td>
                       <td className="px-2 py-1">{typeLabel(c.inferred_type)}</td>
                       <td className="px-2 py-1">
@@ -225,7 +225,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
         </section>
       )}
 
-      <fieldset className="m-0 rounded-md border border-border p-3">
+      <fieldset className="m-0 rounded-xl border border-border bg-surface p-4 shadow-xs">
         <legend className="px-1 text-sm font-semibold">Mode</legend>
         <div className="space-y-2">
           {MODES.map((m) => {
@@ -276,7 +276,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
           </div>
         )}
         {state.mode === "replace" && (
-          <div className="mt-3 rounded-md border border-danger bg-danger-soft px-3 py-2 text-sm" data-testid="replace-warning">
+          <div className="mt-3 rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-sm" data-testid="replace-warning">
             <p className="m-0 font-semibold">Replace deletes data</p>
             <p className="m-0">
               Every existing record in “{table?.display_name ?? "this table"}” will be deleted before the import starts, and there is no undo. Back up the workspace first if you might need them.
@@ -293,7 +293,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
         )}
       </fieldset>
 
-      <fieldset className="m-0 rounded-md border border-border p-3">
+      <fieldset className="m-0 rounded-xl border border-border bg-surface p-4 shadow-xs">
         <legend className="px-1 text-sm font-semibold">Transaction</legend>
         <div className="space-y-2">
           {TRANSACTIONS.map((t) => {
