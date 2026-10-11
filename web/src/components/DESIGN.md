@@ -59,3 +59,8 @@ The tokens live in `web/src/styles/tokens.css`, the shared class strings in `web
 - **Side sheets** (docs, history): full height and right-anchored, `w-[min(92vw,28rem)]`, with `shadow-lg` and the same header and footer rules as dialogs.
 - **Forms and settings**: label above the field, help text below (`hint`), and errors below in `fieldError` with `aria-invalid` set. Group related settings into cards.
 - **Toasts**: a `surface` card with `shadow-lg` and a left accent stripe in the status colour, an icon, the title and the message.
+- **Tooltips**: wrap the control in `Tip` (`components/Tip.tsx`): `<Tip label="Refresh" shortcut="Mod+R"><button aria-label="Refresh" …/></Tip>`.
+  - Every icon-only button gets a `Tip` with the same text as its `aria-label`, plus the keyboard shortcut when one exists.
+  - Truncated text and terse controls (badges, status dots, abbreviated column headers) may get one that spells them out.
+  - Tooltips are hints only: never put the only copy of important information or an interactive element in one. Touch devices do not show them.
+  - Prefer `Tip` over the native `title` attribute.
