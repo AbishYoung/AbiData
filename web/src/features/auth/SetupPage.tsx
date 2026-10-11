@@ -35,11 +35,15 @@ export function SetupPage() {
   }
 
   return (
-    <AuthLayout title="First-run setup">
-      <p className="mb-4 text-sm text-fg-muted">
-        Create the first administrator. The setup token is printed in the server log on first start.
-      </p>
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
+    <AuthLayout
+      title="First-run setup"
+      subtitle="Create the first administrator. The setup token is printed in the server log on first start."
+    >
+      <form
+        onSubmit={(e) => void handleSubmit(e)}
+        className="space-y-5"
+        noValidate
+      >
         {error && (
           <div role="alert" className={alertBox}>
             {error}
@@ -49,27 +53,61 @@ export function SetupPage() {
           <label htmlFor="setup-token" className={label}>
             Setup token
           </label>
-          <input id="setup-token" required autoComplete="off" className={input} value={token} onChange={(e) => setToken(e.target.value)} />
+          <input
+            id="setup-token"
+            required
+            autoComplete="off"
+            className={input}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
         </div>
         <div>
           <label htmlFor="setup-name" className={label}>
             Display name
           </label>
-          <input id="setup-name" required autoComplete="name" className={input} value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            id="setup-name"
+            required
+            autoComplete="name"
+            className={input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div>
           <label htmlFor="setup-password" className={label}>
             Password
           </label>
-          <input id="setup-password" type="password" required autoComplete="new-password" className={input} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input
+            id="setup-password"
+            type="password"
+            required
+            autoComplete="new-password"
+            className={input}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </div>
         <div>
           <label htmlFor="setup-confirm" className={label}>
             Confirm password
           </label>
-          <input id="setup-confirm" type="password" required autoComplete="new-password" className={input} value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <input
+            id="setup-confirm"
+            type="password"
+            required
+            autoComplete="new-password"
+            className={input}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
         </div>
-        <button type="submit" className={`${btnPrimary} w-full`} disabled={busy}>
+        <button
+          type="submit"
+          className={`${btnPrimary} h-10 w-full`}
+          disabled={busy}
+        >
           {busy ? "Creating…" : "Create administrator"}
         </button>
       </form>

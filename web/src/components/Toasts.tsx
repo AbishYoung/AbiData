@@ -1,4 +1,5 @@
 import { Tip } from "@/components/Tip";
+import { iconBtnSm } from "@/components/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from "lucide-react";
 
@@ -48,31 +49,72 @@ export function useToasts() {
   return { toasts, push, dismiss };
 }
 
-const ICONS = { info: Info, success: CircleCheck, warning: TriangleAlert, error: CircleAlert } as const;
-const LABEL = { info: "Info", success: "Success", warning: "Warning", error: "Error" } as const;
-const TONE = { info: "text-accent", success: "text-success", warning: "text-warning", error: "text-danger" } as const;
+const ICONS = {
+  info: Info,
+  success: CircleCheck,
+  warning: TriangleAlert,
+  error: CircleAlert,
+} as const;
+const LABEL = {
+  info: "Info",
+  success: "Success",
+  warning: "Warning",
+  error: "Error",
+} as const;
+const TONE = {
+  info: "text-accent",
+  success: "text-success",
+  warning: "text-warning",
+  error: "text-danger",
+} as const;
+const STRIPE = {
+  info: "bg-accent",
+  success: "bg-success",
+  warning: "bg-warning",
+  error: "bg-danger",
+} as const;
+const CHIP = {
+  info: "bg-accent-soft",
+  success: "bg-success-soft",
+  warning: "bg-warning-soft",
+  error: "bg-danger-soft",
+} as const;
 
 /**
  * Polite live region for transient messages. The region is always mounted so assistive
  * technology announces toasts as they are added. Level is conveyed by icon and text, not color.
  */
-export function ToastRegion({ toasts, onDismiss }: { toasts: readonly Toast[]; onDismiss: (id: number) => void }) {
+export function ToastRegion({
+  toasts,
+  onDismiss,
+}: {
+  toasts: readonly Toast[];
+  onDismiss: (id: number) => void;
+}) {
   return (
     <div
       role="status"
       aria-live="polite"
       aria-label="Notifications"
-      className="pointer-events-none fixed bottom-10 right-4 z-40 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
+      className="pointer-events-none fixed bottom-10 right-4 z-40 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-2"
     >
       {toasts.map((t) => {
         const Icon = ICONS[t.level];
         return (
           <div
             key={t.id}
-            className="pointer-events-auto flex items-start gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg shadow-lg"
+            className="ui-toast pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-surface py-3 pl-4 pr-2.5 text-sm text-fg shadow-lg"
           >
-            <Icon size={16} aria-hidden="true" className={`mt-0.5 shrink-0 ${TONE[t.level]}`} />
-            <p className="min-w-0 flex-1">
+            <span
+              aria-hidden="true"
+              className={`absolute inset-y-0 left-0 w-1 ${STRIPE[t.level]}`}
+            />
+            <span
+              className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${CHIP[t.level]} ${TONE[t.level]}`}
+            >
+              <Icon size={14} aria-hidden="true" />
+            </span>
+            <p className="m-0 min-w-0 flex-1 pt-0.5 leading-snug">
               <span className="sr-only">{LABEL[t.level]}: </span>
               {t.text}
             </p>
@@ -81,7 +123,7 @@ export function ToastRegion({ toasts, onDismiss }: { toasts: readonly Toast[]; o
                 type="button"
                 aria-label={`Dismiss notification: ${t.text}`}
                 onClick={() => onDismiss(t.id)}
-                className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-surface-2"
+                className={iconBtnSm}
               >
                 <X size={14} aria-hidden="true" />
               </button>

@@ -2,7 +2,17 @@ import { useId, useState, type FormEvent } from "react";
 import { Dialog } from "radix-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTabs } from "@/app/tabs";
-import { btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import {
+  btn,
+  btnPrimary,
+  input,
+  label as labelClass,
+  dialogDescription,
+  dialogFooter,
+  dialogOverlay,
+  dialogPanel,
+  dialogTitle,
+} from "@/components/styles";
 import { SchemaChangeFlow } from "@/features/tabledesign/SchemaChangeFlow";
 import type { SchemaApplyResult } from "@/features/tabledesign/schemaChange";
 import { keys } from "@/lib/events";
@@ -36,7 +46,9 @@ export function RenameTableDialog({ ws, table, schema, onClose }: DialogProps) {
     return (
       <SchemaChangeFlow
         ws={ws}
-        ops={[{ op: "rename_table", table_id: table.id, display_name: confirmed }]}
+        ops={[
+          { op: "rename_table", table_id: table.id, display_name: confirmed },
+        ]}
         baseVersion={schema?.schema_version ?? null}
         title={`Rename table “${table.display_name}”`}
         summary={`Rename “${table.display_name}” to “${confirmed}”.`}
@@ -59,22 +71,33 @@ export function RenameTableDialog({ ws, table, schema, onClose }: DialogProps) {
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 text-fg shadow-xl">
-          <Dialog.Title className="m-0 text-base font-semibold">Rename table</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-fg-muted">
+        <Dialog.Overlay className={dialogOverlay} />
+        <Dialog.Content
+          className={`${dialogPanel} w-[min(26rem,calc(100vw-2rem))] p-5`}
+        >
+          <Dialog.Title className={dialogTitle}>Rename table</Dialog.Title>
+          <Dialog.Description className={dialogDescription}>
             You will see what the change affects before it is applied.
           </Dialog.Description>
           <form onSubmit={submit} className="mt-3">
             <label className={labelClass} htmlFor={fieldId}>
               Table name
             </label>
-            <input id={fieldId} className={input} value={name} onChange={(e) => setName(e.target.value)} />
-            <div className="mt-4 flex justify-end gap-2">
+            <input
+              id={fieldId}
+              className={input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <div className={dialogFooter}>
               <button type="button" className={btn} onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className={btnPrimary} disabled={trimmed === "" || trimmed === table.display_name}>
+              <button
+                type="submit"
+                className={btnPrimary}
+                disabled={trimmed === "" || trimmed === table.display_name}
+              >
                 Rename
               </button>
             </div>

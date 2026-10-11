@@ -77,3 +77,19 @@ export const menuSeparator = "my-1 h-px bg-border";
 /** Dialog surfaces (Radix). */
 export const overlay = "fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]";
 export const dialog = "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl border border-border bg-surface shadow-lg";
+
+/** Dialog chrome (DESIGN.md "Dialogs"). Pair `dialogOverlay` with `dialogPanel` and give the content `p-5`. */
+export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]";
+/** Centered dialog surface; set the width with a `w-[min(26rem,calc(100vw-2rem))]` class. */
+export const dialogPanel =
+  "ui-dialog fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface text-fg shadow-lg";
+export const dialogTitle = "m-0 text-base font-semibold tracking-tight text-fg";
+export const dialogDescription = "mt-1 text-sm text-fg-muted";
+/** Footer strip for dialog content padded with `p-5`. */
+export const dialogFooter =
+  "-mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 rounded-b-xl border-t border-border bg-surface-2/50 px-5 py-3";
+/** Right-anchored side sheet (docs, history). */
+export const sheetPanel =
+  "ui-sheet fixed inset-y-0 right-0 z-50 flex w-[min(92vw,28rem)] flex-col border-l border-border bg-surface text-fg shadow-lg";
+/** Small tinted square for a semantic dialog icon. */
+export const iconChip = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg";
