@@ -50,8 +50,34 @@ func (s *source) warn(format string, args ...any) {
 	}
 }
 
+// badFile reports a file that cannot be read, with a title and advice about the file rather than form fields.
 func badFile(format string, args ...any) error {
-	return fault.Newf(fault.BadRequest, format, args...)
+	return fault.FileError(fmt.Sprintf(format, args...), "", nil)
+}
+
+// csvRecovery is the advice for a CSV file the parser rejected.
+const csvRecovery = "Fix the file (for example quote fields that contain quotes) or choose a different delimiter, then upload it again."
+
+// csvParseError words a csv.ParseError with its line and column.
+func csvParseError(pe *csv.ParseError) error {
+	var what string
+	switch {
+	case errors.Is(pe.Err, csv.ErrBareQuote):
+		what = "a quotation mark appears inside a field that is not in quotes"
+	case errors.Is(pe.Err, csv.ErrQuote):
+		what = "a quoted field has a stray or missing quotation mark"
+	default:
+		what = pe.Err.Error()
+	}
+	line := pe.StartLine
+	if pe.Line > line {
+		line = pe.Line
+	}
+	msg := fmt.Sprintf("The CSV file is not valid at line %d", line)
+	if pe.Column > 0 {
+		msg += fmt.Sprintf(", column %d", pe.Column)
+	}
+	return fault.FileError(msg+": "+what+".", csvRecovery, pe)
 }
 
 // ---- CSV ------------------------------------------------------------------
@@ -233,7 +259,7 @@ func openCSV(path string, opt ParseOptions) (*source, error) {
 		delim = rune(opt.Delimiter[0])
 	default:
 		_ = f.Close()
-		return nil, badFile("The delimiter must be a comma, semicolon, tab or pipe.")
+		return nil, fault.New(fault.BadRequest, "The delimiter must be a comma, semicolon, tab or pipe.")
 	}
 	cr := &capReader{r: db, max: maxRecordBytes}
 	r := csv.NewReader(cr)
@@ -258,7 +284,7 @@ func openCSV(path string, opt ParseOptions) (*source, error) {
 		}
 		var pe *csv.ParseError
 		if errors.As(err, &pe) {
-			return nil, badFile("The CSV file is not valid at line %d: %v", pe.Line, pe.Err)
+			return nil, csvParseError(pe)
 		}
 		return nil, err
 	}
@@ -398,7 +424,7 @@ func openXLSX(path string, opt ParseOptions) (*source, error) {
 	}
 	if !found {
 		_ = f.Close()
-		return nil, badFile("The workbook has no sheet named %q.", sheet)
+		return nil, fault.Newf(fault.BadRequest, "The workbook has no sheet named %q.", sheet)
 	}
 	rows, err := f.Rows(sheet)
 	if err != nil {

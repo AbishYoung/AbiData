@@ -109,6 +109,7 @@ type Error struct {
 	Code       Code
 	Message    string         // overrides the entry's default message when set
 	Recovery   string         // overrides the entry's recovery advice when set
+	Title      string         // overrides the entry's title when set
 	Details    map[string]any // machine-readable context (e.g. details.current for OCC)
 	RetryAfter time.Duration
 	Cause      error
@@ -154,11 +155,28 @@ func SQLError(msg string, cause error) *Error {
 	return &Error{Code: BadRequest, Message: "SQL error: " + msg, Recovery: "Fix the statement and run it again.", Cause: cause}
 }
 
+// FileError reports an uploaded file that could not be read (malformed CSV, broken workbook). msg is
+// a sentence that says where the problem is; recovery, when empty, is the generic advice for files.
+func FileError(msg, recovery string, cause error) *Error {
+	if recovery == "" {
+		recovery = "Fix the file or choose a different one, then upload it again."
+	}
+	return &Error{Code: BadRequest, Title: "The file could not be read", Message: msg, Recovery: recovery, Cause: cause}
+}
+
 // Wrap attaches a code to cause.
 func Wrap(code Code, cause error) *Error { return &Error{Code: code, Cause: cause} }
 
 // WithDetails returns e with details set.
 func (e *Error) WithDetails(d map[string]any) *Error { e.Details = d; return e }
+
+// DisplayTitle is the short heading for the error.
+func (e *Error) DisplayTitle() string {
+	if e.Title != "" {
+		return e.Title
+	}
+	return Lookup(e.Code).Title
+}
 
 // Entry returns e's registry entry.
 func (e *Error) Entry() Entry { return Lookup(e.Code) }
