@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { Dialog } from "radix-ui";
 import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { btn, btnPrimary } from "@/components/styles";
 import type { ImpactReport } from "./draft";
 
@@ -219,23 +220,47 @@ export function ImpactDialog({
             </button>
             {report !== null && !concurrent && (
               <>
-                <button
-                  type="button"
-                  className={btnPrimary}
-                  disabled={busy || breaking.length > 0}
-                  onClick={() => onApply(false)}
+                <Tip
+                  label={
+                    busy
+                      ? "Wait for the current step to finish"
+                      : breaking.length > 0
+                        ? "Resolve the breaking changes listed above first"
+                        : applyLabel
+                  }
                 >
-                  {applyLabel}
-                </button>
+                  <span className="inline-flex">
+                    <button
+                      type="button"
+                      className={btnPrimary}
+                      disabled={busy || breaking.length > 0}
+                      onClick={() => onApply(false)}
+                    >
+                      {applyLabel}
+                    </button>
+                  </span>
+                </Tip>
                 {canForce && (
-                  <button
-                    type="button"
-                    className={btnPrimary}
-                    disabled={busy || !understood}
-                    onClick={() => onApply(true)}
+                  <Tip
+                    label={
+                      busy
+                        ? "Wait for the current step to finish"
+                        : !understood
+                          ? "Tick the confirmation box above to apply anyway"
+                          : `${applyLabel} anyway`
+                    }
                   >
-                    {applyLabel} anyway
-                  </button>
+                    <span className="inline-flex">
+                      <button
+                        type="button"
+                        className={btnPrimary}
+                        disabled={busy || !understood}
+                        onClick={() => onApply(true)}
+                      >
+                        {applyLabel} anyway
+                      </button>
+                    </span>
+                  </Tip>
                 )}
               </>
             )}

@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { Dialog } from "radix-ui";
 import { Trash2 } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { btn, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { MAX_INDEX_FIELDS, indexFieldNames, isIndexable, type Draft, type DraftIndex } from "./draft";
 import { ulid } from "./ulid";
@@ -68,17 +69,33 @@ export function IndexesDialog({ draft, onChange, onClose }: IndexesDialogProps) 
                     return (
                       <tr key={x.id} data-testid="index-row">
                         <td className="border-b border-border px-2 py-1.5">{names}</td>
-                        <td className="border-b border-border px-2 py-1.5">{x.unique ? "Not allowed" : "OK"}</td>
-                        <td className="border-b border-border px-2 py-1.5 text-fg-muted">{x.isNew ? "New" : "Saved"}</td>
-                        <td className="border-b border-border px-1 py-1">
-                          <button
-                            type="button"
-                            className={`${btn} h-8 w-8 px-0`}
-                            aria-label={`Delete index on ${names}`}
-                            onClick={() => onChange(draft.indexes.filter((i) => i.id !== x.id))}
+                        <td className="border-b border-border px-2 py-1.5">
+                          <Tip label={x.unique ? "Duplicate combinations are not allowed" : "Duplicate combinations are allowed"}>
+                            <span>{x.unique ? "Not allowed" : "OK"}</span>
+                          </Tip>
+                        </td>
+                        <td className="border-b border-border px-2 py-1.5 text-fg-muted">
+                          <Tip
+                            label={
+                              x.isNew
+                                ? "New: not in the database yet. Saved when you apply your design changes."
+                                : "Saved: already in the database."
+                            }
                           >
-                            <Trash2 size={16} aria-hidden="true" />
-                          </button>
+                            <span>{x.isNew ? "New" : "Saved"}</span>
+                          </Tip>
+                        </td>
+                        <td className="border-b border-border px-1 py-1">
+                          <Tip label={`Delete index on ${names}`}>
+                            <button
+                              type="button"
+                              className={`${btn} h-8 w-8 px-0`}
+                              aria-label={`Delete index on ${names}`}
+                              onClick={() => onChange(draft.indexes.filter((i) => i.id !== x.id))}
+                            >
+                              <Trash2 size={16} aria-hidden="true" />
+                            </button>
+                          </Tip>
                         </td>
                       </tr>
                     );

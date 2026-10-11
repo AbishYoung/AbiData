@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Trash2, TriangleAlert } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { input } from "@/components/styles";
 import { FIELD_TYPES, blankField, fieldTypeLabel, type DraftField } from "./draft";
 
@@ -73,19 +74,20 @@ export function FieldGrid(props: FieldGridProps) {
             >
               <td className={`px-1 py-1.5 ${selected ? "border-l-4 border-l-accent" : "border-l-4 border-l-transparent"}`}>
                 {!placeholder && !isId && (
-                  <span
-                    draggable
-                    onDragStart={(e) => {
-                      setDragId(f.id);
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", f.id);
-                    }}
-                    onDragEnd={() => setDragId(null)}
-                    title="Drag to reorder"
-                    className="inline-flex h-8 w-6 cursor-grab items-center justify-center text-fg-muted"
-                  >
-                    <GripVertical size={16} aria-hidden="true" />
-                  </span>
+                  <Tip label="Drag to reorder">
+                    <span
+                      draggable
+                      onDragStart={(e) => {
+                        setDragId(f.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", f.id);
+                      }}
+                      onDragEnd={() => setDragId(null)}
+                      className="inline-flex h-8 w-6 cursor-grab items-center justify-center text-fg-muted"
+                    >
+                      <GripVertical size={16} aria-hidden="true" />
+                    </span>
+                  </Tip>
                 )}
               </td>
               <td className="px-2 py-1.5">
@@ -94,6 +96,7 @@ export function FieldGrid(props: FieldGridProps) {
                   aria-label="Field name"
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? errorId : undefined}
+                  placeholder={placeholder ? "Type a name to add a field" : undefined}
                   className={input}
                   value={f.displayName}
                   onChange={(e) => (placeholder ? props.onAdd(e.target.value) : props.onChange(f.id, { displayName: e.target.value }))}
@@ -139,27 +142,33 @@ export function FieldGrid(props: FieldGridProps) {
               <td className="px-1 py-1.5">
                 {!placeholder && !isId && (
                   <div className="flex">
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      aria-label={`Move ${label} up`}
-                      disabled={index <= 1}
-                      onClick={() => props.onMove(f.id, -1)}
-                    >
-                      <ArrowUp size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      aria-label={`Move ${label} down`}
-                      disabled={index >= fields.length - 1}
-                      onClick={() => props.onMove(f.id, 1)}
-                    >
-                      <ArrowDown size={16} aria-hidden="true" />
-                    </button>
-                    <button type="button" className={iconBtn} aria-label={`Delete ${label}`} onClick={() => props.onDelete(f.id)}>
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
+                    <Tip label={`Move ${label} up`}>
+                      <button
+                        type="button"
+                        className={iconBtn}
+                        aria-label={`Move ${label} up`}
+                        disabled={index <= 1}
+                        onClick={() => props.onMove(f.id, -1)}
+                      >
+                        <ArrowUp size={16} aria-hidden="true" />
+                      </button>
+                    </Tip>
+                    <Tip label={`Move ${label} down`}>
+                      <button
+                        type="button"
+                        className={iconBtn}
+                        aria-label={`Move ${label} down`}
+                        disabled={index >= fields.length - 1}
+                        onClick={() => props.onMove(f.id, 1)}
+                      >
+                        <ArrowDown size={16} aria-hidden="true" />
+                      </button>
+                    </Tip>
+                    <Tip label={`Delete ${label}`}>
+                      <button type="button" className={iconBtn} aria-label={`Delete ${label}`} onClick={() => props.onDelete(f.id)}>
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </Tip>
                   </div>
                 )}
               </td>
