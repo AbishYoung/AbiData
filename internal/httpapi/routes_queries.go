@@ -250,11 +250,7 @@ func (s *Server) registerQueries(api huma.API) {
 				return nil, err
 			}
 			defer l.Release()
-			c, err := s.deps.Queries.CompileModel(ctx, l, *m)
-			if err != nil {
-				return nil, err
-			}
-			r, err := query.Run(ctx, l, s.policy(ctx), c.SQL, params, limit)
+			r, err := s.deps.Queries.RunModel(ctx, l, s.policy(ctx), *m, params, limit)
 			if err != nil {
 				return nil, err
 			}
@@ -277,7 +273,7 @@ func (s *Server) registerQueries(api huma.API) {
 				return nil, err
 			}
 			defer l.Release()
-			r, err := query.Run(ctx, l, s.policy(ctx), sql, params, limit)
+			r, err := s.deps.Queries.Run(ctx, l, s.policy(ctx), sql, params, limit)
 			if err != nil {
 				return nil, err
 			}

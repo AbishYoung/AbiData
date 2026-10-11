@@ -4242,6 +4242,15 @@
       "Result": {
         "additionalProperties": false,
         "properties": {
+          "column_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "columns": {
             "items": {
               "type": "string"
@@ -4270,6 +4279,7 @@
         },
         "required": [
           "columns",
+          "column_types",
           "rows",
           "truncated"
         ],

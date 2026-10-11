@@ -62,6 +62,12 @@ func (r *Rows) Columns() []string {
 	return cols
 }
 
+// ColumnOrigin reports the table and column a result column is read from
+// directly (both empty for expressions) and its declared type.
+func (r *Rows) ColumnOrigin(i int) (table, column, decl string) {
+	return r.st.ColumnTableName(i), r.st.ColumnOriginName(i), r.st.ColumnDeclType(i)
+}
+
 // ColumnCount returns the number of result columns.
 func (r *Rows) ColumnCount() int { return r.st.ColumnCount() }
 

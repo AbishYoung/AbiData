@@ -442,7 +442,39 @@ func (svc *Service) RunSaved(ctx context.Context, l *workspace.Lease, p Policy, 
 	if err != nil {
 		return Result{}, err
 	}
-	return Run(ctx, l, p, s.SQL, params, limit)
+	return svc.runSQL(ctx, l, p, s.SQL, s.Visual, params, limit)
+}
+
+// Run executes SQL (the console) with column types resolved from the catalog.
+func (svc *Service) Run(ctx context.Context, l *workspace.Lease, p Policy, sql string, params Params, limit int) (Result, error) {
+	return svc.runSQL(ctx, l, p, sql, nil, params, limit)
+}
+
+// RunModel compiles and runs an unsaved visual model.
+func (svc *Service) RunModel(ctx context.Context, l *workspace.Lease, p Policy, m Model, params Params, limit int) (Result, error) {
+	c, err := svc.CompileModel(ctx, l, m)
+	if err != nil {
+		return Result{}, err
+	}
+	sch, err := svc.Schemas.Get(ctx, l)
+	if err != nil {
+		return Result{}, err
+	}
+	return RunTyped(ctx, l, p, sch, c.Types, c.SQL, params, limit)
+}
+
+func (svc *Service) runSQL(ctx context.Context, l *workspace.Lease, p Policy, sql string, visual *Model, params Params, limit int) (Result, error) {
+	sch, err := svc.Schemas.Get(ctx, l)
+	if err != nil {
+		return Result{}, err
+	}
+	var hints []string
+	if visual != nil {
+		if c, err := svc.CompileModel(ctx, l, *visual); err == nil {
+			hints = c.Types
+		}
+	}
+	return RunTyped(ctx, l, p, sch, hints, sql, params, limit)
 }
 
 // Usage is one object that depends on a target.
