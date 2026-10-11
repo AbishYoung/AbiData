@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog } from "radix-ui";
@@ -54,7 +55,7 @@ export function FormRuntime({ ws, formId, tabKey }: { ws: string; formId: string
       </div>
     );
   }
-  if (!form.data || !env || !workspace.data) return <p className="p-4 text-fg-muted">Loading form…</p>;
+  if (!form.data || !env || !workspace.data) return <SkeletonLines rows={6} label="Loading form…" />;
 
   const alert = alerts[0];
   return (
@@ -63,8 +64,8 @@ export function FormRuntime({ ws, formId, tabKey }: { ws: string; formId: string
       <ToastRegion toasts={toasts} onDismiss={dismiss} />
       <AlertDialog.Root open={alert !== undefined}>
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 text-fg shadow-xl">
+          <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 text-fg shadow-lg">
             <AlertDialog.Title className="text-base font-semibold">{alert?.title ?? (alert?.level === "error" ? "Error" : "Notice")}</AlertDialog.Title>
             <AlertDialog.Description className="mt-2 text-sm">{alert?.text}</AlertDialog.Description>
             <div className="mt-4 flex justify-end">

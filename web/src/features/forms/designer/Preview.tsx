@@ -161,8 +161,8 @@ export function Preview({
   }
 
   return (
-    <div data-testid="form-preview" className="min-h-0 flex-1 overflow-auto p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+    <div data-testid="form-preview" className="min-h-0 flex-1 overflow-auto bg-bg p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-fg-muted">
         <span role="status">
           {state.sourceKind === "none"
             ? "No record source: showing the layout only."
@@ -186,7 +186,7 @@ export function Preview({
           </>
         )}
       </div>
-      <div className="inline-block border border-border bg-surface">{body}</div>
+      <div className="inline-block rounded-lg border border-border bg-surface shadow-sm">{body}</div>
     </div>
   );
 }

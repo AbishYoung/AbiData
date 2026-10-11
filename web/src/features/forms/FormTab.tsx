@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { lazy, Suspense } from "react";
 import { FormRuntime } from "./runtime/FormRuntime";
 
@@ -7,7 +8,7 @@ const FormDesigner = lazy(() => import("./designer/FormDesigner").then((m) => ({
 export function FormTab({ ws, formId, tabKey, view }: { ws: string; formId: string | null; tabKey: string; view: "form" | "design" }) {
   if (view === "design" || formId === null) {
     return (
-      <Suspense fallback={<p className="p-4 text-fg-muted">Loading designer…</p>}>
+      <Suspense fallback={<SkeletonLines rows={6} label="Loading designer…" />}>
         <FormDesigner ws={ws} formId={formId} tabKey={tabKey} />
       </Suspense>
     );
