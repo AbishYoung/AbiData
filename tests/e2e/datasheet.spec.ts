@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { signIn } from "./helpers";
 import {
   callApi,
@@ -291,6 +291,126 @@ test("resolves a concurrent edit in the merge dialog", async ({ page }) => {
   await dialog.getByRole("button", { name: "Discard mine" }).click();
   await expect(dialog).toBeHidden();
   await expect(await cellAt(grid, await rowIndexOf(grid, "Alpha final"), "Name")).toHaveText("Alpha final");
+});
+
+/** A second browser context signed in as another session, with the same table open. */
+async function secondUser(browser: Browser, baseURL: string | undefined): Promise<{ page: Page; grid: Locator; close: () => Promise<void> }> {
+  const context = await browser.newContext({ baseURL, timezoneId: "America/New_York" });
+  const page = await context.newPage();
+  const grid = await openTable(page, f, "Everything");
+  return { page, grid, close: () => context.close() };
+}
+
+/** Types a new value into a cell of the record whose Name is `record` and leaves the editor with Tab. */
+async function typeInto(page: Page, grid: Locator, record: string, column: string, value: string): Promise<void> {
+  const n = await rowIndexOf(grid, record);
+  await clickCell(grid, n, column);
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type(value);
+  await page.keyboard.press("Tab");
+}
+
+async function removeRow(page: Page, id: number): Promise<void> {
+  const row = await getRow(page, f, f.everythingId, id);
+  const res = await callApi(page, "DELETE", `/api/v1/w/${f.ws}/tables/${f.everythingId}/rows/${id}`, undefined, { "If-Match": `"${row._version}"` });
+  expect(res.status).toBe(204);
+}
+
+test("merges edits to different fields of one record without asking", async ({ page, browser, baseURL }) => {
+  const grid = await openTable(page, f, "Everything");
+  await expect.poll(() => countOf(grid)).toBe(5);
+  const nameId = f.cols.Name ?? "";
+  const qtyId = f.cols.Quantity ?? "";
+  const notesId = f.cols.Notes ?? "";
+  const rec = await insertRow(page, f, { [nameId]: "Merge A", [qtyId]: 3 });
+  await expect.poll(() => countOf(grid)).toBe(6);
+  const other = await secondUser(browser, baseURL);
+  try {
+    await expect.poll(() => countOf(other.grid)).toBe(6);
+    // I start editing Notes; the other user saves Quantity of the same record first.
+    await typeInto(page, grid, "Merge A", "Notes", "note mine");
+    await typeInto(other.page, other.grid, "Merge A", "Quantity", "42");
+    await other.page.keyboard.press("ArrowDown");
+    await expect.poll(async () => Number((await getRow(page, f, f.everythingId, rec.id)).fields[qtyId])).toBe(42);
+    const n = await rowIndexOf(grid, "Merge A");
+    await expect(await cellAt(grid, n, "Quantity")).toHaveText("42"); // the live update arrived
+    await expect(rowAt(grid, n).getByRole("rowheader")).toContainText("Unsaved changes");
+
+    await page.keyboard.press("ArrowDown"); // leaving the row saves it
+    await expect(page.getByText("Merged with changes made by someone else")).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect.poll(async () => (await getRow(page, f, f.everythingId, rec.id)).fields[notesId]).toBe("note mine");
+    const merged = await getRow(page, f, f.everythingId, rec.id);
+    expect(Number(merged.fields[qtyId])).toBe(42);
+    expect(merged.fields[nameId]).toBe("Merge A");
+    await expect(await cellAt(grid, n, "Notes")).toHaveText("note mine");
+    await expect(await cellAt(grid, n, "Quantity")).toHaveText("42");
+    await expect(rowAt(grid, n).getByRole("rowheader")).not.toContainText("Unsaved changes");
+  } finally {
+    await other.close();
+    await removeRow(page, rec.id);
+  }
+});
+
+test("asks only about the field both users changed, with Before, Theirs and Mine", async ({ page, browser, baseURL }) => {
+  const grid = await openTable(page, f, "Everything");
+  await expect.poll(() => countOf(grid)).toBe(5);
+  const nameId = f.cols.Name ?? "";
+  const qtyId = f.cols.Quantity ?? "";
+  const rec = await insertRow(page, f, { [nameId]: "Merge B", [qtyId]: 3 });
+  await expect.poll(() => countOf(grid)).toBe(6);
+  const other = await secondUser(browser, baseURL);
+  const dialog = page.getByRole("dialog", { name: "Someone else changed this record" });
+  try {
+    await expect.poll(() => countOf(other.grid)).toBe(6);
+
+    // Round 1: I change Name and Quantity, the other user changes Name. Quantity merges silently.
+    await typeInto(page, grid, "Merge B", "Name", "B mine");
+    await typeInto(page, grid, "B mine", "Quantity", "7");
+    await typeInto(other.page, other.grid, "Merge B", "Name", "B theirs");
+    await other.page.keyboard.press("ArrowDown");
+    await expect.poll(async () => (await getRow(page, f, f.everythingId, rec.id)).fields[nameId]).toBe("B theirs");
+    await page.keyboard.press("ArrowDown");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("group")).toHaveCount(1);
+    const group = dialog.getByRole("group", { name: "Name" });
+    await expect(group).toContainText("Before");
+    await expect(group).toContainText("Merge B");
+    await expect(group).toContainText("B theirs");
+    await expect(group).toContainText("B mine");
+    await expect(dialog.getByRole("group", { name: "Quantity" })).toHaveCount(0);
+    await expectDatasheetAccessible(page);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expectDatasheetAccessible(page);
+    await page.emulateMedia({ colorScheme: "light" });
+    await dialog.getByRole("radio", { name: /Mine/ }).check();
+    await dialog.getByRole("button", { name: "Save merged" }).click();
+    await expect(dialog).toBeHidden();
+    let after = await getRow(page, f, f.everythingId, rec.id);
+    expect(after.fields[nameId]).toBe("B mine");
+    expect(Number(after.fields[qtyId])).toBe(7);
+
+    // Round 2: choose Theirs; the non-conflicting Quantity change is still saved.
+    await typeInto(page, grid, "B mine", "Name", "B mine 2");
+    await typeInto(page, grid, "B mine 2", "Quantity", "8");
+    await typeInto(other.page, other.grid, "B mine", "Name", "B theirs 2");
+    await other.page.keyboard.press("ArrowDown");
+    await expect.poll(async () => (await getRow(page, f, f.everythingId, rec.id)).fields[nameId]).toBe("B theirs 2");
+    await page.keyboard.press("ArrowDown");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("group")).toHaveCount(1);
+    await dialog.getByRole("radio", { name: /Theirs/ }).check();
+    await dialog.getByRole("button", { name: "Save merged" }).click();
+    await expect(dialog).toBeHidden();
+    after = await getRow(page, f, f.everythingId, rec.id);
+    expect(after.fields[nameId]).toBe("B theirs 2");
+    expect(Number(after.fields[qtyId])).toBe(8);
+    await expect(await cellAt(grid, await rowIndexOf(grid, "B theirs 2"), "Quantity")).toHaveText("8");
+  } finally {
+    await other.close();
+    await removeRow(page, rec.id);
+  }
 });
 
 test("an edit in progress never lands on another record when a live update shifts the rows", async ({ page }) => {

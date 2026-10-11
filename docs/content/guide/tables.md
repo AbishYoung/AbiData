@@ -90,11 +90,17 @@ Other people's changes appear live. The status bar shows **Updates: Live** while
 
 ### Conflicts and the merge dialog {#editing-conflicts}
 
-Every record has a version number. When you save, AbiData checks that the record has not changed since you opened it. If someone else saved first, nothing is overwritten and the **Someone else changed this record** dialog opens.
+Every record has a version number. When you save, AbiData checks that the record has not changed since you started editing it. Nothing is ever overwritten silently.
 
-For each field you changed, choose **Mine** or **Theirs**, then choose **Save merged**. **Discard mine** drops your edits and shows the other person's version. The underlying error is [CONCURRENT_MODIFICATION](/docs/reference/errors#concurrent-modification).
+If someone else saved the record first, AbiData compares field by field, using the values as they were when you started editing as the starting point:
 
-Fields you did not change always keep the latest saved value.
+- **Different fields.** If the other person changed fields you did not touch, or other fields than the ones you changed, your changes are saved on top of theirs. You see a short "Merged with changes made by someone else" message and no dialog.
+- **Same value.** If the other person changed a field you also changed, but to the same value, there is nothing to decide.
+- **Same field, different values.** Only then does the **Someone else changed this record** dialog open. It lists just those fields, with the value **Before** you started, **Theirs** and **Mine**. Choose **Mine** or **Theirs** for each, then choose **Save merged**. Your other, non-overlapping changes are saved along with your choices. **Discard mine** drops your edits and shows the other person's version.
+
+Fields you did not change always keep the latest saved value. If several people keep saving the same record while you merge, AbiData tries a few times and then opens the dialog. If the other person deleted the record while you were editing it, your edits cannot be saved and you are told the record no longer exists. The underlying error is [CONCURRENT_MODIFICATION](/docs/reference/errors#concurrent-modification).
+
+On a phone, saving from the record sheet works the same way.
 
 ## Filter and sort {#filters}
 
