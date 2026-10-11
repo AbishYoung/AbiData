@@ -9,6 +9,14 @@ export interface Toast {
   id: number;
   level: ToastLevel;
   text: string;
+  /** Optional button beside the text; the toast stays until dismissed when `sticky`. */
+  action?: { label: string; onClick: () => void };
+  sticky?: boolean;
+}
+
+export interface ToastOptions {
+  action?: Toast["action"];
+  sticky?: boolean;
 }
 
 const LIFETIME_MS = 6000;
@@ -27,9 +35,10 @@ export function useToasts() {
   }, []);
 
   const push = useCallback(
-    (level: ToastLevel, text: string) => {
+    (level: ToastLevel, text: string, opts?: ToastOptions) => {
       const id = next.current++;
-      setToasts((all) => [...all.slice(-4), { id, level, text }]);
+      setToasts((all) => [...all.slice(-4), { id, level, text, ...opts }]);
+      if (opts?.sticky) return;
       timers.current.set(
         id,
         setTimeout(() => dismiss(id), LIFETIME_MS),
@@ -118,6 +127,18 @@ export function ToastRegion({
               <span className="sr-only">{LABEL[t.level]}: </span>
               {t.text}
             </p>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.action?.onClick();
+                  onDismiss(t.id);
+                }}
+                className="shrink-0 self-center rounded-md px-2 py-1 text-sm font-medium text-accent hover:bg-accent-soft"
+              >
+                {t.action.label}
+              </button>
+            )}
             <Tip label="Dismiss notification">
               <button
                 type="button"

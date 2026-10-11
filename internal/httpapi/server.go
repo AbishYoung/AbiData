@@ -213,15 +213,13 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 	if name != "" && name != "index.html" {
 		if st, err := fs.Stat(s.deps.SPA, name); err == nil && !st.IsDir() {
-			if strings.HasPrefix(name, "assets/") {
-				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			} else {
-				w.Header().Set("Cache-Control", "no-cache")
-			}
+			setStaticHeaders(w, name)
 			http.ServeFileFS(w, r, s.deps.SPA, name) //nolint:gosec // name is path.Clean-ed and fs.FS rejects ".." elements
 			return
 		}
-		if strings.HasPrefix(name, "assets/") {
+		// Real files that must never be answered with index.html (a service worker or manifest
+		// that "exists" as HTML would be rejected by the browser and could wedge installs).
+		if isStaticPath(name) {
 			http.NotFound(w, r)
 			return
 		}
@@ -234,6 +232,36 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(body)
+}
+
+// isStaticPath reports whether name is a build artifact path, as opposed to an SPA route.
+func isStaticPath(name string) bool {
+	switch name {
+	case "sw.js", "manifest.webmanifest", "offline.html", "favicon.svg":
+		return true
+	}
+	return strings.HasPrefix(name, "assets/") || strings.HasPrefix(name, "icons/")
+}
+
+// setStaticHeaders sets Content-Type and Cache-Control for a file from the SPA build:
+// hashed assets are immutable, icons cache for a day, and everything else (index.html,
+// sw.js, the manifest, the offline page) revalidates on every load so updates land.
+func setStaticHeaders(w http.ResponseWriter, name string) {
+	h := w.Header()
+	switch {
+	case strings.HasPrefix(name, "assets/"):
+		h.Set("Cache-Control", "public, max-age=31536000, immutable")
+	case strings.HasPrefix(name, "icons/") || name == "favicon.svg":
+		h.Set("Cache-Control", "public, max-age=86400")
+	default:
+		h.Set("Cache-Control", "no-cache")
+	}
+	switch name {
+	case "manifest.webmanifest":
+		h.Set("Content-Type", "application/manifest+json")
+	case "sw.js":
+		h.Set("Content-Type", "text/javascript; charset=utf-8")
+	}
 }
 
 func (s *Server) cookieName() string {
