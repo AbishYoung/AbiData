@@ -296,7 +296,7 @@ func TestRenameColumnBreaksSavedQuery(t *testing.T) {
 	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "People", Columns: []ColumnSpec{{DisplayName: "Forename", Type: ShortText}}}})
 	tb, _ := f.schema().TableByPhysical("People")
 	first, _ := tb.ColumnByPhysical("Forename")
-	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By first', 'sql', 'SELECT "First" FROM "People"', ?, 'u')`,
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By first', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`,
 		ids.New(), sqlitex.Now())
 	op := Op{Kind: OpRenameColumn, TableID: tb.ID, ColumnID: first.ID, PhysicalName: "GivenName"}
 	r, err := f.run(Preview, ApplyOptions{}, op)
@@ -314,6 +314,40 @@ func TestRenameColumnBreaksSavedQuery(t *testing.T) {
 	}
 	if _, ok := f.schema().Tables[0].ColumnByPhysical("GivenName"); !ok {
 		t.Fatal("rename not applied")
+	}
+}
+
+// A query broken by an earlier, confirmed change must not block later changes that do not touch it.
+func TestAlreadyBrokenQueryDoesNotBlockUnrelatedChanges(t *testing.T) {
+	f := newFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "People", Columns: []ColumnSpec{{DisplayName: "Forename", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("People")
+	fn, _ := tb.ColumnByPhysical("Forename")
+	broken, other := ids.New(), ids.New()
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By forename', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`, broken, sqlitex.Now())
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'All people', 'sql', 'SELECT id FROM "People"', ?, 'u')`, other, sqlitex.Now())
+
+	// Dropping the field breaks "By forename" only; the builder confirms.
+	drop := Op{Kind: OpDropColumn, TableID: tb.ID, ColumnID: fn.ID}
+	r, err := f.run(Preview, ApplyOptions{}, drop)
+	if err != nil || len(r.Breaking) != 1 || r.Breaking[0].ID != broken {
+		t.Fatalf("drop preview: %+v %v", r, err)
+	}
+	if _, err := f.run(Apply, ApplyOptions{Force: true}, drop); err != nil {
+		t.Fatal(err)
+	}
+
+	// An unrelated new table is no longer blocked by the query that is already broken.
+	create := Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Things", Columns: []ColumnSpec{{DisplayName: "Label", Type: ShortText}}}}
+	r, err = f.run(Apply, ApplyOptions{}, create)
+	if err != nil || len(r.Breaking) != 0 {
+		t.Fatalf("unrelated change blocked: %+v %v", r, err)
+	}
+	// A change that breaks a query that still works is reported as before.
+	tb, _ = f.schema().TableByPhysical("People")
+	r, err = f.run(Preview, ApplyOptions{}, Op{Kind: OpDropTable, TableID: tb.ID})
+	if err != nil || len(r.Breaking) != 1 || r.Breaking[0].ID != other {
+		t.Fatalf("working query not reported: %+v %v", r, err)
 	}
 }
 

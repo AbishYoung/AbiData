@@ -88,6 +88,12 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 				return fault.New(fault.ConcurrentModification, "The table design was changed by someone else since you opened it. Nothing was changed; reload and try again.").
 					WithDetails(map[string]any{"schema_version": s.Version})
 			}
+			// What is already broken before this change must not block it: a query broken by an earlier
+			// confirmed change would otherwise stop every later, unrelated change.
+			baseline, err := baselineBreakage(ctx, tx, s, e.Validators)
+			if err != nil {
+				return err
+			}
 			p := &planner{ctx: ctx, tx: tx, s: s, report: &report, now: e.clock(), user: opt.UserID,
 				touched: map[string]bool{}, created: map[string]string{}}
 			for i, op := range ops {
@@ -99,6 +105,7 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 			if err := p.impact(e.Validators); err != nil {
 				return err
 			}
+			p.dropPreexisting(baseline)
 			if err := p.finish(ops); err != nil {
 				return err
 			}
@@ -1402,6 +1409,11 @@ func (p *planner) impact(validators []Validator) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	return p.checkObjects(validators)
+}
+
+// checkObjects reports the saved queries, forms, reports and scripts the current schema breaks.
+func (p *planner) checkObjects(validators []Validator) error {
 	// Validators run first: they may recompile derived SQL (visual queries) in
 	// this transaction before every saved query is re-prepared.
 	for _, v := range validators {
@@ -1413,6 +1425,41 @@ func (p *planner) impact(validators []Validator) error {
 		p.report.Warnings = append(p.report.Warnings, w...)
 	}
 	return p.checkSavedQueries()
+}
+
+func issueKey(i Issue) string { return i.Kind + "|" + i.Object + "|" + i.ID }
+
+// baselineBreakage returns the objects that are already broken in schema s, before any change.
+func baselineBreakage(ctx context.Context, tx *sqlitex.Tx, s *Schema, validators []Validator) (map[string]bool, error) {
+	bp := &planner{ctx: ctx, tx: tx, s: s, report: &ImpactReport{}}
+	if err := bp.checkObjects(validators); err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, b := range bp.report.Breaking {
+		out[issueKey(b)] = true
+	}
+	return out, nil
+}
+
+// dropPreexisting removes breaking findings about objects that were already broken before the change.
+// Data findings (conversions, constraints, foreign keys) always stay.
+func (p *planner) dropPreexisting(baseline map[string]bool) {
+	if len(baseline) == 0 {
+		return
+	}
+	kept := p.report.Breaking[:0]
+	for _, b := range p.report.Breaking {
+		switch b.Kind {
+		case "fk_violation", "constraint_violation", "conversion_failure":
+		default:
+			if b.ID != "" && baseline[issueKey(b)] {
+				continue
+			}
+		}
+		kept = append(kept, b)
+	}
+	p.report.Breaking = kept
 }
 
 func (p *planner) checkSavedQueries() error {
