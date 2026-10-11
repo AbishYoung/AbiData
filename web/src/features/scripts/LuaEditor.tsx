@@ -58,7 +58,7 @@ export function LuaEditor({ value, onChange, kind, ws, label, height = "24rem" }
 
   return (
     <div className="flex min-h-0 flex-col" data-testid="lua-editor">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-3 py-1.5 text-sm">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border bg-surface-2/50 px-3 py-1.5 text-sm">
         <label htmlFor={toggleId} className="inline-flex cursor-pointer items-center gap-2">
           <input id={toggleId} type="checkbox" checked={plain} onChange={(e) => setPlain(e.target.checked)} />
           Plain text editor
@@ -79,7 +79,7 @@ export function LuaEditor({ value, onChange, kind, ws, label, height = "24rem" }
           className="w-full resize-y border-0 bg-surface p-3 font-mono text-sm text-fg"
         />
       ) : (
-        <Suspense fallback={<p role="status" className="p-3 text-fg-muted">Loading the code editor…</p>}>
+        <Suspense fallback={<div role="status" className="space-y-2 p-4"><span className="sr-only">Loading the code editor…</span>{[80, 60, 70, 40].map((w) => <div key={w} aria-hidden="true" className="h-3 animate-pulse rounded bg-surface-3" style={{ width: `${w}%` }} />)}</div>}>
           <MonacoEditor
             value={value}
             onChange={onChange}

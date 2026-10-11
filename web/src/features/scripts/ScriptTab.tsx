@@ -1,9 +1,11 @@
+import { KindIcon } from "@/components/objectKinds";
+import { SkeletonLines, ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, Search, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { alertBox, badge, badgeSuccess, badgeWarning, btn, btnGhost, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { DeleteScriptDialog } from "./DeleteScriptDialog";
 import { LuaEditor } from "./LuaEditor";
@@ -106,7 +108,7 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
         }
       }}
     >
-      <div className="flex flex-wrap items-end gap-3 border-b border-border px-3 py-2">
+      <div className="flex flex-wrap items-end gap-3 border-b border-border bg-surface px-3 py-2 shadow-xs">
         <div className="w-64">
           <label className={labelClass} htmlFor={nameId}>
             Script name
@@ -143,7 +145,7 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
           </button>
         </Tip>
       </div>
-      <p id={hintId} className="m-0 px-3 py-1 text-sm text-fg-muted">
+      <p id={hintId} className="m-0 border-b border-border bg-surface-2/50 px-3 py-1.5 text-xs text-fg-muted">
         {kind === "module"
           ? "Start with a letter; letters, digits, underscore and dot. Other scripts load it with require(\"name\")."
           : "Job scripts run on a schedule or on demand and can use fetch and staging."}
@@ -168,9 +170,7 @@ function SavedScript({ ws, scriptId, tabKey }: { ws: string; scriptId: string; t
     );
   }
   return (
-    <p role="status" className="p-4 text-fg-muted">
-      Loading script…
-    </p>
+    <SkeletonLines rows={8} label="Loading script…" />
   );
 }
 
@@ -233,9 +233,10 @@ function SavedBody({ ws, script, tabKey }: { ws: string; script: Script; tabKey:
         }
       }}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <h2 className="m-0 mr-2 text-base font-semibold">{script.name}</h2>
-        <span className="mr-2 text-fg-muted">{KIND_LABEL[script.kind]}</span>
+      <div className={docToolbar}>
+        <KindIcon kind="script" size="sm" />
+        <h2 className="m-0 text-sm font-semibold">{script.name}</h2>
+        <span className={`${badge} mr-2`}>{KIND_LABEL[script.kind]}</span>
         <Tip label="Save the script" shortcut="Mod+S">
           <button type="button" className={btnPrimary} disabled={!dirty || save.isPending} onClick={doSave}>
             <Save size={16} aria-hidden="true" />
@@ -243,22 +244,23 @@ function SavedBody({ ws, script, tabKey }: { ws: string; script: Script; tabKey:
           </button>
         </Tip>
         <Tip label="Discard unsaved changes">
-          <button type="button" className={btn} disabled={!dirty} onClick={revert}>
+          <button type="button" className={btnGhost} disabled={!dirty} onClick={revert}>
             <Undo2 size={16} aria-hidden="true" />
             Revert
           </button>
         </Tip>
-        <button type="button" className={btn} onClick={() => setConfirmDelete(true)}>
+        <ToolbarDivider />
+        <button type="button" className={btnGhost} onClick={() => setConfirmDelete(true)}>
           <Trash2 size={16} aria-hidden="true" />
           Delete
         </button>
         {script.kind === "module" && (
-          <button type="button" className={btn} aria-expanded={showUsages} onClick={() => setShowUsages(true)}>
+          <button type="button" className={btnGhost} aria-expanded={showUsages} onClick={() => setShowUsages(true)}>
             <Search size={16} aria-hidden="true" />
             Find usages
           </button>
         )}
-        <span className="ml-auto text-fg-muted">{dirty ? "Unsaved changes" : "Saved"}</span>
+        <span className={`ml-auto ${dirty ? badgeWarning : badgeSuccess}`}>{dirty ? "Unsaved changes" : "Saved"}</span>
       </div>
       {changedElsewhere && !conflict && (
         <div role="alert" className={`${alertBox} mx-3 my-2`}>
@@ -291,7 +293,7 @@ function SavedBody({ ws, script, tabKey }: { ws: string; script: Script; tabKey:
 function UsagesPanel({ ws, id, name, onClose }: { ws: string; id: string; name: string; onClose: () => void }) {
   const usages = useQuery({ queryKey: scriptKeys.usages(ws, id), queryFn: () => scriptUsages(ws, id), staleTime: 0, gcTime: 0 });
   return (
-    <section aria-label={`Usages of ${name}`} className="border-b border-border px-3 py-2 text-sm">
+    <section aria-label={`Usages of ${name}`} className="border-b border-border bg-surface-2/50 px-3 py-2 text-sm">
       <div className="flex items-center gap-2">
         <h3 className="m-0 text-sm font-semibold">Usages of {name}</h3>
         <button type="button" className={`${btn} ml-auto`} onClick={onClose}>
@@ -302,9 +304,9 @@ function UsagesPanel({ ws, id, name, onClose }: { ws: string; id: string; name: 
       <ErrorBox error={usages.error} />
       {usages.data && usages.data.length === 0 && <p className="m-0 text-fg-muted">Nothing uses this script.</p>}
       {usages.data && usages.data.length > 0 && (
-        <ul className="m-0 list-none p-0">
+        <ul className="m-0 mt-1 list-none divide-y divide-border p-0">
           {usages.data.map((u) => (
-            <li key={`${u.kind}:${u.id}`}>
+            <li key={`${u.kind}:${u.id}`} className="py-1">
               {u.name} ({u.kind}
               {u.confidence === "heuristic" ? ", possible match" : ""})
             </li>
