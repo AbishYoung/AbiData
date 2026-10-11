@@ -295,7 +295,7 @@ export function BackupsPanel({ ws }: { ws: string }) {
         <SkeletonLines rows={3} label="Loading backups…" />
       )}
       {list.data && (
-        <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full border-collapse text-sm">
+        <div className="scroll-shadow overflow-x-auto rounded-lg border border-border"><table className="w-full border-collapse text-sm">
           <caption className="sr-only">Backups, newest first</caption>
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left">

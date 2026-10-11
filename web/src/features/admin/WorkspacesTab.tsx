@@ -192,7 +192,7 @@ export function WorkspacesTab() {
         </p>
       )}
       {q.data && (
-        <table className="w-full border-collapse text-sm">
+        <div className="scroll-shadow overflow-x-auto"><table className="w-full border-collapse text-sm">
           <caption className="sr-only">All workspaces</caption>
           <thead>
             <tr>
@@ -244,7 +244,7 @@ export function WorkspacesTab() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
       {dialog?.kind === "new" && <WorkspaceDialog onClose={() => setDialog(null)} onSaved={done} />}
       {dialog?.kind === "edit" && <WorkspaceDialog existing={dialog.ws} onClose={() => setDialog(null)} onSaved={done} />}

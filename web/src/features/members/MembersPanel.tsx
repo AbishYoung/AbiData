@@ -285,15 +285,15 @@ function MembersPanelInner({ ws, selfId, isPlatformAdmin }: { ws: string; selfId
         </p>
       )}
       {list.data && (
-        <table className="w-full border-collapse text-sm">
+        <table className="stack-table w-full border-collapse text-sm" role="table">
           <caption className="sr-only">Workspace members</caption>
           <thead>
-            <tr className="text-left">
-              <th scope="col" className="px-2 py-1 font-semibold">Member</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Email</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Role</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Change role</th>
-              <th scope="col" className="px-2 py-1">
+            <tr role="row" className="text-left">
+              <th scope="col" role="columnheader" className="px-2 py-1 font-semibold">Member</th>
+              <th scope="col" role="columnheader" className="px-2 py-1 font-semibold">Email</th>
+              <th scope="col" role="columnheader" className="px-2 py-1 font-semibold">Role</th>
+              <th scope="col" role="columnheader" className="px-2 py-1 font-semibold">Change role</th>
+              <th scope="col" role="columnheader" className="px-2 py-1">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -302,8 +302,8 @@ function MembersPanelInner({ ws, selfId, isPlatformAdmin }: { ws: string; selfId
             {rows.map((m) => {
               const name = m.display_name || m.email;
               return (
-                <tr key={m.user_id} data-member-id={m.user_id} data-email={m.email} className="border-t border-border align-middle">
-                  <th scope="row" className="px-2 py-1.5 text-left font-medium">
+                <tr key={m.user_id} role="row" data-member-id={m.user_id} data-email={m.email} className="border-t border-border align-middle">
+                  <th scope="row" role="rowheader" className="px-2 py-1.5 text-left font-medium">
                     <span className="flex items-center gap-2">
                       <span
                         aria-hidden="true"
@@ -317,11 +317,11 @@ function MembersPanelInner({ ws, selfId, isPlatformAdmin }: { ws: string; selfId
                       </span>
                     </span>
                   </th>
-                  <td className="px-2 py-1.5">{m.email}</td>
-                  <td className="px-2 py-1.5">
+                  <td role="cell" data-label="Email" className="px-2 py-1.5 [overflow-wrap:anywhere]">{m.email}</td>
+                  <td role="cell" data-label="Role" className="px-2 py-1.5">
                     <span className={m.role === "owner" ? badgeAccent : badge}>{roleLabel(m.role)}</span>
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td role="cell" data-label="Change role" className="px-2 py-1.5">
                     <select
                       aria-label={`Role for ${name}`}
                       className={`${selectClass} max-w-36`}
@@ -336,7 +336,7 @@ function MembersPanelInner({ ws, selfId, isPlatformAdmin }: { ws: string; selfId
                       ))}
                     </select>
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td role="cell" data-stack="full" className="px-2 py-1.5">
                     <div className="flex justify-end">
                       <Tip label="Remove from this workspace">
                         <button
