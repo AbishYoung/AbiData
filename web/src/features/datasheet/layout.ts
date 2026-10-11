@@ -28,8 +28,13 @@ const DEFAULT_WIDTH: Record<ValueKind, number> = {
   autonumber: 90,
 };
 
+/** Room a header needs for its name: ~7.4px per character plus padding, sort arrow and menu button. */
+function headerWidth(col: Column): number {
+  return Math.min(Math.round(col.display_name.length * 7.4) + 64, 260);
+}
+
 export function defaultWidth(col: Column): number {
-  return DEFAULT_WIDTH[kindOf(col)];
+  return Math.max(DEFAULT_WIDTH[kindOf(col)], headerWidth(col));
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {

@@ -68,5 +68,8 @@ describe("column order and width", () => {
     expect(clampWidth(5000)).toBe(800);
     expect(widthOf(col("a", "short_text"), { order: [], widths: { a: 222 } })).toBe(222);
     expect(widthOf(col("x", "yes_no"), emptyLayout)).toBe(90);
+    // A long header name widens the default so it is not clipped ("Discontinued" in a yes/no column).
+    const long = { ...col("y", "yes_no"), display_name: "Discontinued" };
+    expect(widthOf(long, emptyLayout)).toBeGreaterThanOrEqual(150);
   });
 });
