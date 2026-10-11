@@ -119,3 +119,9 @@ export function searchDocs(index: DocsIndex, query: string, limit = 12): DocHit[
   }
   return hits;
 }
+
+/** The result's heading line: the page title, plus the matching section unless it just repeats the title. */
+export function hitLabel(hit: Pick<DocHit, "title" | "anchorText">): string {
+  const a = hit.anchorText;
+  return a && a.trim().toLowerCase() !== hit.title.trim().toLowerCase() ? `${hit.title}: ${a}` : hit.title;
+}
