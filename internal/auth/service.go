@@ -55,7 +55,16 @@ type Principal struct {
 	IsPlatformAdmin bool
 	SessionHash     string
 	CSRFToken       string
+
+	// Set only for API-key callers (UserID is then "apikey:<APIKeyID>").
+	APIKeyID     string
+	APIKeyName   string
+	KeyWorkspace ids.WorkspaceID
+	KeyRole      admin.Role
 }
+
+// IsAPIKey reports whether the caller authenticated with an API key.
+func (p Principal) IsAPIKey() bool { return p.APIKeyID != "" }
 
 // Service authenticates users and manages sessions.
 type Service struct {
@@ -70,6 +79,12 @@ type Service struct {
 	// login floods cannot exhaust memory.
 	hashSlots chan struct{}
 
+	// KeyRatePerMinute is the per-key request budget (0: DefaultKeyRatePerMinute).
+	KeyRatePerMinute int
+	kmu              sync.Mutex
+	kbuckets         map[string]*keyBucket
+	ktouched         map[string]time.Time
+
 	setupMu    sync.Mutex
 	setupToken string // one-time bootstrap token; empty once used
 	setupEmail string
@@ -81,6 +96,7 @@ func NewService(repo admin.Repository, keys Keys, params Argon2Params, now func(
 		now = time.Now
 	}
 	return &Service{repo: repo, keys: keys, params: params, now: now, log: log,
+		kbuckets: map[string]*keyBucket{}, ktouched: map[string]time.Time{},
 		dummy:     sync.OnceValue(func() string { h, _ := HashPassword("dummy-password", params); return h }),
 		hashSlots: make(chan struct{}, max(2, min(8, runtime.GOMAXPROCS(0)/2)))}
 }

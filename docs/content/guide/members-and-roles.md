@@ -50,6 +50,10 @@ Only owners can manage members.
 
 Adding someone who does not have an account fails with a message asking you to have an administrator create it first. Adding someone who is already a member fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value).
 
+## Programs and API keys {#api-keys}
+
+Programs that are not people, such as a bot or a nightly sync, use an [API key](/docs/guide/api) instead of an account. A key has the viewer, editor or builder role, and the table above applies to it. A key is never an owner. Owners create and revoke keys in the workspace settings. Keys belong to the workspace, so removing the member who created a key does not stop it; revoke it explicitly.
+
 ## Choosing a role {#choosing}
 
 - Give most people **Editor**. They can do their daily work and cannot change the design.

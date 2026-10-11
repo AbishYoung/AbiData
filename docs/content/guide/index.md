@@ -20,6 +20,7 @@ The navigation pane on the left groups objects by type:
 | Reports | Printable, grouped output | [Reports](/docs/guide/reports) |
 | Scripts | Lua code behind forms, reports and jobs | [Scripts](/docs/guide/scripts) |
 | Jobs | Scripts that run on a schedule | [Jobs](/docs/guide/jobs) |
+| API keys | Access for bots and other programs | [API access](/docs/guide/api) |
 
 Each object opens in a tab. Builders and owners also get a view switcher on the tab (for example Datasheet and Design).
 
@@ -28,7 +29,8 @@ Each object opens in a tab. Builders and owners also get a view switcher on the 
 1. Create a table and add a few fields: [Tables](/docs/guide/tables).
 2. Type some records into the datasheet, or [import a CSV file](/docs/guide/imports-exports).
 3. Invite your team and choose their roles: [Members and roles](/docs/guide/members-and-roles).
-4. Take a [backup](/docs/guide/backups) before making big design changes.
+4. Connect other programs with an [API key](/docs/guide/api).
+5. Take a [backup](/docs/guide/backups) before making big design changes.
 
 If you run the server yourself, start with [Install](/docs/operations/install).
 

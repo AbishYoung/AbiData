@@ -20,6 +20,10 @@ func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, s.log, errNotFound)
 		return
 	}
+	if rejectBearer(r) {
+		writeError(w, r, s.log, errUnauth)
+		return
+	}
 	c, err := r.Cookie(s.cookieName())
 	if err != nil {
 		writeError(w, r, s.log, errUnauth)

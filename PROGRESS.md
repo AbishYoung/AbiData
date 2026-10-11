@@ -106,6 +106,9 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 
 - Import wizard / export UI merged: modal 4-step wizard (`web/src/features/imports`), Export dialog on table/query menus and the datasheet toolbar; e2e `import-export.spec.ts`.
 
+## API keys (post-brief feature, ADR 0009)
+- Workspace API keys for external bots: `abd_<keyID>_<secret>` bearer tokens (HMAC-hashed under the session key), viewer/editor/builder only, bound to one workspace, rate limited per key and per failing address, attributed as `apikey:<id>` in history/audit/created_by. Owner UI panel in workspace settings, admin console tab, docs page `guide/api` (examples run against a live server), e2e `apikeys.spec.ts`. Final run: go test -race, golangci-lint 0, vitest 349, e2e 95/95.
+
 ## Next (resume here)
 Nothing in flight. The brief is complete; Phase 8 declined. Remaining: watch the first CI run of the `container-smoke` job.
 Docker: CLI at ~/.docker/bin (not on PATH).

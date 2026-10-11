@@ -74,7 +74,13 @@ func (s *Store) PurgeSessions(ctx context.Context, now time.Time, idle time.Dura
 	err := s.Write(ctx, func(tx *sqlitex.Tx) error {
 		res, err := tx.Exec(ctx, `DELETE FROM _adm_sessions WHERE expires_at <= ? OR last_seen_at <= ?`,
 			now, now.Add(-idle))
+		if err != nil {
+			return err
+		}
 		n = res.Changes
+		// Throttle counters (sign-in and failed API-key attempts, one row per
+		// address) are dead after their window, which is at most 15 minutes.
+		_, err = tx.Exec(ctx, `DELETE FROM _adm_login_attempts WHERE window_start <= ?`, now.Add(-time.Hour))
 		return err
 	})
 	return n, err

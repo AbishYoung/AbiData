@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { alertBox, btn } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { BackupsPanel } from "@/features/backups/BackupsPanel";
+import { ApiKeysPanel } from "@/features/apikeys/ApiKeysPanel";
 import { getEgressHosts, settingsKeys } from "./settingsApi";
 
 /** Read-only list of the outbound hosts the platform administrator allows. */
@@ -60,6 +61,7 @@ export function EgressSettings({ ws }: { ws: string }) {
       <h2 className="m-0 text-base font-semibold">Workspace settings</h2>
       <AllowedHosts ws={ws} />
       <BackupsPanel ws={ws} />
+      <ApiKeysPanel ws={ws} />
     </div>
   );
 }
