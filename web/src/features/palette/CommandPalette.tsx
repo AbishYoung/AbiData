@@ -19,6 +19,7 @@ export function CommandPalette() {
         <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content
           aria-describedby={undefined}
+          data-presentation="top"
           className={`${dialogPanel} !top-[14vh] !-translate-y-0 w-[min(36rem,calc(100vw-2rem))] overflow-hidden`}
         >
           <Palette onDone={() => setOpen(false)} />

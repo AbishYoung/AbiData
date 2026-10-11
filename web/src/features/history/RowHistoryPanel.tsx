@@ -92,6 +92,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content
           aria-describedby={undefined}
+          data-presentation="side"
           onCloseAutoFocus={(e) => {
             if (opener.current instanceof HTMLElement && opener.current.isConnected) {
               e.preventDefault();

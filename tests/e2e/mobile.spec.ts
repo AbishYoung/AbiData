@@ -294,6 +294,28 @@ test("dialogs are bottom sheets and menus fit the screen", async ({ page }) => {
   await shot(page, "bottom-sheet");
   await dialog.getByRole("button", { name: "Cancel" }).tap();
   await expect(dialog).toHaveCount(0);
+
+  // Side sheets and the command palette are not bottom sheets: documentation fills the width, the palette is full width near the top.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Search commands" }).tap();
+  const palette = page.getByRole("dialog");
+  await expect(palette).toBeVisible();
+  await settleAnimations(page);
+  const pb = (await palette.boundingBox())!;
+  expect(pb.y).toBeLessThan(vp.height * 0.25);
+  expect(Math.round(pb.width)).toBe(vp.width);
+  await shot(page, "palette");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /Admin/ }).tap();
+  await page.getByRole("menuitem", { name: "Documentation" }).tap();
+  const docs = page.getByRole("dialog", { name: "Documentation" });
+  await expect(docs).toBeVisible();
+  await settleAnimations(page);
+  const db = (await docs.boundingBox())!;
+  expect(Math.round(db.x)).toBe(0);
+  expect(Math.round(db.height)).toBe(vp.height);
+  await shot(page, "docs");
+  await page.keyboard.press("Escape");
 });
 
 test("touch targets are at least 44px and key pages do not scroll sideways", async ({ page }) => {

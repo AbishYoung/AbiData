@@ -233,6 +233,7 @@ export function DocsPanel() {
         <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content
           aria-describedby={undefined}
+          data-presentation="side"
           onOpenAutoFocus={onOpenAutoFocus}
           onEscapeKeyDown={(e) => {
             // First Escape clears the search; the next one closes the panel.
