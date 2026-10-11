@@ -68,6 +68,8 @@ type plan struct {
 	Key     *catalog.Column
 	Mode    string
 	AllOrNo bool
+	// Notes say what the mapping leaves out on purpose (attachments fields).
+	Notes []string
 }
 
 var newTypes = map[catalog.FieldType]bool{
@@ -177,6 +179,12 @@ func planFor(sch *catalog.Schema, m ImportMapping, ncols int) (*plan, error) {
 			return nil, fault.Newf(fault.BadRequest, "%q is mapped from two source columns.", c.DisplayName)
 		}
 		seenCol[c.ID] = true
+		if c.Type == catalog.Attachments {
+			// Files cannot arrive in a spreadsheet: the column is left out, and the
+			// mapping step says so.
+			p.Notes = append(p.Notes, fmt.Sprintf("%q is an attachments field. Imports cannot attach files, so source column %d is ignored.", c.DisplayName, cm.Source+1))
+			continue
+		}
 		p.Cols = append(p.Cols, mapCol{Src: cm.Source, Stage: stagingCol(cm.Source), Col: *c})
 	}
 	if len(p.Cols) == 0 {
@@ -334,11 +342,16 @@ func (s *Service) SetMapping(ctx context.Context, l *workspace.Lease, id string,
 	if err != nil {
 		return ImportMeta{}, err
 	}
-	if _, err := planFor(sch, m, len(meta.Columns)); err != nil {
+	p, err := planFor(sch, m, len(meta.Columns))
+	if err != nil {
 		return ImportMeta{}, err
 	}
 	if m.Transaction == "" {
 		m.Transaction = TxChunked
+	}
+	meta.Notes = p.Notes
+	if meta.Notes == nil {
+		meta.Notes = []string{}
 	}
 	meta.Mapping, meta.Status = &m, StatusMapped
 	if err := saveMeta(ctx, c, meta); err != nil {
@@ -383,7 +396,7 @@ func (s *Service) Validate(ctx context.Context, l *workspace.Lease, id string) (
 	if err != nil {
 		return ValidationResult{}, err
 	}
-	res := ValidationResult{Errors: []RowError{}, Warnings: []string{}}
+	res := ValidationResult{Errors: []RowError{}, Warnings: append([]string{}, p.Notes...)}
 	err = readChunks(ctx, c, p, ChunkRows, func(rows []stagedRow) error {
 		for _, r := range rows {
 			res.RowsChecked++

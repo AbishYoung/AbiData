@@ -81,6 +81,12 @@ func SniffType(name string, head []byte) string {
 	ext := strings.ToLower(path.Ext(name))
 	switch t {
 	case "text/plain":
+		// Markup without the usual first-bytes signature is still markup.
+		if low := bytes.ToLower(head); bytes.Contains(low, []byte("<svg")) {
+			return "image/svg+xml"
+		} else if bytes.Contains(low, []byte("<script")) || bytes.Contains(low, []byte("<html")) {
+			return "text/html"
+		}
 		if r, ok := textByExt[ext]; ok {
 			return r
 		}

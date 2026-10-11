@@ -104,7 +104,7 @@ func (s *Server) registerFiles(api huma.API) {
 			"The content type is detected from the bytes; a type sent by the client is ignored.",
 		DefaultStatus: http.StatusCreated, Errors: []int{400, 401, 403, 404, 429, 507},
 		Parameters: []*huma.Param{{Name: "X-File-Name", In: "header", Description: "The file's name for the raw-body form; percent-decoded when valid. Ignored for multipart.", Schema: &huma.Schema{Type: "string"}}},
-		RequestBody: &huma.RequestBody{Required: true, Content: map[string]*huma.MediaType{
+		RequestBody: &huma.RequestBody{Content: map[string]*huma.MediaType{
 			"application/octet-stream": {Schema: &huma.Schema{Type: "string", Format: "binary", Description: "The file bytes."}},
 			"multipart/form-data": {Schema: &huma.Schema{Type: "object", Required: []string{"file"},
 				Properties: map[string]*huma.Schema{"file": {Type: "string", Format: "binary", Description: "The file."}}}},

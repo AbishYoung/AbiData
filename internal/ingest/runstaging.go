@@ -400,6 +400,9 @@ func (r *RunStaging) Merge(ctx context.Context, h int, table string, opts map[st
 				break
 			}
 		}
+		if c != nil && c.Type == catalog.Attachments {
+			continue // files cannot be merged from a staging table; the column is ignored
+		}
 		if c == nil || c.Type == catalog.Autonumber || c.Type == catalog.Calculated {
 			unmatched = append(unmatched, name)
 			continue

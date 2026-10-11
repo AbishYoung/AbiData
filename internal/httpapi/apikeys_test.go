@@ -204,6 +204,30 @@ func TestAPIKeyRoleCapAndRouteScope(t *testing.T) {
 	if st, _, _ := (bearer{k.env, editor}).do("POST", k.rows(), row); st != 201 {
 		t.Fatalf("editor write %d", st)
 	}
+	// File routes follow the same matrix: every key role reads, editors and above
+	// upload, and a key never reaches another workspace's files.
+	up := func(tok, ws string) rawResp {
+		return k.send(nil, tok, "POST", "/api/v1/w/"+ws+"/files", []byte("hello"), "X-File-Name", "k.txt")
+	}
+	if r := up(viewer, k.ws); r.status != 403 {
+		t.Fatalf("viewer key file upload %d", r.status)
+	}
+	r := up(editor, k.ws)
+	if r.status != 201 {
+		t.Fatalf("editor key file upload %d %s", r.status, r.body)
+	}
+	fileID := r.json()["id"].(string)
+	if r := k.send(nil, viewer, "GET", base+"/files/"+fileID+"/content", nil); r.status != 200 {
+		t.Fatalf("viewer key file read %d", r.status)
+	}
+	for _, tok := range []string{viewer, editor, builder} {
+		if r := up(tok, k.other); r.status != 404 {
+			t.Fatalf("key upload into another workspace %d", r.status)
+		}
+		if r := k.send(nil, tok, "GET", "/api/v1/w/"+k.other+"/files/"+fileID+"/content", nil); r.status != 404 {
+			t.Fatalf("key read in another workspace %d", r.status)
+		}
+	}
 	ops := map[string]any{"ops": []map[string]any{{"op": "create_table", "table": map[string]any{"display_name": "More",
 		"columns": []map[string]any{{"display_name": "A", "field_type": "short_text"}}}}}}
 	if st, _, _ := (bearer{k.env, editor}).do("POST", base+"/schema/apply", ops); st != 403 {

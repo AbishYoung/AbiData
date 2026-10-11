@@ -46,6 +46,7 @@ type ImportMeta struct {
 	CreatedAt  time.Time      `json:"created_at"`
 	SizeBytes  int64          `json:"size_bytes"`
 	Warnings   []string       `json:"warnings" doc:"Problems found while parsing that did not stop the import (at most 20)."`
+	Notes      []string       `json:"notes" doc:"What the current mapping leaves out on purpose, for example attachments fields (files cannot be imported)."`
 }
 
 func createStagingSchema(ctx context.Context, c *sqlitex.Conn, cols []string) error {
@@ -65,7 +66,7 @@ func saveMeta(ctx context.Context, c *sqlitex.Conn, m ImportMeta) error {
 	vals := map[string]any{
 		"id": m.ID, "source_name": m.SourceName, "format": m.Format, "options": m.Options, "columns": m.Columns,
 		"row_count": m.RowCount, "mapping": m.Mapping, "status": m.Status, "created_by": m.CreatedBy,
-		"created_at": m.CreatedAt, "size_bytes": m.SizeBytes, "warnings": m.Warnings,
+		"created_at": m.CreatedAt, "size_bytes": m.SizeBytes, "warnings": m.Warnings, "notes": m.Notes,
 	}
 	for k, v := range vals {
 		b, err := json.Marshal(v)
@@ -100,7 +101,7 @@ func readMeta(ctx context.Context, c *sqlitex.Conn) (ImportMeta, error) {
 	for k, dst := range map[string]any{
 		"id": &m.ID, "source_name": &m.SourceName, "format": &m.Format, "options": &m.Options, "columns": &m.Columns,
 		"row_count": &m.RowCount, "mapping": &m.Mapping, "status": &m.Status, "created_by": &m.CreatedBy,
-		"created_at": &m.CreatedAt, "size_bytes": &m.SizeBytes, "warnings": &m.Warnings,
+		"created_at": &m.CreatedAt, "size_bytes": &m.SizeBytes, "warnings": &m.Warnings, "notes": &m.Notes,
 	} {
 		if b, ok := raw[k]; ok {
 			if err := json.Unmarshal(b, dst); err != nil {
@@ -113,6 +114,9 @@ func readMeta(ctx context.Context, c *sqlitex.Conn) (ImportMeta, error) {
 	}
 	if m.Warnings == nil {
 		m.Warnings = []string{}
+	}
+	if m.Notes == nil {
+		m.Notes = []string{}
 	}
 	return m, nil
 }
