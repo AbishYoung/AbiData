@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ncruces/go-sqlite3"
@@ -107,6 +108,7 @@ func Codes() []Code { return slices.Sorted(maps.Keys(registry)) }
 type Error struct {
 	Code       Code
 	Message    string         // overrides the entry's default message when set
+	Recovery   string         // overrides the entry's recovery advice when set
 	Details    map[string]any // machine-readable context (e.g. details.current for OCC)
 	RetryAfter time.Duration
 	Cause      error
@@ -140,6 +142,16 @@ func New(code Code, msg string) *Error { return &Error{Code: code, Message: msg}
 // Newf formats a specific message.
 func Newf(code Code, format string, args ...any) *Error {
 	return &Error{Code: code, Message: fmt.Sprintf(format, args...)}
+}
+
+// SQLError reports a statement SQLite rejected (syntax error, no such table). msg is SQLite's
+// own text; the message is a sentence and the advice is about the statement, not form fields.
+func SQLError(msg string, cause error) *Error {
+	msg = strings.TrimSpace(msg)
+	if !strings.HasSuffix(msg, ".") {
+		msg += "."
+	}
+	return &Error{Code: BadRequest, Message: "SQL error: " + msg, Recovery: "Fix the statement and run it again.", Cause: cause}
 }
 
 // Wrap attaches a code to cause.

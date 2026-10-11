@@ -240,7 +240,7 @@ func sqlError(d *query.Denial, err error) error {
 		if i := strings.LastIndex(msg, ": "); i >= 0 {
 			msg = msg[i+2:]
 		}
-		return &fault.Error{Code: fault.BadRequest, Message: "SQL error: " + msg, Cause: err}
+		return fault.SQLError(msg, err)
 	}
 	if strings.Contains(err.Error(), "multiple statements") {
 		return fault.New(fault.SQLNotAllowed, "Only one statement can run at a time.")

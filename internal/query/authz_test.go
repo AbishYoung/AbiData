@@ -3,8 +3,10 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -134,8 +136,14 @@ func TestAllowedReadsAndParams(t *testing.T) {
 	if err != nil || !r.Truncated || len(r.Rows) != 1 {
 		t.Fatalf("row cap: %+v %v", r, err)
 	}
-	if _, err := Run(f.ctx, f.l, Policy{}, `SELECT nosuchcol FROM Items`, nil, 0); code(err) != fault.BadRequest {
+	_, err = Run(f.ctx, f.l, Policy{}, `SELECT nosuchcol FROM Items`, nil, 0)
+	if code(err) != fault.BadRequest {
 		t.Fatalf("syntax error: %v", err)
+	}
+	// The message reads as a sentence and the advice is about the statement, not form fields.
+	var fe *fault.Error
+	if !errors.As(err, &fe) || !strings.HasSuffix(fe.Message, ".") || !strings.Contains(fe.Recovery, "statement") {
+		t.Fatalf("SQL error wording: %+v", fe)
 	}
 }
 
