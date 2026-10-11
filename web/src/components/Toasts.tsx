@@ -1,3 +1,4 @@
+import { Tip } from "@/components/Tip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from "lucide-react";
 
@@ -75,14 +76,16 @@ export function ToastRegion({ toasts, onDismiss }: { toasts: readonly Toast[]; o
               <span className="sr-only">{LABEL[t.level]}: </span>
               {t.text}
             </p>
-            <button
-              type="button"
-              aria-label={`Dismiss notification: ${t.text}`}
-              onClick={() => onDismiss(t.id)}
-              className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-surface-2"
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
+            <Tip label="Dismiss notification">
+              <button
+                type="button"
+                aria-label={`Dismiss notification: ${t.text}`}
+                onClick={() => onDismiss(t.id)}
+                className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-surface-2"
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            </Tip>
           </div>
         );
       })}

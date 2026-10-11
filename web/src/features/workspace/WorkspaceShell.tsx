@@ -19,6 +19,7 @@ import { EgressSettings } from "@/features/settings/EgressSettings";
 import { OperationsStatus } from "@/components/OperationsStatus";
 import { HelpButton } from "@/features/docs/HelpButton";
 import { alertBox, badge, kbd } from "@/components/styles";
+import { Tip } from "@/components/Tip";
 import { KindIcon } from "@/components/objectKinds";
 import { LogoMark } from "@/components/brand/Logo";
 import { usePalette } from "@/features/palette/commands";
@@ -36,6 +37,11 @@ const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
 };
 
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
+const LIVE_TIP: Record<LiveState, string> = {
+  live: "Connected. Changes made by others appear as they happen.",
+  reconnecting: "Connection interrupted. Reconnecting to receive live updates.",
+  offline: "Live updates are paused. Open data may be out of date.",
+};
 const LIVE_DOT: Record<LiveState, string> = { live: "bg-success", reconnecting: "bg-warning animate-pulse", offline: "bg-danger" };
 
 /** Deep fills that keep white initials at AA contrast (≥ 4.5:1) in both themes. */
@@ -82,39 +88,39 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
         {tabs.map((t) => {
           const on = t.key === active;
           return (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              aria-controls="document-panel"
-              title="Press Delete to close"
-              onClick={() => activate(ws, t.key)}
-              onKeyDown={(e) => {
-                if (e.key === "Delete") {
-                  e.preventDefault();
-                  onClose(t);
-                }
-              }}
-              onAuxClick={(e) => {
-                if (e.button === 1) onClose(t);
-              }}
-              className={`group relative flex h-full max-w-60 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition-colors ${
-                on
-                  ? "border-border bg-surface font-medium text-fg shadow-[0_1px_0_var(--surface)]"
-                  : "border-transparent text-fg-muted hover:bg-surface/60 hover:text-fg"
-              }`}
-            >
-              {on && <span aria-hidden="true" className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-accent" />}
-              <KindIcon kind={t.kind} size="sm" />
-              <span className="truncate">{t.title}</span>
-              {t.dirty && (
-                <>
-                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
-                  <span className="sr-only">(unsaved)</span>
-                </>
-              )}
-            </button>
+            <Tip key={t.key} label="Close tab" shortcut="Delete">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={on}
+                aria-controls="document-panel"
+                onClick={() => activate(ws, t.key)}
+                onKeyDown={(e) => {
+                  if (e.key === "Delete") {
+                    e.preventDefault();
+                    onClose(t);
+                  }
+                }}
+                onAuxClick={(e) => {
+                  if (e.button === 1) onClose(t);
+                }}
+                className={`group relative flex h-full max-w-60 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition-colors ${
+                  on
+                    ? "border-border bg-surface font-medium text-fg shadow-[0_1px_0_var(--surface)]"
+                    : "border-transparent text-fg-muted hover:bg-surface/60 hover:text-fg"
+                }`}
+              >
+                {on && <span aria-hidden="true" className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-accent" />}
+                <KindIcon kind={t.kind} size="sm" />
+                <span className="truncate">{t.title}</span>
+                {t.dirty && (
+                  <>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                    <span className="sr-only">(unsaved)</span>
+                  </>
+                )}
+              </button>
+            </Tip>
           );
         })}
       </div>
@@ -123,17 +129,18 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
           {current.objectId && canDesign(role) && VIEWS[current.kind].length > 0 && (
             <div role="group" aria-label="View" className="flex items-center rounded-lg border border-border bg-surface p-0.5 shadow-xs">
               {VIEWS[current.kind].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={current.view === v}
-                  onClick={() => setView(ws, current.key, v)}
-                  className={`h-6 rounded-md px-2.5 text-xs font-medium transition-colors ${
-                    current.view === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
-                  }`}
-                >
-                  {VIEW_LABEL[v]}
-                </button>
+                <Tip key={v} label={`${VIEW_LABEL[v]} view`}>
+                  <button
+                    type="button"
+                    aria-pressed={current.view === v}
+                    onClick={() => setView(ws, current.key, v)}
+                    className={`h-6 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                      current.view === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                    }`}
+                  >
+                    {VIEW_LABEL[v]}
+                  </button>
+                </Tip>
               ))}
             </div>
           )}
@@ -244,7 +251,9 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
           <OperationsStatus ws={ws} />
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+          <Tip label={LIVE_TIP[live]}>
+            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+          </Tip>
           Updates: {LIVE_LABEL[live]}
         </span>
       </footer>
@@ -256,16 +265,18 @@ function PaletteTrigger() {
   const setOpen = usePalette((s) => s.setOpen);
   const keys = formatKeys("Mod+K", detectPlatform());
   return (
-    <button
-      type="button"
-      onClick={() => setOpen(true)}
-      className="hidden h-8 w-64 items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 text-sm text-fg-subtle shadow-xs transition-colors hover:border-border-strong/60 hover:text-fg-muted md:inline-flex"
-      aria-keyshortcuts="Meta+K Control+K"
-    >
-      <Search size={14} aria-hidden="true" />
-      <span className="flex-1 text-left">Search commands…</span>
-      <kbd className={kbd}>{keys}</kbd>
-    </button>
+    <Tip label="Command palette" shortcut="Mod+K">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="hidden h-8 w-64 items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 text-sm text-fg-subtle shadow-xs transition-colors hover:border-border-strong/60 hover:text-fg-muted md:inline-flex"
+        aria-keyshortcuts="Meta+K Control+K"
+      >
+        <Search size={14} aria-hidden="true" />
+        <span className="flex-1 text-left">Search commands…</span>
+        <kbd className={kbd}>{keys}</kbd>
+      </button>
+    </Tip>
   );
 }
 
