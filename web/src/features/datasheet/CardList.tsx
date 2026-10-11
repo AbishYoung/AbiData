@@ -7,8 +7,12 @@ import type { Row } from "./rowsApi";
 import type { RowBuffer, RowKey } from "./buffer";
 import { formatValue, isEmpty, kindOf } from "./values";
 
-/** Height of one card slot (card plus the gap under it); cards are fixed height so the list virtualizes exactly. */
-export const CARD_SLOT = 96;
+/**
+ * Height of one card slot (the gap above it plus the card); cards are fixed
+ * height so the list virtualizes exactly. It must fit the content: 12 gap +
+ * 24 padding + 24 title + 2 + 3 preview rows of 20 + 4 row gaps = 126.
+ */
+export const CARD_SLOT = 132;
 /** How many fields after the title a card previews. */
 const PREVIEW_FIELDS = 3;
 
@@ -58,7 +62,7 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                   <button
                     type="button"
                     onClick={() => onOpen(v.index)}
-                    className="flex h-full w-full items-center gap-2 rounded-xl border border-border bg-surface px-4 text-left shadow-sm transition-colors active:bg-surface-2"
+                    className="flex h-full w-full items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-left shadow-sm transition-colors active:bg-surface-2"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">

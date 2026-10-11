@@ -146,7 +146,7 @@ export function AuthLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="grid min-h-full lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+    <div className="grid min-h-full grid-rows-[auto_1fr] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:grid-rows-none">
       <div className="bg-brand relative isolate overflow-hidden text-white">
         <div
           aria-hidden="true"
@@ -187,7 +187,7 @@ export function AuthLayout({
           </p>
         </div>
       </div>
-      <main className="flex items-center justify-center bg-bg px-4 py-8 sm:p-8">
+      <main className="flex items-start justify-center bg-bg px-4 py-6 sm:items-center sm:p-8">
         <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-md sm:p-8">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">
             {title}
