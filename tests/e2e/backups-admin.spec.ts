@@ -103,6 +103,9 @@ test("restore as new workspace opens a copy with the data", async ({ page }) => 
   await page.getByRole("link", { name: new RegExp(`^${WS}`) }).first().click();
   await expect(page.getByRole("heading", { name: WS, exact: true })).toBeVisible();
   const panel = await openBackupsPanel(page);
+  // On a desktop-wide table the row actions wrap onto at most two lines instead of three.
+  const actions = await panel.locator('tr[data-kind="manual"]').first().getByRole("button").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(actions).size, `action tops ${actions.join(",")}`).toBeLessThanOrEqual(2);
   await panel.locator('tr[data-kind="manual"]').first().getByRole("button", { name: /as new workspace/ }).click();
   const dialog = page.getByRole("dialog", { name: "Restore as new workspace" });
   await dialog.getByLabel("New workspace name").fill(COPY);
