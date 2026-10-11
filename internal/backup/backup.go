@@ -94,6 +94,8 @@ type Service struct {
 	// AfterRestore runs once a restored workspace is reopened (rebuild the job
 	// index, drop caches). Errors are logged; the restore stands.
 	AfterRestore func(ctx context.Context, ws ids.WorkspaceID)
+	// Observe, when set, is told how every snapshot ended (metrics, failure list).
+	Observe func(ws ids.WorkspaceID, kind string, took time.Duration, gzBytes int64, err error)
 
 	// hook, when set (tests), is called at each step boundary; an error aborts
 	// the operation right there without any cleanup, simulating a crash.
@@ -211,6 +213,15 @@ func (s *Service) asideRoot() string  { return filepath.Join(s.DataDir, "workspa
 
 // Snapshot backs up the workspace online (writers continue) and records it.
 func (s *Service) Snapshot(ctx context.Context, l *workspace.Lease, kind, by string) (admin.Backup, error) {
+	start := time.Now()
+	b, err := s.snapshot(ctx, l, kind, by)
+	if s.Observe != nil {
+		s.Observe(l.ID(), kind, time.Since(start), b.GzBytes, err)
+	}
+	return b, err
+}
+
+func (s *Service) snapshot(ctx context.Context, l *workspace.Lease, kind, by string) (admin.Backup, error) {
 	switch kind {
 	case admin.BackupManual, admin.BackupScheduled, admin.BackupRestorePoint:
 	default:

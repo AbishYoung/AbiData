@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operations dashboard: statistics, time series, storage, failures, backups and audit */
+        get: operations["adminOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/settings": {
         parameters: {
             query?: never;
@@ -1327,6 +1344,25 @@ export interface components {
         AdminListWorkspacesResponse: {
             items: components["schemas"]["WorkspaceDTO"][] | null;
         };
+        AdminOverview: {
+            audit: components["schemas"]["OverviewAudit"][] | null;
+            backup_policy: components["schemas"]["OverviewBackupPolicy"];
+            backups: components["schemas"]["OverviewBackup"][] | null;
+            /** @description Recent job and backup failures since the process started, newest first. */
+            failures: components["schemas"]["OverviewFailure"][] | null;
+            /** Format: date-time */
+            generated_at: string;
+            /**
+             * Format: date-time
+             * @description When the in-memory history starts (the process start for ranges not yet full).
+             */
+            history_since?: string;
+            /** @enum {string} */
+            range: "1h" | "24h";
+            series: components["schemas"]["OverviewSeries"];
+            stats: components["schemas"]["AdminStats"];
+            workspaces: components["schemas"]["OverviewWorkspace"][] | null;
+        };
         AdminStats: {
             /** Format: int64 */
             goroutines: number;
@@ -2091,6 +2127,96 @@ export interface components {
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
         };
+        OverviewAudit: {
+            action: string;
+            /** @description The user's email, an API key, or system. */
+            actor: string;
+            /** Format: date-time */
+            at: string;
+            object_id?: string;
+            object_kind?: string;
+        };
+        OverviewBackup: {
+            /** Format: int64 */
+            age_seconds?: number;
+            /** Format: int64 */
+            count: number;
+            /** Format: date-time */
+            last_at?: string;
+            /** Format: int64 */
+            last_bytes?: number;
+            /** Format: date-time */
+            last_failure_at?: string;
+            last_failure_message?: string;
+            last_kind?: string;
+            /**
+             * @description failed: a backup failed since the last success. stale: scheduled backups are enabled and the newest backup is over 36 hours old.
+             * @enum {string}
+             */
+            status: "ok" | "stale" | "never" | "failed";
+            workspace_id: string;
+            workspace_name: string;
+        };
+        OverviewBackupPolicy: {
+            enabled: boolean;
+            /** Format: int64 */
+            hour_utc: number;
+        };
+        OverviewFailure: {
+            /** Format: date-time */
+            at: string;
+            /** @enum {string} */
+            kind: "job" | "backup";
+            message: string;
+            status: string;
+            /** @description Job ID, or the backup kind. */
+            subject: string;
+            workspace_id: string;
+            workspace_name: string;
+        };
+        OverviewSeries: {
+            egress_allowed: number[] | null;
+            egress_denied: number[] | null;
+            egress_error: number[] | null;
+            goroutines: number[] | null;
+            heap_bytes: number[] | null;
+            /** Format: int64 */
+            interval_seconds: number;
+            /** @description Failed and timed-out runs. */
+            jobs_failed: number[] | null;
+            /** @description Cancelled and interrupted runs. */
+            jobs_other: number[] | null;
+            jobs_succeeded: number[] | null;
+            latency_p50_ms: (number | null)[] | null;
+            latency_p95_ms: (number | null)[] | null;
+            login_failures: number[] | null;
+            open_workspaces: number[] | null;
+            rate_limited: number[] | null;
+            req_2xx: number[] | null;
+            req_3xx: number[] | null;
+            req_4xx: number[] | null;
+            req_5xx: number[] | null;
+            script_error: number[] | null;
+            script_ok: number[] | null;
+            /** @description Unix seconds at the end of each interval. */
+            times: number[] | null;
+        };
+        OverviewWorkspace: {
+            /** Format: int64 */
+            db_bytes: number;
+            id: string;
+            /**
+             * Format: date-time
+             * @description Last write to the database file (file modification time).
+             */
+            last_activity?: string;
+            name: string;
+            /** @description The database is currently open in memory. */
+            open: boolean;
+            status: string;
+            /** Format: int64 */
+            wal_bytes: number;
+        };
         Page: {
             headings: components["schemas"]["Heading"][] | null;
             html: string;
@@ -2705,6 +2831,65 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminOverview: {
+        parameters: {
+            query?: {
+                /** @description Time series window: 1h (10 s points) or 24h (1 min points). */
+                range?: "1h" | "24h";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

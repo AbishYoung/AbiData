@@ -260,25 +260,14 @@ func (s *Server) registerAdmin(api huma.API) {
 		OperationID: "adminStats", Method: http.MethodGet, Path: "/api/v1/admin/stats", Tags: tags, Metadata: adminOnly,
 		Summary: "Server statistics", Errors: []int{401, 403},
 	}, func(ctx context.Context, _ *struct{}) (*struct{ Body AdminStats }, error) {
-		ws, err := s.deps.Admin.ListWorkspaces(ctx)
+		out, err := s.collectStats(ctx)
 		if err != nil {
 			return nil, err
-		}
-		users, err := s.deps.Admin.ListUsers(ctx)
-		if err != nil {
-			return nil, err
-		}
-		var ms runtime.MemStats
-		runtime.ReadMemStats(&ms)
-		out := AdminStats{Version: s.deps.Version, UptimeSeconds: int64(time.Since(s.started).Seconds()),
-			OpenWorkspaces: s.deps.Workspaces.Open(), Users: len(users), HeapBytes: ms.HeapAlloc, Goroutines: runtime.NumGoroutine()}
-		for _, w := range ws {
-			if w.Status != admin.StatusDeleted {
-				out.Workspaces++
-			}
 		}
 		return &struct{ Body AdminStats }{Body: out}, nil
 	})
+
+	s.registerAdminOverview(api, adminOnly, tags)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "adminGetBackupPolicy", Method: http.MethodGet, Path: "/api/v1/admin/settings/backup", Tags: tags, Metadata: adminOnly,
@@ -324,4 +313,26 @@ type AdminStats struct {
 	Users          int    `json:"users"`
 	HeapBytes      uint64 `json:"heap_bytes"`
 	Goroutines     int    `json:"goroutines"`
+}
+
+// collectStats gathers the server statistics shared by /admin/stats and /admin/overview.
+func (s *Server) collectStats(ctx context.Context) (AdminStats, error) {
+	ws, err := s.deps.Admin.ListWorkspaces(ctx)
+	if err != nil {
+		return AdminStats{}, err
+	}
+	users, err := s.deps.Admin.ListUsers(ctx)
+	if err != nil {
+		return AdminStats{}, err
+	}
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	out := AdminStats{Version: s.deps.Version, UptimeSeconds: int64(time.Since(s.started).Seconds()),
+		OpenWorkspaces: s.deps.Workspaces.Open(), Users: len(users), HeapBytes: ms.HeapAlloc, Goroutines: runtime.NumGoroutine()}
+	for _, w := range ws {
+		if w.Status != admin.StatusDeleted {
+			out.Workspaces++
+		}
+	}
+	return out, nil
 }

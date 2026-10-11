@@ -127,6 +127,9 @@ type Config struct {
 	Lookup func(ctx context.Context, host string) ([]netip.Addr, error)
 	Log    *slog.Logger
 	Now    func() time.Time
+	// Observe, when set, is told each request's host and outcome
+	// ("allowed", "denied" or "error"); used for metrics.
+	Observe func(host, outcome string)
 }
 
 // Gateway performs policy-checked HTTP requests for workspaces.
@@ -370,6 +373,9 @@ func (g *Gateway) Do(ctx context.Context, ws ids.WorkspaceID, req Request) (*Res
 	if resp != nil {
 		status = resp.Status
 	}
+	if g.cfg.Observe != nil {
+		g.cfg.Observe(host, outcomeOf(err))
+	}
 	g.cfg.Log.LogAttrs(ctx, slog.LevelInfo, "egress", slog.String("subsystem", "egress"), slog.String("workspace_id", string(ws)),
 		slog.String("host", host), slog.Int("status", status), slog.Int64("bytes", n),
 		slog.Int64("ms", g.cfg.Now().Sub(start).Milliseconds()), slog.Bool("ok", err == nil))
@@ -482,6 +488,18 @@ func (g *Gateway) do(ctx context.Context, ws ids.WorkspaceID, u *url.URL, req Re
 		h[strings.ToLower(k)] = strings.Join(v, ", ")
 	}
 	return &Response{Status: resp.StatusCode, Headers: h, Body: b}, n, nil
+}
+
+// outcomeOf maps a request error to a metrics outcome.
+func outcomeOf(err error) string {
+	var fe *fault.Error
+	switch {
+	case err == nil:
+		return "allowed"
+	case errors.As(err, &fe) && (fe.Code == fault.EgressDenied || fe.Code == fault.RateLimited):
+		return "denied"
+	}
+	return "error"
 }
 
 func classify(err error) error {

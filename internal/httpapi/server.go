@@ -46,6 +46,7 @@ type Deps struct {
 	Config     config.Config
 	Log        *slog.Logger
 	Metrics    *obs.Metrics
+	Series     *obs.Sampler // admin dashboard time series and recent failures (nil: empty)
 	Admin      *admin.Store
 	Auth       *auth.Service
 	Workspaces *workspace.Manager
