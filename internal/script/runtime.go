@@ -214,6 +214,8 @@ type Runner struct {
 	// PerWorkspace, when set, returns a workspace's concurrent-script quota
 	// (0 = the runner default); it is clamped to [1, global].
 	PerWorkspace func(ws ids.WorkspaceID) int
+	// Observe, when set, is told how every run ended (metrics).
+	Observe func(kind Context, took time.Duration, err error)
 }
 
 type activeRun struct {
@@ -290,6 +292,15 @@ func (rn *Runner) putVM(v *VM) {
 
 // Exec runs req. Errors are *Error (classified) or context errors.
 func (rn *Runner) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
+	start := time.Now()
+	res, err := rn.exec(ctx, req)
+	if rn.Observe != nil {
+		rn.Observe(req.Kind, time.Since(start), err)
+	}
+	return res, err
+}
+
+func (rn *Runner) exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	b := req.Budget
 	if b.Wall == 0 {
 		b = DefaultBudgets[req.Kind]

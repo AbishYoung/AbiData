@@ -2,6 +2,8 @@ import type { components } from "@/generated/api";
 import { api } from "@/lib/api";
 
 export type AdminStats = components["schemas"]["AdminStats"];
+export type AdminOverview = components["schemas"]["AdminOverview"];
+export type OverviewRange = "1h" | "24h";
 export type AdminWorkspace = components["schemas"]["WorkspaceDTO"];
 export type AdminUser = components["schemas"]["AdminUserDTO"];
 export type Quota = components["schemas"]["Quota"];
@@ -10,6 +12,7 @@ export type PlatformEgress = components["schemas"]["Global"];
 
 export const adminKeys = {
   stats: ["admin", "stats"] as const,
+  overview: (range: OverviewRange) => ["admin", "overview", range] as const,
   workspaces: ["admin", "workspaces"] as const,
   users: ["admin", "users"] as const,
   backupPolicy: ["admin", "settings", "backup"] as const,
@@ -19,6 +22,12 @@ export const adminKeys = {
 
 export async function getStats(): Promise<AdminStats> {
   return api.requestData((c, init) => c.GET("/api/v1/admin/stats", init), { label: "Loading statistics" });
+}
+
+export async function getOverview(range: OverviewRange): Promise<AdminOverview> {
+  return api.requestData((c, init) => c.GET("/api/v1/admin/overview", { ...init, params: { query: { range } } }), {
+    label: "Loading the dashboard",
+  });
 }
 
 export async function listWorkspaces(): Promise<AdminWorkspace[]> {

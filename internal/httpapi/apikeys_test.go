@@ -233,7 +233,7 @@ func TestAPIKeyRoleCapAndRouteScope(t *testing.T) {
 	}
 
 	// Admin, auth, metrics and the log stream never accept a key.
-	for _, p := range []string{"/api/v1/admin/workspaces", "/api/v1/admin/api-keys", "/api/v1/admin/users", "/api/v1/auth/me", "/api/v1/auth/logout"} {
+	for _, p := range []string{"/api/v1/admin/workspaces", "/api/v1/admin/api-keys", "/api/v1/admin/users", "/api/v1/admin/overview", "/api/v1/auth/me", "/api/v1/auth/logout"} {
 		method := "GET"
 		if p == "/api/v1/auth/logout" {
 			method = "POST"

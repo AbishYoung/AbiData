@@ -161,7 +161,7 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await page.getByRole("menuitem", { name: "Admin console" }).click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "Admin console" })).toBeVisible();
-  await expect(page.getByText("Goroutines")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Server statistics" }).getByText("Memory (heap)", { exact: true })).toBeVisible();
   await expectNoAxeViolations(page);
 
   // Workspaces

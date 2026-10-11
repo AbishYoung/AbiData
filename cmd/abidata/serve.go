@@ -51,6 +51,7 @@ func serve() error {
 		return err
 	}
 	metrics := obs.NewMetrics()
+	sampler := obs.NewSampler(metrics)
 	// Records at info and above also feed the admin console's live log stream.
 	logBus := events.NewBus(5000)
 	log := obs.NewLogger(os.Stdout, cfg.LogLevel, obs.NewBusHandler(logBus, slog.LevelInfo))
@@ -139,7 +140,15 @@ func serve() error {
 	}
 
 	backups := &backup.Service{DataDir: cfg.DataDir, BackupDir: cfg.BackupDir, Admin: adm, Workspaces: wm,
-		Key: keys.Manifest, AppVersion: version, Log: obs.Subsystem(log, "backup")}
+		Key: keys.Manifest, AppVersion: version, Log: obs.Subsystem(log, "backup"),
+		Observe: func(ws ids.WorkspaceID, kind string, took time.Duration, gz int64, err error) {
+			if err != nil {
+				sampler.RecordFailure(obs.Failure{Kind: "backup", WorkspaceID: string(ws), Subject: kind, Status: "failed", Message: err.Error()})
+				return
+			}
+			metrics.BackupDuration.Observe(took.Seconds())
+			metrics.BackupBytes.Observe(float64(gz))
+		}}
 
 	docContent, err := fs.Sub(docs.Content, "content")
 	if err != nil {
@@ -158,6 +167,14 @@ func serve() error {
 	querySvc := &query.Service{Schemas: schemas, Events: hub}
 	scriptSvc := &scripts.Service{Events: hub}
 	runner := script.NewRunner(2*runtime.GOMAXPROCS(0), 0)
+	runner.Observe = func(kind script.Context, took time.Duration, err error) {
+		outcome := "ok"
+		if err != nil {
+			outcome = "error"
+		}
+		metrics.ScriptRuns.WithLabelValues(string(kind), outcome).Inc()
+		metrics.ScriptDuration.WithLabelValues(string(kind)).Observe(took.Seconds())
+	}
 	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator, reports.SchemaValidator}, AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
@@ -185,6 +202,7 @@ func serve() error {
 		Global:    func(ctx context.Context) (egress.Global, error) { return httpapi.LoadGlobalEgress(ctx, adm) },
 		PerMinute: func(id ids.WorkspaceID) int { return quota(id).EgressPerMinute },
 		Log:       obs.Subsystem(log, "egress"),
+		Observe:   func(_, outcome string) { metrics.EgressRequests.WithLabelValues(outcome).Inc() },
 	})
 	defer gateway.Close()
 	opsSvc := &ops.Service{Workspaces: wm, Events: hub, Log: obs.Subsystem(log, "ops")}
@@ -195,7 +213,17 @@ func serve() error {
 	executor := &jobs.LuaExecutor{Workspaces: wm, Scripts: scriptSvc, Runner: runner, Schemas: schemas, Records: recSvc, Egress: gateway, Artifacts: arts, Ingest: ingestSvc}
 	sched := jobs.New(jobs.Config{Store: jobStore, Executor: executor, Workers: cfg.JobWorkers, Log: obs.Subsystem(log, "jobs"),
 		PerWorkspace: func(id ids.WorkspaceID) int { return quota(id).MaxConcurrentJobs },
-		Publish:      func(id ids.WorkspaceID, r jobs.Run) { hub.Publish(string(id), events.JobRun, r) },
+		Publish: func(id ids.WorkspaceID, r jobs.Run) {
+			hub.Publish(string(id), events.JobRun, r)
+			switch r.Status {
+			case jobs.StatusSucceeded, jobs.StatusFailed, jobs.StatusTimedOut, jobs.StatusCancelled, jobs.StatusInterrupted:
+				metrics.JobRuns.WithLabelValues(r.Status).Inc()
+			}
+			if r.Status == jobs.StatusFailed || r.Status == jobs.StatusTimedOut {
+				sampler.RecordFailure(obs.Failure{Kind: "job", WorkspaceID: string(id), Subject: r.JobID, Status: r.Status,
+					Message: r.ErrorMessage, At: time.Now()})
+			}
+		},
 		Active: func(ctx context.Context, id ids.WorkspaceID) bool {
 			w, err := adm.GetWorkspace(ctx, id)
 			return err == nil && w.Status == admin.StatusActive
@@ -248,7 +276,7 @@ func serve() error {
 		}
 	}
 
-	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Config: cfg, Log: log, Metrics: metrics, Admin: adm, Auth: authSvc,
+	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Config: cfg, Log: log, Metrics: metrics, Series: sampler, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
@@ -268,6 +296,7 @@ func serve() error {
 		go serveDebug(cfg.DebugAddr, log)
 	}
 	janitorCtx, stopJanitor := context.WithCancel(context.Background())
+	go sampler.Run(janitorCtx)
 	go janitor(janitorCtx, log, wm, adm, arts, ingestSvc)
 	go backups.RunSchedule(janitorCtx, 10*time.Minute)
 

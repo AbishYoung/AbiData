@@ -1,7 +1,7 @@
 ---
 title: Monitoring
 order: 60
-summary: Health checks, Prometheus metrics, JSON logs and the administrator's live log stream.
+summary: The admin dashboard, health checks, Prometheus metrics, JSON logs and the administrator's live log stream.
 ---
 
 # Monitoring
@@ -14,6 +14,18 @@ summary: Health checks, Prometheus metrics, JSON logs and the administrator's li
 | `GET /readyz` | The server can take traffic: the admin database answers and the data directory is writable. Answers `ready`, or 503 with a reason (`draining`, `admin db unavailable`, `data dir not writable`) | Readiness, load balancers, deploy checks |
 
 `/readyz` answers 503 `draining` as soon as a shutdown starts, so a load balancer stops sending new requests while running requests finish. Neither endpoint needs a session.
+
+## The admin dashboard {#dashboard}
+
+Platform administrators get a live operations overview without setting up Prometheus: open **Admin console** from the user menu, then the **Overview** tab. It refreshes every 10 seconds (every 60 seconds for the 24-hour range) and has a **1 h / 24 h** toggle.
+
+- **Key indicators:** current request rate, the share of 5xx responses, p95 latency, heap memory, workspace counts, job failures in the range, user count with failed sign-ins and rate-limited requests, and uptime. Each shows a small trend line, and a status badge where a threshold means something (5xx share under 1 % is healthy, p95 under 250 ms is fast).
+- **Charts:** requests per second by response class (stacked), latency p50 and p95, heap memory, goroutines and open workspaces, job runs by outcome, script runs by outcome, and outbound requests (allowed, denied by the egress policy, failed). Hover or touch a chart for a crosshair with the exact values. Charts are keyboard accessible: Tab to a chart, then use the arrow keys (Shift for ten samples), Home and End; Escape closes the crosshair.
+- **Tables:** workspace storage (database and write-ahead log size on disk, last write; click a column to sort), recent job and backup failures, backup status per workspace (up to date, overdue after 36 hours when scheduled backups are on, no backup, failed), and the 15 latest audit events.
+
+What the dashboard does not show: it only reports what the server tracks. History is kept **in memory** (one point per 10 seconds for the last hour, one per minute for the last 24 hours), so it restarts empty when the server restarts, and the failure lists cover the time since the process started. Record counts, active sessions and per-host outbound traffic are not tracked. For long-term history and alerting, scrape the Prometheus metrics below.
+
+The data comes from `GET /api/v1/admin/overview?range=1h|24h`, which only platform administrators can call (API keys are refused).
 
 ## Metrics {#metrics}
 

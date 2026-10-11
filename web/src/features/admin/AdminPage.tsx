@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Tabs } from "radix-ui";
-import { ArrowLeft } from "lucide-react";
+import { Boxes, ChevronRight, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
+import { pageTitle } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { OverviewTab } from "./OverviewTab";
@@ -11,12 +13,12 @@ import { LogsTab } from "./LogsTab";
 import { AdminApiKeysTab } from "@/features/apikeys/AdminApiKeysTab";
 
 const SECTIONS = [
-  { id: "overview", label: "Overview" },
-  { id: "workspaces", label: "Workspaces" },
-  { id: "users", label: "Users" },
-  { id: "api-keys", label: "API keys" },
-  { id: "settings", label: "Settings" },
-  { id: "logs", label: "Live logs" },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "workspaces", label: "Workspaces", icon: Boxes },
+  { id: "users", label: "Users", icon: Users },
+  { id: "api-keys", label: "API keys", icon: KeyRound },
+  { id: "settings", label: "Settings", icon: Settings },
+  { id: "logs", label: "Live logs", icon: ScrollText },
 ] as const;
 
 function Forbidden() {
@@ -38,27 +40,35 @@ export function AdminPage({ me }: { me: Me }) {
   if (!me.user.is_platform_admin) return <Forbidden />;
   return (
     <div className="flex min-h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-surface px-4 py-2">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-accent underline">
-          <ArrowLeft size={14} aria-hidden="true" />
-          Workspaces
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+        <Link to="/" className="group inline-flex items-center gap-2 rounded-md px-1 py-1 text-sm font-medium text-fg-muted hover:text-fg">
+          <LogoMark size={24} />
+          <span>Workspaces</span>
         </Link>
-        <span className="font-semibold text-accent">AbiData</span>
+        <ChevronRight size={14} aria-hidden="true" className="text-fg-subtle" />
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-fg">
+          <ShieldCheck size={15} aria-hidden="true" className="text-accent" />
+          Admin
+        </span>
         <div className="ml-auto">
           <UserMenu me={me} />
         </div>
       </header>
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col p-4">
-        <h1 className="mb-3 text-xl font-semibold">Admin console</h1>
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6">
+        <div className="mb-5">
+          <h1 className={`m-0 ${pageTitle}`}>Admin console</h1>
+          <p className="m-0 mt-1 text-sm text-fg-muted">Monitor the server and manage workspaces, users, API keys and platform settings.</p>
+        </div>
         <Tabs.Root defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
-          <Tabs.List aria-label="Admin sections" className="mb-4 flex gap-1 border-b border-border">
-            {SECTIONS.map((s) => (
+          <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
+            {SECTIONS.map(({ id, label, icon: Icon }) => (
               <Tabs.Trigger
-                key={s.id}
-                value={s.id}
-                className="border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:border-accent data-[state=active]:font-semibold"
+                key={id}
+                value={id}
+                className="-mb-px inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-fg-muted transition-colors hover:text-fg data-[state=active]:border-accent data-[state=active]:text-fg"
               >
-                {s.label}
+                <Icon size={15} aria-hidden="true" />
+                {label}
               </Tabs.Trigger>
             ))}
           </Tabs.List>

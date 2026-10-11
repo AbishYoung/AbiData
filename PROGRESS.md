@@ -109,6 +109,12 @@ Gate 0 tests: as listed in the brief, in `internal/auth`, `internal/httpapi`, `i
 ## API keys (post-brief feature, ADR 0009)
 - Workspace API keys for external bots: `abd_<keyID>_<secret>` bearer tokens (HMAC-hashed under the session key), viewer/editor/builder only, bound to one workspace, rate limited per key and per failing address, attributed as `apikey:<id>` in history/audit/created_by. Owner UI panel in workspace settings, admin console tab, docs page `guide/api` (examples run against a live server), e2e `apikeys.spec.ts`. Final run: go test -race, golangci-lint 0, vitest 349, e2e 95/95.
 
+## Admin operations dashboard (post-brief feature)
+- Backend: `internal/obs/series.go` samples the Prometheus registry plus runtime stats every 10 s into ring buffers (360 fine points = 1 h, 1440 per-minute rollups = 24 h; rates and latency percentiles come from counter/histogram deltas, gauges are averaged per minute). Started with the janitor in `cmd/abidata/serve.go`. The script, job, egress and backup metrics that existed but were never fed are now wired (`script.Runner.Observe`, `egress.Config.Observe`, `backup.Service.Observe`, job `Publish`), and recent job/backup failures are kept in memory (50 entries, since process start).
+- `GET /api/v1/admin/overview?range=1h|24h` (adminOnly): stats, columnar series, workspace storage (file sizes, mtime as last write), recent failures, backup status per workspace, audit (15), backup policy. `/admin/stats` is unchanged. Not tracked, so not shown: record counts, per-host egress, active sessions.
+- Frontend: hand-written SVG charts in `web/src/components/charts` (XYChart: line/area/bar, stacked, crosshair tooltip, arrow-key navigation, ResizeObserver width; Sparkline; scale/tick/format helpers with vitest), dashboard in `features/admin/OverviewTab.tsx` + `dashboardParts.tsx` + `overviewData.ts`, redesigned admin page header and tabs. Tests: `internal/obs/series_test.go`, `internal/httpapi/overview_test.go`, vitest for scales and data shaping, e2e `admin-overview.spec.ts`. Docs: operations/monitoring "The admin dashboard".
+- Trade-offs: history is in memory and resets on restart; 24 h latency percentiles are exact for each minute (from merged bucket deltas) but estimated by bucket interpolation; SSE/live-log routes are excluded from latency.
+
 ## Next (resume here)
 Nothing in flight. The brief is complete; Phase 8 declined. Remaining: watch the first CI run of the `container-smoke` job.
 Docker: CLI at ~/.docker/bin (not on PATH).
