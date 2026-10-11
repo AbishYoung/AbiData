@@ -60,6 +60,8 @@ test("enters a new record with a value of every editable type", async ({ page })
   await page.keyboard.type("1.5");
   await page.keyboard.press("Tab");
   await expect(page.getByRole("alert").filter({ hasText: "whole number" })).toBeVisible();
+  // The note is not squeezed to the width of a narrow cell.
+  expect((await page.getByRole("alert").filter({ hasText: "whole number" }).boundingBox())!.width).toBeGreaterThan(160);
   await expect(page.getByRole("textbox", { name: "Quantity" })).toHaveAttribute("aria-invalid", "true");
   await page.getByRole("textbox", { name: "Quantity" }).fill("12");
   await page.keyboard.press("Tab");

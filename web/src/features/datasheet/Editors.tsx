@@ -54,7 +54,7 @@ function ErrorNote({ id, message }: { id: string; message: string }) {
     <span
       id={id}
       role="alert"
-      className="absolute left-0 top-full z-30 mt-1 flex max-w-80 items-start gap-1 rounded border border-danger bg-danger-soft px-2 py-1 text-xs text-fg shadow"
+      className="absolute left-0 top-full z-30 mt-1 flex w-max max-w-80 text-left items-start gap-1 rounded border border-danger bg-danger-soft px-2 py-1 text-xs text-fg shadow"
     >
       <TriangleAlert size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-danger" />
       <span>{message}</span>
