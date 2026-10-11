@@ -12,7 +12,8 @@ import { ActivityBanner } from "./components/ActivityBanner";
 import { DocsPanel } from "./features/docs/DocsPanel";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { GlobalShortcuts } from "./features/palette/GlobalShortcuts";
-import { UpdateToast } from "./components/UpdateToast";
+import { ChangePasswordHost } from "./features/account/ChangePasswordDialog";
+import { AppToasts } from "./components/AppToasts";
 import { applyTheme, loadThemePref } from "./lib/theme";
 import { registerServiceWorker } from "./lib/pwa";
 
@@ -31,7 +32,8 @@ createRoot(rootElement).render(
       <CommandPalette />
       <DocsPanel />
       <GlobalShortcuts />
-      <UpdateToast />
+      <ChangePasswordHost />
+      <AppToasts />
     </QueryClientProvider>
   </StrictMode>,
 );

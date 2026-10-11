@@ -39,6 +39,12 @@ A workspace always keeps at least one owner. You cannot remove or demote the las
 
 A platform administrator manages the whole server from the **Admin console**, which is in the user menu. Its tabs are **Overview**, **Workspaces**, **Users**, **API keys**, **Settings** and **Logs**. Administrators create workspaces and user accounts, disable accounts, manage the platform outbound allowlist (the hosts jobs may reach) and the backup schedule, and read server logs and metrics. This is separate from workspace roles. An administrator sees a workspace's data only after being added to it as a member.
 
+## Change your password {#change-password}
+
+Anyone can change their own password. Open the user menu (your name, top right), choose **Change password…**, then enter your current password and the new one twice. The new password needs at least 10 characters; a long passphrase is best. **Show** reveals what you typed.
+
+Changing it signs out every other session of your account, on other devices and browsers, and keeps the one you are using. A wrong current password is refused, and repeated wrong guesses are limited for a while ([RATE_LIMITED](/docs/reference/errors#rate-limited)). A platform administrator who sets a user's initial password should share it securely; the user can then change it from the same menu. There is no password-reset screen, so keep your password safe.
+
 ## Add and manage members {#members}
 
 Accounts come first. A platform administrator creates each one in the **Admin console**, on the **Users** tab, with **New user**. There is no self-registration.

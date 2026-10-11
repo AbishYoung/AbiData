@@ -212,8 +212,8 @@ test("admin console: overview, create workspace and user, edit quota", async ({ 
   await page.getByRole("button", { name: "New user" }).click();
   dialog = page.getByRole("dialog", { name: "New user" });
   await expect(dialog.getByText(/At least 10 characters/)).toBeVisible();
-  // There is no change-password screen yet, so the hint must not promise one.
-  await expect(dialog.getByText(/can change it after signing in/)).toHaveCount(0);
+  // Users can change the password themselves, and the hint says where.
+  await expect(dialog.getByText(/change it from the user menu after signing in/)).toBeVisible();
   await dialog.getByLabel("Email").fill(email);
   await dialog.getByLabel("Display name").fill("api KEY imposter");
   await dialog.getByLabel("Initial password").fill("long-enough-password");

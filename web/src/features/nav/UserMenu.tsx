@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   CircleHelp,
+  KeyRound,
   LogOut,
   Monitor,
   Moon,
@@ -16,6 +17,7 @@ import { useLogout, type Me } from "@/lib/session";
 import { isThemePref, useThemeStore } from "@/lib/theme";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { openDocs } from "@/features/docs/docsStore";
+import { openChangePassword } from "@/features/account/ChangePasswordDialog";
 import { btn, menu, menuItem, menuSeparator } from "@/components/styles";
 
 const item = menuItem;
@@ -138,6 +140,14 @@ export function UserMenu({
             ))}
           </DropdownMenu.RadioGroup>
           <DropdownMenu.Separator className={menuSeparator} />
+          <DropdownMenu.Item
+            className={item}
+            // After the menu has closed and returned focus, so the dialog keeps it.
+            onSelect={() => setTimeout(openChangePassword, 0)}
+          >
+            <KeyRound size={16} aria-hidden="true" />
+            Change password…
+          </DropdownMenu.Item>
           <DropdownMenu.Item className={item} onSelect={() => logout.mutate()}>
             <LogOut size={16} aria-hidden="true" />
             Sign out
