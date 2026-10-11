@@ -166,35 +166,21 @@ export async function shoot(ctx) {
     }
 
     if (want("query-visual-designer")) {
-      await nav(page).getByRole("button", { name: "New query" }).click();
-      const add = async (name) => {
-        await page.getByRole("button", { name: "Add table or query" }).click();
-        const d = page.getByRole("dialog", { name: "Add table or query" });
-        await d.getByLabel("Table or query").selectOption({ label: name });
-        await d.getByRole("button", { name: "Add", exact: true }).click();
-        await d.waitFor({ state: "hidden" });
-      };
-      await add("Customers");
-      await add("Orders");
-      const pairs = [["Customers", "Company"], ["Customers", "Country"], ["Orders", "Order date"], ["Orders", "Status"], ["Orders", "Total"]];
-      for (const [t, cname] of pairs) {
-        await page.getByTestId("query-canvas").getByRole("button", { name: new RegExp(`^${cname}, column of ${t}\\.`) }).dblclick();
-      }
+      // A saved visual query from the sample: a join, totals and a sort.
+      await openObject(page, "Top customers", "Design");
+      await page.getByTestId("query-canvas").waitFor();
       await save(page, "query-visual-designer");
-      page.once("dialog", (d) => d.accept());
-      await page.getByRole("button", { name: "Close New query" }).click();
-      await page.getByRole("button", { name: "Close New query" }).waitFor({ state: "hidden" });
     }
 
     if (want("query-sql")) {
-      await openObject(page, "Sales by month", "Design");
+      await openObject(page, "Sales by month", "SQL");
       await page.getByRole("button", { name: "Run" }).waitFor();
       await save(page, "query-sql");
     }
     if (want("query-results")) {
-      await openObject(page, "Sales by month");
+      await openObject(page, "Top customers");
       await page.getByRole("button", { name: "Datasheet", exact: true }).click();
-      await page.getByText("7 rows").waitFor();
+      await page.getByRole("gridcell").first().waitFor();
       await save(page, "query-results");
     }
 
