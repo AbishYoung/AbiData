@@ -13,6 +13,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import "./queryDesigner.css";
 import { X } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import type { Join, SourceInfo, VisualModel } from "./model";
 
 interface SourceNodeData extends Record<string, unknown> {
@@ -28,38 +29,43 @@ function SourceNode({ data }: NodeProps<SourceNodeType>) {
   return (
     <div className="w-56 rounded-md border border-border bg-surface text-fg shadow-sm">
       <div className="flex items-center justify-between gap-1 rounded-t-md bg-surface-2 px-2 py-1">
-        <span className="min-w-0 truncate text-sm font-semibold" title={`${info.title} (${info.alias})`}>
-          {info.title}
-          {info.alias.toLowerCase() !== info.title.toLowerCase() ? ` (${info.alias})` : ""}
-        </span>
-        <button
-          type="button"
-          aria-label={`Remove ${info.title}${info.alias.toLowerCase() === info.title.toLowerCase() ? "" : ` (${info.alias})`} from the query`}
-          className="nodrag nopan inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded hover:bg-surface"
-          onClick={() => onRemove(info.alias)}
-        >
-          <X size={14} aria-hidden="true" />
-        </button>
+        <Tip label={`${info.title} (${info.alias})`}>
+          <span className="min-w-0 truncate text-sm font-semibold">
+            {info.title}
+            {info.alias.toLowerCase() !== info.title.toLowerCase() ? ` (${info.alias})` : ""}
+          </span>
+        </Tip>
+        <Tip label={`Remove ${info.title}${info.alias.toLowerCase() === info.title.toLowerCase() ? "" : ` (${info.alias})`} from the query`}>
+          <button
+            type="button"
+            aria-label={`Remove ${info.title}${info.alias.toLowerCase() === info.title.toLowerCase() ? "" : ` (${info.alias})`} from the query`}
+            className="nodrag nopan inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded hover:bg-surface"
+            onClick={() => onRemove(info.alias)}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </Tip>
       </div>
       <ul className="m-0 list-none p-0">
         {info.columns.map((c) => (
           <li key={c.id} className="relative m-0 p-0">
             <Handle type="source" position={Position.Left} id={`l:${c.id}`} />
-            <button
-              type="button"
-              title="Double-click or press Enter to add as a field"
-              aria-label={`${c.label}, column of ${info.title}. Press Enter to add as a field`}
-              className="nodrag nopan block w-full cursor-pointer truncate px-3 py-0.5 text-left text-sm hover:bg-accent-soft"
-              onDoubleClick={() => onAddField(info.alias, c.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  onAddField(info.alias, c.id);
-                }
-              }}
-            >
-              {c.label}
-            </button>
+            <Tip label="Double-click or press Enter to add as a field">
+              <button
+                type="button"
+                aria-label={`${c.label}, column of ${info.title}. Press Enter to add as a field`}
+                className="nodrag nopan block w-full cursor-pointer truncate px-3 py-0.5 text-left text-sm hover:bg-accent-soft"
+                onDoubleClick={() => onAddField(info.alias, c.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onAddField(info.alias, c.id);
+                  }
+                }}
+              >
+                {c.label}
+              </button>
+            </Tip>
             <Handle type="source" position={Position.Right} id={`r:${c.id}`} />
           </li>
         ))}

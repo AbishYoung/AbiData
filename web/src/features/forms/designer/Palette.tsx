@@ -1,20 +1,22 @@
 import { useDraggable } from "@dnd-kit/core";
 import { Plus } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { CONTROL_TYPES, TYPE_LABEL, type ControlType, type SourceColumn } from "./layoutModel";
 
 function ToolButton({ type, onAdd }: { type: ControlType; onAdd: (t: ControlType) => void }) {
   const { setNodeRef, listeners } = useDraggable({ id: `tool:${type}`, data: { kind: "tool", type } });
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      title={`Add a ${TYPE_LABEL[type].toLowerCase()} (or drag it onto the form)`}
-      onClick={() => onAdd(type)}
-      {...listeners}
-      className="cursor-grab rounded-md border border-border bg-surface px-2 py-1.5 text-left text-sm hover:bg-surface-2"
-    >
-      {TYPE_LABEL[type]}
-    </button>
+    <Tip label={`Add a ${TYPE_LABEL[type].toLowerCase()} (or drag it onto the form)`}>
+      <button
+        ref={setNodeRef}
+        type="button"
+        onClick={() => onAdd(type)}
+        {...listeners}
+        className="cursor-grab rounded-md border border-border bg-surface px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+      >
+        {TYPE_LABEL[type]}
+      </button>
+    </Tip>
   );
 }
 
@@ -36,18 +38,21 @@ function FieldRow({ col, onAdd }: { col: SourceColumn; onAdd: (c: SourceColumn) 
   const { setNodeRef, listeners } = useDraggable({ id: `field:${col.id}`, data: { kind: "field", id: col.id } });
   return (
     <li className="m-0 flex list-none items-center gap-1 py-0.5">
-      <div ref={setNodeRef} {...listeners} title="Drag onto the form" className="min-w-0 flex-1 cursor-grab truncate rounded px-1 py-1 text-sm hover:bg-surface-2">
-        {col.name} <span className="text-xs text-fg-muted">{col.fieldType}</span>
-      </div>
-      <button
-        type="button"
-        aria-label={`Add ${col.name} to form`}
-        title={`Add ${col.name} to form`}
-        onClick={() => onAdd(col)}
-        className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border hover:bg-surface-2"
-      >
-        <Plus size={14} aria-hidden="true" />
-      </button>
+      <Tip label="Drag onto the form">
+        <div ref={setNodeRef} {...listeners} className="min-w-0 flex-1 cursor-grab truncate rounded px-1 py-1 text-sm hover:bg-surface-2">
+          {col.name} <span className="text-xs text-fg-muted">{col.fieldType}</span>
+        </div>
+      </Tip>
+      <Tip label={`Add ${col.name} to form`}>
+        <button
+          type="button"
+          aria-label={`Add ${col.name} to form`}
+          onClick={() => onAdd(col)}
+          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border hover:bg-surface-2"
+        >
+          <Plus size={14} aria-hidden="true" />
+        </button>
+      </Tip>
     </li>
   );
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Keyboar
 import { createPortal, flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Printer, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { btn } from "@/components/styles";
 import { PageView } from "./PageView";
 import { cssPageSize, type Pagination, type PageSetup, type ReportInstance, type ReportLayout } from "./paginate";
@@ -112,21 +113,37 @@ export function ReportViewer({
     <div className="flex min-h-0 flex-1 flex-col">
       <style>{`@page { size: ${cssPageSize(pageSetup)}; margin: 0 }`}</style>
       <div role="toolbar" aria-label="Report toolbar" className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
-        <button type="button" className={iconBtn} aria-label="First page" disabled={current <= 1} onClick={() => goTo(1)}>
-          <ChevronFirst size={16} aria-hidden="true" />
-        </button>
-        <button type="button" className={iconBtn} aria-label="Previous page" disabled={current <= 1} onClick={() => goTo(current - 1)}>
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
+        <Tip label="First page" shortcut="Home">
+          <span className="inline-flex">
+            <button type="button" className={iconBtn} aria-label="First page" disabled={current <= 1} onClick={() => goTo(1)}>
+              <ChevronFirst size={16} aria-hidden="true" />
+            </button>
+          </span>
+        </Tip>
+        <Tip label="Previous page" shortcut="PageUp">
+          <span className="inline-flex">
+            <button type="button" className={iconBtn} aria-label="Previous page" disabled={current <= 1} onClick={() => goTo(current - 1)}>
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+          </span>
+        </Tip>
         <span data-testid="report-page-of" aria-live="polite" className="min-w-24 text-center text-sm">
           Page {current} of {pageCount}
         </span>
-        <button type="button" className={iconBtn} aria-label="Next page" disabled={current >= pageCount} onClick={() => goTo(current + 1)}>
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-        <button type="button" className={iconBtn} aria-label="Last page" disabled={current >= pageCount} onClick={() => goTo(pageCount)}>
-          <ChevronLast size={16} aria-hidden="true" />
-        </button>
+        <Tip label="Next page" shortcut="PageDown">
+          <span className="inline-flex">
+            <button type="button" className={iconBtn} aria-label="Next page" disabled={current >= pageCount} onClick={() => goTo(current + 1)}>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </span>
+        </Tip>
+        <Tip label="Last page" shortcut="End">
+          <span className="inline-flex">
+            <button type="button" className={iconBtn} aria-label="Last page" disabled={current >= pageCount} onClick={() => goTo(pageCount)}>
+              <ChevronLast size={16} aria-hidden="true" />
+            </button>
+          </span>
+        </Tip>
         <div role="group" aria-label="Zoom" className="ml-2 flex gap-1">
           <button type="button" className={btn} aria-pressed={mode === "fit"} onClick={() => setMode("fit")}>
             Fit width
