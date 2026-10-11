@@ -11,11 +11,12 @@ A report turns a table or saved query into paginated output with headers, groups
 ## Create a report {#designer}
 
 1. In the **Reports** group, choose **New report**.
-2. Choose the record source (**Table** or **Saved query**), a name, paper size (**Letter**, **A4** or **Legal**) and **Portrait** or **Landscape**.
-3. Add controls from the **Toolbox** and the **Field list**, and place them in bands.
-4. Choose **Save**. Use **Preview** to see the report with data.
+2. Enter a **Report name** and choose the **Record source**: a table or a saved query.
+3. In the page settings, choose the **Paper** (**Letter**, **A4** or **Legal**), the **Orientation** (**Portrait** or **Landscape**) and the margins.
+4. Choose a band, then add controls to it from the **Toolbox**, or drag fields from the **Field list**.
+5. Choose **Save**. Use the **Preview** panel to see the report with data.
 
-If the report needs input, base it on a [parameter query](/docs/guide/queries#parameters). Running the report asks for the values. The **Parameters** button on the viewer changes them.
+If the report needs input, base it on a [parameter query](/docs/guide/queries#parameters). Running the report asks for the values. The **Parameters** button in the viewer changes them later.
 
 ## Bands {#bands}
 
@@ -34,35 +35,44 @@ A report is divided into horizontal bands. Each band prints at a fixed place:
 Each band has these settings:
 
 - **Band height**.
-- **Can grow**: the band becomes taller when its content needs more room.
+- **Can grow**: the band becomes taller when wrapped text needs more room.
 - **Keep together**: the band is not split across pages.
 - **Force new page**: the band starts on a new page.
+- **Visible**.
 
-Controls can be a label, a textbox (bound to a field or a calculation), a line or rectangle, and three special controls: **Page number**, **Page count** and **Now**.
+Controls can be a label, a textbox, a line, a rectangle, and three special controls: **Page number**, **Page count** and **Now**. A textbox's **Control source** is **None (caption text)**, **Field**, **Calculation** or **Aggregate**.
 
 ## Grouping and sorting {#grouping}
 
-Open **Groups and sorting** to add group levels and sort orders.
+Open the **Groups and sorting** panel to add group levels and sort orders.
 
-1. Add a group and choose the field or Lua expression to group on.
-2. Choose **Ascending** or **Descending**.
-3. Optionally set an **interval**. 0 groups on the whole value. For text, N groups on the first N characters. For numbers, N groups on multiples of N.
+1. Choose **Add group**.
+2. Choose the field to group on, or **Expression (Lua)** to group on a Lua expression.
+3. Choose **Ascending** or **Descending**.
+4. Optionally set the group's **interval**. 0 groups on the whole value. For text, N groups on the first N characters. For numbers, N groups on multiples of N.
+
 Each group adds a header band and a footer band. Put the group's title in the header and its totals in the footer.
 
-A report with no groups prints records in the sort order you set.
+To sort the detail rows, choose **Add sort** under **Sort order**, pick a **Sort n field**, and tick **Sort n descending** if needed. Without groups, the records print in this sort order.
 
 ## Totals {#totals}
 
-Add an **Aggregate** to a textbox: choose a **Function** (**Count**, **Sum**, **Average**, **Minimum**, **Maximum**), the field, and a **Scope**: the group the band belongs to, or the whole report. **Running total** accumulates across records instead of resetting.
+Set a textbox's **Control source** to **Aggregate**, then choose:
 
-Calculated textboxes take a Lua expression over the record, such as `Qty * Price`. See [Scripts](/docs/guide/scripts#contexts): report scripts are read-only and have a 30 second budget for the whole run.
+- **Function**: **Sum**, **Average**, **Count**, **Minimum** or **Maximum**.
+- **Aggregate field**: the field to add up. For **Count**, leave it on **All rows**.
+- **Scope**: **Group** totals each group, and **Report** totals the whole report.
+
+Tick **Running total** to accumulate across records instead of starting again for each group.
+
+For a value that is not an aggregate, set **Control source** to **Calculation** and enter a Lua expression over the record, such as `record.Qty * record.Price`. Functions from the report module are available there too. Report scripts are read-only and have a 30 second budget for the whole run. See [Scripts](/docs/guide/scripts#contexts).
 
 ## Print and PDF {#printing}
 
-Open the report and choose **Print**. The report is laid out at the exact paper size, so the browser print dialog shows the same pages you see on screen.
+Open the report and choose **Print**. The report is laid out at its exact paper size, so the print dialog shows the same pages you see on screen.
 
 - To print, pick your printer.
-- To make a PDF, choose **Save as PDF** as the destination in the print dialog. Set margins to **Default** or **None** and leave headers and footers off.
+- To make a PDF, choose **Save as PDF** as the destination in the print dialog. Browsers differ in their print options. If the layout is off, set margins to **Default** or **None** and turn headers and footers off.
 
 The paper size and orientation come from the report design. If the dialog shows a different size, set it to match.
 
@@ -70,4 +80,4 @@ The paper size and orientation come from the report design. If the dialog shows 
 
 - A report run stops at 200,000 detail records. Add criteria to the source query to reduce them.
 - A run takes at most 30 seconds.
-- At most two report runs per workspace and four across the server execute at the same time. Others fail with [WORKSPACE_BUSY](/docs/reference/errors#workspace-busy); try again shortly.
+- At most two report runs per workspace and four across the server execute at the same time. Others fail with [WORKSPACE_BUSY](/docs/reference/errors#workspace-busy). Try again shortly.

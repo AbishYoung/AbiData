@@ -6,18 +6,21 @@ summary: Define fields, link tables, edit records, resolve conflicts, filter and
 
 # Tables
 
-A table holds your records. Builders and owners design tables; editors, builders and owners enter data; viewers can read.
+A table holds your records. Builders and owners design tables, and see the **New table** and **Import…** buttons. Editors, builders and owners enter and change records. Viewers can read them.
 
 ## Create a table and add fields {#design}
 
-1. In the navigation pane, choose **New table**. A design tab opens.
-2. Add fields in the grid. Give each a name and a data type.
-3. Select a field to set its properties in the panel beside the grid.
-4. Choose **Preview changes**, read the impact report, then apply.
+1. In the **Tables** group of the navigation pane, choose **New table**. A design tab opens.
+2. Type a name in the empty row at the bottom of the field grid. Each new name adds a field.
+3. Choose the field's **Data type**.
+4. Select the field to set its properties, such as **Required** or **Default value**, in the panel beside the grid.
+5. Choose **Preview changes**, read the impact report, then choose **Apply**.
 
-Every table gets an AutoNumber field named `id` automatically. It is the primary key and you cannot change it.
+Nothing changes until you apply it. **Discard changes** drops your unapplied design changes.
 
-Each field has a display name (what people see) and a SQL name (used in queries and expressions). The SQL name starts as the display name with spaces replaced by `_`. SQL names start with a letter, use only letters, digits and `_`, are at most 63 characters, and are unique within the table regardless of case.
+Every table gets an AutoNumber field called `id` automatically. The database numbers it, so you cannot change its type, move it or delete it. You can rename it.
+
+Each field has a field name (what people see) and an SQL name (used in queries and scripts). The SQL name starts as the field name with spaces replaced by `_`, so **Unit price** becomes `Unit_price`. The table name works the same way: the table **Order lines** is `Order_lines` in SQL. SQL names start with a letter, use only letters, digits and `_`, are at most 63 characters, and are unique within the table regardless of case.
 
 ## Field types {#field-types}
 
@@ -43,48 +46,47 @@ Each field has a display name (what people see) and a SQL name (used in queries 
 - **Validation rule** is a SQL condition every row must satisfy, for example `Qty > 0`.
 - **Validation text** is the message shown when the rule fails ([VALIDATION_FAILED](/docs/reference/errors#validation-failed)).
 
-You can mark a field **Hidden in the datasheet**. Hidden fields still exist and still appear in queries.
+Tick **Hidden in the datasheet** to hide a field from the datasheet. Hidden fields still exist and still appear in queries.
 
-An index speeds up searching and sorting, and a unique index also rejects a second record with the same value.
+An index speeds up searching and sorting. A unique index also rejects a second record with the same value.
 
-- **Indexed** (a field property) is **No**, **Yes (duplicates OK)** or **Yes (no duplicates)**. The last one makes the field unique. The system ID field and fields that are part of a multi-field index do not offer it.
-- **Indexes** (button above the field grid) lists every index of the table, including ones over several fields. To add one, choose 1 to 16 fields in order and tick **Unique (no duplicate combinations)**; use the trash button to delete one.
+- **Indexed** is a field property with three choices: **No**, **Yes (duplicates OK)** and **Yes (no duplicates)**. The last one makes the field unique. The ID field, and fields that belong to a multi-field index, do not offer it.
+- **Indexes** (the button above the field grid) lists every index of the table, including ones over several fields. To add one, choose up to 16 fields in order, tick **Unique (no duplicate combinations)** if needed, and choose **Add index**. To remove an index, use its trash button.
 
-Index changes are part of the design draft: they take effect through **Preview changes** and **Apply** like any other change. If the table already holds duplicate values, creating a unique index is reported as breaking in the preview and cannot be applied until the duplicates are fixed. Deleting a field also deletes every index that includes it. Once a unique index exists, a duplicate fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value). Unique text indexes compare case-insensitively, so `abc` and `ABC` are duplicates.
+Index changes are part of the design draft. They take effect through **Preview changes** and **Apply**, like any other change. If the table already holds duplicate values, a new unique index is reported as breaking and cannot be applied until the duplicates are fixed. Deleting a field also deletes every index that includes it. Once a unique index exists, a duplicate fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value). Unique text indexes compare case-insensitively, so `abc` and `ABC` are duplicates.
 
 ## Relationships and lookups {#lookups}
 
 A Lookup field links each record to one record in another table (the parent).
 
-1. Add a field and set its type to **Lookup**.
-2. Under **Look up values from table**, choose the parent table.
-3. Choose the field to show in place of the record number.
-4. Choose what happens when a linked record is deleted:
+1. Add a field and set its **Data type** to **Lookup**.
+2. Under **Lookup settings**, choose the parent table in **Look up values from table**.
+3. Choose the **Display field**: the parent field to show in place of the record number.
+4. In **When the linked record is deleted**, choose what happens:
    - **Block the deletion (RESTRICT)**: the parent cannot be deleted while records link to it. This fails with [LINKED_RECORDS](/docs/reference/errors#linked-records).
    - **Delete this record too (CASCADE)**: deleting the parent deletes the linked records.
    - **Clear the link (SET NULL)**: deleting the parent empties the link.
-5. Leave **Enforce referential integrity** on unless you are loading data that is not yet consistent.
+5. Leave **Enforce referential integrity** ticked unless you are loading data that is not yet consistent.
 
 In the datasheet, a lookup cell is a combobox that searches the parent table as you type.
 
 ## Calculated fields {#calculated}
 
-A calculated field holds a SQL expression over the other fields in the same table, such as `Qty * Price`. Choose a result type for it. The expression may use built-in deterministic SQL functions only. Calculated fields cannot be edited in the datasheet.
+A calculated field holds an SQL **Expression** over the other fields in the same table, such as `Quantity * Unit_price`. Choose a **Result type**: **Text**, **Integer**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. The expression may use built-in deterministic SQL functions only. Calculated fields cannot be edited in the datasheet.
 
 ## Enter and edit records {#editing}
 
-Click a cell or move with the arrow keys. Press `Enter` or `F2` to edit. Type to replace the content.
+Click a cell, or move with the arrow keys. Press `Enter` or `F2` to edit the cell, or start typing to replace its content.
 
 - `Tab` and `Shift+Tab` move between cells.
-- `Shift+Enter` saves the record.
-- `Esc` discards your unsaved changes to the record.
-- The empty row at the bottom adds a new record.
-- `Mod+Shift+N` jumps to the new record row.
-- To delete, select rows with `Shift+Space` or the row selectors, then press `Delete` or choose **Delete record**. You confirm first.
+- `Shift+Enter` saves the record. `Esc` discards your unsaved changes to the record.
+- When you move to another row, AbiData saves the row you left. A half-edited record therefore does not reach other people until you leave it.
+- The empty row at the bottom adds a new record. `Mod+Shift+N` jumps to it.
+- To delete records, click a row header to select a record. `Shift+click` selects a range, and `Ctrl+click` (`⌘ click` on Mac) adds one. Then press `Delete` or choose **Delete record** in the toolbar. AbiData asks you to confirm.
 
 See [Keyboard shortcuts](/docs/reference/shortcuts) for more.
 
-A record is saved as a whole when you leave it, so a half-edited record does not reach other users until you finish. Other people's changes appear live: the status bar shows **Updates: Live** when the connection is working.
+Other people's changes appear live. The status bar shows **Updates: Live** while the connection works.
 
 ### Conflicts and the merge dialog {#editing-conflicts}
 
@@ -97,31 +99,35 @@ Fields you did not change always keep the latest saved value.
 ## Filter and sort {#filters}
 
 - **Filter records** searches the text columns for what you type. Press `Enter` to apply it.
-- **Filter by selection** adds a condition from the selected cell, for example "Status equals Open". Each condition appears as a chip you can remove. **Clear filter** removes all of them.
-- Click a column header to sort. Click again to reverse. The header menu also has **Clear sort**.
-- Drag a column edge, or press `Alt+Left` / `Alt+Right` on a header, to resize it. Column widths and order are remembered in your browser.
+- **Filter by selection** adds a condition based on the selected cell, for example "Status equals Open". Each condition appears as a chip with a remove button. **Clear filter** removes all of them.
+- Click a column header to sort by it. Click again to reverse the order. The column menu, which has the column name on its button, also offers **Sort ascending**, **Sort descending** and **Clear sort**.
+- To resize a column, drag its edge, or select its header and press `Alt+Left` or `Alt+Right`. Column widths and order are remembered in your browser, on this computer.
 
-Filters and sorts are for your view only. To save a selection for others, create a [query](/docs/guide/queries).
+Filters and sorts apply only to your view. To save a selection for others, create a [query](/docs/guide/queries).
 
 ## History {#history}
 
-In **Design**, turn on **Track history of changes to rows**. From then on, every insert, update and delete through the app is recorded with the user, time and the values before and after.
+In **Design**, tick **Track history of changes to rows**. From then on, every insert, update and delete made through the app is recorded with the user, the time, and the values before and after.
 
 ### Viewing a record's history {#view-history}
 
 Anyone who can read the table can see a record's history, including the history of deleted records.
 
 - **In the datasheet**, select a cell in the record and choose **History** in the toolbar.
-- **In a form**, open the record and choose **History** in the toolbar next to the record navigation. It appears for forms bound to a table once the record is saved.
+- **In a form**, open the record and choose **History** in the form toolbar. It is available once the record is saved.
 
-A panel opens with the changes, newest first. Each entry shows who made the change and when (for example "5 minutes ago" with the exact time), and what changed. A new record lists its initial values, a deleted record its last values, and an update lists only the fields that changed, as old value → new value. Fields that were removed from the table later appear as "(removed field)". Choose **Load older** to see earlier entries. Press **Esc** to close the panel.
+A panel opens with the changes, newest first. Each entry shows who made the change and when, and what changed. A new record lists its initial values and a deleted record lists its last values. An update lists only the fields that changed, as old value → new value. Fields that were later removed from the table appear as "(removed field)". Choose **Load older** to see earlier entries. Press `Esc` or choose **Close history** to close the panel.
 
-If the table does not track history, the panel says so; a builder can turn it on in Design. Only changes made after tracking was turned on are recorded.
+If the table does not track history, the panel says so. A builder can turn tracking on in **Design**. Only changes made after tracking was turned on are recorded.
 
-History is written by the row API (the datasheet), forms and the `records` module in scripts. Bulk imports and changes made with `db.exec` in a script are not recorded.
+History is written by the datasheet, by forms and by the `records` module in scripts. Bulk imports and changes made with `db.exec` in a script are not recorded.
 
 ## Changing a design safely {#schema-changes}
 
-Preview changes lists everything a change would affect: queries, forms, reports and scripts that use the field, rows that cannot be converted to a new type (with samples), and rows that break a new rule. Warnings can be accepted. Breaking changes are refused with [SCHEMA_CHANGE_BLOCKED](/docs/reference/errors#schema-change-blocked) until you fix the listed items or confirm.
+**Preview changes** lists everything a change would affect: queries, forms, reports and scripts that use the field, rows that cannot be converted to a new type (with sample rows), and rows that break a new rule or index.
 
-Destructive changes take a restore point first. See [Backups](/docs/guide/backups).
+- Breaking issues are listed under **Breaking**. Constraint and foreign-key problems cannot be forced, so fix those rows first.
+- Other breaking issues can be applied once you tick **I understand this may break the listed objects** and choose **Apply anyway**. Without that confirmation the change is refused with [SCHEMA_CHANGE_BLOCKED](/docs/reference/errors#schema-change-blocked).
+- Warnings are listed separately and do not stop **Apply**.
+
+Destructive changes take a restore point first. The impact report says "A restore point will be taken first". See [Backups](/docs/guide/backups).

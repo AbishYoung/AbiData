@@ -19,17 +19,17 @@ Each workspace has its own list of members. A member has one role in that worksp
 
 | Capability | Viewer | Editor | Builder | Owner |
 |---|:---:|:---:|:---:|:---:|
-| Read tables, run saved queries, open reports, export | Yes | Yes | Yes | Yes |
-| Add, change and delete records; save in forms | | Yes | Yes | Yes |
-| Run an unsaved visual query (no expressions) | | Yes | Yes | Yes |
+| Read tables, open forms and reports, run saved queries, export | Yes | Yes | Yes | Yes |
+| Add, change and delete records; save changes in forms | | Yes | Yes | Yes |
 | Start a job from a form (only jobs that allow it) | | Yes | Yes | Yes |
-| Design tables, queries, forms and reports | | | Yes | Yes |
-| Write scripts, create jobs, run a job now, download job artifacts | | | Yes | Yes |
-| SQL console and queries that use expressions | | | Yes | Yes |
+| Design tables, forms and reports | | | Yes | Yes |
+| Create and save queries; use expressions in queries | | | Yes | Yes |
+| SQL console and SQL queries | | | Yes | Yes |
 | Import data | | | Yes | Yes |
+| Write scripts, create jobs, run a job now, download job artifacts | | | Yes | Yes |
 | Add or remove members, change roles | | | | Yes |
 | Create, list and restore backups | | | | Yes |
-| Workspace settings | | | | Yes |
+| Workspace settings, including API keys and outbound hosts | | | | Yes |
 
 Form behaviour such as **Allow edits** is a convenience for users, not a security control. The role decides what a person may do.
 
@@ -37,27 +37,26 @@ A workspace always keeps at least one owner. You cannot remove or demote the las
 
 ## Platform administrators {#platform-admins}
 
-A platform administrator manages the whole server: creating workspaces, creating and disabling user accounts, managing the platform egress allowlist (the outbound hosts jobs may reach) and the backup schedule, reading server logs and metrics. This is separate from workspace roles. An administrator sees a workspace's data only after being added to it as a member.
+A platform administrator manages the whole server from the **Admin console**, which is in the user menu. Its tabs are **Overview**, **Workspaces**, **Users**, **API keys**, **Settings** and **Logs**. Administrators create workspaces and user accounts, disable accounts, manage the platform outbound allowlist (the hosts jobs may reach) and the backup schedule, and read server logs and metrics. This is separate from workspace roles. An administrator sees a workspace's data only after being added to it as a member.
 
 ## Add and manage members {#members}
 
-Only owners can manage members.
+Accounts come first. A platform administrator creates each one in the **Admin console**, on the **Users** tab, with **New user**. There is no self-registration.
 
-1. Make sure the person has an account. Accounts are created by a platform administrator; there is no self-registration.
-2. Open **Workspace settings** from the user menu and go to the members list.
-3. Add the person by email and choose a role.
-4. To change a role or remove someone, use the controls in the same list.
+Membership is managed through the API. The web app has no members screen in this version. An owner adds, changes and removes members with the workspace members routes, `/api/v1/w/<workspace id>/members`. The [API access](/docs/guide/api) page explains how to call the API, and the OpenAPI document lists every route.
 
-Adding someone who does not have an account fails with a message asking you to have an administrator create it first. Adding someone who is already a member fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value).
+Adding someone who is already a member fails with [DUPLICATE_VALUE](/docs/reference/errors#duplicate-value).
 
 ## Programs and API keys {#api-keys}
 
-Programs that are not people, such as a bot or a nightly sync, use an [API key](/docs/guide/api) instead of an account. A key has the viewer, editor or builder role, and the table above applies to it. A key is never an owner. Owners create and revoke keys in the workspace settings. Keys belong to the workspace, so removing the member who created a key does not stop it; revoke it explicitly.
+Programs that are not people, such as a bot or a nightly sync, use an [API key](/docs/guide/api) instead of an account. A key has the **Viewer**, **Editor** or **Builder** access level, and the table above applies to it. A key is never an owner.
+
+Owners create and revoke keys in **Workspace settings**, in the **API keys** section, with **Create API key** and **Revoke**. Each key has an expiry: 30 days, 90 days, 1 year or never. Keys belong to the workspace, so removing the member who created a key does not stop it. Revoke it explicitly.
 
 ## Choosing a role {#choosing}
 
 - Give most people **Editor**. They can do their daily work and cannot change the design.
 - Give **Builder** only to people who design tables, forms and scripts. Scripts run on the server, so a builder can read and write every table.
-- Keep **Owner** to people who may restore a backup, which replaces all the data,.
+- Keep **Owner** to people who may restore a backup, which replaces all the data.
 
 For the security reasoning behind this, see [Security](/docs/operations/security#roles).

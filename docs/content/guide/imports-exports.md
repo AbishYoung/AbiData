@@ -12,31 +12,35 @@ Builders and owners import data. Export is available to every role that can see 
 
 The import wizard has four steps: **File**, **Preview and mapping**, **Check** and **Import**.
 
-1. In the **Tables** group, choose **Import…** to create a new table, or open a table's menu and choose **Import into this table…**.
-2. **File.** Choose a file of up to 100 MiB. Supported formats:
-   - CSV, with the delimiter and encoding detected for you. A UTF-8 byte-order mark is accepted.
+1. In the **Tables** group, choose **Import…** to create a new table. To import into an existing table, open its **More actions** menu (the button labelled with the table name and three dots) and choose **Import into this table…**.
+2. **File.** Drag a file into the box, or choose one. The file can be up to 100 MiB. Supported formats:
+   - CSV, with the delimiter detected for you. A UTF-8 byte-order mark is accepted.
    - Excel (`.xlsx`). The first visible sheet is read.
-   - JSON, either one array of objects or one object per line (NDJSON).
+   - JSON, either one array of objects, or one object per line (NDJSON).
 
-   Under **File options** you can set the format, delimiter and other details if the preview comes out wrong.
-3. **Preview and mapping.** The first rows are shown and a type is guessed for each column from the first 1,000 rows. For a new table, name each field, adjust its type and mark it **Required**. For an existing table, map each source column to a field or choose **Skip this column**. Columns with the same name are matched automatically.
-4. Choose a **Mode**:
+   Under **File options** you can set **Format**, **Delimiter**, **Sheet** and whether **The first row holds column names**. Leave these on automatic unless the preview comes out wrong. Choose **Upload and preview** to continue.
+3. **Preview and mapping.** The first rows are shown, and a type is guessed for each column from the first 1,000 rows.
+   - For a new table, the **Fields of the new table** table has one row per source column. Choose whether to **Include** it, its **Field name**, its **Type**, and whether it is **Required**.
+   - For an existing table, the **Column mapping** table has an **Import into** choice for each source column. Pick the field, or **Skip this column**. Columns with the same name are matched automatically.
+   - Choose a **Mode**:
 
-   | Mode | What it does |
-   |---|---|
-   | Append | Adds every row as a new record |
-   | Upsert | Updates the record whose key matches and adds the rest. The key must be a field with a unique index |
-   | Replace | Deletes all records first, then adds the imported rows. You must tick a box to confirm |
+     | Mode | What it does |
+     |---|---|
+     | Append | Adds every row as a new record. Existing records are left alone |
+     | Upsert | Updates the record whose key matches, and adds the rest. Choose the **Key field**; it must have a unique index |
+     | Replace | Deletes all existing records first, then adds the imported rows. You must tick **I understand that all existing records will be deleted** |
 
-   Choose a **Transaction** style:
-   - **Chunked (default)** commits rows in batches of 2,000. If something fails you keep the batches already committed.
-   - **All or nothing** is one transaction. Any failure rolls everything back. Avoid it for very large files.
-5. **Check.** AbiData validates the rows and lists the first 100 problems with the row, column and reason. Fix the source file or the mapping and try again. Some problems, such as a duplicate in a unique field, are only found when rows are written.
-6. **Import.** The import runs in the background. You can close the wizard and follow progress from the status bar. When it finishes, the result shows the number of rows **Inserted**, **Updated** and **Skipped**, and any errors.
+   - Choose a **Transaction** style:
+     - **Chunked (default)** saves rows in batches of 2,000. Rows that fail are skipped, and the batches already saved stay saved if the import is cancelled or interrupted.
+     - **All or nothing** saves everything in one transaction, and undoes it all if any row fails. Other people's saves wait until it finishes, so avoid it for very large files.
 
-A failed all-or-nothing import leaves your data unchanged, and a new table created by it is removed. A replace of more than 50,000 rows takes a [restore point](/docs/guide/backups#restore-points) first.
+   Choose **Check rows** to continue.
+4. **Check.** AbiData validates the rows and lists the first 100 problems in a table with the row, the column and the problem. Fix the source file or the mapping, and use **Back** to try again. The check cannot see database rules such as unique values. Those are enforced when the rows are saved, so some problems appear only during the import.
+5. **Import.** Choose **Import rows**. The import runs in the background. You can choose **Close and keep running** and follow progress in the status bar. **Cancel import** stops it. When it finishes, the result shows the number of rows **Inserted**, **Updated**, **Skipped** and **Errors**, with the list of errors. **Open table** shows the result.
 
-If rows are rejected the operation ends with [IMPORT_ROW_ERRORS](/docs/reference/errors#import-row-errors).
+A failed all-or-nothing import leaves your data unchanged. The result says "All or nothing: no rows were changed." A new table created by a failed import is removed. A replace of more than 50,000 rows takes a [restore point](/docs/guide/backups#restore-points) first.
+
+If rows are rejected, the operation ends with [IMPORT_ROW_ERRORS](/docs/reference/errors#import-row-errors).
 
 ### Limits {#import-limits}
 
@@ -47,9 +51,9 @@ If rows are rejected the operation ends with [IMPORT_ROW_ERRORS](/docs/reference
 
 ## Export data {#export}
 
-1. Open the menu of a table or saved query, or use **Export…** on a datasheet.
-2. Choose **CSV**, **Excel (.xlsx)** or **JSON** (an array of objects).
-3. The export runs in the background. When it is done, the dialog offers a **Download** link.
+1. Open the **More actions** menu of a table or saved query and choose **Export…**. On a datasheet, choose **Export…** in the toolbar.
+2. Choose the **Format**: **CSV**, **Excel (.xlsx)** or **JSON** (an array of objects). For a query with parameters, fill in the values first.
+3. Choose **Export**. The export runs in the background. When the file is ready the download starts by itself. If it does not, the dialog keeps a **Download** link.
 
 Exports of saved queries are limited to 50,000 rows. Exported files are kept for 30 days.
 
