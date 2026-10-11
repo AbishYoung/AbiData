@@ -6,25 +6,25 @@ summary: Write Lua for forms, reports and jobs; know the contexts, time budgets 
 
 # Scripts
 
-Scripts are written in Lua 5.1 and run in a sandbox on the server. Builders and owners create and edit them in **Script Studio**.
+Scripts are written in Lua 5.1 and run in a sandbox on the server. Builders and owners create and edit them. The **Scripts** and **Jobs** groups are not shown to viewers and editors.
 
 ## Script kinds {#kinds}
 
-| Kind | Used by |
-|---|---|
-| Module | Shared functions. Other scripts load it with `require("name")`. |
-| Form module | Event handlers for one form. Edit it in the form designer's **Module** panel. |
-| Report module | Functions for one report's expressions. |
-| Job | The code a [job](/docs/guide/jobs) runs. |
+| Kind | How you create it | Used by |
+|---|---|---|
+| Module | **New script** in the **Scripts** group, with **Kind** set to **Module** | Shared functions. Other scripts load it with `require("name")`. |
+| Job | **New script**, with **Kind** set to **Job** | The code a [job](/docs/guide/jobs) runs |
+| Form module | The **Module** panel of the form designer | Event handlers for one form |
+| Report module | The **Module** panel of the report designer | Functions for one report's expressions |
 
-Script Studio checks your code as you type. Syntax errors and unknown function names appear as markers and in the **Problems** list. Hover a function to see its documentation, with a link to the [Lua API reference](/docs/reference/lua-api). Save with `Mod+S`.
+Script Studio is the editor for scripts. It checks your code as you type. Syntax errors and unknown function names appear as markers and in the **Problems** list. Hover a function to see its documentation, with a link to the [Lua API reference](/docs/reference/lua-api). Save with `Mod+S`.
 
 ## Lua basics {#basics}
 
 ```lua
 local total = 0
-for _, row in ipairs(db.query("SELECT Qty, Price FROM OrderLines WHERE OrderId = :id", { id = record.id })) do
-  total = total + row.Qty * row.Price
+for _, row in ipairs(db.query("SELECT Quantity, Unit_price FROM Order_lines WHERE Sales_order = :id", { id = record.id })) do
+  total = total + row.Quantity * row.Unit_price
 end
 log.info("order total", { id = record.id, total = total })
 return total
@@ -32,6 +32,7 @@ return total
 
 Things that differ from what you may expect:
 
+- **Names in scripts are SQL names.** A table or field is named with its display name, with spaces replaced by `_`. The sample table **Order lines** is `Order_lines`, and **Unit price** is `Unit_price`. See [Tables](/docs/guide/tables#design).
 - **Empty fields are `db.NULL`, not `nil`.** Lua tables cannot hold `nil`. Test with `db.is_null(v)`, which is true for both.
 - **Currency fields are `decimal` values.** Use `decimal.new("12.50")` and the usual operators to avoid floating-point error.
 - **Dates and times are strings.** A date is `"2026-01-31"`; a timestamp is ISO 8601 UTC such as `"2026-03-09T05:30:00.000Z"`. They sort and compare correctly as text. Use `datetime` for calendar arithmetic.
@@ -50,7 +51,7 @@ A script runs in one of three contexts. The context decides which functions exis
 | `report` | A report runs | 30 seconds per run | not available | 1 MiB | No | No |
 | `job` | A job runs | The job's timeout, up to 3,600 s (default 300 s) | 2 s | 16 MiB | `fetch` to allowed hosts | Yes |
 
-Waiting for a free slot counts against the budget. If a script is too slow, you get [SCRIPT_TIMEOUT](/docs/reference/errors#script-timeout). If it builds a string that is too long, uses a runaway pattern, or the server runs low on memory, you get [SCRIPT_LIMIT_EXCEEDED](/docs/reference/errors#script-limit-exceeded). Any other failure is [SCRIPT_ERROR](/docs/reference/errors#script-error) with the line number.
+Waiting for a free slot counts against the budget. If a script is too slow, you get [SCRIPT_TIMEOUT](/docs/reference/errors#script-timeout). If it builds a string that is too long, uses a runaway pattern, or the server runs low on memory, you get [SCRIPT_LIMIT_EXCEEDED](/docs/reference/errors#script-limit-exceeded). Any other failure is [SCRIPT_ERROR](/docs/reference/errors#script-error), with the line number.
 
 Practical rules:
 
@@ -71,11 +72,12 @@ Choose the right function for the change:
 
 ### Block a save from a form {#recipe-validate}
 
+This runs on the **Orders** form. A shipped order must have a customer.
+
 ```lua
 function before_update()
-  local total = db.sum("OrderLines", "LineTotal", "OrderId = :id", { id = record.id })
-  if total ~= db.NULL and total > 5000 and db.is_null(record.Approver) then
-    ui.cancel("Orders over 5,000 need an approver.")
+  if record.Status == "Shipped" and db.is_null(record.Customer) then
+    ui.cancel("A shipped order needs a customer.")
   end
 end
 ```
@@ -88,6 +90,8 @@ function on_customer_change()
   record.Email = email
 end
 ```
+
+This example assumes the form's record has an `Email` field and a `Customer` lookup. Change the names to match your own tables.
 
 ### Ask before doing something {#recipe-confirm}
 

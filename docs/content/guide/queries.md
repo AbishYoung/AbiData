@@ -6,32 +6,32 @@ summary: Build and save queries visually or in SQL, use parameters, and know who
 
 # Queries
 
-A query is a saved selection of data: some tables, the fields you want, filters, sorting and totals. Queries can feed datasheets, forms and reports.
+A query is a saved selection of data: some tables, the fields you want, filters, sorting and totals. Queries can feed datasheets, forms and reports. Builders and owners create and save queries. Everyone who can read the data can run a saved query.
 
 ## Design a query visually {#designer}
 
 1. In the **Queries** group, choose **New query**.
-2. Add tables to the canvas. Drag between matching fields to create a join. Choose **inner** (only matching records) or **left** (all records from the left table).
-3. Add fields to the field grid. For each field you can set an output name, show or hide it, sort it (**Ascending** or **Descending**) and set criteria.
-4. Choose **Run** to see the results in a dialog. Choose **Save** when it looks right. **Save as** keeps the original.
+2. Choose **Add table or query** to put tables and saved queries on the canvas. To join two of them, choose **Add join**, or drag from a field on one box to a field on another. In the join dialog, choose **Inner** (only rows that match on both sides) or **Left** (every row from the left table, with matching rows from the right if there are any).
+3. Choose **Add field**. Pick a column, or write an expression instead. Then set the field's options in the field grid: **Output name**, **Show**, **Sort** and **Criteria**. Sort is **(not sorted)**, **Ascending** or **Descending**.
+4. Choose **Run** to see the results in a dialog. Choose **Save** when it looks right, or **Save as** to save a copy under a new name and keep the original.
 
-Criteria use operators such as *equals*, *less than*, *between*, *contains*, *starts with*, *is one of*, *is empty* and *like* (with `*` and `?` wildcards).
+Criteria use these operators: *equals*, *does not equal*, *less than*, *at most*, *greater than*, *at least*, *like* (with `*` and `?` wildcards), *contains*, *starts with*, *ends with*, *is one of*, *between*, *is empty* and *is not empty*.
 
 ### Totals {#totals}
 
-Turn on totals to group records. Each field then has a **Total** setting: **Group By**, **Sum**, **Avg**, **Count**, **Min** or **Max**.
+Tick **Totals** above the field grid to group records. Each field then has a **Total** setting: **Group By**, **Sum**, **Avg**, **Count**, **Min** or **Max**.
 
 ### Expressions {#expressions}
 
-A field can be an SQL expression instead of a column. Expressions can use built-in SQL functions, not your own tables' internals. Only builders and owners can run or save queries that contain expressions.
+A field can be an SQL expression instead of a column. For example, `Quantity * Unit_price` uses the SQL names described in [Tables](/docs/guide/tables#design). Expressions can use built-in SQL functions. Only builders and owners can run or save queries that contain expressions.
 
 ## SQL view {#sql}
 
-The **SQL** view shows the SQL the designer generated. It is read-only for visual queries.
+The **SQL** view shows the SQL that the designer generated, under the heading **SQL (read-only)**. You cannot edit it there.
 
-To edit the SQL yourself, choose **Convert to SQL** in the Design view. This cannot be undone: a converted query never goes back to the visual designer. The query must be saved first.
+To edit the SQL yourself, open the query's design and choose **Convert to SQL**. This button is available for a saved query with no errors. Confirm the dialog: the query becomes a SQL query and can no longer be edited visually. This cannot be undone.
 
-Builders can also open the **SQL console** (the button in the Queries group) to run a read-only statement without saving it, and save it as a SQL query.
+Builders can also open the **SQL console** from the **Queries** group. It runs a statement without saving it, and **Save query** keeps it as a SQL query.
 
 SQL queries are read-only. These are allowed:
 
@@ -45,8 +45,8 @@ These are refused with [SQL_NOT_ALLOWED](/docs/reference/errors#sql-not-allowed)
 
 Parameters ask the person running the query for a value, like an Access parameter query.
 
-- In a visual query, add parameters in the **Parameters** panel and give each a name and a type (text, whole number, number, currency, yes/no, date or date and time). Use the parameter in a criterion.
-- In SQL, write a named placeholder such as `:customer`. The designer finds it and lists it for you to type.
+- In a visual query, open the **Parameters** panel and choose to add a parameter. Give it a **Name** and a **Type**: **Text**, **Whole number**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. Then use the parameter in a criterion.
+- In SQL, write a named placeholder such as `:customer`. The SQL editor finds it and lists it for you to fill in.
 
 When you run the query, a dialog asks for each value. Values are bound to the query, never pasted into the SQL text.
 
@@ -54,18 +54,19 @@ When you run the query, a dialog asks for each value. Values are bound to the qu
 
 - A query stops after 10 seconds.
 - A run returns at most 50,000 rows.
-- Result size is also capped. If you hit a cap, add criteria or use a [job](/docs/guide/jobs) to process the data in a script.
+- Result size is also capped. If you hit a cap, add criteria, or use a [job](/docs/guide/jobs) to process the data in a script.
 
 ## Who can run and who can save {#permissions}
 
 | Action | Viewer | Editor | Builder | Owner |
 |---|---|---|---|---|
 | Run a saved query | Yes | Yes | Yes | Yes |
-| Run an unsaved visual query | | Yes, without expressions | Yes | Yes |
+| Create a query, or open its design and run it unsaved | | | Yes | Yes |
+| Use expressions in a visual query | | | Yes | Yes |
 | Save, rename or delete a query | | | Yes | Yes |
 | SQL console and SQL queries | | | Yes | Yes |
 
-Editors can design and run a query to look at data but cannot save it. Ask a builder to save it.
+Viewers and editors do not see **New query** and cannot open a query's design. To change a query, ask a builder.
 
 ## Editing in a query's datasheet {#editing}
 

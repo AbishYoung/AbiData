@@ -6,34 +6,61 @@ summary: Work without a mouse, and find the full list of shortcuts.
 
 # Using the keyboard
 
-Everything in AbiData can be done from the keyboard. The full list of shortcuts, with Mac and Windows/Linux keys, is in [Keyboard shortcuts](/docs/reference/shortcuts). This page covers how focus moves.
+You can do most work from the keyboard. The full list of shortcuts, with Mac and Windows/Linux keys, is in [Keyboard shortcuts](/docs/reference/shortcuts). This page explains how the keys behave in each area. `Mod` means `⌘` (Command) on Mac and `Ctrl` on Windows and Linux.
 
 ## The essentials {#essentials}
 
-- `Mod+K` opens the command palette. Type to search, use the arrow keys to move, `Enter` to run, `Esc` to close. `Mod` is Cmd on Mac and Ctrl on Windows and Linux.
-- `?` opens this documentation when you are not typing in a field. The **?** button in the top bar does the same.
-- `Mod+S` saves the design you are editing.
-- `Esc` closes dialogs and panels, and gives focus back to where you were.
+- `Mod+K` opens the command palette. Type to search, use the arrow keys to move, `Enter` to run and `Esc` to close.
+- `?` opens this documentation when you are not typing in a field. The help button in the top bar, labelled **Open documentation**, does the same.
+- `Mod+S` saves the design you are editing: a table design, a query, a form, a report, a script or a job.
+- `Esc` closes dialogs and panels. In the documentation panel, the first `Esc` clears the search and the next one closes the panel.
 
-AbiData never uses F1 or Ctrl/Cmd with N, T, W, E, L or P, so your browser's own shortcuts keep working.
+AbiData never uses `F1` or `Ctrl`/`Cmd` with `N`, `T`, `W`, `E`, `L` or `P`, so your browser's own shortcuts keep working.
 
 ## Moving between areas {#areas}
 
-Press `Tab` and `Shift+Tab` to move between the navigation pane, the tab strip, the document and the status bar.
+`Tab` and `Shift+Tab` move the focus to the next or previous control, in the order they appear on the screen.
 
-On a tab, press `Delete` to close it. If it has unsaved changes you are asked first.
+In the tab strip, press `Delete` to close the focused tab. If the tab has unsaved changes, AbiData asks you to confirm before it discards them.
 
 ## Datasheets {#datasheets}
 
-The datasheet is a grid. Use the arrow keys to move, `Enter` or `F2` to edit a cell and `Shift+Enter` to save the record. `Esc` cancels. `Mod+F` jumps to the filter box while the grid has focus; anywhere else it is your browser's find.
+The datasheet is a grid.
+
+- Arrow keys move between cells and records. `Tab` and `Shift+Tab` move to the next or previous cell. `Page Up` and `Page Down` move one page. `Mod+Home` and `Mod+End` go to the first and last record.
+- `Enter` or `F2` edits the current cell. Typing a character starts an edit with that character. In a long text cell, `Alt+Enter` adds a line break.
+- `Shift+Enter` saves the record. `Esc` cancels the edit, or discards your unsaved changes to the record.
+- `Space` toggles a Yes/No cell. `Shift+Space` selects or deselects the current record.
+- `Delete` deletes the selected records, after you confirm.
+- `Mod+Shift+N` goes to the new record row. `Mod+F` moves to the filter box. Elsewhere, `Mod+F` is your browser's find.
+- With a column header focused, `Alt+Left` and `Alt+Right` make the column narrower or wider.
 
 See [Tables](/docs/guide/tables#editing) for editing and [conflicts](/docs/guide/tables#editing-conflicts).
 
-## Forms and designers {#forms}
+## Forms {#forms}
 
-In a form, `Alt+Up` and `Alt+Down` move between records and `Mod+Shift+N` starts a new one.
+- `Alt+Up` and `Alt+Down` move to the previous and next record.
+- `Mod+Shift+N` starts a new record.
+- `Shift+Enter` saves the record. `Esc` discards unsaved changes.
 
-In the form and report designers, every control can be reached without a mouse: `Tab` steps through controls, `Space` selects, the arrow keys nudge by one grid step and `Shift` with an arrow resizes.
+## Designers {#designers}
+
+In the form and report designers, every control can be reached without a mouse.
+
+- `Tab` and `Shift+Tab` move the focus between controls.
+- `Enter` selects only the focused control. `Space` adds or removes it from the selection.
+- The arrow keys move the selected controls by one grid step. `Shift` with an arrow key resizes them.
+- `Mod+Arrow` moves the focus without selecting.
+- `Mod+A` selects all controls, `Mod+D` duplicates the selection, and `Delete` or `Backspace` deletes it.
+- `Esc` clears the selection.
+
+## Lists, grids and viewers {#lists}
+
+- **Command palette and documentation contents**: the arrow keys move the highlight. `Enter` opens the item. In the documentation contents, `Home` and `End` go to the first and last item.
+- **Query results**: arrow keys move between cells, `Page Up` and `Page Down` move one page, and `Home` and `End` go to the first and last row.
+- **Script Studio problems list**: the arrow keys and `Home` and `End` move through the problems, and `Enter` jumps to the line of the selected one.
+- **Report viewer**: `Page Up` and `Page Down` move between pages, and `Home` and `End` go to the first and last page.
+- **Panel dividers**: when a divider between panes has focus, the arrow keys move it. Hold `Shift` for bigger steps.
 
 ## Screen readers {#screen-readers}
 
