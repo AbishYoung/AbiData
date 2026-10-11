@@ -13,6 +13,9 @@ import (
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	_ "abidata/internal/script/modules/db"
+	// Production always links the decimal module, which makes currency a
+	// decimal value; without it currency would fall back to a plain string.
+	_ "abidata/internal/script/modules/decimal"
 	_ "abidata/internal/script/modules/records"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -160,7 +163,7 @@ func TestRecordsModuleTypedAndErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if vals[0] != int64(1) || vals[1] != int64(2) || vals[2] != int64(4) || vals[3] != "19.9900" || vals[4] != true || vals[5] != true {
+	if vals[0] != int64(1) || vals[1] != int64(2) || vals[2] != int64(4) || vals[3] != "19.99" || vals[4] != true || vals[5] != true {
 		t.Fatalf("%#v", vals)
 	}
 	// Uncaught host errors surface with their fault code and message.
