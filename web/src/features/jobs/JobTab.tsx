@@ -1,9 +1,11 @@
+import { KindIcon } from "@/components/objectKinds";
+import { EmptyState, ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Play, Save, Trash2 } from "lucide-react";
 import { useTabs, useWorkspaceTabs } from "@/app/tabs";
-import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { alertBox, badgeSuccess, badgeWarning, btn, btnGhost, btnPrimary, card, eyebrow, input, textarea, label as labelClass } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { ApiError } from "@/lib/api";
 import { listScripts, scriptKeys } from "@/features/scripts/scriptsApi";
@@ -198,8 +200,9 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
         }
       }}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <h2 className="m-0 mr-2 text-base font-semibold">{job ? job.name : "New job"}</h2>
+      <div className={docToolbar}>
+        <KindIcon kind="job" size="sm" />
+        <h2 className="m-0 mr-2 text-sm font-semibold">{job ? job.name : "New job"}</h2>
         <Tip label="Save the job" shortcut="Mod+S">
           <button type="button" className={btnPrimary} disabled={(job !== null && !isDirty) || save.isPending} onClick={submit}>
             <Save size={16} aria-hidden="true" />
@@ -208,20 +211,21 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
         </Tip>
         {job && (
           <>
-            <button type="button" className={btn} disabled={isDirty || runNow.isPending} onClick={() => runNow.mutate()}>
+            <ToolbarDivider />
+            <button type="button" className={btnGhost} disabled={isDirty || runNow.isPending} onClick={() => runNow.mutate()}>
               <Play size={16} aria-hidden="true" />
               Run now
             </button>
-            <button type="button" className={btn} disabled={isDirty} onClick={() => setRunWithArgs(true)}>
+            <button type="button" className={btnGhost} disabled={isDirty} onClick={() => setRunWithArgs(true)}>
               Run with arguments…
             </button>
-            <button type="button" className={btn} onClick={() => setConfirmDelete(true)}>
+            <button type="button" className={btnGhost} onClick={() => setConfirmDelete(true)}>
               <Trash2 size={16} aria-hidden="true" />
               Delete
             </button>
           </>
         )}
-        <span className="ml-auto text-sm text-fg-muted">{isDirty ? "Unsaved changes" : job ? "Saved" : ""}</span>
+        {(isDirty || job) && <span className={`ml-auto ${isDirty ? badgeWarning : badgeSuccess}`}>{isDirty ? "Unsaved changes" : "Saved"}</span>}
       </div>
       {job && isDirty && <p className="m-0 px-3 pt-1 text-sm text-fg-muted">Save your changes to run the job; a run uses the saved settings.</p>}
       {changedElsewhere && !conflict && (
@@ -248,8 +252,10 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
             e.preventDefault();
             submit();
           }}
-          className="flex w-full shrink-0 flex-col gap-3 p-3 lg:w-96 lg:overflow-y-auto"
+          className="flex w-full shrink-0 flex-col gap-4 bg-bg p-4 lg:w-[26rem] lg:overflow-y-auto"
         >
+          <div className={`${card} flex flex-col gap-4 p-4`}>
+          <h3 className={`${eyebrow} m-0`}>Basics</h3>
           {field(
             "name",
             "Job name",
@@ -299,8 +305,18 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
               : "Only scripts of kind Job can be scheduled.",
           )}
 
-          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-            <legend className="mb-1 p-0 text-sm font-medium">Schedule</legend>
+          <div className="flex items-start gap-2">
+            <input id="job-enabled" type="checkbox" className="mt-0.5 h-4 w-4 accent-accent" {...register("enabled")} />
+            <label htmlFor="job-enabled" className="text-sm font-medium">
+              Enabled
+            </label>
+            <span className="text-sm text-fg-muted">A disabled job never starts on its schedule; Run now still works.</span>
+          </div>
+          </div>
+
+          <div className={`${card} p-4`}>
+          <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
+            <legend className={`${eyebrow} mb-3 p-0`}>Schedule</legend>
             <div>
               <label className={labelClass} htmlFor="job-preset">
                 Repeat
@@ -374,14 +390,10 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
             </select>,
             "The schedule is evaluated in this zone, including daylight saving changes.",
           )}
-
-          <div className="flex items-center gap-2">
-            <input id="job-enabled" type="checkbox" className="h-4 w-4" {...register("enabled")} />
-            <label htmlFor="job-enabled" className="text-sm font-medium">
-              Enabled
-            </label>
-            <span className="text-sm text-fg-muted">A disabled job never starts on its schedule; Run now still works.</span>
           </div>
+
+          <div className={`${card} flex flex-col gap-4 p-4`}>
+          <h3 className={`${eyebrow} m-0`}>Run behaviour</h3>
 
           {field(
             "timeout_seconds",
@@ -445,7 +457,9 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
               "Wait before retrying; 0 uses 60.",
             )}
           </div>
+          </div>
 
+          <div className={`${card} p-4`}>
           {field(
             "args",
             "Arguments (JSON)",
@@ -453,7 +467,7 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
               id="job-args"
               rows={6}
               spellCheck={false}
-              className="w-full rounded-md border border-border bg-surface px-3 py-1.5 font-mono text-sm text-fg"
+              className={`${textarea} font-mono`}
               aria-invalid={errors.args ? true : undefined}
               aria-describedby={describe("args", "args-hint")}
               {...register("args", {
@@ -467,6 +481,7 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
               Read in the script as job.args. Add <code>"allow_enqueue": true</code> to let forms start this job.
             </>,
           )}
+          </div>
         </form>
 
         {job && (
@@ -475,9 +490,9 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
           </div>
         )}
         {!job && (
-          <p className="m-0 p-3 text-sm text-fg-muted lg:flex-1">
-            Save the job to see its run history here.
-          </p>
+          <div className="flex flex-col lg:flex-1">
+            <EmptyState kind="job" title="No run history yet" hint="Save the job to see its run history here." />
+          </div>
         )}
       </div>
       {confirmDelete && job && <DeleteJobDialog ws={ws} job={job} onClose={() => setConfirmDelete(false)} />}

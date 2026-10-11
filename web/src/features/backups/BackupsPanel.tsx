@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,7 +8,7 @@ import { ME_KEY } from "@/lib/session";
 import { useTabs } from "@/app/tabs";
 import { Modal } from "@/features/queries/Modal";
 import { Tip } from "@/components/Tip";
-import { alertBox, btn, btnPrimary, input, label } from "@/components/styles";
+import { alertBox, badge, badgeAccent, btn, btnPrimary, card, input, label } from "@/components/styles";
 import {
   backupKeys,
   createBackup,
@@ -254,10 +255,15 @@ export function BackupsPanel({ ws }: { ws: string }) {
   const who = (b: Backup) => (b.created_by ? (members.data?.[b.created_by] ?? (b.created_by.length > 20 ? "A former member" : b.created_by)) : "System");
 
   return (
-    <section aria-labelledby="backups-heading" data-testid="backups-panel" className="mt-6">
-      <h3 id="backups-heading" className="mb-2 text-sm font-semibold">
-        Backups
-      </h3>
+    <section aria-labelledby="backups-heading" data-testid="backups-panel" className={`${card} mb-5 p-5`}>
+      <div className="mb-4 flex items-center gap-2.5">
+        <span aria-hidden="true" className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
+          <DatabaseBackup size={18} />
+        </span>
+        <h3 id="backups-heading" className="m-0 text-base font-semibold tracking-tight">
+          Backups
+        </h3>
+      </div>
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <Tip label="Create a backup of this workspace now">
           <button type="button" className={btnPrimary} onClick={() => backUp.mutate()} disabled={backUp.isPending} aria-busy={backUp.isPending}>
@@ -286,20 +292,18 @@ export function BackupsPanel({ ws }: { ws: string }) {
         </div>
       )}
       {list.isPending && (
-        <p role="status" className="m-0 text-fg-muted">
-          Loading backups…
-        </p>
+        <SkeletonLines rows={3} label="Loading backups…" />
       )}
       {list.data && (
-        <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full border-collapse text-sm">
           <caption className="sr-only">Backups, newest first</caption>
           <thead>
-            <tr className="text-left">
-              <th scope="col" className="px-2 py-1 font-semibold">Kind</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Created</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Size</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Created by</th>
-              <th scope="col" className="px-2 py-1">
+            <tr className="border-b border-border bg-surface-2 text-left">
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Kind</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Created</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Size</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Created by</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -307,7 +311,7 @@ export function BackupsPanel({ ws }: { ws: string }) {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-2 py-2 text-fg-muted">
+                <td colSpan={5} className="px-3 py-8 text-center text-fg-muted">
                   No backups yet. Use Back up now to create one.
                 </td>
               </tr>
@@ -315,18 +319,18 @@ export function BackupsPanel({ ws }: { ws: string }) {
             {rows.map((b) => {
               const abs = absoluteTime(b.created_at);
               return (
-                <tr key={b.id} data-backup-id={b.id} data-kind={b.kind} className="border-t border-border align-top">
-                  <td className="px-2 py-1.5">{KIND_LABEL[b.kind]}</td>
-                  <td className="px-2 py-1.5">
+                <tr key={b.id} data-backup-id={b.id} data-kind={b.kind} className="border-t border-border align-top transition-colors hover:bg-surface-2/60">
+                  <td className="px-3 py-2"><span className={b.kind === "manual" ? badgeAccent : badge}>{KIND_LABEL[b.kind]}</span></td>
+                  <td className="px-3 py-2">
                     <time dateTime={b.created_at}>{relativeTime(b.created_at)}</time>
                     <span className="block text-xs text-fg-muted">{abs}</span>
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2">
                     {formatSize(b.gz_bytes)}
                     <span className="block text-xs text-fg-muted">{formatSize(b.raw_bytes)} uncompressed</span>
                   </td>
-                  <td className="px-2 py-1.5">{who(b)}</td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2">{who(b)}</td>
+                  <td className="px-3 py-2">
                     <div className="flex flex-wrap justify-end gap-2">
                       <Tip label="Replace this workspace's data with the backup">
                         <button type="button" className={btn} onClick={() => setRestoring(b)} aria-label={`Restore backup from ${abs}`}>
@@ -354,9 +358,9 @@ export function BackupsPanel({ ws }: { ws: string }) {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
-      <section aria-label="Retention policy" className="mt-3 rounded-md border border-border bg-surface-2 p-3 text-sm">
+      <section aria-label="Retention policy" className="mt-4 rounded-lg border border-border bg-surface-2/60 p-4 text-sm">
         <h4 className="m-0 text-sm font-semibold">How long backups are kept</h4>
         <ul className="m-0 mt-1 list-disc pl-5">
           {RETENTION_POLICY.map((t) => (

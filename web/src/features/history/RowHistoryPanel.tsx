@@ -1,10 +1,11 @@
+import { EmptyState, SkeletonLines } from "@/components/EditorParts";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog } from "radix-ui";
 import { History, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { findTable, useSchema, type Column } from "@/lib/schema";
-import { alertBox, btn } from "@/components/styles";
+import { alertBox, badgeAccent, badgeDanger, badgeSuccess, btn, iconBtn } from "@/components/styles";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
 import { useRowHistory } from "./historyApi";
 import {
@@ -54,16 +55,20 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
       </div>
     );
   } else if (history.isPending || !schema.data) {
-    body = <p className="text-sm text-fg-muted">Loading history…</p>;
+    body = <SkeletonLines rows={6} label="Loading history…" />;
   } else if (!tracked) {
     body = (
-      <p className="m-0 text-sm" data-testid="history-off">
-        History is off for this table.
-        {isBuilder && " A builder can turn on Track history in Design."}
-      </p>
+      <div data-testid="history-off">
+        <EmptyState
+          icon={History}
+          compact
+          title="History is off for this table."
+          hint={isBuilder ? "A builder can turn on Track history in Design." : "Ask a builder to turn on Track history."}
+        />
+      </div>
     );
   } else if (items.length === 0) {
-    body = <p className="m-0 text-sm text-fg-muted">No history has been recorded for this record yet.</p>;
+    body = <EmptyState icon={History} compact title="No history yet" hint="No history has been recorded for this record yet." />;
   } else {
     body = (
       <>
@@ -84,7 +89,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
   return (
     <Dialog.Root open onOpenChange={(o) => (o ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content
           aria-describedby={undefined}
           onCloseAutoFocus={(e) => {
@@ -93,18 +98,20 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
               opener.current.focus();
             }
           }}
-          className="fixed inset-y-0 right-0 z-50 flex w-[min(32rem,100vw)] flex-col border-l border-border bg-surface text-fg shadow-xl"
+          className="fixed inset-y-0 right-0 z-50 flex w-[min(92vw,28rem)] flex-col border-l border-border bg-surface text-fg shadow-lg"
         >
-          <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-            <History size={18} aria-hidden="true" />
-            <Dialog.Title className="m-0 mr-auto text-base font-semibold">
+          <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+            <span aria-hidden="true" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+              <History size={18} />
+            </span>
+            <Dialog.Title className="m-0 mr-auto min-w-0 text-base font-semibold tracking-tight">
               History{table ? ` of record ${rowId} in ${table.display_name}` : ` of record ${rowId}`}
             </Dialog.Title>
-            <Dialog.Close className={`${btn} !px-2`} aria-label="Close history">
+            <Dialog.Close className={iconBtn} aria-label="Close history">
               <X size={16} aria-hidden="true" />
             </Dialog.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{body}</div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg px-4 py-4">{body}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -113,10 +120,10 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
 
 function Entry({ item, columns }: { item: HistoryItem; columns: readonly Column[] }) {
   return (
-    <li className="rounded-md border border-border p-3" data-testid="history-entry" data-op={item.op}>
+    <li className="rounded-xl border border-border bg-surface p-3 shadow-xs" data-testid="history-entry" data-op={item.op}>
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-sm font-semibold">{actorLabel(item)}</span>
-        <span className="text-sm">{opLabel(item.op)}</span>
+        <span className={item.op === "delete" ? badgeDanger : item.op === "insert" ? badgeSuccess : badgeAccent}>{opLabel(item.op)}</span>
       </div>
       <time dateTime={item.at} className="block text-sm text-fg-muted">
         {relativeTime(item.at)} · {absoluteTime(item.at)}

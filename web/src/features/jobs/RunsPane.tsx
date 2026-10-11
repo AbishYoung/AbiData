@@ -1,3 +1,5 @@
+import { ScrollText } from "lucide-react";
+import { EmptyState } from "@/components/EditorParts";
 import { RunDetailPanel } from "./RunDetailPanel";
 import { RunHistory } from "./RunHistory";
 
@@ -16,11 +18,11 @@ export function RunsPane({
   return (
     <>
       <RunHistory ws={ws} jobId={jobId} selected={selected} onSelect={onSelect} />
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
+      <div className="min-h-0 flex-1 overflow-y-auto flex flex-col border-t border-border bg-surface">
         {selected ? (
           <RunDetailPanel key={selected} ws={ws} jobId={jobId} runId={selected} />
         ) : (
-          <p className="m-0 p-3 text-sm text-fg-muted">Select a run to see its log and files.</p>
+          <EmptyState icon={ScrollText} compact title="No run selected" hint="Select a run to see its log and files." />
         )}
       </div>
     </>

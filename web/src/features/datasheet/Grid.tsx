@@ -5,12 +5,14 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  Check,
   Pencil,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import type { Column } from "@/lib/schema";
 import { Tip } from "@/components/Tip";
+import { menu, menuItem } from "@/components/styles";
 import { CellEditor, type EditorHandle, type LookupInfo, type Move } from "./Editors";
 import type { Cell } from "./nav";
 import type { RowBuffer, RowKey } from "./buffer";
@@ -19,7 +21,7 @@ import { ariaSort, type SortState } from "./filter";
 import { clampWidth, widthOf, type Layout } from "./layout";
 import { formatValue, isNumericKind, isReadOnlyColumn, kindOf } from "./values";
 
-export const ROW_HEIGHT = 28;
+export const ROW_HEIGHT = 32;
 export const HEADER_HEIGHT = 32;
 export const ROW_HEADER_WIDTH = 76;
 const RESIZE_STEP = 16;
@@ -126,14 +128,14 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
         if (from && from !== col.id) onDropColumn(from, col.id);
       }}
       style={{ width }}
-      className="relative flex shrink-0 items-center border-b border-r border-border bg-surface-2 text-sm font-semibold"
+      className="group/h relative flex shrink-0 items-center border-b border-r border-border bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3"
     >
       <Tip label={`${col.display_name}. Click to sort. Alt+Left or Alt+Right resizes the column.`}>
         <button
           type="button"
           onClick={() => onSort(col.id, "toggle")}
           onKeyDown={onKeyDown}
-          className="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left"
+          className="flex h-full min-w-0 flex-1 items-center gap-1 px-3 text-left hover:text-fg"
         >
           <span className="truncate">{col.display_name}</span>
           {direction === "ascending" && <ArrowUp size={14} aria-hidden="true" className="shrink-0" />}
@@ -144,7 +146,7 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
         <Tip label={`${col.display_name} column menu`}>
           <DropdownMenu.Trigger
             aria-label={`${col.display_name} column menu`}
-            className="mr-1 shrink-0 rounded p-1 hover:bg-surface"
+            className="mr-1 shrink-0 rounded p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-surface hover:text-fg focus-visible:opacity-100 group-hover/h:opacity-100 data-[state=open]:opacity-100"
           >
             <ChevronDown size={14} aria-hidden="true" />
           </DropdownMenu.Trigger>
@@ -152,7 +154,7 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
         <DropdownMenu.Portal>
           <DropdownMenu.Content
             align="end"
-            className="z-50 min-w-44 rounded-md border border-border bg-surface p-1 text-sm text-fg shadow-lg"
+            className={menu + " z-50"}
           >
             {(
               [
@@ -167,7 +169,7 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
                 key={text}
                 disabled={disabled}
                 onSelect={run}
-                className="cursor-pointer rounded px-2 py-1.5 outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-accent data-[highlighted]:text-accent-fg"
+                className={menuItem}
               >
                 {text}
               </DropdownMenu.Item>
@@ -244,7 +246,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
   const rowCount = total + (hasNewRow ? 1 : 0);
   const activeRendered = items.some((v) => v.index === active.row) && active.col < columns.length;
 
-  function renderCell(rowIndex: number, colIndex: number, row: Row | undefined, buffer: RowBuffer | undefined) {
+  function renderCell(rowIndex: number, colIndex: number, row: Row | undefined, buffer: RowBuffer | undefined, isSelected: boolean) {
     const col = columns[colIndex];
     if (!col) return null;
     const isNew = rowIndex >= total;
@@ -268,7 +270,8 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
     const error = buffer?.errors[col.id];
     const errId = `${cellId(gridId, rowIndex, colIndex)}-err`;
     const text = formatValue(col, value, display);
-    const align = isNumericKind(kind) ? "justify-end text-right" : "";
+    const numeric = isNumericKind(kind);
+    const align = numeric ? "justify-end text-right tabular-nums" : "";
 
     let body;
     if (isEditing && editing) {
@@ -289,15 +292,23 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
       body = <span className="text-fg-muted" aria-hidden="true">…</span>;
     } else if (kind === "boolean") {
       body = (
-        <input
-          type="checkbox"
-          tabIndex={-1}
-          checked={value === true}
-          disabled={readOnly}
-          aria-label={`${col.display_name}, record ${rowIndex + 1}`}
-          onChange={() => props.onToggleBoolean({ row: rowIndex, col: colIndex })}
-          className="size-4"
-        />
+        <span className="relative inline-flex size-4 items-center justify-center">
+          <input
+            type="checkbox"
+            tabIndex={-1}
+            checked={value === true}
+            disabled={readOnly}
+            aria-label={`${col.display_name}, record ${rowIndex + 1}`}
+            onChange={() => props.onToggleBoolean({ row: rowIndex, col: colIndex })}
+            className="peer size-4 cursor-pointer appearance-none rounded border border-border-strong/70 bg-surface transition-colors checked:border-accent checked:bg-accent disabled:cursor-default disabled:opacity-60"
+          />
+          <Check
+            size={12}
+            strokeWidth={3}
+            aria-hidden="true"
+            className="pointer-events-none absolute text-accent-fg opacity-0 peer-checked:opacity-100"
+          />
+        </span>
       );
     } else if (kind === "hyperlink" && typeof value === "string" && value !== "") {
       body = (
@@ -324,9 +335,9 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
         }}
         onDoubleClick={() => props.onCellDoubleClick({ row: rowIndex, col: colIndex })}
         style={{ width: widths[colIndex] }}
-        className={`relative flex h-7 shrink-0 items-center gap-1 border-b border-r border-border px-2 scroll-ml-20 scroll-mt-8 ${align} ${
-          isActive ? "outline-2 -outline-offset-2 outline-focus" : ""
-        } ${changed ? "bg-accent-soft" : "bg-surface"} ${error ? "border-b-2 border-b-danger" : ""}`}
+        className={`relative flex h-8 shrink-0 items-center gap-1 border-b border-r border-border px-3 text-sm scroll-ml-20 scroll-mt-8 ${align} ${
+          isActive ? "outline-2 -outline-offset-2 outline-accent" : ""
+        } ${changed ? "bg-accent-soft" : isSelected ? "bg-accent-soft/60" : "bg-transparent"} ${error ? "border-b-2 border-b-danger" : ""}`}
       >
         {error && !isEditing && (
           <Tip label={error}>
@@ -364,7 +375,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
       aria-activedescendant={activeRendered ? cellId(gridId, active.row, active.col) : undefined}
       tabIndex={0}
       onKeyDown={props.onKeyDown}
-      className="relative min-h-0 flex-1 overflow-auto bg-bg"
+      className="relative min-h-0 flex-1 overflow-auto bg-surface"
     >
       <div role="rowgroup" className="sticky top-0 z-20" style={{ width: totalWidth, height: HEADER_HEIGHT }}>
         <div role="row" className="flex" style={{ height: HEADER_HEIGHT }}>
@@ -372,7 +383,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
             role="columnheader"
             aria-colindex={1}
             style={{ width: ROW_HEADER_WIDTH }}
-            className="sticky left-0 z-10 flex shrink-0 items-center border-b border-r border-border bg-surface-2 px-2 text-xs text-fg-muted"
+            className="sticky left-0 z-10 flex shrink-0 items-center border-b border-r border-border bg-surface-2 px-3 text-xs font-semibold text-fg-muted"
           >
             Record
           </div>
@@ -410,7 +421,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                 aria-rowindex={v.index + 1}
                 aria-selected={isNew ? undefined : isSelected}
                 aria-busy={buffer?.status === "saving" ? true : undefined}
-                className="absolute left-0 top-0 flex"
+                className={`group/r absolute left-0 top-0 flex ${v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"} hover:bg-surface-2/60`}
                 style={{
                   width: totalWidth,
                   height: ROW_HEIGHT,
@@ -426,12 +437,12 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                   }}
                   style={{ width: ROW_HEADER_WIDTH }}
                   className={`sticky left-0 z-10 flex shrink-0 cursor-pointer items-center justify-center gap-1 border-b border-r border-border text-xs text-fg-muted ${
-                    isSelected ? "border-l-4 border-l-accent bg-accent-soft font-semibold text-fg" : "bg-surface-2"
+                    isSelected ? "border-l-4 border-l-accent bg-accent-soft font-semibold text-fg" : "bg-surface-2 group-hover/r:bg-surface-3"
                   }`}
                 >
                   <RowMarker index={v.index} row={row} buffer={buffer} moved={moved} isNew={isNew} />
                 </div>
-                {columns.map((_, ci) => renderCell(v.index, ci, row, buffer))}
+                {columns.map((_, ci) => renderCell(v.index, ci, row, buffer, isSelected))}
               </div>
             );
           })}

@@ -118,15 +118,15 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             headingRef.current?.focus();
           }}
-          className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-surface p-5 text-fg shadow-xl"
+          className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface p-5 text-fg shadow-lg"
         >
-          <Dialog.Title ref={headingRef} tabIndex={-1} className="m-0 text-base font-semibold outline-none">
+          <Dialog.Title ref={headingRef} tabIndex={-1} className="m-0 text-base font-semibold tracking-tight outline-none">
             Export “{source.name}”
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">
@@ -165,7 +165,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
             <div className="mt-3 space-y-2" aria-live="polite">
               {running && (
                 <div>
-                  <progress className="h-3 w-full" max={100} value={percent} aria-label="Export progress" />
+                  <progress className="h-2 w-full accent-accent" max={100} value={percent} aria-label="Export progress" />
                   <p className="m-0 mt-1 text-sm text-fg-muted">{status === "queued" || status === null ? "Waiting to start…" : `Exporting… ${percent}%`}</p>
                 </div>
               )}
@@ -207,7 +207,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
             </div>
           )}
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="-mx-5 -mb-5 mt-5 flex justify-end gap-2 border-t border-border bg-surface-2/50 px-5 py-3">
             {opId === null ? (
               <>
                 <button type="button" className={btn} onClick={onClose}>

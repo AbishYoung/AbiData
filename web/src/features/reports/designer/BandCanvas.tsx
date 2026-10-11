@@ -67,7 +67,7 @@ function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: str
       );
     case "textbox":
       return (
-        <span className={`${clip} border border-border bg-surface text-fg-muted`} style={st}>
+        <span className={`${clip} rounded border border-border-strong/50 bg-surface text-fg-muted`} style={st}>
           {controlText(c, columnName)}
         </span>
       );
@@ -124,7 +124,7 @@ export function BandCanvas(p: CanvasProps) {
   const { state } = p;
   const width = contentWidth(state.page);
   return (
-    <div role="group" aria-label="Report canvas" data-testid="report-canvas" onKeyDown={p.onKeyDown} className="relative" style={{ width }}>
+    <div role="group" aria-label="Report canvas" data-testid="report-canvas" onKeyDown={p.onKeyDown} className="relative rounded-md shadow-md" style={{ width }}>
       <p className="m-0 mb-1 text-xs text-fg-muted" data-testid="width-guide-label">
         Page content width {width} px
       </p>
@@ -148,7 +148,7 @@ export function BandCanvas(p: CanvasProps) {
                   p.onClear();
                 }}
                 className={`flex h-6 w-full cursor-pointer items-center gap-2 border-b border-border px-2 text-left text-xs font-semibold ${
-                  active ? "bg-accent text-accent-fg" : "bg-surface-2"
+                  active ? "bg-accent text-accent-fg" : "bg-surface-3 text-fg-muted hover:bg-surface-2"
                 }`}
               >
                 <span>

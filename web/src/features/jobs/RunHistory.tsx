@@ -1,3 +1,4 @@
+import { EmptyState, SkeletonLines } from "@/components/EditorParts";
 import { useEffect, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -57,8 +58,8 @@ export function RunHistory({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, lastIndex, runs.length]);
 
   return (
-    <section aria-label="Run history" className="flex min-h-0 flex-col">
-      <h3 className="m-0 px-3 pb-1 pt-2 text-sm font-semibold">Run history</h3>
+    <section aria-label="Run history" className="flex min-h-0 flex-col bg-surface">
+      <h3 className="m-0 px-3 pb-2 pt-3 text-sm font-semibold">Run history</h3>
       {q.isError && (
         <div role="alert" className={`${alertBox} mx-3 mb-2`}>
           {q.error instanceof ApiError ? q.error.message : "The run history could not be loaded."}
@@ -68,19 +69,17 @@ export function RunHistory({
         </div>
       )}
       {q.isPending && (
-        <p role="status" className="m-0 px-3 py-2 text-sm text-fg-muted">
-          Loading run history…
-        </p>
+        <SkeletonLines rows={4} label="Loading run history…" />
       )}
       {q.isSuccess && runs.length === 0 && (
-        <p role="status" className="m-0 px-3 py-2 text-sm text-fg-muted">
-          This job has not run yet.
-        </p>
+        <div role="status">
+          <EmptyState kind="job" compact title="This job has not run yet." hint="Use Run now to start it, or wait for its schedule." />
+        </div>
       )}
       {runs.length > 0 && (
         <div role="table" aria-label="Runs, newest first" aria-rowcount={runs.length + 1} className="min-h-0 flex-1 text-sm">
           <div role="rowgroup">
-            <div role="row" className={`${GRID} h-8 border-b border-border bg-surface-2 text-xs font-semibold`}>
+            <div role="row" className={`${GRID} h-8 border-b border-border bg-surface-2 text-xs font-semibold text-fg-muted`}>
               <span role="columnheader">Status</span>
               <span role="columnheader">Trigger</span>
               <span role="columnheader">Attempt</span>
@@ -112,7 +111,7 @@ export function RunHistory({
                     data-status={r.status}
                     data-trigger={r.trigger_kind}
                     onClick={() => onSelect(r.id)}
-                    className={`${GRID} cursor-pointer border-b border-border hover:bg-surface-2 ${r.id === selected ? "bg-accent-soft" : ""}`}
+                    className={`${GRID} cursor-pointer border-b border-border transition-colors hover:bg-surface-2/60 ${r.id === selected ? "bg-accent-soft/60" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
                     style={{ height: ROW_HEIGHT }}
                   >
                     <span role="cell">

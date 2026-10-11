@@ -26,7 +26,7 @@ export function useSaveShortcut(save: () => void): void {
 }
 
 const TOOLBAR_BTN =
-  "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-surface hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * Icon-only designer toolbar button. Its tooltip is the label, or the reason

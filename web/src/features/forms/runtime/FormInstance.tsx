@@ -1,3 +1,4 @@
+import { EmptyState, SkeletonLines, ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -5,7 +6,7 @@ import { AlertDialog } from "radix-ui";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, History, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, btn, btnPrimary } from "@/components/styles";
+import { alertBox, badgeWarning, btn, btnGhost, btnPrimary } from "@/components/styles";
 import { useStatusBar } from "@/lib/statusbar";
 import { findTable, type Column } from "@/lib/schema";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
@@ -343,11 +344,11 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
 
   let body: ReactNode;
   if (blocked) {
-    body = <p className="p-3 text-sm text-fg-muted">Save this record first to add {label}.</p>;
+    body = <EmptyState kind="form" compact title={`Save this record first to add ${label}.`} />;
   } else if (!ready) {
-    body = <p className="p-3 text-sm text-fg-muted">Loading records…</p>;
+    body = <SkeletonLines rows={4} label="Loading records…" />;
   } else if (!rec && view === "single") {
-    body = <p className="p-3 text-sm text-fg-muted">No records{canAdd ? ". Use New record to add one." : "."}</p>;
+    body = <EmptyState kind="form" compact title="No records" hint={canAdd ? "Use New record to add one." : "There is nothing to show yet."} />;
   } else if (view === "single") {
     body = (
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
@@ -414,7 +415,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
     };
     body = (
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
-        <div style={{ width }} className="sticky top-0 z-10 flex border-b border-border bg-surface-2 text-sm font-semibold">
+        <div style={{ width }} className="sticky top-0 z-10 flex border-b border-border bg-surface-2 text-xs font-semibold text-fg-muted">
           {cols.map((c) => (
             <div key={c.id} style={{ width: Math.max(60, c.w) + 4 }} className="truncate px-2 py-1">
               {headerFor(c)}
@@ -505,8 +506,8 @@ function ConfirmDialog({ open, title, message, yes, no, onAnswer }: { open: bool
   return (
     <AlertDialog.Root open={open} onOpenChange={(o) => (o ? undefined : onAnswer(false))}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 text-fg shadow-xl">
+        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+        <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 text-fg shadow-lg">
           <AlertDialog.Title className="text-base font-semibold">{title}</AlertDialog.Title>
           <AlertDialog.Description className="mt-2 text-sm">{message}</AlertDialog.Description>
           <div className="mt-4 flex justify-end gap-2">
@@ -549,19 +550,19 @@ function Toolbar(props: {
   const { top, label, count, index, rec, busy, dirty } = props;
   const small = "!px-2";
   return (
-    <div role="toolbar" aria-label={`${label} actions`} className="flex flex-wrap items-center gap-1 border-b border-border bg-surface px-2 py-1">
+    <div role="toolbar" aria-label={`${label} actions`} className={docToolbar}>
       {top && (
         <>
           <Tip label="First record">
             <span className="inline-flex">
-              <button type="button" className={`${btn} ${small}`} aria-label="First record" disabled={busy || count === 0 || (index === 0 && !rec?.isNew)} onClick={() => props.onNav("first")}>
+              <button type="button" className={`${btnGhost} ${small}`} aria-label="First record" disabled={busy || count === 0 || (index === 0 && !rec?.isNew)} onClick={() => props.onNav("first")}>
                 <ChevronFirst size={16} aria-hidden="true" />
               </button>
             </span>
           </Tip>
           <Tip label="Previous record" shortcut="Alt+↑">
             <span className="inline-flex">
-              <button type="button" className={`${btn} ${small}`} aria-label="Previous record" aria-keyshortcuts="Alt+ArrowUp" disabled={busy || index === 0} onClick={() => props.onNav("prev")}>
+              <button type="button" className={`${btnGhost} ${small}`} aria-label="Previous record" aria-keyshortcuts="Alt+ArrowUp" disabled={busy || index === 0} onClick={() => props.onNav("prev")}>
                 <ChevronLeft size={16} aria-hidden="true" />
               </button>
             </span>
@@ -569,47 +570,48 @@ function Toolbar(props: {
           <span className="min-w-28 px-1 text-center text-sm">{props.navText}</span>
           <Tip label="Next record" shortcut="Alt+↓">
             <span className="inline-flex">
-              <button type="button" className={`${btn} ${small}`} aria-label="Next record" aria-keyshortcuts="Alt+ArrowDown" disabled={busy || index >= count - 1} onClick={() => props.onNav("next")}>
+              <button type="button" className={`${btnGhost} ${small}`} aria-label="Next record" aria-keyshortcuts="Alt+ArrowDown" disabled={busy || index >= count - 1} onClick={() => props.onNav("next")}>
                 <ChevronRight size={16} aria-hidden="true" />
               </button>
             </span>
           </Tip>
           <Tip label="Last record">
             <span className="inline-flex">
-              <button type="button" className={`${btn} ${small}`} aria-label="Last record" disabled={busy || count === 0 || (index >= count - 1 && !rec?.isNew)} onClick={() => props.onNav("last")}>
+              <button type="button" className={`${btnGhost} ${small}`} aria-label="Last record" disabled={busy || count === 0 || (index >= count - 1 && !rec?.isNew)} onClick={() => props.onNav("last")}>
                 <ChevronLast size={16} aria-hidden="true" />
               </button>
             </span>
           </Tip>
         </>
       )}
+      {top && <ToolbarDivider />}
       {props.canAdd && (
-        <button type="button" className={btn} aria-keyshortcuts="Control+Shift+N Meta+Shift+N" disabled={busy || !!(rec?.isNew && !dirty)} onClick={() => props.onNav("new")}>
+        <button type="button" className={btnGhost} aria-keyshortcuts="Control+Shift+N Meta+Shift+N" disabled={busy || !!(rec?.isNew && !dirty)} onClick={() => props.onNav("new")}>
           <Plus size={16} aria-hidden="true" />
           New {top ? "record" : "line"}
         </button>
       )}
-      <button type="button" className={dirty ? btnPrimary : btn} aria-keyshortcuts="Shift+Enter" disabled={busy || !props.canSave} onClick={props.onSave}>
+      <button type="button" className={dirty ? btnPrimary : btnGhost} aria-keyshortcuts="Shift+Enter" disabled={busy || !props.canSave} onClick={props.onSave}>
         <Save size={16} aria-hidden="true" />
         Save
       </button>
-      <button type="button" className={btn} aria-keyshortcuts="Escape" disabled={busy || !dirty} onClick={props.onUndo}>
+      <button type="button" className={btnGhost} aria-keyshortcuts="Escape" disabled={busy || !dirty} onClick={props.onUndo}>
         <Undo2 size={16} aria-hidden="true" />
         Undo
       </button>
       {props.canDelete && (
-        <button type="button" className={btn} disabled={busy} onClick={props.onDelete}>
+        <button type="button" className={btnGhost} disabled={busy} onClick={props.onDelete}>
           <Trash2 size={16} aria-hidden="true" />
           Delete
         </button>
       )}
       {props.canHistory && (
-        <button type="button" className={btn} onClick={props.onHistory}>
+        <button type="button" className={btnGhost} onClick={props.onHistory}>
           <History size={16} aria-hidden="true" />
           History
         </button>
       )}
-      {dirty && <span className="ml-1 text-sm text-fg-muted">Unsaved changes</span>}
+      {dirty && <span className={`${badgeWarning} ml-1`}>Unsaved changes</span>}
     </div>
   );
 }
@@ -653,14 +655,14 @@ function SubformHost({ control, fields, recordId, registry }: { control: FormCon
   const name = control.caption || control.name;
   if (!sub) return null;
   if (child.isError) return <p role="alert" className="p-2 text-sm">{child.error.message}</p>;
-  if (!child.data) return <p className="p-2 text-sm text-fg-muted">Loading {name}…</p>;
+  if (!child.data) return <SkeletonLines rows={2} label={`Loading ${name}…`} />;
   const masterCol = sub.link_master_column_id;
   const value = masterCol === "" || masterCol === "id" ? recordId : fields[masterCol];
   const blocked = value === null || value === undefined;
   const linkValue = blocked ? null : value;
   return (
     <ParentContext.Provider value={parent}>
-      <div className="h-full overflow-hidden rounded border border-border bg-surface">
+      <div className="h-full overflow-hidden rounded-lg border border-border bg-surface">
         <FormInstance
           key={String(linkValue)}
           form={child.data}

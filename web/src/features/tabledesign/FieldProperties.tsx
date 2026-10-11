@@ -70,7 +70,7 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
       )}
 
       {type === "lookup" && (
-        <fieldset className="m-0 space-y-3 rounded-md border border-border p-3">
+        <fieldset className="m-0 space-y-3 rounded-lg border border-border bg-surface-2/40 p-3">
           <legend className="px-1 text-sm font-semibold">Lookup settings</legend>
           <div>
             <label className={labelClass} htmlFor={id("parent")}>
@@ -133,7 +133,7 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
       )}
 
       {type === "calculated" && (
-        <fieldset className="m-0 space-y-3 rounded-md border border-border p-3">
+        <fieldset className="m-0 space-y-3 rounded-lg border border-border bg-surface-2/40 p-3">
           <legend className="px-1 text-sm font-semibold">Calculation</legend>
           <div>
             <label className={labelClass} htmlFor={id("expr")}>

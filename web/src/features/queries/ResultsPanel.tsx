@@ -1,6 +1,7 @@
 import { RefreshCw, SlidersHorizontal, Table2 } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { alertBox, btn } from "@/components/styles";
+import { docToolbar, EmptyState } from "@/components/EditorParts";
 import { useTabs } from "@/app/tabs";
 import { QueryResultsGrid } from "./QueryResultsGrid";
 import type { Runner } from "./useQueryRunner";
@@ -26,7 +27,7 @@ export function ResultsPanel({
   const openTab = useTabs((s) => s.open);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+      <div className={docToolbar}>
         <Tip label={runner.running ? "Wait for the query to finish" : "Run the query again with the current parameters"}>
           <span className="inline-flex">
             <button type="button" className={btn} onClick={runner.refresh} disabled={runner.running}>
@@ -62,7 +63,7 @@ export function ResultsPanel({
             </button>
           </>
         )}
-        {runner.running && <span className="text-sm text-fg-muted">Running…</span>}
+        {runner.running && <span className="text-sm text-fg-muted" role="status">Running…</span>}
         {onClose && (
           <button type="button" className={`${btn} ml-auto`} onClick={onClose}>
             Close
@@ -77,7 +78,9 @@ export function ResultsPanel({
       {runner.result ? (
         <QueryResultsGrid result={runner.result} label={label} />
       ) : (
-        !runner.error && !runner.running && <p className="p-4 text-sm text-fg-muted">No results yet. Choose Refresh to run the query.</p>
+        !runner.error && !runner.running && (
+          <EmptyState kind="query" title="No results yet" hint="Choose Refresh to run the query." compact />
+        )
       )}
       {runner.prompt}
     </div>

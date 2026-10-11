@@ -13,6 +13,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import "./queryDesigner.css";
 import { X } from "lucide-react";
+import { KindIcon } from "@/components/objectKinds";
 import { Tip } from "@/components/Tip";
 import type { Join, SourceInfo, VisualModel } from "./model";
 
@@ -27,8 +28,8 @@ type SourceNodeType = Node<SourceNodeData, "source">;
 function SourceNode({ data }: NodeProps<SourceNodeType>) {
   const { info, onRemove, onAddField } = data;
   return (
-    <div className="w-56 rounded-md border border-border bg-surface text-fg shadow-sm">
-      <div className="flex items-center justify-between gap-1 rounded-t-md bg-surface-2 px-2 py-1">
+    <div className="w-56 rounded-lg border border-border bg-surface text-fg shadow-md">
+      <div className="flex items-center justify-between gap-1 rounded-t-lg border-b border-border bg-kind-table-soft px-2.5 py-1.5">
         <Tip label={`${info.title} (${info.alias})`}>
           <span className="min-w-0 truncate text-sm font-semibold">
             {info.title}
@@ -165,9 +166,11 @@ export function QueryCanvas(props: QueryCanvasProps) {
         <Background gap={16} />
       </ReactFlow>
       {model.sources.length === 0 && (
-        <p className="pointer-events-none absolute inset-0 m-0 flex items-center justify-center text-sm text-fg-muted">
-          Add a table or query to begin.
-        </p>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-center">
+          <KindIcon kind="query" size="lg" />
+          <p className="m-0 text-sm font-semibold text-fg">Add a table or query to begin.</p>
+          <p className="m-0 text-sm text-fg-muted">Drag columns between boxes to join them.</p>
+        </div>
       )}
     </div>
   );

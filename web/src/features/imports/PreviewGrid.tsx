@@ -10,14 +10,14 @@ export function PreviewGrid({ view }: { view: ImportView }) {
       role="region"
       aria-label={`Preview of the first ${rows.length} rows`}
       tabIndex={0}
-      className="max-h-60 overflow-auto rounded-md border border-border"
+      className="max-h-60 overflow-auto rounded-lg border border-border"
     >
       <table className="w-full border-collapse text-sm">
         <caption className="sr-only">Preview of the first {rows.length} rows of {view.source_name}</caption>
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c.index} scope="col" className="sticky top-0 whitespace-nowrap border-b border-border bg-surface-2 px-2 py-1 text-left font-semibold">
+              <th key={c.index} scope="col" className="sticky top-0 whitespace-nowrap border-b border-border bg-surface-2 px-3 py-1.5 text-left text-xs font-semibold text-fg-muted">
                 {c.original || c.name}
                 <span className="block text-xs font-normal text-fg-muted">{typeLabel(c.inferred_type)}</span>
               </th>
@@ -26,9 +26,9 @@ export function PreviewGrid({ view }: { view: ImportView }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="odd:bg-surface even:bg-surface-2">
+            <tr key={i} className="bg-surface even:bg-surface-2/30">
               {columns.map((c) => (
-                <td key={c.index} className="max-w-64 truncate whitespace-nowrap border-b border-border px-2 py-1">
+                <td key={c.index} className="max-w-64 truncate whitespace-nowrap border-b border-border px-3 py-1.5">
                   {r[c.index] ?? ""}
                 </td>
               ))}

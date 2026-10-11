@@ -2,13 +2,13 @@ import { useId, useState } from "react";
 import { Dialog } from "radix-ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTabs } from "@/app/tabs";
-import { alertBox, btn, btnPrimary, label as labelClass } from "@/components/styles";
+import { alertBox, btn, btnDanger, btnPrimary, label as labelClass, textarea } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { parseArgs } from "./jobForm";
 import { deleteJob, jobKeys, runJob, type Job, type Run } from "./jobsApi";
 
 const contentClass =
-  "fixed left-1/2 top-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 text-fg shadow-xl";
+  "fixed left-1/2 top-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl border border-border bg-surface p-5 text-fg shadow-lg";
 
 function ErrorBox({ error }: { error: unknown }) {
   if (!(error instanceof ApiError)) return null;
@@ -40,7 +40,7 @@ export function DeleteJobDialog({ ws, job, onClose }: { ws: string; job: Pick<Jo
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content className={contentClass}>
           <Dialog.Title className="m-0 text-base font-semibold">Delete job “{job.name}”</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">
@@ -51,7 +51,7 @@ export function DeleteJobDialog({ ws, job, onClose }: { ws: string; job: Pick<Jo
             <button type="button" className={btn} onClick={onClose}>
               Cancel
             </button>
-            <button type="button" className={`${btn} !border-danger !bg-danger !text-accent-fg`} disabled={del.isPending} onClick={() => del.mutate()}>
+            <button type="button" className={btnDanger} disabled={del.isPending} onClick={() => del.mutate()}>
               Delete job
             </button>
           </div>
@@ -88,7 +88,7 @@ export function RunWithArgsDialog({
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content className={contentClass}>
           <Dialog.Title className="m-0 text-base font-semibold">Run “{job.name}” with arguments</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">
@@ -105,7 +105,7 @@ export function RunWithArgsDialog({
             aria-invalid={!parsed.ok}
             aria-describedby={hintId}
             onChange={(e) => setText(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface px-3 py-1.5 font-mono text-sm text-fg"
+            className={`${textarea} font-mono`}
           />
           <p id={hintId} className={`m-0 mt-1 text-sm ${parsed.ok ? "text-fg-muted" : "text-danger"}`}>
             {parsed.ok ? "A JSON object, for example {\"limit\": 10}." : parsed.error}

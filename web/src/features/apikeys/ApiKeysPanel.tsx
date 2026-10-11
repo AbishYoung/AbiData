@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Copy, KeyRound, Plus, TriangleAlert } from "lucide-react";
@@ -5,7 +6,7 @@ import { ApiError } from "@/lib/api";
 import { Modal, selectClass } from "@/features/queries/Modal";
 import { openDocs } from "@/features/docs/docsStore";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
-import { alertBox, btn, btnPrimary, input, label } from "@/components/styles";
+import { alertBox, badgeDanger, badgeSuccess, badgeWarning, btn, btnPrimary, card, input, label } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { EXPIRY_OPTIONS, ROLE_OPTIONS, STATUS_LABEL, keyNameError, keyStatus } from "./apiKeyLogic";
 import { apiKeyKeys, createApiKey, listApiKeys, revokeApiKey, type ApiKey, type CreatedApiKey, type KeyRole } from "./apiKeysApi";
@@ -46,7 +47,7 @@ function Reveal({ created, onDone }: { created: CreatedApiKey; onDone: () => voi
             value={created.token}
             onFocus={(e) => e.currentTarget.select()}
             spellCheck={false}
-            className="block w-full resize-none break-all rounded-md border border-border bg-surface-2 px-3 py-2 font-mono text-sm text-fg"
+            className="block w-full resize-none break-all rounded-lg border border-border bg-surface-2 px-3 py-2 font-mono text-sm text-fg"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -123,7 +124,7 @@ function CreateDialog({ ws, onClose, onCreated }: { ws: string; onClose: () => v
             </p>
           )}
         </div>
-        <fieldset className="m-0 flex flex-col gap-2 rounded-md border border-border p-3">
+        <fieldset className="m-0 flex flex-col gap-2 rounded-lg border border-border bg-surface-2/40 p-3">
           <legend className="px-1 text-sm font-medium">Access level</legend>
           {ROLE_OPTIONS.map((r) => (
             <div key={r.value} className="flex items-start gap-2">
@@ -219,10 +220,15 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
   const rows = list.data ?? [];
 
   return (
-    <section aria-labelledby="apikeys-heading" data-testid="apikeys-panel" className="mt-6">
-      <h3 id="apikeys-heading" className="mb-2 text-sm font-semibold">
-        API keys
-      </h3>
+    <section aria-labelledby="apikeys-heading" data-testid="apikeys-panel" className={`${card} mb-5 p-5`}>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span aria-hidden="true" className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
+          <KeyRound size={18} />
+        </span>
+        <h3 id="apikeys-heading" className="m-0 text-base font-semibold tracking-tight">
+          API keys
+        </h3>
+      </div>
       <p className="m-0 mb-3 text-sm text-fg-muted">
         API keys let bots and other programs read and write this workspace. A key belongs to the workspace, not to you, so it keeps working if you leave;
         revoke it to stop it. A key can never manage members, backups or settings.
@@ -249,22 +255,20 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
         </div>
       )}
       {list.isPending && (
-        <p role="status" className="m-0 text-fg-muted">
-          Loading API keys…
-        </p>
+        <SkeletonLines rows={3} label="Loading API keys…" />
       )}
       {list.data && (
-        <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full border-collapse text-sm">
           <caption className="sr-only">API keys, newest first</caption>
           <thead>
-            <tr className="text-left">
-              <th scope="col" className="px-2 py-1 font-semibold">Name</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Access</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Created</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Last used</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Expires</th>
-              <th scope="col" className="px-2 py-1 font-semibold">Status</th>
-              <th scope="col" className="px-2 py-1">
+            <tr className="border-b border-border bg-surface-2 text-left">
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Name</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Access</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Created</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Last used</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Expires</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Status</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -280,28 +284,28 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
             {rows.map((k) => {
               const st = keyStatus(k);
               return (
-                <tr key={k.id} data-key-id={k.id} data-status={st} className="border-t border-border align-top">
-                  <th scope="row" className="px-2 py-1.5 text-left font-medium">
+                <tr key={k.id} data-key-id={k.id} data-status={st} className="border-t border-border align-top transition-colors hover:bg-surface-2/60">
+                  <th scope="row" className="px-3 py-2 text-left font-medium">
                     <KeyRound size={13} aria-hidden="true" className="mr-1 inline" />
                     {k.name}
                   </th>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2">
                     <Tip label={ROLE_OPTIONS.find((r) => r.value === k.role)?.help ?? k.role}>
                       <span>{k.role.charAt(0).toUpperCase() + k.role.slice(1)}</span>
                     </Tip>
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2">
                     <time dateTime={k.created_at}>{absoluteTime(k.created_at)}</time>
                     <span className="block text-xs text-fg-muted">by {k.created_by_name || "a former member"}</span>
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2">
                     {k.last_used_at ? <time dateTime={k.last_used_at}>{relativeTime(k.last_used_at)}</time> : <span className="text-fg-muted">Never</span>}
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2">
                     {k.expires_at ? <time dateTime={k.expires_at}>{absoluteTime(k.expires_at)}</time> : <span className="text-fg-muted">Never</span>}
                   </td>
-                  <td className="px-2 py-1.5">{STATUS_LABEL[st]}</td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-2"><span className={st === "active" ? badgeSuccess : st === "revoked" ? badgeDanger : badgeWarning}>{STATUS_LABEL[st]}</span></td>
+                  <td className="px-3 py-2">
                     <div className="flex justify-end">
                       {st === "active" && (
                         <Tip label="Stop this key from working right away">
@@ -316,7 +320,7 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
       {creating && (
         <CreateDialog

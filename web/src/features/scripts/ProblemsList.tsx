@@ -45,8 +45,8 @@ export function ProblemsList({ problems, onJump, failed = false, checked = true 
   }
 
   return (
-    <section aria-label="Problems" className="border-t border-border bg-surface text-sm">
-      <p role="status" className="m-0 px-3 py-1.5 text-fg-muted">
+    <section aria-label="Problems" className="border-t border-border bg-surface-2 text-sm">
+      <p role="status" className="m-0 px-3 py-1.5 text-xs font-medium text-fg-muted">
         {checked ? problemsSummary(problems) : "Checking…"}
         {failed && " (the last check could not reach the server)"}
       </p>
@@ -62,7 +62,7 @@ export function ProblemsList({ problems, onJump, failed = false, checked = true 
                 tabIndex={i === current ? 0 : -1}
                 onFocus={() => setActive(i)}
                 onClick={() => onJump(p.line, p.column)}
-                className="flex w-full cursor-pointer items-start gap-2 px-3 py-1 text-left hover:bg-surface-2"
+                className="flex w-full cursor-pointer items-start gap-2 px-3 py-1 text-left hover:bg-surface-3"
               >
                 {p.severity === "error" ? (
                   <CircleAlert size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-danger" />

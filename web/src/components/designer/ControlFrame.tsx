@@ -66,7 +66,7 @@ export function ControlFrame({
   }
 
   const outline = selected
-    ? "outline outline-2 outline-offset-1 outline-accent"
+    ? "outline outline-2 outline-offset-1 outline-accent rounded-sm"
     : flagged
       ? "outline outline-2 outline-dashed outline-danger"
       : "outline outline-1 outline-dashed outline-border";

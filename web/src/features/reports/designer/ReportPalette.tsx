@@ -1,3 +1,4 @@
+import { eyebrow } from "@/components/styles";
 import { useDraggable } from "@dnd-kit/core";
 import { Plus } from "lucide-react";
 import { Tip } from "@/components/Tip";
@@ -12,7 +13,7 @@ function ToolButton({ type, onAdd }: { type: ControlType; onAdd: (t: ControlType
         type="button"
         onClick={() => onAdd(type)}
         {...listeners}
-        className="cursor-grab rounded-md border border-border bg-surface px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+        className="cursor-grab rounded-md border border-border bg-surface px-2 py-1.5 text-left text-sm shadow-xs transition-colors hover:border-accent/50 hover:bg-accent-soft"
       >
         {TYPE_LABEL[type]}
       </button>
@@ -23,8 +24,8 @@ function ToolButton({ type, onAdd }: { type: ControlType; onAdd: (t: ControlType
 /** Controls that can be added to the selected band by click or Enter, or by dragging onto any band. */
 export function Toolbox({ activeBand, onAdd }: { activeBand: BandId; onAdd: (t: ControlType) => void }) {
   return (
-    <section aria-label="Toolbox" className="border-b border-border p-2">
-      <h3 className="m-0 mb-1 text-sm font-semibold">Toolbox</h3>
+    <section aria-label="Toolbox" className="border-b border-border p-3">
+      <h3 className={`${eyebrow} m-0 mb-2`}>Toolbox</h3>
       <p className="m-0 mb-1 text-xs text-fg-muted" data-testid="toolbox-target">
         Adds to: {bandLabel(activeBand)}
       </p>
@@ -51,7 +52,7 @@ function FieldRow({ col, band, onAdd }: { col: SourceColumn; band: string; onAdd
           type="button"
           aria-label={`Add ${col.name} to band`}
           onClick={() => onAdd(col)}
-          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border hover:bg-surface-2"
+          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <Plus size={14} aria-hidden="true" />
         </button>
@@ -66,8 +67,8 @@ function FieldRow({ col, band, onAdd }: { col: SourceColumn; band: string; onAdd
  */
 export function FieldList({ columns, activeBand, onAdd }: { columns: SourceColumn[]; activeBand: BandId; onAdd: (c: SourceColumn) => void }) {
   return (
-    <section aria-label="Field list" className="min-h-0 flex-1 overflow-y-auto p-2">
-      <h3 className="m-0 mb-1 text-sm font-semibold">Field list</h3>
+    <section aria-label="Field list" className="min-h-0 flex-1 overflow-y-auto p-3">
+      <h3 className={`${eyebrow} m-0 mb-2`}>Field list</h3>
       {columns.length === 0 ? (
         <p className="m-0 text-sm text-fg-muted">The record source has no fields.</p>
       ) : (

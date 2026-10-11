@@ -1,3 +1,4 @@
+import { SkeletonLines } from "@/components/EditorParts";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Square } from "lucide-react";
@@ -36,9 +37,7 @@ export function RunDetailPanel({ ws, jobId, runId }: { ws: string; jobId: string
   }
   if (!q.data) {
     return (
-      <p role="status" className="m-0 p-3 text-sm text-fg-muted">
-        Loading run…
-      </p>
+      <SkeletonLines rows={5} label="Loading run…" />
     );
   }
   const r = q.data;
@@ -46,8 +45,8 @@ export function RunDetailPanel({ ws, jobId, runId }: { ws: string; jobId: string
   const artifacts = r.artifacts ?? [];
 
   return (
-    <section aria-label="Run detail" className="flex min-h-0 flex-col gap-3 p-3 text-sm">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+    <section aria-label="Run detail" className="flex min-h-0 flex-col gap-4 p-4 text-sm">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-border bg-surface-2/50 px-4 py-3">
         <h3 className="m-0 text-sm font-semibold">Run detail</h3>
         <RunStatus status={r.status} />
         <span>Trigger: {TRIGGER_LABEL[r.trigger_kind] ?? r.trigger_kind}</span>
@@ -81,14 +80,14 @@ export function RunDetailPanel({ ws, jobId, runId }: { ws: string; jobId: string
           <p className="m-0">{r.error_message}</p>
         </div>
       )}
-      <section aria-label="Artifacts">
-        <h4 className="m-0 mb-1 text-sm font-semibold">Artifacts</h4>
+      <section aria-label="Artifacts" className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+        <h4 className="m-0 mb-2 text-sm font-semibold">Artifacts</h4>
         {artifacts.length === 0 ? (
           <p className="m-0 text-fg-muted">This run saved no files.</p>
         ) : (
-          <ul className="m-0 list-none p-0">
+          <ul className="m-0 list-none divide-y divide-border p-0">
             {artifacts.map((a) => (
-              <li key={a.name} className="flex items-center gap-2 py-0.5">
+              <li key={a.name} className="flex items-center gap-2 py-1.5">
                 <a href={runArtifactUrl(ws, r.id, a.name)} download={a.name} className="inline-flex items-center gap-1 text-accent underline">
                   <Download size={14} aria-hidden="true" />
                   {a.name}

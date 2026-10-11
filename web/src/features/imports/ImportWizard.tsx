@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { Dialog } from "radix-ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileUp } from "lucide-react";
+import { Check, FileUp } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnPrimary, input } from "@/components/styles";
 import { selectClass } from "@/features/queries/Modal";
@@ -64,14 +64,14 @@ function extensionOf(name: string): string {
 function ErrorsTable({ errors, total }: { errors: readonly { row: number; column?: string | undefined; message: string }[]; total: number }) {
   return (
     <div>
-      <div role="region" aria-label="Row errors" tabIndex={0} className="max-h-64 overflow-auto rounded-md border border-border">
+      <div role="region" aria-label="Row errors" tabIndex={0} className="max-h-64 overflow-auto rounded-lg border border-border">
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">The first {errors.length} rows with errors</caption>
           <thead>
-            <tr className="bg-surface-2 text-left">
-              <th scope="col" className="px-2 py-1">Row</th>
-              <th scope="col" className="px-2 py-1">Column</th>
-              <th scope="col" className="px-2 py-1">Problem</th>
+            <tr className="bg-surface-2 text-left text-xs font-semibold text-fg-muted">
+              <th scope="col" className="px-3 py-1.5">Row</th>
+              <th scope="col" className="px-3 py-1.5">Column</th>
+              <th scope="col" className="px-3 py-1.5">Problem</th>
             </tr>
           </thead>
           <tbody>
@@ -266,9 +266,9 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
-          className={`rounded-md border-2 border-dashed p-5 text-center ${dragging ? "border-accent bg-surface-2" : "border-border"}`}
+          className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${dragging ? "border-accent bg-accent-soft" : "border-border-strong/40 bg-surface-2/40"}`}
         >
-          <FileUp size={28} aria-hidden="true" className="mx-auto text-fg-muted" />
+          <span aria-hidden="true" className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-accent"><FileUp size={20} /></span>
           <p className="m-0 mt-1 text-sm">Drag a CSV, Excel (.xlsx) or JSON file here, or choose one.</p>
           <label htmlFor={`${baseId}-file`} className="mt-2 inline-block text-sm font-medium">
             File to import
@@ -287,7 +287,7 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
             </p>
           )}
         </div>
-        <fieldset className="m-0 rounded-md border border-border p-3">
+        <fieldset className="m-0 rounded-xl border border-border bg-surface p-4 shadow-xs">
           <legend className="px-1 text-sm font-semibold">File options</legend>
           <p className="m-0 mb-2 text-sm text-fg-muted">Leave these on automatic unless the preview comes out wrong.</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -423,7 +423,7 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
       <div className="space-y-3">
         {!opDone && (
           <div>
-            <progress className="h-3 w-full" max={100} value={percent} aria-label="Import progress" />
+            <progress className="h-2 w-full accent-accent" max={100} value={percent} aria-label="Import progress" />
             <p className="m-0 mt-1 text-sm text-fg-muted">
               {opStatus === "queued" || opStatus === null ? "Waiting to start…" : `${percent}%`}
               {op.data?.message ? ` ${op.data.message}` : ""}
@@ -539,27 +539,53 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : close())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             headingRef.current?.focus();
           }}
           onInteractOutside={(e) => e.preventDefault()}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-surface p-5 text-fg shadow-xl"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-surface text-fg shadow-lg"
         >
-          <Dialog.Title className="m-0 text-base font-semibold">Import data</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-fg-muted">
-            Step {step} of {STEPS.length}. Bring a file into a new or existing table.
-          </Dialog.Description>
-          <ol aria-label="Steps" className="m-0 mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-sm">
-            {STEPS.map((s, i) => (
-              <li key={s} aria-current={i + 1 === step ? "step" : undefined} className={i + 1 === step ? "font-semibold" : "text-fg-muted"}>
-                {i + 1}. {s}
-              </li>
-            ))}
-          </ol>
-          <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="border-b border-border px-5 pb-4 pt-5">
+            <div className="flex items-center gap-2.5">
+              <span aria-hidden="true" className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                <FileUp size={18} />
+              </span>
+              <div className="min-w-0">
+                <Dialog.Title className="m-0 text-base font-semibold tracking-tight">Import data</Dialog.Title>
+                <Dialog.Description className="m-0 text-sm text-fg-muted">
+                  Step {step} of {STEPS.length}. Bring a file into a new or existing table.
+                </Dialog.Description>
+              </div>
+            </div>
+            <ol aria-label="Steps" className="m-0 mt-4 flex list-none items-center gap-2 p-0 text-sm">
+              {STEPS.map((s, i) => {
+                const done = i + 1 < step;
+                const current = i + 1 === step;
+                return (
+                  <li key={s} aria-current={current ? "step" : undefined} className="flex min-w-0 flex-1 items-center gap-2 last:flex-none">
+                    <span
+                      aria-hidden="true"
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                        current ? "bg-accent text-accent-fg" : done ? "bg-success-soft text-success" : "bg-surface-3 text-fg-muted"
+                      }`}
+                    >
+                      {done ? <Check size={12} strokeWidth={3} /> : i + 1}
+                    </span>
+                    <span className={`truncate ${current ? "font-semibold text-fg" : "text-fg-muted"}`}>
+                      <span className="sr-only">{i + 1}. </span>
+                      {s}
+                      {done && <span className="sr-only"> (done)</span>}
+                    </span>
+                    {i < STEPS.length - 1 && <span aria-hidden="true" className={`h-px min-w-4 flex-1 ${done ? "bg-success" : "bg-border"}`} />}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             <h3 ref={headingRef} tabIndex={-1} className="m-0 mb-2 text-base font-semibold outline-none focus-visible:underline">
               {step === 1 && "Choose a file"}
               {step === 2 && "Preview and map columns"}
@@ -569,10 +595,10 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
             {body}
             <ErrorBox error={error} />
           </div>
-          <p role="status" aria-live="polite" className={busy ? "m-0 mt-2 text-sm text-fg-muted" : "sr-only"}>
+          <p role="status" aria-live="polite" className={busy ? "m-0 border-t border-border px-5 py-2 text-sm text-fg-muted" : "sr-only"}>
             {status}
           </p>
-          <div className="mt-3 flex flex-wrap justify-end gap-2">{footer}</div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border bg-surface-2/50 px-5 py-3">{footer}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

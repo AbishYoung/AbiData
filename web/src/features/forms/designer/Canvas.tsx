@@ -38,22 +38,22 @@ function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: str
     case "label":
       return <span className={`${clip} font-medium`}>{c.caption ?? ""}</span>;
     case "textbox":
-      return <span className={`${clip} border border-border bg-surface text-fg-muted`}>{text}</span>;
+      return <span className={`${clip} rounded border border-border-strong/50 bg-surface text-fg-muted`}>{text}</span>;
     case "combobox":
       return (
-        <span className={`${clip} border border-border bg-surface text-fg-muted`}>
+        <span className={`${clip} rounded border border-border-strong/50 bg-surface text-fg-muted`}>
           {text} <span aria-hidden="true">▾</span>
         </span>
       );
     case "checkbox":
       return (
         <span className="flex h-full items-center gap-1 text-sm">
-          <span className="inline-block h-4 w-4 shrink-0 border border-fg bg-surface" />
+          <span className="inline-block h-4 w-4 shrink-0 rounded border border-border-strong bg-surface" />
           {c.caption ?? ""}
         </span>
       );
     case "button":
-      return <span className={`${clip} rounded border border-border bg-surface-2 text-center font-medium leading-8`}>{c.caption ?? ""}</span>;
+      return <span className={`${clip} rounded-md border border-border-strong/50 bg-surface-2 text-center font-medium leading-8`}>{c.caption ?? ""}</span>;
     case "line":
       return <span className="block h-1/2 border-b-2 border-fg" />;
     case "rect":
@@ -125,12 +125,12 @@ export function Canvas(p: CanvasProps) {
       aria-label="Form canvas"
       data-testid="form-canvas"
       onKeyDown={p.onKeyDown}
-      className="relative"
+      className="relative rounded-md shadow-md"
       style={{ width: state.width }}
     >
       {SECTIONS.map((name) => (
         <div key={name} role="group" aria-label={`${SECTION_LABEL[name]} section`}>
-          <div className="flex h-6 items-center border-b border-border bg-surface-2 px-2 text-xs font-semibold">
+          <div className="flex h-6 items-center border-b border-border bg-surface-3 px-2 text-xs font-semibold text-fg-muted">
             {SECTION_LABEL[name]} — {state.heights[name]} px
           </div>
           <SectionBody name={name} p={p}>

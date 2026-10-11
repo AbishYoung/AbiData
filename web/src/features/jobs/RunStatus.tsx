@@ -3,13 +3,13 @@ import { Tip } from "@/components/Tip";
 
 /** Status text and icon; the text always carries the meaning, colour only reinforces it. */
 export const RUN_STATUS: Readonly<Record<string, { label: string; icon: LucideIcon; tone: string; help: string }>> = {
-  queued: { label: "Queued", icon: Clock, tone: "text-fg-muted", help: "Waiting for its turn to start." },
-  running: { label: "Running", icon: Loader, tone: "text-accent", help: "Running now." },
-  succeeded: { label: "Succeeded", icon: CircleCheck, tone: "text-success", help: "Finished without errors." },
-  failed: { label: "Failed", icon: CircleX, tone: "text-danger", help: "The script stopped with an error. Open the run to read the log." },
-  timed_out: { label: "Timed out", icon: Hourglass, tone: "text-danger", help: "Stopped because it ran longer than the job's timeout." },
-  cancelled: { label: "Cancelled", icon: Ban, tone: "text-fg-muted", help: "Stopped by someone before it finished." },
-  interrupted: { label: "Interrupted", icon: TriangleAlert, tone: "text-warning", help: "The server stopped while the run was going. It may be retried." },
+  queued: { label: "Queued", icon: Clock, tone: "bg-surface-3 text-fg-muted", help: "Waiting for its turn to start." },
+  running: { label: "Running", icon: Loader, tone: "bg-accent-soft text-accent", help: "Running now." },
+  succeeded: { label: "Succeeded", icon: CircleCheck, tone: "bg-success-soft text-success", help: "Finished without errors." },
+  failed: { label: "Failed", icon: CircleX, tone: "bg-danger-soft text-danger", help: "The script stopped with an error. Open the run to read the log." },
+  timed_out: { label: "Timed out", icon: Hourglass, tone: "bg-danger-soft text-danger", help: "Stopped because it ran longer than the job's timeout." },
+  cancelled: { label: "Cancelled", icon: Ban, tone: "bg-surface-3 text-fg-muted", help: "Stopped by someone before it finished." },
+  interrupted: { label: "Interrupted", icon: TriangleAlert, tone: "bg-warning-soft text-warning", help: "The server stopped while the run was going. It may be retried." },
 };
 
 export const TRIGGER_LABEL: Readonly<Record<string, string>> = {
@@ -28,11 +28,11 @@ export function statusLabel(status: string): string {
 }
 
 export function RunStatus({ status }: { status: string }) {
-  const s = RUN_STATUS[status] ?? { label: status, icon: Clock, tone: "text-fg-muted", help: "" };
+  const s = RUN_STATUS[status] ?? { label: status, icon: Clock, tone: "bg-surface-3 text-fg-muted", help: "" };
   const Icon = s.icon;
   const badge = (
-    <span className={`inline-flex items-center gap-1 ${s.tone}`}>
-      <Icon size={14} aria-hidden="true" />
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${s.tone}`}>
+      <Icon size={12} aria-hidden="true" className={status === "running" ? "animate-spin motion-reduce:animate-none" : ""} />
       {s.label}
     </span>
   );

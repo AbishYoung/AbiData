@@ -19,8 +19,8 @@ export function ParametersPanel({
   onRemove: (index: number) => void;
 }) {
   return (
-    <section aria-label="Parameters" className="border-t border-border p-3">
-      <div className="flex items-center gap-3">
+    <section aria-label="Parameters" className="m-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-3">
         <h3 className="m-0 text-sm font-semibold">Parameters</h3>
         <button type="button" className={btn} onClick={onAdd}>
           <Plus size={14} aria-hidden="true" />

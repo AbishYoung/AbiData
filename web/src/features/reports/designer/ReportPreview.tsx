@@ -1,3 +1,4 @@
+import { KindIcon } from "@/components/objectKinds";
 import { Save } from "lucide-react";
 import { btnPrimary } from "@/components/styles";
 import type { Report } from "../reportsApi";
@@ -11,8 +12,9 @@ import { ReportRun } from "../ReportTab";
 export function ReportPreview({ ws, saved, dirty, saving, onSave }: { ws: string; saved: Report | null; dirty: boolean; saving: boolean; onSave: () => void }) {
   if (!saved || dirty) {
     return (
-      <div className="p-4" data-testid="report-preview-gate">
-        <p role="status" className="m-0 mb-3">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center" data-testid="report-preview-gate">
+        <KindIcon kind="report" size="lg" />
+        <p role="status" className="m-0 max-w-md text-sm text-fg-muted">
           {saved ? "Save to preview your changes." : "Save to preview the report."} The preview runs the saved report, so it always matches what the report view shows.
         </p>
         <button type="button" className={btnPrimary} disabled={saving} onClick={onSave}>

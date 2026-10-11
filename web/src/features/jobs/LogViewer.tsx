@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { Tip } from "@/components/Tip";
-import { btn, input } from "@/components/styles";
+import { btn, btnGhost, input } from "@/components/styles";
 import { findMatches, isTruncated, segments, stepMatch } from "./logSearch";
 
 /** Monospace, wrapping log with copy and in-log search. */
@@ -33,8 +33,8 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
 
   return (
     <section aria-label={label} className="flex min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 pb-2">
-        <label htmlFor={searchId} className="text-sm font-medium">
+      <div className="flex flex-wrap items-center gap-1.5 pb-2">
+        <label htmlFor={searchId} className="text-xs font-semibold uppercase tracking-wider text-fg-subtle">
           Search log
         </label>
         <input
@@ -56,7 +56,7 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
         <Tip label="Previous match" shortcut="Shift+Enter">
           <button
             type="button"
-            className={btn}
+            className={btnGhost}
             aria-label="Previous match"
             disabled={matches.length === 0}
             onClick={() => setCurrent(stepMatch(index, matches.length, -1))}
@@ -67,7 +67,7 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
         <Tip label="Next match" shortcut="Enter">
           <button
             type="button"
-            className={btn}
+            className={btnGhost}
             aria-label="Next match"
             disabled={matches.length === 0}
             onClick={() => setCurrent(stepMatch(index, matches.length, 1))}
@@ -93,7 +93,7 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
         tabIndex={0}
         role="region"
         aria-label={`${label} text`}
-        className="m-0 max-h-80 min-h-16 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-surface-2 p-2 font-mono text-xs"
+        className="m-0 max-h-80 min-h-16 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-surface-2 p-3 font-mono text-xs leading-5 shadow-xs"
       >
         {log === ""
           ? "The run wrote nothing to the log."

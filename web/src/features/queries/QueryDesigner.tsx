@@ -1,3 +1,4 @@
+import { ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FilePlus2, Link2, Pencil, Play, Save, SaveAll, Table2 } from "lucide-react";
@@ -144,7 +145,7 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="query-designer">
-      <div role="toolbar" aria-label="Query designer" className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+      <div role="toolbar" aria-label="Query designer" className={docToolbar}>
         <button
           type="button"
           className={btnPrimary}
@@ -174,7 +175,7 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
             </WhyDisabled>
           </>
         )}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        <ToolbarDivider />
         <button type="button" className={btn} onClick={() => setDialog("source")}>
           <Table2 size={14} aria-hidden="true" />
           Add table or query
@@ -199,7 +200,7 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="h-72 border-b border-border">
+        <div className="h-72 border-b border-border bg-bg">
           <QueryCanvas
             model={model}
             infos={infos}
@@ -212,11 +213,11 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
         </div>
 
         {model.joins.length > 0 && (
-          <section aria-label="Joins" className="border-b border-border px-3 py-2">
-            <h3 className="m-0 mb-1 text-sm font-semibold">Joins</h3>
-            <ul className="m-0 list-none space-y-1 p-0">
+          <section aria-label="Joins" className="m-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+            <h3 className="m-0 mb-2 text-sm font-semibold">Joins</h3>
+            <ul className="m-0 list-none divide-y divide-border p-0">
               {model.joins.map((j, i) => (
-                <li key={i} className="m-0 flex items-center gap-2 p-0 text-sm">
+                <li key={i} className="m-0 flex items-center gap-2 py-1.5 text-sm">
                   <span>{joinSummary(j, infos)}</span>
                   <button type="button" className={btn} aria-label={`Edit join ${joinSummary(j, infos)}`} onClick={() => setEditJoin(i)}>
                     Edit
@@ -249,8 +250,8 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
           </div>
         )}
 
-        <section aria-label="Field grid" className="p-3">
-          <div className="mb-2 flex flex-wrap items-center gap-4">
+        <section aria-label="Field grid" className="m-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center gap-4">
             <h3 className="m-0 text-sm font-semibold">Fields</h3>
             <label className="flex items-center gap-2 text-sm">
               <input

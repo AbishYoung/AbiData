@@ -1,3 +1,5 @@
+import { KindIcon } from "@/components/objectKinds";
+import { SkeletonLines, ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
-import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { alertBox, badgeSuccess, badgeWarning, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
 import { ToolbarButton, useSaveShortcut } from "@/components/designer/toolbar";
 import { Tip } from "@/components/Tip";
 import { handleCanvasKey } from "@/components/designer/canvasKeys";
@@ -103,9 +105,12 @@ function SetupStep({ ws, tabKey }: { ws: string; tabKey: string }) {
   }
 
   return (
-    <div className="p-4" data-testid="form-setup">
-      <form onSubmit={start} className="max-w-md" aria-label="New form setup">
-        <h2 className="m-0 mb-3 text-base font-semibold">New form</h2>
+    <div className="min-h-0 flex-1 overflow-auto bg-bg p-6" data-testid="form-setup">
+      <form onSubmit={start} className="mx-auto max-w-md rounded-xl border border-border bg-surface p-5 shadow-sm" aria-label="New form setup">
+        <div className="mb-4 flex items-center gap-2.5">
+          <KindIcon kind="form" size="lg" />
+          <h2 className="m-0 text-base font-semibold tracking-tight">New form</h2>
+        </div>
         <label className={labelClass} htmlFor={nameId}>
           Form name
         </label>
@@ -181,9 +186,7 @@ function LoadForm({ ws, formId, tabKey }: { ws: string; formId: string; tabKey: 
     );
   }
   return (
-    <p role="status" className="p-4 text-fg-muted">
-      Loading form…
-    </p>
+    <SkeletonLines rows={6} label="Loading form…" />
   );
 }
 
@@ -412,9 +415,10 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
 
   return (
     <div data-testid="form-designer" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <h2 className="m-0 mr-2 text-base font-semibold">{state.name || "Untitled form"}</h2>
-        <div role="tablist" aria-label="Designer panels" className="flex gap-1">
+      <div className={docToolbar}>
+        <KindIcon kind="form" size="sm" />
+        <h2 className="m-0 mr-2 text-sm font-semibold">{state.name || "Untitled form"}</h2>
+        <div role="tablist" aria-label="Designer panels" className="flex gap-0.5 rounded-lg bg-surface-3 p-0.5">
           {panels.map(([p, label]) => (
             <button
               key={p}
@@ -423,7 +427,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
               aria-selected={panel === p}
               aria-controls="designer-panel"
               onClick={() => setPanel(p)}
-              className={`rounded px-3 py-1 text-sm ${panel === p ? "bg-accent text-accent-fg" : "border border-border hover:bg-surface-2"}`}
+              className={`h-7 cursor-pointer rounded-md px-3 text-sm font-medium transition-colors ${panel === p ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"}`}
             >
               {label}
             </button>
@@ -437,7 +441,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
             </button>
           </span>
         </Tip>
-        <span className="ml-auto text-fg-muted">{dirty ? "Unsaved changes" : "Saved"}</span>
+        <span className={`ml-auto ${dirty ? badgeWarning : badgeSuccess}`}>{dirty ? "Unsaved changes" : "Saved"}</span>
       </div>
       {(err || notice) && (
         <div role="alert" className={`${alertBox} mx-3 my-2`}>
@@ -468,7 +472,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
       <div id="designer-panel" role="tabpanel" aria-label={panels.find(([p]) => p === panel)?.[1]} className="flex min-h-0 flex-1 flex-col">
         {panel === "module" && (
           <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-            <p className="m-0 px-3 py-2 text-sm text-fg-muted">
+            <p className="m-0 border-b border-border bg-surface px-3 py-2 text-sm text-fg-muted">
               Event handlers are functions in this module.{" "}
               {handlers.length > 0 ? `Functions found: ${handlers.join(", ")}.` : "No functions found yet."}
             </p>
@@ -486,16 +490,16 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
         {panel === "layout" && (
           <DndContext sensors={sensors} onDragStart={onDragStart} onDragMove={onDragMove} onDragEnd={onDragEnd} onDragCancel={() => { setDrag(null); setOverlay(null); }}>
             <div className="grid min-h-0 flex-1 grid-cols-[14rem_minmax(0,1fr)_21rem]">
-              <div className="flex min-h-0 flex-col border-r border-border">
+              <div className="flex min-h-0 flex-col border-r border-border bg-surface">
                 <Toolbox onAdd={(t) => addType(t)} />
                 <FieldList columns={info.columns} hasSource={state.sourceKind !== "none"} onAdd={(c) => addColumn(c)} />
               </div>
               <div className="flex min-h-0 min-w-0 flex-col">
-                <div role="toolbar" aria-label="Arrange controls" className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
+                <div role="toolbar" aria-label="Arrange controls" className="flex flex-wrap items-center gap-1 border-b border-border bg-surface px-2 py-1">
                   <ToolbarButton icon={BoxSelect} label="Select all controls" disabled={state.controls.length === 0} disabledReason="Add a control first" shortcut="Mod+A" onClick={() => select(state.controls.map((c) => c.id))} />
                   <ToolbarButton icon={Copy} label="Duplicate selected controls" disabled={selection.size === 0} disabledReason="Select controls to duplicate" shortcut="Mod+D" onClick={duplicateSelected} />
                   <ToolbarButton icon={Trash2} label="Delete selected controls" disabled={selection.size === 0} disabledReason="Select controls to delete" shortcut="Delete" onClick={removeSelected} />
-                  <span aria-hidden="true" className="mx-1 h-5 border-l border-border" />
+                  <ToolbarDivider />
                   {(
                     [
                       [AlignStartVertical, "left"],
@@ -515,10 +519,10 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                     <ToolbarButton key={axis} icon={icon} label={`Distribute ${axis}ly`} disabled={selection.size < 3} disabledReason="Select three or more controls to distribute" onClick={() => applyOp((s, ids) => distributeControls(s, ids, axis))} />
                   ))}
                 </div>
-                <p className="m-0 border-b border-border px-3 py-1 text-xs text-fg-muted">
+                <p className="m-0 border-b border-border bg-surface-2/50 px-3 py-1 text-xs text-fg-muted">
                   Arrow keys move the selected controls 8 px; Shift+Arrow resizes; Tab selects the next control; Space adds or removes the focused control from the selection; Mod+Arrow moves focus only; Delete removes.
                 </p>
-                <div className="min-h-0 flex-1 overflow-auto bg-surface-2 p-4 pr-6">
+                <div className="min-h-0 flex-1 overflow-auto bg-bg p-4 pr-6">
                   <Canvas
                     state={state}
                     selection={selection}
@@ -538,9 +542,9 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                   />
                 </div>
               </div>
-              <aside aria-label="Properties" className="min-h-0 overflow-y-auto border-l border-border p-3">
+              <aside aria-label="Properties" className="min-h-0 overflow-y-auto border-l border-border bg-surface p-3">
                 {issues.length > 0 && (
-                  <section aria-label="Problems" className="mb-3 rounded-md border border-danger bg-danger-soft p-2 text-sm">
+                  <section aria-label="Problems" className="mb-3 rounded-lg border border-danger/40 bg-danger-soft p-3 text-sm">
                     <h3 className="m-0 mb-1 text-sm font-semibold">Problems to fix before saving</h3>
                     <ul className="m-0 pl-4">
                       {issues.map((i, n) => (
@@ -580,7 +584,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
               </aside>
             </div>
             <DragOverlay dropAnimation={null}>
-              {overlay && <div className="rounded border border-accent bg-surface px-2 py-1 text-sm shadow">{overlay}</div>}
+              {overlay && <div className="rounded-md border border-accent bg-surface px-2 py-1 text-sm shadow-md">{overlay}</div>}
             </DragOverlay>
           </DndContext>
         )}

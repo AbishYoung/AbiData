@@ -83,7 +83,7 @@ export function CheckField({ label, hint, ...rest }: Omit<Common, "error"> & Inp
   return (
     <div className="mb-1">
       <label htmlFor={id} className="inline-flex cursor-pointer items-center gap-2 text-sm">
-        <input id={id} type="checkbox" aria-describedby={hint ? `${id}-hint` : undefined} {...rest} />
+        <input id={id} type="checkbox" className="accent-accent" aria-describedby={hint ? `${id}-hint` : undefined} {...rest} />
         {label}
       </label>
       {hint && (
@@ -97,8 +97,8 @@ export function CheckField({ label, hint, ...rest }: Omit<Common, "error"> & Inp
 
 export function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <fieldset className="m-0 mb-3 min-w-0 border-0 border-t border-border p-0 pt-2">
-      <legend className="px-0 text-sm font-semibold">{title}</legend>
+    <fieldset className="m-0 mb-3 min-w-0 rounded-lg border border-border bg-surface-2/40 p-3">
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-fg-subtle">{title}</legend>
       {children}
     </fieldset>
   );

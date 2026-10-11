@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { SkeletonLines } from "@/components/EditorParts";
 import { alertBox } from "@/components/styles";
 import { findTable, useSchema } from "@/lib/schema";
 import { effectiveParams } from "./params";
@@ -32,7 +33,7 @@ export function QueryDatasheet({ ws, queryId }: { ws: string; queryId: string })
       </div>
     );
   }
-  if (!q) return <p className="p-4 text-fg-muted">Loading query…</p>;
+  if (!q) return <SkeletonLines rows={6} label="Loading query…" />;
   const table = q.editable && q.table_id ? findTable(schema.data, q.table_id) : undefined;
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="query-datasheet">

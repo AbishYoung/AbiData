@@ -2,7 +2,7 @@ import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { QueryResult } from "./savedQueries";
 
-const ROW_HEIGHT = 28;
+const ROW_HEIGHT = 32;
 const COL_WIDTH = 176;
 const PAGE = 10;
 
@@ -80,7 +80,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <p className="m-0 px-3 py-1 text-sm text-fg-muted" aria-live="polite">
+      <p className="m-0 border-b border-border bg-surface px-3 py-1.5 text-xs text-fg-muted" aria-live="polite">
         {result.truncated ? truncationNotice(rows.length) : `${rows.length.toLocaleString("en-US")} ${rows.length === 1 ? "row" : "rows"}`}
       </p>
       <div
@@ -92,7 +92,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
         aria-colcount={columns.length}
         aria-activedescendant={rows.length > 0 && columns.length > 0 ? cellId(active.row, active.col) : undefined}
         onKeyDown={onKeyDown}
-        className="min-h-0 flex-1 overflow-auto border-t border-border bg-surface"
+        className="min-h-0 flex-1 overflow-auto bg-surface"
       >
         <div role="rowgroup" className="sticky top-0 z-10 bg-surface-2" style={{ width }}>
           <div role="row" aria-rowindex={1} className="grid" style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}>
@@ -101,7 +101,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                 key={`${c}-${i}`}
                 role="columnheader"
                 aria-colindex={i + 1}
-                className="truncate border-b border-r border-border px-2 text-sm font-semibold leading-7"
+                className="truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted"
                 title={c}
               >
                 {c}
@@ -131,7 +131,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                       aria-colindex={ci + 1}
                       title={text}
                       onClick={() => setActive({ row: vi.index, col: ci })}
-                      className={`truncate border-b border-r border-border px-2 text-sm leading-7 ${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : ""}`}
+                      className={`truncate border-b border-r border-border px-3 text-sm leading-8 ${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
                     >
                       {text}
                     </div>
