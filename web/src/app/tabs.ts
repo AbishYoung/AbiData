@@ -17,6 +17,8 @@ export interface Tab {
 
 interface TabsState {
   byWs: Record<string, { tabs: Tab[]; active: string | null }>;
+  /** Increments on every open(), even for an already-open tab (the compact shell closes its drawer on it). */
+  openSeq: number;
   open: (ws: string, tab: Omit<Tab, "dirty">) => void;
   close: (ws: string, key: string) => void;
   activate: (ws: string, key: string) => void;
@@ -29,12 +31,13 @@ const empty = { tabs: [] as Tab[], active: null as string | null };
 
 export const useTabs = create<TabsState>((set) => ({
   byWs: {},
+  openSeq: 0,
   open: (ws, tab) =>
     set((s) => {
       const cur = s.byWs[ws] ?? empty;
       const exists = cur.tabs.find((t) => t.key === tab.key);
       const tabs = exists ? cur.tabs.map((t) => (t.key === tab.key ? { ...t, view: tab.view } : t)) : [...cur.tabs, { ...tab, dirty: false }];
-      return { byWs: { ...s.byWs, [ws]: { tabs, active: tab.key } } };
+      return { openSeq: s.openSeq + 1, byWs: { ...s.byWs, [ws]: { tabs, active: tab.key } } };
     }),
   close: (ws, key) =>
     set((s) => {

@@ -1,13 +1,17 @@
+import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { Dialog } from "radix-ui";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Menu, Search, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
 import { useStatusBar } from "@/lib/statusbar";
 import type { Me } from "@/lib/session";
 import { useTabs, useWorkspaceTabs, type Tab, type TableView } from "@/app/tabs";
 import { NavPane } from "@/features/nav/NavPane";
+import { NavDrawer } from "@/features/nav/NavDrawer";
+import { useIsCompact } from "@/lib/useMediaQuery";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
 import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
@@ -19,7 +23,7 @@ import { JobTab } from "@/features/jobs/JobTab";
 import { EgressSettings } from "@/features/settings/EgressSettings";
 import { OperationsStatus } from "@/components/OperationsStatus";
 import { HelpButton } from "@/features/docs/HelpButton";
-import { alertBox, badge, kbd } from "@/components/styles";
+import { alertBox, badge, btn, infoBox, dialogOverlay, dialogPanel, dialogTitle, iconBtn, kbd } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { KindIcon } from "@/components/objectKinds";
 import { LogoMark } from "@/components/brand/Logo";
@@ -64,6 +68,9 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
     if (t.dirty && !window.confirm(`“${t.title}” has unsaved changes. Close it and discard them?`)) return;
     close(ws, t.key);
   }
+
+  const compact = useIsCompact();
+  if (compact) return <CompactTabBar ws={ws} role={role} onClose={onClose} />;
 
   return (
     <div className="flex h-10 items-stretch border-b border-border bg-surface-2/70">
@@ -142,30 +149,143 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   );
 }
 
-function TabContent({ ws, role }: { ws: string; role: WorkspaceRole | undefined }) {
+/** Phone version of the tab strip: one "current object" button that opens a sheet listing every open tab. */
+function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole | undefined; onClose: (t: Tab) => void }) {
+  const { tabs, active } = useWorkspaceTabs(ws);
+  const activate = useTabs((s) => s.activate);
+  const setView = useTabs((s) => s.setView);
+  const [open, setOpen] = useState(false);
+  const current = tabs.find((t) => t.key === active);
+  if (!current) return null;
+  const views = current.objectId && canDesign(role) ? VIEWS[current.kind] : [];
+  return (
+    <div className="border-b border-border bg-surface-2/70">
+      <div className="flex items-center gap-1 px-2">
+        <Dialog.Root open={open} onOpenChange={setOpen}>
+          <Dialog.Trigger asChild>
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-label={`Open objects: ${current.title}`}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-fg hover:bg-surface"
+            >
+              <KindIcon kind={current.kind} size="sm" />
+              <span className="min-w-0 flex-1 truncate">{current.title}</span>
+              {current.dirty && (
+                <>
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                  <span className="sr-only">(unsaved)</span>
+                </>
+              )}
+              <span className={`${badge} shrink-0`}>{tabs.length}</span>
+              <ChevronDown size={16} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+            </button>
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className={dialogOverlay} />
+            <Dialog.Content aria-describedby={undefined} className={`${dialogPanel} flex flex-col p-0`}>
+              <div className="flex shrink-0 items-center justify-between border-b border-border pl-4 pr-1">
+                <Dialog.Title className={dialogTitle}>Open objects</Dialog.Title>
+                <Dialog.Close className={iconBtn} aria-label="Close">
+                  <X size={18} aria-hidden="true" />
+                </Dialog.Close>
+              </div>
+              <ul className="m-0 min-h-0 flex-1 list-none overflow-y-auto p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                {tabs.map((t) => (
+                  <li key={t.key} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-current={t.key === active ? "true" : undefined}
+                      onClick={() => {
+                        activate(ws, t.key);
+                        setOpen(false);
+                      }}
+                      className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left text-sm ${
+                        t.key === active ? "bg-accent-soft font-medium text-accent" : "text-fg hover:bg-surface-2"
+                      }`}
+                    >
+                      <KindIcon kind={t.kind} size="sm" />
+                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      {t.dirty && <span className="text-xs text-warning">Unsaved</span>}
+                    </button>
+                    <button type="button" className={iconBtn} aria-label={`Close ${t.title}`} onClick={() => onClose(t)}>
+                      <X size={16} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+        <button type="button" className={iconBtn} aria-label={`Close ${current.title}`} onClick={() => onClose(current)}>
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
+      {views.length > 0 && (
+        <div role="group" aria-label="View" className="mx-2 mb-2 flex rounded-lg border border-border bg-surface p-0.5 shadow-xs">
+          {views.map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={current.view === v}
+              onClick={() => setView(ws, current.key, v)}
+              className={`flex-1 rounded-md px-2 text-sm font-medium transition-colors ${
+                current.view === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+              }`}
+            >
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabContent({ ws, role, onOpenNav }: { ws: string; role: WorkspaceRole | undefined; onOpenNav?: () => void }) {
   const { tabs, active } = useWorkspaceTabs(ws);
   const tab = tabs.find((t) => t.key === active);
+  const compact = useIsCompact();
   if (!tab) {
-    return <EmptyWorkspace />;
+    return <EmptyWorkspace {...(onOpenNav ? { onOpenNav } : {})} />;
   }
   const designing = tab.view !== "datasheet" && tab.view !== "form" && canDesign(role);
   let content;
+  let authoring = false;
   if (tab.kind === "report") {
+    authoring = tab.view === "design" && canDesign(role);
     content = <ReportTab ws={ws} reportId={tab.objectId} tabKey={tab.key} view={tab.view === "design" && canDesign(role) ? "design" : "report"} />;
   } else if (tab.kind === "form") {
+    authoring = designing || !tab.objectId;
     content = <FormTab ws={ws} formId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? "design" : "form"} />;
   } else if (tab.kind === "job") {
     content = <JobTab ws={ws} jobId={tab.objectId} tabKey={tab.key} />;
   } else if (tab.kind === "settings") {
     content = <EgressSettings ws={ws} />;
   } else if (tab.kind === "script") {
+    authoring = true;
     content = <ScriptTab ws={ws} scriptId={tab.objectId} tabKey={tab.key} />;
   } else if (tab.kind === "query") {
+    authoring = designing || !tab.objectId;
     content = <QueryTab ws={ws} queryId={tab.objectId} tabKey={tab.key} view={designing || !tab.objectId ? tab.view : "datasheet"} />;
   } else if (designing || !tab.objectId) {
+    authoring = true;
     content = <TableDesignTab ws={ws} tableId={tab.objectId} tabKey={tab.key} />;
   } else {
     content = <DatasheetTab ws={ws} tableId={tab.objectId} />;
+  }
+  if (compact && authoring) {
+    // Authoring tools are built for a mouse and a wide canvas: say so, and keep them usable by scrolling sideways.
+    content = (
+      <>
+        <p role="note" className={`${infoBox} m-2 shrink-0`}>
+          Designing works best on a larger screen. You can scroll to use it here.
+        </p>
+        <div className="min-h-0 flex-1 overflow-auto" data-scroll-region>
+          <div className="flex h-full min-h-[34rem] w-[56rem] flex-col">{content}</div>
+        </div>
+      </>
+    );
   }
   return (
     <div id="document-panel" role="tabpanel" aria-label={tab.title} className="flex min-h-0 flex-1 flex-col">
@@ -187,6 +307,69 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
       }),
   });
   const role = workspace.data?.role;
+  const compact = useIsCompact();
+  const openSeq = useTabs((s) => s.openSeq);
+  // The drawer is open only for the tab-open count it was opened at, so opening any object closes it.
+  const [navOpenedAt, setNavOpenedAt] = useState<number | null>(null);
+  const navOpen = compact && navOpenedAt === openSeq;
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const setNavOpen = (open: boolean) => setNavOpenedAt(open ? openSeq : null);
+
+  if (compact) {
+    return (
+      <div className="flex h-full flex-col">
+        <header className="safe-top safe-x flex shrink-0 items-center gap-0.5 border-b border-border bg-surface px-1">
+          <button ref={menuButtonRef} type="button" className={iconBtn} aria-label="Open navigation" aria-haspopup="dialog" onClick={() => setNavOpen(true)}>
+            <Menu size={20} aria-hidden="true" />
+          </button>
+          <Link to="/" aria-label="Workspaces" className="inline-flex shrink-0 items-center justify-center rounded-md px-1.5">
+            <LogoMark size={24} />
+          </Link>
+          <h1 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-fg">
+            {workspace.data?.name ?? <span className="text-fg-muted">Loading…</span>}
+          </h1>
+          <button type="button" className={iconBtn} aria-label="Search commands" onClick={() => usePalette.getState().setOpen(true)}>
+            <Search size={18} aria-hidden="true" />
+          </button>
+          <UserMenu
+            me={me}
+            {...(role === "owner"
+              ? {
+                  onWorkspaceSettings: () =>
+                    openTab(ws, { key: "settings:workspace", kind: "settings", objectId: null, view: "design", title: "Workspace settings" }),
+                }
+              : {})}
+          />
+        </header>
+        <NavDrawer open={navOpen} onOpenChange={setNavOpen} returnFocusRef={menuButtonRef}>
+          <NavPane ws={ws} role={role} variant="drawer" />
+        </NavDrawer>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-bg">
+          {workspace.isError ? (
+            <div role="alert" className={`${alertBox} m-4`}>
+              {workspace.error.message}
+            </div>
+          ) : (
+            <>
+              <TabStrip ws={ws} role={role} />
+              <TabContent ws={ws} role={role} onOpenNav={() => setNavOpen(true)} />
+            </>
+          )}
+        </main>
+        <footer className="safe-bottom safe-x flex shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-xs text-fg-muted">
+          <span aria-live="polite" className="tabular min-h-7 truncate leading-7">{recordNav ?? ""}</span>
+          <span className="ml-auto">
+            <OperationsStatus ws={ws} />
+          </span>
+          <span className="inline-flex items-center gap-1.5 leading-7">
+            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+            <span className="sr-only">Updates: </span>
+            {LIVE_LABEL[live]}
+          </span>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -263,7 +446,7 @@ function PaletteTrigger() {
   );
 }
 
-function EmptyWorkspace() {
+function EmptyWorkspace({ onOpenNav }: { onOpenNav?: () => void }) {
   const keys = formatKeys("Mod+K", detectPlatform());
   return (
     <div className="flex flex-1 items-center justify-center overflow-auto p-8">
@@ -275,10 +458,18 @@ function EmptyWorkspace() {
         </div>
         <h2 className="text-lg font-semibold tracking-tight text-fg">Open an object from the navigation pane</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-fg-muted">
-          Tables, queries, forms, reports, scripts and jobs live in the pane on the left. Open one to work with it, or press{" "}
+          {onOpenNav
+            ? "Tables, queries, forms, reports, scripts and jobs live in the navigation menu. Open one to work with it."
+            : <>Tables, queries, forms, reports, scripts and jobs live in the pane on the left. Open one to work with it, or press{" "}
           <kbd className={kbd}>{keys}</kbd>{" "}
-          for commands and <kbd className={kbd}>?</kbd> for help.
+          for commands and <kbd className={kbd}>?</kbd> for help.</>}
         </p>
+        {onOpenNav && (
+          <button type="button" className={`${btn} mt-4`} onClick={onOpenNav}>
+            <Menu size={16} aria-hidden="true" />
+            Browse objects
+          </button>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Check,
   ChevronDown,
+  CircleHelp,
   LogOut,
   Monitor,
   Moon,
@@ -13,6 +14,8 @@ import {
 import { queryClient } from "@/app/queryClient";
 import { useLogout, type Me } from "@/lib/session";
 import { isThemePref, useThemeStore } from "@/lib/theme";
+import { useIsCompact } from "@/lib/useMediaQuery";
+import { openDocs } from "@/features/docs/docsStore";
 import { btn, menu, menuItem, menuSeparator } from "@/components/styles";
 
 const item = menuItem;
@@ -40,10 +43,11 @@ export function UserMenu({
   const setPref = useThemeStore((s) => s.setPref);
   const logout = useLogout(queryClient, () => void navigate({ to: "/login" }));
 
+  const compact = useIsCompact();
   const who = me.user.display_name || me.user.email;
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger className={`${btn} !pl-1.5`} aria-label={who}>
+      <DropdownMenu.Trigger className={`${btn} !pl-1.5 max-sm:!px-1.5`} aria-label={who}>
         <span
           aria-hidden="true"
           className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent"
@@ -53,7 +57,7 @@ export function UserMenu({
         <span aria-hidden="true" className="hidden max-w-40 truncate sm:inline">
           {who}
         </span>
-        <ChevronDown size={14} aria-hidden="true" className="text-fg-subtle" />
+        <ChevronDown size={14} aria-hidden="true" className="text-fg-subtle max-sm:hidden" />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
@@ -78,6 +82,15 @@ export function UserMenu({
               >
                 <Settings size={16} aria-hidden="true" />
                 Workspace settings
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className={menuSeparator} />
+            </>
+          )}
+          {compact && (
+            <>
+              <DropdownMenu.Item className={item} onSelect={() => openDocs()}>
+                <CircleHelp size={16} aria-hidden="true" />
+                Documentation
               </DropdownMenu.Item>
               <DropdownMenu.Separator className={menuSeparator} />
             </>

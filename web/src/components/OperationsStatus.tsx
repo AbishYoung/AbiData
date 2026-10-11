@@ -78,7 +78,8 @@ export function OperationsStatus({ ws }: { ws: string }) {
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-surface-3"
+          data-dense
+          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 compact:min-h-8 transition-colors hover:bg-surface-3"
         >
           Background operations: {ops.length}
         </button>

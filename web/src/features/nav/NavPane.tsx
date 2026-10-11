@@ -69,7 +69,7 @@ export function sortedQueries(queries: readonly Saved[] | null | undefined, quer
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
-export function NavPane({ ws, role }: { ws: string; role: string | undefined }) {
+export function NavPane({ ws, role, variant = "sidebar" }: { ws: string; role: string | undefined; variant?: "sidebar" | "drawer" }) {
   const searchId = useId();
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<TableDialog | null>(null);
@@ -141,7 +141,7 @@ export function NavPane({ ws, role }: { ws: string; role: string | undefined }) 
   const searching = query.trim() !== "";
 
   return (
-    <nav aria-label="Navigation pane" data-ws={ws} data-role={role} className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
+    <nav aria-label="Navigation pane" data-ws={ws} data-role={role} className={variant === "drawer" ? "flex min-h-0 flex-1 flex-col bg-surface" : "flex w-64 shrink-0 flex-col border-r border-border bg-surface"}>
       <div className="p-2.5 pb-1.5">
         <label htmlFor={searchId} className="sr-only">
           Search objects
