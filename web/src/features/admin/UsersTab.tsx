@@ -167,16 +167,16 @@ export function UsersTab({ selfId }: { selfId: string }) {
         </p>
       )}
       {q.data && (
-        <table className="w-full border-collapse text-sm">
+        <table className="stack-table w-full border-collapse text-sm" role="table">
           <caption className="sr-only">All users</caption>
           <thead>
-            <tr>
-              <th scope="col" className={th}>Email</th>
-              <th scope="col" className={th}>Name</th>
-              <th scope="col" className={th}>Role</th>
-              <th scope="col" className={th}>Status</th>
-              <th scope="col" className={th}>Last sign-in</th>
-              <th scope="col" className={th}>
+            <tr role="row">
+              <th scope="col" role="columnheader" className={th}>Email</th>
+              <th scope="col" role="columnheader" className={th}>Name</th>
+              <th scope="col" role="columnheader" className={th}>Role</th>
+              <th scope="col" role="columnheader" className={th}>Status</th>
+              <th scope="col" role="columnheader" className={th}>Last sign-in</th>
+              <th scope="col" role="columnheader" className={th}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -185,16 +185,16 @@ export function UsersTab({ selfId }: { selfId: string }) {
             {q.data.map((u) => {
               const self = u.id === selfId;
               return (
-                <tr key={u.id} data-user-email={u.email} className="border-t border-border">
-                  <th scope="row" className={`${td} text-left font-medium`}>
+                <tr key={u.id} role="row" data-user-email={u.email} className="border-t border-border">
+                  <th scope="row" role="rowheader" className={`${td} text-left font-medium [overflow-wrap:anywhere]`}>
                     {u.email}
                     {self ? " (you)" : ""}
                   </th>
-                  <td className={td}>{u.display_name}</td>
-                  <td className={td}>{u.is_platform_admin ? "Platform admin" : "User"}</td>
-                  <td className={td}>{u.disabled ? "Disabled" : "Active"}</td>
-                  <td className={td}>{u.last_login_at ? absoluteTime(u.last_login_at) : "Never"}</td>
-                  <td className={td}>
+                  <td role="cell" data-label="Name" className={td}>{u.display_name}</td>
+                  <td role="cell" data-label="Role" className={td}>{u.is_platform_admin ? "Platform admin" : "User"}</td>
+                  <td role="cell" data-label="Status" className={td}>{u.disabled ? "Disabled" : "Active"}</td>
+                  <td role="cell" data-label="Last sign-in" className={td}>{u.last_login_at ? absoluteTime(u.last_login_at) : "Never"}</td>
+                  <td role="cell" data-stack="full" className={td}>
                     <div className="flex flex-wrap justify-end gap-2">
                       <WhyUnavailable reason={self ? "You cannot disable yourself" : undefined}>
                         <button

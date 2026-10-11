@@ -258,7 +258,7 @@ export function ApiKeysPanel({ ws }: { ws: string }) {
         <SkeletonLines rows={3} label="Loading API keys…" />
       )}
       {list.data && (
-        <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full border-collapse text-sm">
+        <div className="scroll-shadow overflow-x-auto rounded-lg border border-border"><table className="w-full border-collapse text-sm">
           <caption className="sr-only">API keys, newest first</caption>
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left">

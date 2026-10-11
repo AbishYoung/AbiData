@@ -76,8 +76,9 @@ type Param struct {
 type Compiled struct {
 	SQL      string
 	Columns  []string
-	Editable bool   // single table, no grouping/distinct, selects id and _version
-	TableID  string // the editable table
+	Types    []string // display type per column ("" when unknown); see Result.Types
+	Editable bool     // single table, no grouping/distinct, selects id and _version
+	TableID  string   // the editable table
 	Deps     Deps
 }
 
@@ -331,6 +332,7 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 			seenNames[strings.ToLower(name)] = true
 			sel = append(sel, valueExpr+" AS "+Q(name))
 			out.Columns = append(out.Columns, name)
+			out.Types = append(out.Types, fieldType(col, f.ColumnID, f.Group))
 			if agg == "" && f.ColumnID == "id" {
 				selectsID = true
 			}
@@ -576,4 +578,33 @@ func sqlLiteral(v any) (string, error) {
 		return "'" + strings.ReplaceAll(x, "'", "''") + "'", nil
 	}
 	return "", bad("Unsupported value %v.", v)
+}
+
+// fieldType is the display type of a visible field ("" when unknown).
+func fieldType(col *catalog.Column, columnID, group string) string {
+	if group == "count" {
+		return "integer"
+	}
+	base := ""
+	switch {
+	case col != nil:
+		base = FieldDisplayType(col)
+	case columnID == "id" || columnID == "_version":
+		base = "integer"
+	}
+	switch base {
+	case "boolean":
+		if group != "" && group != "group_by" {
+			return "integer"
+		}
+	case "integer":
+		if group == "avg" {
+			return "number"
+		}
+	case "text", "date", "datetime":
+		if group == "sum" || group == "avg" {
+			return ""
+		}
+	}
+	return base
 }

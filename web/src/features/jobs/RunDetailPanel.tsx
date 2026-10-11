@@ -100,7 +100,7 @@ export function RunDetailPanel({ ws, jobId, runId }: { ws: string; jobId: string
           </ul>
         )}
       </section>
-      <LogViewer log={r.log} />
+      <LogViewer log={r.log} {...(r.started_at ? { startedAt: r.started_at } : {})} />
     </section>
   );
 }

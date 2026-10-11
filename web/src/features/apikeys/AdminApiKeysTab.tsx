@@ -62,7 +62,7 @@ export function AdminApiKeysTab() {
         <SkeletonLines rows={3} label="Loading API keys…" />
       )}
       {q.data && (
-        <table className="w-full border-collapse text-sm">
+        <div className="scroll-shadow overflow-x-auto"><table className="w-full border-collapse text-sm">
           <caption className="sr-only">API keys of all workspaces</caption>
           <thead>
             <tr>
@@ -114,7 +114,7 @@ export function AdminApiKeysTab() {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
       {revoking && (
         <RevokeDialog

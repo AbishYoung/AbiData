@@ -2383,6 +2383,7 @@ export interface components {
             name: string;
         };
         Result: {
+            column_types: string[] | null;
             columns: string[] | null;
             rows: (unknown[] | null)[] | null;
             truncated: boolean;

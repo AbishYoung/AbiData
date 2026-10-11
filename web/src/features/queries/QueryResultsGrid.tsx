@@ -1,14 +1,55 @@
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Check } from "lucide-react";
+import { formatCurrency, formatDateTime } from "@/features/datasheet/values";
 import type { QueryResult } from "./savedQueries";
 
 const ROW_HEIGHT = 32;
 const COL_WIDTH = 176;
 const PAGE = 10;
 
-export function formatCell(v: unknown): string {
+const CURRENCY_SCALE = 10000n;
+
+/** A scaled currency integer (number, numeric string or float average) as a decimal string. */
+function scaledToDecimal(v: unknown): string | null {
+  try {
+    if (typeof v === "string" && /^-?\d+$/.test(v)) return scaledBigToDecimal(BigInt(v));
+    if (typeof v === "number" && Number.isInteger(v)) return scaledBigToDecimal(BigInt(v));
+    if (typeof v === "number" && Number.isFinite(v)) return (v / Number(CURRENCY_SCALE)).toFixed(4);
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+function scaledBigToDecimal(n: bigint): string {
+  const neg = n < 0n;
+  const abs = neg ? -n : n;
+  const frac = String(abs % CURRENCY_SCALE).padStart(4, "0");
+  return `${neg ? "-" : ""}${abs / CURRENCY_SCALE}.${frac}`;
+}
+
+function isNumericType(t: string | undefined): boolean {
+  return t === "integer" || t === "number" || t === "currency";
+}
+
+/** Whether a cell shows a boolean glyph (and with which value), given its column type. */
+function boolOf(type: string | undefined, v: unknown): boolean | null {
+  if (typeof v === "boolean") return v;
+  if (type === "boolean" && (v === 0 || v === 1)) return v === 1;
+  return null;
+}
+
+/** Text for a cell, formatted like the datasheet for its column type; NULL is empty. */
+export function formatCell(v: unknown, type?: string): string {
   if (v === null || v === undefined) return "";
-  if (typeof v === "boolean") return v ? "Yes" : "No";
+  const b = boolOf(type, v);
+  if (b !== null) return b ? "Yes" : "No";
+  if (type === "currency") {
+    const d = scaledToDecimal(v);
+    return d === null ? String(v) : formatCurrency(d);
+  }
+  if (type === "datetime" && typeof v === "string") return formatDateTime(v);
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
@@ -101,7 +142,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                 key={`${c}-${i}`}
                 role="columnheader"
                 aria-colindex={i + 1}
-                className={`truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted ${i === 0 ? "compact:sticky compact:left-0 compact:z-[2] compact:bg-surface-2" : ""}`}
+                className={`truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted ${isNumericType(result.types?.[i]) ? "text-right " : ""}${i === 0 ? "compact:sticky compact:left-0 compact:z-[2] compact:bg-surface-2" : ""}`}
                 title={c}
               >
                 {c}
@@ -122,18 +163,32 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
               >
                 {columns.map((_, ci) => {
                   const isActive = active.row === vi.index && active.col === ci;
-                  const text = formatCell(row[ci]);
+                  const type = result.types?.[ci];
+                  const value = row[ci];
+                  const text = formatCell(value, type);
+                  const isNull = value === null || value === undefined;
+                  const flag = isNull ? null : boolOf(type, value);
+                  const right = isNumericType(type) && flag === null;
                   return (
                     <div
                       key={ci}
                       id={cellId(vi.index, ci)}
                       role="gridcell"
                       aria-colindex={ci + 1}
-                      title={text}
+                      title={isNull ? "NULL" : text}
+                      aria-label={flag !== null ? text : undefined}
                       onClick={() => setActive({ row: vi.index, col: ci })}
-                      className={`truncate border-b border-r border-border px-3 text-sm leading-8 ${ci === 0 ? `compact:sticky compact:left-0 compact:z-[1] ${isActive ? "" : "compact:bg-surface"} ` : ""}${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
+                      className={`truncate border-b border-r border-border px-3 text-sm leading-8 ${right ? "tabular text-right " : ""}${ci === 0 ? `compact:sticky compact:left-0 compact:z-[1] ${isActive ? "" : "compact:bg-surface"} ` : ""}${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
                     >
-                      {text}
+                      {isNull ? (
+                        <span className="text-fg-muted" aria-label="NULL">
+                          —
+                        </span>
+                      ) : flag !== null ? (
+                        flag ? <Check size={14} strokeWidth={3} aria-hidden="true" className="inline text-accent" /> : null
+                      ) : (
+                        text
+                      )}
                     </div>
                   );
                 })}

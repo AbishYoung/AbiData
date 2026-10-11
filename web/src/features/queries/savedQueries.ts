@@ -8,8 +8,13 @@ export type Saved = components["schemas"]["Saved"];
 export type SavedInput = components["schemas"]["SavedInput"];
 export type Usage = components["schemas"]["Usage"];
 
+/** How a result column is displayed (currency values arrive as integers scaled by 10^4). */
+export type ResultColumnType = "text" | "integer" | "number" | "currency" | "boolean" | "date" | "datetime";
+
 export interface QueryResult {
   columns: string[];
+  /** One entry per column; missing or unknown entries are shown as plain text. */
+  types?: string[];
   rows: unknown[][];
   truncated: boolean;
 }
@@ -53,7 +58,7 @@ export function useSavedQuery(ws: string, id: string | null) {
 }
 
 function normalizeResult(r: components["schemas"]["Result"]): QueryResult {
-  return { columns: r.columns ?? [], rows: (r.rows ?? []).map((row) => row ?? []), truncated: r.truncated };
+  return { columns: r.columns ?? [], types: r.column_types ?? [], rows: (r.rows ?? []).map((row) => row ?? []), truncated: r.truncated };
 }
 
 export async function compileModel(ws: string, model: VisualModel, signal?: AbortSignal): Promise<Compiled> {

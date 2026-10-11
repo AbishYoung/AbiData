@@ -2,18 +2,24 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { btn, btnGhost, input } from "@/components/styles";
-import { findMatches, isTruncated, segments, stepMatch } from "./logSearch";
+import { findMatches, isTruncated, stepMatch } from "./logSearch";
+import { localizeLog, pieces, stampTitle, utcOffsetLabel } from "./logTime";
 
-/** Monospace, wrapping log with copy and in-log search. */
-export function LogViewer({ log, label = "Run log" }: { log: string; label?: string }) {
+/**
+ * Monospace, wrapping log with copy and in-log search. The server logs times in UTC; they are shown
+ * in the viewer's local time like the run history, with the UTC instant on hover. Copying yields UTC ISO times.
+ */
+export function LogViewer({ log, label = "Run log", startedAt }: { log: string; label?: string; startedAt?: string }) {
   const searchId = useId();
   const [query, setQuery] = useState("");
   const [current, setCurrent] = useState(0);
   const [copied, setCopied] = useState<"" | "copied" | "failed">("");
   const currentRef = useRef<HTMLElement>(null);
 
-  const matches = useMemo(() => findMatches(log, query), [log, query]);
-  const parts = useMemo(() => segments(log, matches), [log, matches]);
+  const local = useMemo(() => localizeLog(log, startedAt), [log, startedAt]);
+  const matches = useMemo(() => findMatches(local.text, query), [local.text, query]);
+  const parts = useMemo(() => pieces(local.text, matches, local.stamps), [local.text, matches, local.stamps]);
+  const zone = local.stamps[0] ? utcOffsetLabel(Date.parse(local.stamps[0].iso)) : "";
   const index = matches.length === 0 ? 0 : Math.min(current, matches.length - 1);
 
   useEffect(() => {
@@ -22,7 +28,7 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
 
   async function copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(log);
+      await navigator.clipboard.writeText(local.utcText);
       setCopied("copied");
     } catch {
       setCopied("failed");
@@ -89,6 +95,11 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
       {isTruncated(log) && (
         <p className="m-0 pb-1 text-sm text-warning">Only the most recent part of this run’s log is kept (the last 256 KiB).</p>
       )}
+      {zone !== "" && (
+        <p className="m-0 pb-1 text-xs text-fg-muted">
+          Times are in your local time ({zone}). Hover a time to see it in UTC. Copy log uses UTC.
+        </p>
+      )}
       <pre
         tabIndex={0}
         role="region"
@@ -97,19 +108,27 @@ export function LogViewer({ log, label = "Run log" }: { log: string; label?: str
       >
         {log === ""
           ? "The run wrote nothing to the log."
-          : parts.map((p, i) =>
-              p.match === undefined ? (
-                p.text
+          : parts.map((p, i) => {
+              const content =
+                p.iso !== undefined ? (
+                  <time dateTime={p.iso} title={stampTitle(p.iso)}>
+                    {p.text}
+                  </time>
+                ) : (
+                  p.text
+                );
+              return p.match === undefined ? (
+                <span key={i}>{content}</span>
               ) : (
                 <mark
                   key={i}
                   ref={p.match === index ? currentRef : undefined}
                   className={p.match === index ? "bg-accent text-accent-fg" : "bg-accent-soft text-fg underline"}
                 >
-                  {p.text}
+                  {content}
                 </mark>
-              ),
-            )}
+              );
+            })}
       </pre>
     </section>
   );

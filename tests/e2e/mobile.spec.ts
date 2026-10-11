@@ -248,8 +248,9 @@ test("forms, reports, queries, jobs and settings fit a phone", async ({ page }) 
   await expectNoHorizontalOverflow(page, "query results");
   await shot(page, "query");
 
-  // Designers show the notice and scroll inside themselves.
-  await page.getByRole("button", { name: "Design", exact: true }).tap();
+  // A SQL query has no separate Design view: its SQL editor is the design. Designers show the notice and scroll inside themselves.
+  await expect(page.getByRole("button", { name: "Design", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "SQL", exact: true }).tap();
   await expect(page.getByText("Designing works best on a larger screen")).toBeVisible();
   await expectNoHorizontalOverflow(page, "query designer");
   await shot(page, "query-design");
@@ -299,6 +300,9 @@ test("dialogs are bottom sheets and menus fit the screen", async ({ page }) => {
 
   const dialog = page.getByRole("dialog", { name: /Rename table/ });
   await expect(dialog).toBeVisible();
+  // The drawer does not stay open behind the sheet.
+  await expect(nav).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   await settleAnimations(page);
   const box = (await dialog.boundingBox())!;
   await shot(page, "bottom-sheet");
@@ -331,6 +335,87 @@ test("dialogs are bottom sheets and menus fit the screen", async ({ page }) => {
   expect(Math.round(db.height)).toBe(vp.height);
   await shot(page, "docs");
   await page.keyboard.press("Escape");
+});
+
+test("the navigation drawer closes when an action opens a sheet", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(WS()) }).tap();
+  const open = page.getByRole("button", { name: "Open navigation" });
+  const nav = page.getByRole("navigation", { name: "Navigation pane" });
+  await open.tap();
+  await nav.getByRole("button", { name: "Import…" }).tap();
+  const wizard = page.getByRole("dialog", { name: "Import data" });
+  await expect(wizard).toBeVisible();
+  await expect(nav).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await shot(page, "import-no-drawer");
+  // Closing the wizard returns to the workspace, not to a reopened drawer.
+  await page.keyboard.press("Escape");
+  await expect(wizard).toHaveCount(0);
+  await expect(nav).toHaveCount(0);
+
+  // Delete confirmations are sheets too.
+  await open.tap();
+  await nav.getByRole("button", { name: "More actions for Products", exact: true }).tap();
+  await page.getByRole("menuitem", { name: "Delete" }).tap();
+  await expect(page.getByRole("dialog", { name: /Delete table/ })).toBeVisible();
+  await expect(nav).toHaveCount(0);
+  await page.getByRole("dialog", { name: /Delete table/ }).getByRole("button", { name: "Cancel" }).tap();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+/** An element lies fully inside the viewport horizontally. */
+async function expectInViewportX(page: Page, locator: ReturnType<Page["locator"]>, what: string): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
+  const b = (await locator.boundingBox())!;
+  const w = page.viewportSize()!.width;
+  expect(b.x, `${what} left`).toBeGreaterThanOrEqual(0);
+  expect(b.x + b.width, `${what} right`).toBeLessThanOrEqual(w + 0.5);
+}
+
+test("wide tables reflow into stacked rows or show a scroll cue", async ({ page }) => {
+  test.setTimeout(60_000);
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(WS()) }).tap();
+  await expect(page.getByRole("heading", { name: WS() })).toBeVisible();
+  const ws = workspaceId(page);
+  await apiPost(page, `/api/v1/w/${ws}/api-keys`, { name: "Phone key", role: "viewer" });
+
+  await page.getByRole("button", { name: /Admin/ }).tap();
+  await page.getByRole("menuitem", { name: "Workspace settings" }).tap();
+  const members = page.getByTestId("members-panel");
+  await expect(members.getByRole("heading", { name: /Members/ })).toBeVisible();
+
+  // Members: each member is a stacked card; the role select and Remove are reachable without scrolling sideways.
+  const row = members.locator("tr[data-member-id]").first();
+  await expect(row).toBeVisible();
+  expect(await row.evaluate((el) => getComputedStyle(el).display)).toBe("flex");
+  await expectInViewportX(page, row, "member row");
+  await expectInViewportX(page, row.getByRole("combobox"), "role select");
+  await expectInViewportX(page, row.getByRole("button", { name: /^Remove / }), "Remove");
+  await expectInViewportX(page, row.locator("td[data-label='Email']"), "member email");
+  await shot(page, "members-stacked");
+
+  // API keys keep their table but show scroll shadows, and it really does scroll.
+  const keys = page.locator(".scroll-shadow", { has: page.getByRole("table") }).filter({ hasText: "Phone key" });
+  await expect(keys).toBeVisible();
+  expect(await keys.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  expect(await keys.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("gradient");
+  await shot(page, "api-keys-shadow");
+
+  // Admin console users: stacked cards with their actions in view.
+  await page.goto("/admin");
+  await page.getByRole("tab", { name: /Users/ }).tap();
+  const user = page.locator("tr[data-user-email]").first();
+  await expect(user).toBeVisible();
+  expect(await user.evaluate((el) => getComputedStyle(el).display)).toBe("flex");
+  await expectInViewportX(page, user, "user row");
+  for (const b of await user.getByRole("button").all()) {
+    await expectInViewportX(page, b, (await b.getAttribute("aria-label")) ?? "user action");
+  }
+  await shot(page, "users-stacked");
+  await expectNoAxeViolations(page);
 });
 
 test("the import wizard step labels are not truncated on a phone", async ({ page }) => {

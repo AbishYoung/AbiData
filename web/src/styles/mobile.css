@@ -74,6 +74,54 @@
     max-height: 80dvh;
   }
 
+  /* Stacked tables (class "stack-table"): each row becomes a card; the header row is kept for screen readers and each
+     cell shows its column name from data-label. Cells with data-stack="full" (actions) span the card. */
+  table.stack-table, .stack-table tbody { display: block; width: 100%; }
+  .stack-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .stack-table tr {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.625rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+  }
+  .stack-table td, .stack-table tbody th {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0.125rem 0;
+    border: 0;
+    text-align: right;
+  }
+  .stack-table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg-subtle);
+  }
+  .stack-table tbody th { justify-content: flex-start; text-align: left; font-size: 0.9375rem; padding-bottom: 0.375rem; border-bottom: 1px solid var(--border); margin-bottom: 0.25rem; }
+  .stack-table td[data-stack="full"] { justify-content: flex-end; padding-top: 0.375rem; }
+  .stack-table td[data-stack="full"] > * { max-width: 100%; }
+  .stack-table select { max-width: 60%; }
+
+  /* A horizontally scrolling table in a card shows an edge shadow on each side that has more to scroll to. */
+  .scroll-shadow {
+    background:
+      linear-gradient(to right, var(--surface) 30%, transparent) left center / 2rem 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 30%, transparent) right center / 2rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--fg) 28%, transparent), transparent) left center / 0.75rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--fg) 28%, transparent), transparent) right center / 0.75rem 100% no-repeat scroll;
+  }
+
   /* Menus and popovers never exceed the viewport. */
   [data-radix-popper-content-wrapper] > * {
     max-width: calc(100vw - 1rem);

@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ncruces/go-sqlite3"
 
+	"abidata/internal/catalog"
 	"abidata/internal/fault"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -28,7 +30,11 @@ const (
 
 // Result is a query result with JSON-safe values.
 type Result struct {
-	Columns   []string `json:"columns"`
+	Columns []string `json:"columns"`
+	// Types names how each column is best displayed: text, integer, number,
+	// currency, boolean, date or datetime. Currency values are integers scaled
+	// by 10^4, as stored. Types has one entry per column.
+	Types     []string `json:"column_types"`
 	Rows      [][]any  `json:"rows"`
 	Truncated bool     `json:"truncated"`
 }
@@ -39,6 +45,13 @@ type Params map[string]any
 // Run executes one read-only statement on a reader connection under the
 // authorizer for p, with a time and row cap.
 func Run(ctx context.Context, l *workspace.Lease, p Policy, sql string, params Params, maxRows int) (Result, error) {
+	return RunTyped(ctx, l, p, nil, nil, sql, params, maxRows)
+}
+
+// RunTyped is Run with column typing: hints (one per column, "" = unknown, as
+// produced by Compile) win, then the catalog column a result column is read
+// from (when sch is set), then the declared SQLite type, then sampled values.
+func RunTyped(ctx context.Context, l *workspace.Lease, p Policy, sch *catalog.Schema, hints []string, sql string, params Params, maxRows int) (Result, error) {
 	if maxRows <= 0 || maxRows > MaxRows {
 		maxRows = MaxRows
 	}
@@ -72,6 +85,15 @@ func Run(ctx context.Context, l *workspace.Lease, p Policy, sql string, params P
 			}
 			defer rows.Close()
 			res.Columns = rows.Columns()
+			res.Types = make([]string, len(res.Columns))
+			for i := range res.Types {
+				if i < len(hints) && hints[i] != "" {
+					res.Types[i] = hints[i]
+					continue
+				}
+				table, col, decl := rows.ColumnOrigin(i)
+				res.Types[i] = originType(sch, table, col, decl)
+			}
 			res.Rows = [][]any{}
 			size := 0
 			for rows.Next() {
@@ -86,6 +108,7 @@ func Run(ctx context.Context, l *workspace.Lease, p Policy, sql string, params P
 				}
 				res.Rows = append(res.Rows, vals)
 			}
+			sampleTypes(&res)
 			return rows.Err()
 		}))
 	})
@@ -186,4 +209,109 @@ func jsonSafe(v any) any {
 		return base64.StdEncoding.EncodeToString(x)
 	}
 	return v
+}
+
+// FieldDisplayType maps a catalog column to a result column type.
+func FieldDisplayType(c *catalog.Column) string {
+	switch c.Type {
+	case catalog.Autonumber, catalog.Integer, catalog.Lookup:
+		return "integer"
+	case catalog.Number:
+		return "number"
+	case catalog.Currency:
+		return "currency"
+	case catalog.YesNo:
+		return "boolean"
+	case catalog.Date:
+		return "date"
+	case catalog.DateTime:
+		return "datetime"
+	case catalog.Calculated:
+		switch c.Options.ResultType {
+		case "integer", "number", "currency", "date", "datetime":
+			return c.Options.ResultType
+		case "yes_no":
+			return "boolean"
+		}
+		return ""
+	}
+	return "text"
+}
+
+// originType types a result column from its catalog column or declared type;
+// "" means unknown (sampled later).
+func originType(sch *catalog.Schema, table, col, decl string) string {
+	if sch != nil && table != "" {
+		if t, ok := sch.TableByPhysical(table); ok {
+			switch strings.ToLower(col) {
+			case "id", "_version":
+				return "integer"
+			}
+			if c, ok := t.ColumnByPhysical(col); ok {
+				return FieldDisplayType(c)
+			}
+		}
+	}
+	switch strings.ToUpper(decl) {
+	case "INTEGER", "INT":
+		return "integer"
+	case "REAL":
+		return "number"
+	case "TEXT":
+		return "text"
+	}
+	return ""
+}
+
+var (
+	dateSample     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	datetimeSample = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$`)
+)
+
+// sampleTypes types the columns that are still unknown from their values.
+func sampleTypes(res *Result) {
+	for i, t := range res.Types {
+		if t != "" {
+			continue
+		}
+		kind := ""
+		for _, row := range res.Rows {
+			if i >= len(row) || row[i] == nil {
+				continue
+			}
+			var k string
+			switch v := row[i].(type) {
+			case int64:
+				k = "integer"
+			case float64:
+				k = "number"
+			case string:
+				switch {
+				case dateSample.MatchString(v):
+					k = "date"
+				case datetimeSample.MatchString(v):
+					k = "datetime"
+				default:
+					k = "text"
+				}
+			default:
+				k = "text"
+			}
+			switch {
+			case kind == "" || kind == k:
+				kind = k
+			case (kind == "integer" && k == "number") || (kind == "number" && k == "integer"):
+				kind = "number"
+			default:
+				kind = "text"
+			}
+			if kind == "text" {
+				break
+			}
+		}
+		if kind == "" {
+			kind = "text"
+		}
+		res.Types[i] = kind
+	}
 }

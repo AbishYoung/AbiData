@@ -70,7 +70,7 @@ func toAPIError(ctx context.Context, log *slog.Logger, err error) *APIError {
 		recovery = fe.Recovery
 	}
 	body := ErrorBody{
-		Code: fe.Code, Title: entry.Title, Message: fe.DisplayMessage(), Recovery: recovery,
+		Code: fe.Code, Title: fe.DisplayTitle(), Message: fe.DisplayMessage(), Recovery: recovery,
 		RequestID: obs.RequestID(ctx), Details: fe.Details,
 	}
 	if fe.Code == fault.Internal {
