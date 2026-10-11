@@ -13,9 +13,7 @@ import (
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	_ "abidata/internal/script/modules/db"
-	// Production always links the decimal module, which makes currency a
-	// decimal value; without it currency would fall back to a plain string.
-	_ "abidata/internal/script/modules/decimal"
+	_ "abidata/internal/script/modules/decimal" // as in production: currency values are decimals, not strings
 	_ "abidata/internal/script/modules/records"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
