@@ -31,6 +31,8 @@ The **SQL** view shows the SQL that the designer generated, under the heading **
 
 To edit the SQL yourself, open the query's design and choose **Convert to SQL**. This button is available for a saved query with no errors. Confirm the dialog: the query becomes a SQL query and can no longer be edited visually. This cannot be undone.
 
+A query that is written in SQL has only the **Datasheet** and **SQL** views. Its SQL editor is its design, so there is no **Design** view.
+
 Builders can also open the **SQL console** from the **Queries** group. It runs a statement without saving it, and **Save query** keeps it as a SQL query.
 
 SQL queries are read-only. These are allowed:

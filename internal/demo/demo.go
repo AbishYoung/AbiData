@@ -372,26 +372,43 @@ func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, n
 	}
 
 	// ---- saved queries ------------------------------------------------
-	O, C, P, L, E := q(ord.t.PhysicalName), q(cust.t.PhysicalName), q(prod.t.PhysicalName), q(lin.t.PhysicalName), q(emp.t.PhysicalName)
+	O, P, L, E := q(ord.t.PhysicalName), q(prod.t.PhysicalName), q(lin.t.PhysicalName), q(emp.t.PhysicalName)
 	saved := []query.SavedInput{
 		{Name: "Sales by month", Kind: "sql", Description: "Order count and revenue per month, excluding cancelled orders.",
 			SQL: fmt.Sprintf(`SELECT substr(o.%s, 1, 7) AS Month, count(*) AS Orders, sum(o.%s) / 10000.0 AS Revenue FROM %s o `+
 				`WHERE o.%s <> 'Cancelled' GROUP BY 1 ORDER BY 1`,
 				q(ord.phys("Order date")), q(ord.phys("Total")), O, q(ord.phys("Status")))},
-		{Name: "Top customers", Kind: "sql", Description: "The ten customers with the highest revenue.",
-			SQL: fmt.Sprintf(`SELECT c.%s AS Customer, c.%s AS Country, count(*) AS Orders, sum(o.%s) / 10000.0 AS Revenue FROM %s o `+
-				`JOIN %s c ON c.id = o.%s WHERE o.%s <> 'Cancelled' GROUP BY c.id ORDER BY Revenue DESC LIMIT 10`,
-				q(cust.phys("Company")), q(cust.phys("Country")), q(ord.phys("Total")), O, C, q(ord.phys("Customer")), q(ord.phys("Status")))},
+		// Top customers and Open orders are visual queries, so the sample shows the designer: a join,
+		// totals, criteria, sorting and a row limit.
+		{Name: "Top customers", Kind: "visual", Description: "The ten customers with the highest revenue across all orders.",
+			Visual: &query.Model{
+				Sources: []query.Source{{Alias: "o", TableID: ord.id(), X: 40, Y: 40}, {Alias: "c", TableID: cust.id(), X: 360, Y: 40}},
+				Joins:   []query.Join{{LeftAlias: "o", LeftColumnID: ord.col("Customer"), RightAlias: "c", RightColumnID: "id", Kind: "inner"}},
+				Fields: []query.Field{
+					{Alias: "c", ColumnID: cust.col("Company"), OutputName: "Customer", Group: "group_by"},
+					{Alias: "c", ColumnID: cust.col("Country"), Group: "group_by"},
+					{Alias: "o", ColumnID: ord.col("Order ref"), OutputName: "Orders", Group: "count"},
+					{Alias: "o", ColumnID: ord.col("Total"), OutputName: "Revenue", Group: "sum", Sort: "desc"},
+				},
+				Limit: 10,
+			}},
 		{Name: "Low stock", Kind: "sql", Description: "Active products at or below their reorder level.",
 			SQL: fmt.Sprintf(`SELECT p.%s AS Product, p.%s AS Category, p.%s AS "In stock", p.%s AS "Reorder level" FROM %s p `+
 				`WHERE p.%s <> 1 AND p.%s <= p.%s ORDER BY p.%s - p.%s`,
 				q(prod.phys("Product")), q(prod.phys("Category")), q(prod.phys("In stock")), q(prod.phys("Reorder level")), P,
 				q(prod.phys("Discontinued")), q(prod.phys("In stock")), q(prod.phys("Reorder level")), q(prod.phys("In stock")), q(prod.phys("Reorder level")))},
-		{Name: "Open orders", Kind: "sql", Description: "Orders that are not yet delivered or cancelled.",
-			SQL: fmt.Sprintf(`SELECT o.%s AS "Order", c.%s AS Customer, o.%s AS "Order date", o.%s AS Status, o.%s / 10000.0 AS Total FROM %s o `+
-				`JOIN %s c ON c.id = o.%s WHERE o.%s IN ('New', 'Packed', 'Shipped') ORDER BY o.%s`,
-				q(ord.phys("Order ref")), q(cust.phys("Company")), q(ord.phys("Order date")), q(ord.phys("Status")), q(ord.phys("Total")), O,
-				C, q(ord.phys("Customer")), q(ord.phys("Status")), q(ord.phys("Order date")))},
+		{Name: "Open orders", Kind: "visual", Description: "Orders that are not yet delivered or cancelled.",
+			Visual: &query.Model{
+				Sources: []query.Source{{Alias: "o", TableID: ord.id(), X: 40, Y: 40}, {Alias: "c", TableID: cust.id(), X: 360, Y: 40}},
+				Joins:   []query.Join{{LeftAlias: "o", LeftColumnID: ord.col("Customer"), RightAlias: "c", RightColumnID: "id", Kind: "inner"}},
+				Fields: []query.Field{
+					{Alias: "o", ColumnID: ord.col("Order ref"), OutputName: "Order"},
+					{Alias: "c", ColumnID: cust.col("Company"), OutputName: "Customer"},
+					{Alias: "o", ColumnID: ord.col("Order date"), Sort: "asc"},
+					{Alias: "o", ColumnID: ord.col("Status"), Criteria: []query.Criterion{{Op: "in", Value: []any{"New", "Packed", "Shipped"}}}},
+					{Alias: "o", ColumnID: ord.col("Total")},
+				},
+			}},
 		{Name: "Revenue by category", Kind: "sql", Description: "Units sold and revenue per product category, from the order lines.",
 			SQL: fmt.Sprintf(`SELECT p.%s AS Category, sum(l.%s) AS Units, sum(l.%s) / 10000.0 AS Revenue FROM %s l `+
 				`JOIN %s p ON p.id = l.%s JOIN %s o ON o.id = l.%s WHERE o.%s <> 'Cancelled' GROUP BY 1 ORDER BY Revenue DESC`,
@@ -482,12 +499,15 @@ func productReport(prod tbl) reports.ReportInput {
 				ctl("d1", "Product", 0, 260, "Product", ""), ctl("d2", "Price", 280, 100, "Unit price", ""), ctl("d3", "Stock", 400, 100, "In stock", "")}},
 			PageFooter: reports.Band{Height: 22, Controls: []reports.ReportControl{{ID: "pn", Name: "PageNo", Type: "page_number", W: 60, H: 20}}},
 			ReportFooter: reports.Band{Height: 26, Controls: []reports.ReportControl{
-				{ID: "tc", Name: "TotalProducts", Type: "textbox", W: 120, H: 20, Aggregate: &reports.Aggregate{Func: "count", Scope: "report"}}}},
+				{ID: "tcl", Name: "TotalProductsLabel", Type: "label", W: 100, H: 20, Caption: "Total products:", Style: map[string]string{"bold": "true"}},
+				{ID: "tc", Name: "TotalProducts", Type: "textbox", X: 104, W: 60, H: 20, Aggregate: &reports.Aggregate{Func: "count", Scope: "report"}}}},
 		},
 		Groups: []reports.Group{{ColumnID: col("Category"), ReportSort: "asc",
 			Header: reports.Band{Height: 26, Controls: []reports.ReportControl{ctl("g1", "CategoryName", 0, 260, "Category", "")}},
 			Footer: reports.Band{Height: 24, Controls: []reports.ReportControl{
-				{ID: "gc", Name: "CategoryCount", Type: "textbox", W: 120, H: 20, Aggregate: &reports.Aggregate{Func: "count", Scope: "group"}},
+				{ID: "gcl", Name: "CategoryCountLabel", Type: "label", W: 70, H: 20, Caption: "Products:", Style: map[string]string{"bold": "true"}},
+				{ID: "gc", Name: "CategoryCount", Type: "textbox", X: 74, W: 60, H: 20, Aggregate: &reports.Aggregate{Func: "count", Scope: "group"}},
+				{ID: "gsl", Name: "CategoryStockLabel", Type: "label", X: 280, W: 116, H: 20, Caption: "Units in stock:", Style: map[string]string{"bold": "true", "align": "right"}},
 				{ID: "gs", Name: "CategoryStock", Type: "textbox", X: 400, W: 100, H: 20, Aggregate: &reports.Aggregate{Func: "sum", ColumnID: col("In stock"), Scope: "group"}}}}}},
 		Sorts: []reports.ReportSort{{ColumnID: col("Product")}},
 	}

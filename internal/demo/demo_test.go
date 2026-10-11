@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -142,8 +143,10 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 	if err != nil || len(ql) < 4 {
 		t.Fatalf("queries: %d %v", len(ql), err)
 	}
+	kinds := map[string]string{}
 	for _, s := range ql {
-		out, err := query.Run(r.ctx, l, query.Policy{}, s.SQL, nil, 100)
+		kinds[s.Name] = s.Kind
+		out, err := r.b.Queries.RunSaved(r.ctx, l, query.Policy{}, s.ID, nil, 100)
 		if err != nil {
 			t.Errorf("query %q: %v", s.Name, err)
 			continue
@@ -154,9 +157,30 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 		if s.Name == "Top customers" && len(out.Rows) != 10 {
 			t.Errorf("Top customers rows: %d", len(out.Rows))
 		}
+		if s.Name == "Top customers" {
+			if s.Visual == nil || len(s.Visual.Joins) == 0 {
+				t.Error("Top customers should be a visual query with a join")
+			}
+			if want := []string{"text", "text", "integer", "currency"}; !reflect.DeepEqual(out.Types, want) {
+				t.Errorf("Top customers column types %v, want %v", out.Types, want)
+			}
+		}
+		if s.Name == "Open orders" {
+			if s.Visual == nil || len(s.Visual.Joins) == 0 || len(out.Rows) == 0 {
+				t.Errorf("Open orders should be a visual query with a join and rows: %+v", out.Rows)
+			}
+			for _, row := range out.Rows {
+				if st := row[3]; st != "New" && st != "Packed" && st != "Shipped" {
+					t.Errorf("Open orders contains status %v", st)
+				}
+			}
+		}
 		if s.Name == "Low stock" && len(out.Rows) == 0 {
 			t.Error("Low stock query empty: the demo should have some low-stock products")
 		}
+	}
+	if kinds["Top customers"] != "visual" || kinds["Open orders"] != "visual" || kinds["Low stock"] != "sql" {
+		t.Errorf("query kinds: %v (the sample mixes visual and SQL queries)", kinds)
 	}
 	fl, err := r.b.Forms.List(r.ctx, l)
 	if err != nil || len(fl) != 1 {
@@ -165,6 +189,26 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 	rl, err := r.b.Reports.List(r.ctx, l)
 	if err != nil || len(rl) != 1 {
 		t.Fatalf("reports: %v %v", rl, err)
+	}
+	// Group and report footer totals carry captions.
+	rep, err := r.b.Reports.Get(r.ctx, l, rl[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	captions := func(b reports.Band) []string {
+		var out []string
+		for _, c := range b.Controls {
+			if c.Type == "label" {
+				out = append(out, c.Caption)
+			}
+		}
+		return out
+	}
+	if got := captions(rep.ReportLayout.Groups[0].Footer); !reflect.DeepEqual(got, []string{"Products:", "Units in stock:"}) {
+		t.Errorf("group footer captions: %v", got)
+	}
+	if got := captions(rep.ReportLayout.Bands.ReportFooter); !reflect.DeepEqual(got, []string{"Total products:"}) {
+		t.Errorf("report footer captions: %v", got)
 	}
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog } from "radix-ui";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
@@ -16,6 +16,7 @@ import { UserMenu } from "@/features/nav/UserMenu";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
 import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
 import { QueryTab } from "@/features/queries/QueryTab";
+import { useSavedQueries } from "@/features/queries/savedQueries";
 import { FormTab } from "@/features/forms/FormTab";
 import { ScriptTab } from "@/features/scripts/ScriptTab";
 import { ReportTab } from "@/features/reports/ReportTab";
@@ -40,6 +41,26 @@ const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
   job: [],
   settings: [],
 };
+
+/**
+ * The views a tab offers. A SQL-kind query has no visual design, so it gets Datasheet and SQL only
+ * (its SQL editor is the design); every other object lists all its views.
+ */
+export function viewsFor(tab: Tab, sqlQueryIds: ReadonlySet<string>): readonly TableView[] {
+  if (tab.kind === "query" && tab.objectId && sqlQueryIds.has(tab.objectId)) return ["datasheet", "sql"];
+  return VIEWS[tab.kind];
+}
+
+/** Ids of the workspace's SQL-kind saved queries. */
+function useSqlQueryIds(ws: string): ReadonlySet<string> {
+  const queries = useSavedQueries(ws);
+  return useMemo(() => new Set((queries.data ?? []).filter((q) => q.kind === "sql").map((q) => q.id)), [queries.data]);
+}
+
+/** The view to show as selected: Design on a SQL query is its SQL editor. */
+function shownView(tab: Tab, views: readonly TableView[]): TableView {
+  return views.includes(tab.view) ? tab.view : tab.view === "design" && views.includes("sql") ? "sql" : tab.view;
+}
 
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
 const LIVE_TIP: Record<LiveState, string> = {
@@ -70,7 +91,10 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   }
 
   const compact = useIsCompact();
+  const sqlIds = useSqlQueryIds(ws);
   if (compact) return <CompactTabBar ws={ws} role={role} onClose={onClose} />;
+  const views = current ? viewsFor(current, sqlIds) : [];
+  const shown = current ? shownView(current, views) : "datasheet";
 
   return (
     <div className="flex h-10 items-stretch border-b border-border bg-surface-2/70">
@@ -116,16 +140,16 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
       </div>
       {current && (
         <div className="flex items-center gap-2 px-2">
-          {current.objectId && canDesign(role) && VIEWS[current.kind].length > 0 && (
+          {current.objectId && canDesign(role) && views.length > 0 && (
             <div role="group" aria-label="View" className="flex items-center rounded-lg border border-border bg-surface p-0.5 shadow-xs">
-              {VIEWS[current.kind].map((v) => (
+              {views.map((v) => (
                 <Tip key={v} label={`${VIEW_LABEL[v]} view`}>
                   <button
                     type="button"
-                    aria-pressed={current.view === v}
+                    aria-pressed={shown === v}
                     onClick={() => setView(ws, current.key, v)}
                     className={`h-6 rounded-md px-2.5 text-xs font-medium transition-colors ${
-                      current.view === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                      shown === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
                     }`}
                   >
                     {VIEW_LABEL[v]}
@@ -155,9 +179,11 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
   const activate = useTabs((s) => s.activate);
   const setView = useTabs((s) => s.setView);
   const [open, setOpen] = useState(false);
+  const sqlIds = useSqlQueryIds(ws);
   const current = tabs.find((t) => t.key === active);
   if (!current) return null;
-  const views = current.objectId && canDesign(role) ? VIEWS[current.kind] : [];
+  const views = current.objectId && canDesign(role) ? viewsFor(current, sqlIds) : [];
+  const shown = shownView(current, views);
   return (
     <div className="border-b border-border bg-surface-2/70">
       <div className="flex items-center gap-1 px-2">
@@ -227,10 +253,10 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
             <button
               key={v}
               type="button"
-              aria-pressed={current.view === v}
+              aria-pressed={shown === v}
               onClick={() => setView(ws, current.key, v)}
               className={`flex-1 rounded-md px-2 text-sm font-medium transition-colors ${
-                current.view === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                shown === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
               }`}
             >
               {VIEW_LABEL[v]}
