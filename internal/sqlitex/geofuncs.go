@@ -53,6 +53,9 @@ func (c *areaCache) get(s string) *geo.Area {
 	return a
 }
 
+// badArea is auxiliary data remembering that a constant argument is not a valid area.
+type badArea struct{}
+
 // textArg returns a TEXT argument ("" and false for NULL and other types).
 func textArg(v sqlite3.Value) (string, bool) {
 	if v.Type() != sqlite3.TEXT {
@@ -86,12 +89,27 @@ func pointArg(v sqlite3.Value) (geo.Point, bool) {
 func registerGeo(c *sqlite3.Conn) error {
 	const flags = sqlite3.DETERMINISTIC | sqlite3.INNOCUOUS
 	cache := &areaCache{}
-	area := func(v sqlite3.Value) *geo.Area {
+	// area parses argument n. SQLite keeps auxiliary data only for arguments
+	// that are constant for the statement (a bound parameter or literal), so a
+	// query that tests every row against one area parses it once.
+	area := func(ctx sqlite3.Context, n int, v sqlite3.Value) *geo.Area {
+		switch x := ctx.GetAuxData(n).(type) {
+		case *geo.Area:
+			return x
+		case badArea:
+			return nil
+		}
 		s, ok := textArg(v)
 		if !ok {
 			return nil
 		}
-		return cache.get(s)
+		a := cache.get(s)
+		if a == nil {
+			ctx.SetAuxData(n, badArea{})
+		} else {
+			ctx.SetAuxData(n, a)
+		}
+		return a
 	}
 	fns := []struct {
 		name string
@@ -137,7 +155,7 @@ func registerGeo(c *sqlite3.Conn) error {
 		}},
 		{"geo_within", 2, func(ctx sqlite3.Context, arg ...sqlite3.Value) {
 			p, ok := pointArg(arg[0])
-			a := area(arg[1])
+			a := area(ctx, 1, arg[1])
 			if !ok || a == nil {
 				ctx.ResultNull()
 				return
@@ -145,21 +163,21 @@ func registerGeo(c *sqlite3.Conn) error {
 			ctx.ResultBool(a.Contains(p))
 		}},
 		{"geo_area_m2", 1, func(ctx sqlite3.Context, arg ...sqlite3.Value) {
-			if a := area(arg[0]); a != nil {
+			if a := area(ctx, 0, arg[0]); a != nil {
 				ctx.ResultFloat(a.AreaM2())
 			} else {
 				ctx.ResultNull()
 			}
 		}},
 		{"geo_centroid", 1, func(ctx sqlite3.Context, arg ...sqlite3.Value) {
-			if a := area(arg[0]); a != nil {
+			if a := area(ctx, 0, arg[0]); a != nil {
 				ctx.ResultText(a.Centroid().JSON())
 			} else {
 				ctx.ResultNull()
 			}
 		}},
 		{"geo_bbox", 1, func(ctx sqlite3.Context, arg ...sqlite3.Value) {
-			a := area(arg[0])
+			a := area(ctx, 0, arg[0])
 			if a == nil {
 				ctx.ResultNull()
 				return

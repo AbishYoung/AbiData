@@ -111,6 +111,12 @@ func paramProblem(typ string, v any) string {
 			}
 		}
 		return "yes or no"
+	case "area":
+		switch v.(type) {
+		case string, map[string]any:
+			return areaParamProblem(v)
+		}
+		return "a GeoJSON Polygon or MultiPolygon"
 	case "date":
 		if s, ok := v.(string); ok {
 			if t, err := time.Parse("2006-01-02", s); err == nil && t.Format("2006-01-02") == s {
