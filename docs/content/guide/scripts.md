@@ -21,25 +21,29 @@ Script Studio is the editor for scripts. It checks your code as you type. Syntax
 
 ## Lua basics {#basics}
 
+This runs on the **Orders** form and totals the order's lines in the Northwind sample.
+
 ```lua
 local total = 0
 for _, row in ipairs(db.query("SELECT Quantity, Unit_price FROM Order_lines WHERE Sales_order = :id", { id = record.id })) do
   total = total + row.Quantity * row.Unit_price
 end
-log.info("order total", { id = record.id, total = total })
-return total
+-- db.query returns currency as whole ten-thousandths, so divide by 10000.
+local amount = decimal.new(total) / 10000
+log.info("order total", { id = record.id, total = amount:tostring() })
+return amount
 ```
 
 Things that differ from what you may expect:
 
 - **Names in scripts are SQL names.** A table or field is named with its display name, with spaces replaced by `_`. The sample table **Order lines** is `Order_lines`, and **Unit price** is `Unit_price`. See [Tables](/docs/guide/tables#design).
 - **Empty fields are `db.NULL`, not `nil`.** Lua tables cannot hold `nil`. Test with `db.is_null(v)`, which is true for both.
-- **Currency fields are `decimal` values.** Use `decimal.new("12.50")` and the usual operators to avoid floating-point error.
+- **Currency is `decimal` in records but a whole number in `db`.** Form fields and `records.get` give `decimal` values. `db.query`, `db.query_one`, `db.query_value`, `db.lookup` and the aggregates such as `db.sum` return the stored value, a whole number of ten-thousandths: `12.50` is `125000`. Divide by `10000`, as the example does, or read the value with `records.get`.
 - **Dates and times are strings.** A date is `"2026-01-31"`; a timestamp is ISO 8601 UTC such as `"2026-03-09T05:30:00.000Z"`. They sort and compare correctly as text. Use `datetime` for calendar arithmetic.
 - Integers beyond 2^53 are returned as strings.
 - SQL uses named parameters (`:id`) filled from a table. Do not build SQL by joining strings.
 - `print` writes to the run log.
-- Only `string`, `table` and `math` are available from the standard library. `os`, `io`, `debug`, `load`, `coroutine` and `package` are not.
+- Besides a set of base functions (such as `pairs`, `ipairs`, `tostring`, `pcall` and `require`), only the `string`, `table` and `math` libraries are available. `os`, `io`, `debug`, `load`, `coroutine` and `package` are not.
 
 ## Contexts and budgets {#contexts}
 
@@ -47,7 +51,7 @@ A script runs in one of three contexts. The context decides which functions exis
 
 | Context | Runs when | Time budget | `db.transaction` block | Longest string | Network | Writes |
 |---|---|---|---|---|---|---|
-| `ui_event` | A form event fires | 1 second | 250 ms | 1 MiB | No | Yes, if the user's role allows |
+| `ui_event` | A form event fires | 1 second (a workspace can be set from 250 ms to 5 seconds) | 250 ms | 1 MiB | No | Yes, if the user's role allows |
 | `report` | A report runs | 30 seconds per run | not available | 1 MiB | No | No |
 | `job` | A job runs | The job's timeout, up to 3,600 s (default 300 s) | 2 s | 16 MiB | `fetch` to allowed hosts | Yes |
 
@@ -84,26 +88,30 @@ end
 
 ### Fill a field from another table {#recipe-lookup}
 
+This runs on the **Orders** form, when the **Customer** lookup changes. It copies the customer's city into **Notes**.
+
 ```lua
 function on_customer_change()
-  local email = db.lookup("Customers", "Email", "id = :id", { id = record.Customer })
-  record.Email = email
+  local city = db.lookup("Customers", "City", "id = :id", { id = record.get("Customer") })
+  if not db.is_null(city) then
+    record.set("Notes", "Ship to " .. city)
+  end
 end
 ```
 
-This example assumes the form's record has an `Email` field and a `Customer` lookup. Change the names to match your own tables.
-
 ### Ask before doing something {#recipe-confirm}
 
+This runs on the **Products** form. The button asks first, then marks every product with no stock as discontinued.
+
 ```lua
-function on_delete_all_click()
-  ui.confirm("Delete all closed orders?", "do_delete")
+function on_discontinue_click()
+  ui.confirm("Discontinue every product with no stock?", "do_discontinue")
 end
 
-function do_delete()
+function do_discontinue()
   if event.answer then
-    local result = db.exec("DELETE FROM Orders WHERE Status = 'Closed'")
-    notify.toast(result.changes .. " orders deleted")
+    local result = db.exec("UPDATE Products SET Discontinued = 1 WHERE In_stock = 0")
+    notify.toast(result.changes .. " products discontinued")
   end
 end
 ```
@@ -127,21 +135,23 @@ return util.money(12.5)
 
 ### Load a CSV from a web service every night {#recipe-job}
 
+This job updates stock levels in **Products** from a CSV whose header is `Product,In_stock`. Staging column names must match the table's field names; `In_stock` is the SQL name of **In stock**.
+
 ```lua
 local res = fetch("https://data.example.com/stock.csv")
 if not res.ok then error("download failed: " .. res.status) end
 
-local st = staging.create({ columns = { "sku", "qty" } })
+local st = staging.create({ columns = { "Product", "In_stock" } })
 for row in csv.rows(res.body) do
-  st:insert({ sku = row.sku, qty = tonumber(row.qty) })
+  st:insert({ Product = row.Product, In_stock = tonumber(row.In_stock) })
 end
 
-local out = st:merge_into("Stock", { mode = "upsert", key = "sku" })
+local out = st:merge_into("Products", { mode = "upsert", key = "Product" })
 log.info("stock updated", { inserted = out.inserted, updated = out.updated })
-artifacts.save("errors.csv", csv.encode(out.errors, { columns = { "row", "column", "message" } }))
+artifacts.save("errors.csv", csv.encode(out.errors, { columns = { "row", "column", "code", "message" } }))
 ```
 
-The host `data.example.com` must be on the platform's [egress allowlist](/docs/guide/jobs#egress), which a platform administrator manages. The `sku` column needs a unique index for `upsert`.
+The host `data.example.com` must be on the platform's [egress allowlist](/docs/guide/jobs#egress), which a platform administrator manages. The `Product` field needs a unique index for `upsert`. The Northwind sample does not have one, so first set **Indexed** to **Yes (no duplicates)** on **Product** in the **Products** design tab (see [Tables](/docs/guide/tables#validation)).
 
 ## Reference {#reference}
 

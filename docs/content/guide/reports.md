@@ -65,7 +65,7 @@ Set a textbox's **Control source** to **Aggregate**, then choose:
 
 Tick **Running total** to accumulate across records instead of starting again for each group.
 
-For a value that is not an aggregate, set **Control source** to **Calculation** and enter a Lua expression over the record, such as `record.Qty * record.Price`. Functions from the report module are available there too. Report scripts are read-only and have a 30 second budget for the whole run. See [Scripts](/docs/guide/scripts#contexts).
+For a value that is not an aggregate, set **Control source** to **Calculation** and enter a Lua expression over the record's fields, named by their SQL names without `record.`. On a report of **Order lines**, for example, `Quantity * Unit_price`. Functions from the report module are available there too. Report scripts are read-only and have a 30 second budget for the whole run. See [Scripts](/docs/guide/scripts#contexts).
 
 ## Print and PDF {#printing}
 

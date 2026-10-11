@@ -49,15 +49,19 @@ Form events:
 
 Control events are labelled **On click**, **Before update**, **After update** and **On change**. Labels and buttons have only **On click**. Textboxes, comboboxes and checkboxes have all four. **On change** runs after the user stops typing for 300 ms.
 
-Example module:
+Example modules, using the Northwind sample tables. The first is for an **Order lines** form, and it blocks a save with a quantity below 1:
 
 ```lua
 function before_update()
-  if record.Qty <= 0 then
-    ui.cancel("Quantity must be positive.")
+  if record.Quantity < 1 then
+    ui.cancel("Quantity must be at least 1.")
   end
 end
+```
 
+The second is for an **Orders** form with a **Ship** button. The button asks for confirmation, then sets the order's **Status**:
+
+```lua
 function on_ship_click()
   ui.confirm("Ship this order?", "do_ship")
 end
@@ -88,11 +92,13 @@ If someone else changed the record first, the form shows **This record was chang
 
 ## Calculated controls {#calculated}
 
-Set a textbox's **Control source** to **Calculation**, and enter one Lua expression in **Lua expression** over the record, for example:
+Set a textbox's **Control source** to **Calculation**, and enter one Lua expression in **Lua expression**. The expression names the record's fields by their SQL names, without `record.`. On the **Order lines** form, for example:
 
 ```lua
-record.Qty * record.Price
+Quantity * Unit_price
 ```
+
+This is the same calculation as the **Line total** field in the sample.
 
 The server calculates these values when the form loads, when the current record changes and after each save, so they always match the saved data. Calculated controls are read-only.
 
