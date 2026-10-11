@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHORTCUTS, ariaKeyShortcuts, detectPlatform, formatKeys, matchesShortcut } from "./shortcuts";
+import { AREAS, SHORTCUTS, ariaKeyShortcuts, detectPlatform, formatKeys, groupByArea, matchesShortcut } from "./shortcuts";
 
 function key(k: string, mods: Partial<Record<"metaKey" | "ctrlKey" | "shiftKey" | "altKey", boolean>> = {}) {
   return { key: k, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods };
@@ -14,11 +14,22 @@ describe("shortcut registry", () => {
     }
   });
 
+  it("gives every shortcut a known area and groups them in area order", () => {
+    for (const s of SHORTCUTS) expect(AREAS).toContain(s.area);
+    const groups = groupByArea();
+    expect(groups.reduce((n, g) => n + g.shortcuts.length, 0)).toBe(SHORTCUTS.length);
+    const order = groups.map((g) => g.area);
+    expect(order).toEqual([...order].sort((a, b) => AREAS.indexOf(a) - AREAS.indexOf(b)));
+    for (const g of groups) expect(g.shortcuts.length).toBeGreaterThan(0);
+  });
+
   it("formats keys per platform", () => {
     expect(formatKeys("Mod+Shift+N", "other")).toBe("Ctrl+Shift+N");
     expect(formatKeys("Mod+Shift+N", "mac")).toBe("⌘ ⇧ N");
     expect(formatKeys("Alt+Up", "mac")).toBe("⌥ ↑");
     expect(formatKeys("Alt+Up", "other")).toBe("Alt+↑");
+    expect(formatKeys("Char", "mac")).toBe("Any character");
+    expect(formatKeys("Char", "other")).toBe("Any character");
   });
 
   it("detects the platform", () => {
