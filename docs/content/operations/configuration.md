@@ -54,7 +54,7 @@ openssl rand -base64 32
 
 If you do not supply a key, the server creates one on first start in `system/keys/` inside the data directory, with mode 600 (it refuses to start if the file is readable by others). A key you supply always wins over a file.
 
-Changing the session key signs everyone out. Changing or losing the manifest key makes existing backups fail verification: see [Backup strategy](/docs/operations/backup-strategy#manifest-key).
+Changing the session key signs everyone out and also makes every [API key](/docs/guide/api) stop working (they are hashed under it); owners must create new keys. Changing or losing the manifest key makes existing backups fail verification: see [Backup strategy](/docs/operations/backup-strategy#manifest-key).
 
 ### ABIDATA_SYNCHRONOUS {#synchronous}
 
