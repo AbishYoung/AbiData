@@ -28,6 +28,7 @@ In the tab strip, press `Delete` to close the focused tab. If the tab has unsave
 The datasheet is a grid.
 
 - Arrow keys move between cells and records. `Tab` and `Shift+Tab` move to the next or previous cell. `Page Up` and `Page Down` move one page. `Mod+Home` and `Mod+End` go to the first and last record.
+- To leave the grid, go to the first cell with `Mod+Home` and press `Shift+Tab` (back to the toolbar), or go to the last cell with `Mod+End` and press `Tab` (on to the rest of the page). In between, `Tab` stays inside the grid and moves from cell to cell.
 - `Enter` or `F2` edits the current cell. Typing a character starts an edit with that character. In a long text cell, `Alt+Enter` adds a line break.
 - `Shift+Enter` saves the record. `Esc` cancels the edit, or discards your unsaved changes to the record.
 - `Space` toggles a Yes/No cell. `Shift+Space` selects or deselects the current record.
