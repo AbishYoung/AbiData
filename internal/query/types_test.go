@@ -17,6 +17,16 @@ func TestResultColumnTypes(t *testing.T) {
 	if want := []string{"currency", "integer", "number", "text", "date", "text", "integer"}; !reflect.DeepEqual(r.Types, want) {
 		t.Fatalf("types %v want %v", r.Types, want)
 	}
+	// A plain aggregate of a currency column stays currency (its values are
+	// still scaled); arithmetic or an alias falls back to sampling.
+	r, err = RunTyped(f.ctx, f.l, Policy{}, sch, nil,
+		`SELECT sum(Amount), MAX("Amount"), avg(Orders.Amount), sum(Amount) AS s, sum(Amount) / 10000.0, sum(Qty) FROM Orders`, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"currency", "currency", "currency", "integer", "number", "integer"}; !reflect.DeepEqual(r.Types, want) {
+		t.Fatalf("aggregate types %v want %v", r.Types, want)
+	}
 	// Visual: totals of currency stay currency, counts are integers.
 	m := Model{
 		Sources: []Source{{Alias: "o", TableID: "01J00000000000000000000D01"}, {Alias: "c", TableID: "01J00000000000000000000C01"}},

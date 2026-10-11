@@ -43,6 +43,10 @@ SQL queries are read-only. These are allowed:
 
 These are refused with [SQL_NOT_ALLOWED](/docs/reference/errors#sql-not-allowed): `ATTACH`, `DETACH`, any write or schema change, `PRAGMA` (except a few read-only ones), and reading internal `_sys_` tables.
 
+### Currency in SQL {#sql-currency}
+
+Currency fields are stored as whole numbers of ten-thousandths, so in SQL a price of 19.99 is `199900`. The results grid shows a currency field, and a plain `SUM`, `TOTAL`, `AVG`, `MIN` or `MAX` of one (for example `SUM(Total)`), as currency for you. For anything else, such as arithmetic or an aggregate with an alias, divide by `10000.0` yourself: `SUM(Total) / 10000.0 AS revenue`.
+
 ## Parameters {#parameters}
 
 Parameters ask the person running the query for a value, like an Access parameter query.

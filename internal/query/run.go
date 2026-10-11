@@ -93,6 +93,9 @@ func RunTyped(ctx context.Context, l *workspace.Lease, p Policy, sch *catalog.Sc
 				}
 				table, col, decl := rows.ColumnOrigin(i)
 				res.Types[i] = originType(sch, table, col, decl)
+				if res.Types[i] == "" && aggregateOfCurrency(sch, res.Columns[i]) {
+					res.Types[i] = "currency"
+				}
 			}
 			res.Rows = [][]any{}
 			size := 0
@@ -261,6 +264,31 @@ func originType(sch *catalog.Schema, table, col, decl string) string {
 		return "text"
 	}
 	return ""
+}
+
+// currencyAggregate matches an unaliased result column such as
+// "sum(Total)" or "MAX(o.\"Unit_price\")": SQLite names it by its text.
+var currencyAggregate = regexp.MustCompile(`(?i)^\s*(sum|total|avg|min|max)\(\s*(?:distinct\s+)?(?:["\[\x60]?\w+["\]\x60]?\.)?["\[\x60]?(\w+)["\]\x60]?\s*\)\s*$`)
+
+// aggregateOfCurrency reports whether a result column with no catalog origin
+// is a plain aggregate of a column that is currency in every table that has
+// it. Such values are still scaled by 10^4, so they display as currency.
+// Anything more complex (arithmetic, aliases) stays untyped and is sampled.
+func aggregateOfCurrency(sch *catalog.Schema, name string) bool {
+	m := currencyAggregate.FindStringSubmatch(name)
+	if m == nil || sch == nil {
+		return false
+	}
+	found := false
+	for i := range sch.Tables {
+		if c, ok := sch.Tables[i].ColumnByPhysical(m[2]); ok {
+			if FieldDisplayType(c) != "currency" {
+				return false
+			}
+			found = true
+		}
+	}
+	return found
 }
 
 var (
