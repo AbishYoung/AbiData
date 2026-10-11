@@ -38,6 +38,37 @@ Each field has a field name (what people see) and an SQL name (used in queries a
 | Lookup | A link to a record in another table | See [Relationships and lookups](#lookups) |
 | Hyperlink | Text starting with `http://` or `https://` | |
 | Calculated | A value computed from other fields | Read-only; see [Calculated fields](#calculated) |
+| Location | One point on the Earth (latitude, longitude) | See [Locations and areas](#geo) |
+| Area | A boundary: a polygon, with holes if needed, or several polygons | See [Locations and areas](#geo) |
+
+## Locations and areas {#geo}
+
+A **Location** field holds one point and an **Area** field holds a boundary such as a quarantine zone or a survey area. Both are stored as standard [GeoJSON](https://geojson.org) text, in WGS84 with the longitude first, so scripts, exports and the API can read them directly. Use an ordinary number field for anything about the position, such as GPS accuracy.
+
+- **Where values come from.** The API and scripts accept GeoJSON. A location also accepts `{"lat": 51.50135, "lon": -0.14189}` and the text `51.50135, -0.14189`, and an import maps text such as `51.50135, -0.14189`, `POINT(-0.14189 51.50135)` or GeoJSON into a Location. A GeoJSON `Feature` is accepted anywhere a geometry is: its geometry is used.
+- **What is stored.** Coordinates are rounded to 7 decimal places (about 1 cm). Rings are closed, outer rings are stored counter-clockwise and holes clockwise. A location may carry an altitude as a third coordinate; it is kept.
+- **Limits.** Latitude must be from -90 to 90 and longitude from -180 to 180. Every ring needs at least 4 positions (the first repeated at the end). An area may have at most 10,000 positions and 1 MiB of GeoJSON. An area must be a Polygon or MultiPolygon.
+- **The 180° meridian.** Areas that cross the 180° meridian are not supported and are rejected. Draw such an area as a MultiPolygon with one polygon on each side of the meridian.
+- **No spatial index.** Spatial filters and joins scan the table, which is fine for tens of thousands of locations. A spatial join compares every location with every area, so keep both sides modest.
+- **Changing the type.** A Location or Area can be changed to short or long text (a location becomes `lat, lon`, an area becomes its GeoJSON) and back, as long as the text is valid. Changing to or from any other type, or between Location and Area, is reported as a breaking change because the values cannot be converted.
+
+### SQL functions {#geo-sql}
+
+These functions work in queries, calculated fields and validation rules. Each returns empty (NULL) when an input is not valid, so one bad row cannot break a query.
+
+| Function | Result |
+|---|---|
+| `geo_point(lat, lon)` | A location value |
+| `geo_lat(point)`, `geo_lon(point)` | The coordinates of a location |
+| `geo_distance_m(a, b)` | The distance in metres between two locations (great circle) |
+| `geo_within(point, area)` | 1 when the location is inside the area, else 0. A location on the boundary is inside; holes are outside |
+| `geo_area_m2(area)` | The area in square metres |
+| `geo_centroid(area)` | The centre of the area, as a location. For a concave area it can lie outside |
+| `geo_bbox(area)` | The bounding box as the JSON list `[min longitude, min latitude, max longitude, max latitude]` |
+
+For example, a calculated field with result type **Location** and expression `geo_centroid(Fence)` gives each zone's centre, and `geo_distance_m(Spot, geo_point(51.5, -0.14)) < 500` is a validation rule or criterion.
+
+A calculated field that uses these functions cannot be read by stock SQLite tools outside AbiData, because they do not know the functions. The stored values are plain GeoJSON text and read normally.
 
 ## Required fields, defaults and validation {#validation}
 

@@ -47,11 +47,25 @@ These are refused with [SQL_NOT_ALLOWED](/docs/reference/errors#sql-not-allowed)
 
 Currency fields are stored as whole numbers of ten-thousandths, so in SQL a price of 19.99 is `199900`. The results grid shows a currency field, and a plain `SUM`, `TOTAL`, `AVG`, `MIN` or `MAX` of one (for example `SUM(Total)`), as currency for you. For anything else, such as arithmetic or an aggregate with an alias, divide by `10000.0` yourself: `SUM(Total) / 10000.0 AS revenue`.
 
+## Locations and areas {#geo}
+
+Queries over [Location and Area fields](/docs/guide/tables#geo) can use the `geo_*` SQL functions in expressions and in SQL queries:
+
+```sql
+SELECT s.Species, z.Zone
+FROM Sightings s JOIN Zones z ON geo_within(s.Spot, z.Fence)
+WHERE geo_distance_m(s.Spot, geo_point(51.5, -0.14)) < 500
+```
+
+In the visual query model (see the OpenAPI document) a join can have the condition `within`: it keeps pairs where the location field of one source lies inside the area field of the other. A criterion `within` ("is within") compares a location field with an area parameter, a GeoJSON area, or an area field of another source. All of these compile to `geo_within`. Result columns that hold locations or areas are typed `geo_point` and `geo_area` in the response's `column_types`.
+
+A spatial join compares every location with every area, so it is slow for very large tables on both sides.
+
 ## Parameters {#parameters}
 
 Parameters ask the person running the query for a value, like an Access parameter query.
 
-- In a visual query, open the **Parameters** panel and choose to add a parameter. Give it a **Name** and a **Type**: **Text**, **Whole number**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. Then use the parameter in a criterion.
+- In a visual query, open the **Parameters** panel and choose to add a parameter. Give it a **Name** and a **Type**: **Text**, **Whole number**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. Then use the parameter in a criterion. A parameter of type **Area** takes a GeoJSON Polygon or MultiPolygon (see [Locations and areas](#geo)).
 - In SQL, write a named placeholder such as `:customer`. The SQL editor finds it and lists it for you to fill in.
 
 When you run the query, a dialog asks for each value. Values are bound to the query, never pasted into the SQL text.

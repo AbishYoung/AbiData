@@ -1285,11 +1285,18 @@
               "in",
               "between",
               "is_null",
-              "not_null"
+              "not_null",
+              "within"
             ],
             "type": "string"
           },
           "param": {
+            "type": "string"
+          },
+          "ref_alias": {
+            "type": "string"
+          },
+          "ref_column_id": {
             "type": "string"
           },
           "row": {
@@ -2577,6 +2584,14 @@
           "left_column_id": {
             "type": "string"
           },
+          "op": {
+            "enum": [
+              "eq",
+              "within",
+              ""
+            ],
+            "type": "string"
+          },
           "right_alias": {
             "type": "string"
           },
@@ -3796,7 +3811,8 @@
               "currency",
               "yes_no",
               "date",
-              "datetime"
+              "datetime",
+              "area"
             ],
             "type": "string"
           }
