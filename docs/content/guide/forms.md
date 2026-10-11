@@ -82,7 +82,22 @@ When a handler fails, the user sees [SCRIPT_ERROR](/docs/reference/errors#script
 
 Edits stay in the form until you save them: press `Shift+Enter`, or move to another record. The toolbar shows **Unsaved changes** while you have edits. On save, the server runs `before_update`, writes the record, then runs `after_update`. If `before_update` cancels, nothing is written and the message is shown.
 
-If someone else changed the record first, the form shows **This record was changed by someone else while you were editing.** Choose **Keep my changes** to keep your edits, or **Use their version** to drop them and see the saved record. Unlike the datasheet, a form does not show the field-by-field merge dialog. For that, see [Conflicts](/docs/guide/tables#editing-conflicts).
+### When someone else changes the record {#conflicts}
+
+The form compares field by field, starting from the values you opened the record with.
+
+- Fields only the other person changed are updated on screen, and your edits stay.
+- Fields only you changed are kept. If you save after the record changed, the form saves them against the newest version on its own.
+- Only a field you both changed to different values is a conflict. The form then shows **This record was changed by someone else while you were editing.** and names the fields. Choose **Keep my changes** to keep your value for those fields, or **Use their version** to take theirs. Your edits to other fields stay either way. Save is paused until you choose.
+
+If you both made the same change, nothing happens. The datasheet follows the same rule, with its own merge dialog. See [Conflicts](/docs/guide/tables#editing-conflicts).
+
+### When someone else deletes the record {#deleted-records}
+
+- **No unsaved edits:** the form shows **This record was deleted by** the person's name (or **someone else** when it is not known) and moves to the nearest remaining record: the next one, or the previous one if it was the last. With no records left, it shows the empty state.
+- **Unsaved edits:** the form keeps your values on screen and shows **This record was deleted by someone else. Your changes have not been saved.** **Save as new record** creates a new record with the current values, and the usual required-field checks apply. **Discard** drops the edits and moves on. Save is off until you choose.
+
+Records that others add or delete elsewhere in the list never move you off the open record. The **Record N of M** counter follows along. If the deletion happened while the form could not see updates, the first save shows the same notice instead of an error. In a subform, a deleted line is handled the same way. When the main record is deleted, its subform is replaced by a note until you choose.
 
 `Esc` discards the unsaved changes. The form warns you before you leave with unsaved changes.
 
