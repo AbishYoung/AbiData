@@ -21,6 +21,7 @@ type Config struct {
 	SessionKey          []byte         // ABIDATA_SESSION_KEY: base64 (std or url, padded or not), ≥32 bytes decoded; nil = generate on first boot
 	ManifestKey         []byte         // ABIDATA_MANIFEST_KEY: same format as SessionKey
 	BootstrapAdminEmail string         // ABIDATA_BOOTSTRAP_ADMIN_EMAIL
+	DemoWorkspace       bool           // ABIDATA_DEMO_WORKSPACE, default true; "false"/"0" disables the Northwind Traders sample workspace created at first-run setup
 	DebugAddr           string         // ABIDATA_DEBUG_ADDR, default "" (pprof off)
 	MetricsAddr         string         // ABIDATA_METRICS_ADDR, default "" (metrics only at /metrics for admins); unauthenticated, bind to a private interface
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info

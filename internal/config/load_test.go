@@ -38,12 +38,25 @@ func TestDefaults(t *testing.T) {
 		MaxOpenWorkspaces: 128,
 		Synchronous:       "NORMAL",
 		LogLevel:          slog.LevelInfo,
+		DemoWorkspace:     true,
 	}
 	if !reflect.DeepEqual(c, want) {
 		t.Fatalf("got %+v want %+v", c, want)
 	}
 	if c.SecureCookies() {
 		t.Fatal("http default must not be secure")
+	}
+}
+
+func TestDemoWorkspaceFlag(t *testing.T) {
+	for v, want := range map[string]bool{"true": true, "TRUE": true, "1": true, "false": false, "False": false, "0": false, "no": false, "off": false} {
+		c, err := loadWith(map[string]string{"ABIDATA_DEMO_WORKSPACE": v}, nil)
+		if err != nil || c.DemoWorkspace != want {
+			t.Errorf("%q: got %v, %v want %v", v, c.DemoWorkspace, err, want)
+		}
+	}
+	if _, err := loadWith(map[string]string{"ABIDATA_DEMO_WORKSPACE": "maybe"}, nil); err == nil || !strings.Contains(err.Error(), "ABIDATA_DEMO_WORKSPACE") {
+		t.Errorf("want error naming the variable, got %v", err)
 	}
 }
 

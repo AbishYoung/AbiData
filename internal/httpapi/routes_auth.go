@@ -166,6 +166,9 @@ func (s *Server) registerAuth(api huma.API) {
 		if err != nil {
 			return nil, err
 		}
+		if s.deps.OnSetup != nil {
+			s.deps.OnSetup(detached(ctx), u)
+		}
 		res, err := s.deps.Auth.Login(ctx, u.Email, in.Body.Password, clientIP(ctx), "")
 		if err != nil {
 			return nil, err

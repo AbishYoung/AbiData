@@ -15,6 +15,8 @@ commands:
   healthcheck               exit 0 if the local server answers /healthz
   user create-admin --email E [--name N]
                             create a platform admin (password read from stdin)
+  demo --owner EMAIL        create the "Northwind Traders" sample workspace for an
+                            existing user (the server must be stopped)
   version                   print the version
 `
 
@@ -31,6 +33,8 @@ func main() {
 		err = healthcheck()
 	case "user":
 		err = userCmd(os.Args[2:])
+	case "demo":
+		err = demoCmd(os.Args[2:])
 	case "version":
 		fmt.Println(version)
 	case "-h", "--help", "help":

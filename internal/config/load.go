@@ -63,6 +63,9 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.BootstrapAdminEmail, _, err = l.lookup("ABIDATA_BOOTSTRAP_ADMIN_EMAIL"); err != nil {
 		return Config{}, err
 	}
+	if c.DemoWorkspace, err = l.boolean("ABIDATA_DEMO_WORKSPACE", true); err != nil {
+		return Config{}, err
+	}
 	if c.DebugAddr, _, err = l.lookup("ABIDATA_DEBUG_ADDR"); err != nil {
 		return Config{}, err
 	}
@@ -141,6 +144,24 @@ func (l loader) integer(name string, def, min int) (int, error) {
 		return 0, fmt.Errorf("config: %s must be at least %d", name, min)
 	}
 	return n, nil
+}
+
+// boolean accepts true/false, 1/0, yes/no and on/off (any case).
+func (l loader) boolean(name string, def bool) (bool, error) {
+	v, ok, err := l.lookup(name)
+	if err != nil {
+		return false, err
+	}
+	if !ok || v == "" {
+		return def, nil
+	}
+	switch strings.ToLower(v) {
+	case "true", "1", "yes", "on":
+		return true, nil
+	case "false", "0", "no", "off":
+		return false, nil
+	}
+	return false, fmt.Errorf("config: %s must be true or false", name)
 }
 
 func (l loader) publicURL(name, def string) (string, error) {
