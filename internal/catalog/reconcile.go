@@ -61,6 +61,17 @@ func Reconcile(ctx context.Context, q sqlitex.Querier, s *Schema) ([]string, err
 		if trig == 0 {
 			drift = append(drift, fmt.Sprintf("table %q is missing its version trigger", t.DisplayName))
 		}
+		if HasAttachTriggers(&t) {
+			for _, name := range attachTriggerNames(&t) {
+				var n int
+				if err := q.QueryRow(ctx, `SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name = ?`, name).Scan(&n); err != nil {
+					return nil, err
+				}
+				if n == 0 {
+					drift = append(drift, fmt.Sprintf("table %q is missing its file reference trigger %s", t.DisplayName, name))
+				}
+			}
+		}
 		for _, x := range t.Indexes {
 			var n int
 			if err := q.QueryRow(ctx, `SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = ?`, x.PhysicalName).Scan(&n); err != nil {

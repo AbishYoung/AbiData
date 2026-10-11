@@ -48,6 +48,7 @@ type TypeOptions struct {
 	Expression string `json:"expression,omitempty"`  // calculated: SQL expression over this table's physical columns
 	ResultType string `json:"result_type,omitempty"` // calculated: "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" (default "text")
 	Format     string `json:"format,omitempty"`      // display format hint (UI only)
+	MaxFiles   int    `json:"max_files,omitempty"`   // attachments: files per cell (default 20, at most 100)
 }
 
 // Table is a user table with its columns (ordered by Ordinal) and indexes.

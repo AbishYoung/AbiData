@@ -343,6 +343,9 @@ func (p *planner) createTable(op Op) error {
 	if err := p.exec(occTriggerSQL(tp)); err != nil {
 		return err
 	}
+	if err := p.syncAttachTriggers(tp); err != nil {
+		return err
+	}
 	if err := p.validateTableExprs(tp); err != nil {
 		return err
 	}
@@ -433,6 +436,9 @@ func (p *planner) dropTable(op Op) error {
 	}
 	if err := p.exec("DROP TABLE " + Quote(t.PhysicalName)); err != nil {
 		return ddlError(err)
+	}
+	if err := p.exec(`DELETE FROM _sys_file_refs WHERE table_id = ?`, t.ID); err != nil {
+		return err
 	}
 	// foreign_keys is OFF during schema changes, so _sys_* cascades do not fire:
 	// delete dependent metadata explicitly.
@@ -574,6 +580,9 @@ func (p *planner) buildColumn(spec ColumnSpec, t *Table, ordinal int, existing *
 			return Column{}, nil, badf("Calculated fields cannot be required or have defaults or validation rules.")
 		}
 	}
+	if err := checkAttachmentsSpec(&c, existing); err != nil {
+		return Column{}, nil, err
+	}
 	if c.Type != ShortText {
 		c.Options.MaxLength = 0
 	}
@@ -707,6 +716,11 @@ func (p *planner) addColumn(op Op) error {
 	if err := p.insertColumnMeta(c); err != nil {
 		return err
 	}
+	if c.Type == Attachments {
+		if err := p.syncAttachTriggers(t); err != nil {
+			return err
+		}
+	}
 	p.touched[t.ID] = true
 	p.created["column:"+t.DisplayName+"."+c.DisplayName] = c.ID
 	return nil
@@ -764,6 +778,9 @@ func (p *planner) renameColumn(op Op) error {
 			return ddlError(err)
 		}
 		c.PhysicalName = op.PhysicalName
+		if err := p.syncAttachTriggers(t); err != nil {
+			return err
+		}
 		// SQLite rewrote references inside the table's DDL; keep stored expressions in step.
 		for i := range t.Columns {
 			x := &t.Columns[i]
@@ -847,6 +864,9 @@ func (p *planner) alterColumn(op Op) error {
 		if err := p.insertOrUpdateRelationship(*rel); err != nil {
 			return err
 		}
+	}
+	if err := p.syncAttachTriggers(t); err != nil {
+		return err
 	}
 	p.touched[t.ID] = true
 	return p.updateColumnMeta(nc)
@@ -947,6 +967,9 @@ func (p *planner) dropColumn(op Op) error {
 	if err := p.exec(`DELETE FROM _sys_relationships WHERE child_column_id = ?`, op.ColumnID); err != nil {
 		return err
 	}
+	if err := p.exec(`DELETE FROM _sys_file_refs WHERE column_id = ?`, op.ColumnID); err != nil {
+		return err
+	}
 	p.touched[t.ID] = true
 	return p.exec(`DELETE FROM _sys_columns WHERE id = ?`, op.ColumnID)
 }
@@ -995,6 +1018,9 @@ func (p *planner) createIndex(op Op) error {
 		c, ok := t.Column(id)
 		if !ok || seen[id] {
 			return badf("Index fields must be distinct fields of this table.")
+		}
+		if c.Type == Attachments {
+			return badf("An attachments field cannot be indexed.")
 		}
 		seen[id] = true
 		names = append(names, c.PhysicalName)
@@ -1274,7 +1300,10 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 			return ddlError(err)
 		}
 	}
-	return p.exec(occTriggerSQL(after))
+	if err := p.exec(occTriggerSQL(after)); err != nil {
+		return err
+	}
+	return p.syncAttachTriggers(after)
 }
 
 // conversionFailures reports rows whose values cannot convert from old to nc.
