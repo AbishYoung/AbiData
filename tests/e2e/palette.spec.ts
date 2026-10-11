@@ -69,9 +69,10 @@ test("actions run, and long sections show more", async ({ page }) => {
 
   // New table opens the table designer in a new tab.
   await openPalette(page);
-  await page.keyboard.type("new tab");
-  await expect(palette(page).getByRole("option", { name: "New table" })).toHaveAttribute("aria-selected", "true");
-  await page.keyboard.press("Enter");
+  // Other specs create many workspaces whose "Switch to …" entries can also
+  // match, so pick the action itself rather than relying on its rank.
+  await page.keyboard.type("new table");
+  await palette(page).getByRole("option", { name: "New table" }).click();
   await expect(page.getByRole("tab", { name: "New table" })).toHaveAttribute("aria-selected", "true");
 
   // More: five tables, then "Show 3 more tables" (seven Bulk tables and Quarterly Revenue do not all match; "bulk" does 7).
