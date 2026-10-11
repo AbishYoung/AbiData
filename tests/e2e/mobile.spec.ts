@@ -89,7 +89,7 @@ test("sign in and create a workspace on a phone", async ({ page }) => {
         detail: {
           height: 80,
           controls: [
-            { id: "c1", name: "NameLabel", type: "label", x: 0, y: 0, w: 80, h: 24, tab_index: 0, caption: "Name" },
+            { id: "c1", name: "NameLabel", type: "label", x: 0, y: 3, w: 80, h: 18, tab_index: 0, caption: "Name" },
             { id: "c2", name: "Name", type: "textbox", x: 90, y: 0, w: 400, h: 24, tab_index: 1, bind: { column_id: nameCol } },
           ],
         },
@@ -218,6 +218,9 @@ test("forms, reports, queries, jobs and settings fit a phone", async ({ page }) 
   await expect(name).toBeVisible();
   const box = (await name.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  // A label comes before its textbox even though the textbox is placed a few pixels higher.
+  const labelBox = (await page.getByText("Name", { exact: true }).first().boundingBox())!;
+  expect(labelBox.y + labelBox.height).toBeLessThanOrEqual(box.y + 1);
   await expectNoHorizontalOverflow(page, "form runtime");
   await shot(page, "form");
 

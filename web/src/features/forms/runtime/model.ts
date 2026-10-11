@@ -8,6 +8,31 @@ export function layoutControls(l: { sections: { header: { controls: FormControl[
   return [...(s.header.controls ?? []), ...(s.detail.controls ?? []), ...(s.footer.controls ?? [])];
 }
 
+/**
+ * Reading order for the stacked (phone) layout: top to bottom, left to right. Controls whose vertical
+ * extents mostly overlap share a row, so a label sits before its textbox even when the textbox
+ * starts a few pixels higher than the label.
+ */
+export function stackedOrder<C extends { x: number; y: number; h: number }>(controls: readonly C[]): C[] {
+  const sorted = [...controls].sort((a, b) => a.y - b.y || a.x - b.x);
+  const rows: { top: number; bottom: number; items: C[] }[] = [];
+  for (const c of sorted) {
+    const row = rows[rows.length - 1];
+    const bottom = c.y + c.h;
+    if (row) {
+      const overlap = Math.min(row.bottom, bottom) - Math.max(row.top, c.y);
+      if (overlap > 0.5 * Math.min(row.bottom - row.top, c.h)) {
+        row.items.push(c);
+        row.top = Math.min(row.top, c.y);
+        row.bottom = Math.max(row.bottom, bottom);
+        continue;
+      }
+    }
+    rows.push({ top: c.y, bottom, items: [c] });
+  }
+  return rows.flatMap((r) => r.items.sort((a, b) => a.x - b.x));
+}
+
 export type Fields = Record<string, unknown>;
 
 function omit<T>(obj: Record<string, T>, key: string): Record<string, T> {
