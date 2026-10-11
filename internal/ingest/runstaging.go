@@ -290,11 +290,9 @@ func stageQueryErr(d *query.Denial, err error) error {
 			return &fault.Error{Code: fault.SQLNotAllowed, Message: "Not allowed: " + reason + ".", Cause: err}
 		}
 		if se.Code() == sqlite3.ERROR {
-			msg := se.Error()
-			if i := strings.LastIndex(msg, ": "); i >= 0 {
-				msg = msg[i+2:]
-			}
-			return fault.SQLError(msg, err)
+			// Keep SQLite's whole message ("no such column: x"), as the query
+			// console does; cutting at the last ": " lost the subject.
+			return fault.SQLError(fault.SQLiteMessage(se), err)
 		}
 	}
 	if strings.Contains(err.Error(), "multiple statements") {
