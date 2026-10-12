@@ -14,6 +14,7 @@ export interface QuotaFieldSpec {
 export const QUOTA_FIELDS: readonly QuotaFieldSpec[] = [
   { key: "max_page_count", label: "Max database pages", help: "Caps the size of the workspace file (pages of 4 KiB).", max: 1_000_000_000 },
   { key: "artifact_bytes", label: "Artifact storage (bytes)", help: "Total size of files produced by jobs and exports.", max: 1_000_000_000_000 },
+  { key: "max_file_bytes", label: "File storage (bytes)", help: "Total size of the files attached to records (photos and documents); the default is 5 GiB.", max: 1_000_000_000_000_000 },
   { key: "max_concurrent_jobs", label: "Concurrent jobs", help: "Jobs running at the same time.", max: 1000 },
   { key: "script_concurrency", label: "Concurrent scripts", help: "Scripts running at the same time.", max: 1000 },
   { key: "egress_per_minute", label: "Outbound requests per minute", help: "Requests scripts may make to other hosts.", max: 1_000_000 },

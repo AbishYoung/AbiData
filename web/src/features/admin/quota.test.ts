@@ -44,3 +44,13 @@ describe("quota helpers", () => {
     expect(quotaSummary({ max_concurrent_jobs: 4 })).toContain("Concurrent jobs: 4");
   });
 });
+
+describe("file storage quota", () => {
+  it("parses max_file_bytes and shows it in the summary", () => {
+    const { quota, errors } = parseQuotaForm({ ...emptyQuotaForm(), max_file_bytes: "10737418240" });
+    expect(errors).toEqual({});
+    expect(quota).toEqual({ max_file_bytes: 10_737_418_240 });
+    expect(quotaSummary(quota)).toContain("File storage (bytes): 10,737,418,240");
+    expect(quotaToForm(quota).max_file_bytes).toBe("10737418240");
+  });
+});
