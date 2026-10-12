@@ -33,6 +33,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
+	"abidata/internal/files"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -67,7 +68,13 @@ type Manifest struct {
 	SHA256Raw      string       `json:"sha256_raw"`
 	SHA256Gz       string       `json:"sha256_gz"`
 	Tables         []TableCount `json:"tables"`
-	HMAC           string       `json:"hmac,omitempty"`
+	// File attachments (ADR 0011); all omitted for a workspace without files,
+	// which keeps older manifests and their signatures valid unchanged.
+	Files        []ManifestFile `json:"files,omitempty"`
+	FilesBytes   int64          `json:"files_bytes,omitempty"`
+	SHA256Files  string         `json:"sha256_files,omitempty"`
+	FilesMissing int            `json:"files_missing,omitempty"`
+	HMAC         string         `json:"hmac,omitempty"`
 }
 
 // Retention is the number of backups kept per workspace.
@@ -91,6 +98,9 @@ type Service struct {
 	AppVersion string
 	Retention  Retention
 	Log        *slog.Logger
+	// Files, when set, adds each workspace's file bucket to its backups and
+	// restores it with them (nil: databases only).
+	Files *files.Service
 	// AfterRestore runs once a restored workspace is reopened (rebuild the job
 	// index, drop caches). Errors are logged; the restore stands.
 	AfterRestore func(ctx context.Context, ws ids.WorkspaceID)
@@ -345,19 +355,32 @@ func (s *Service) archive(ctx context.Context, ws ids.WorkspaceID, id, kind, by,
 	if m.Tables == nil {
 		m.Tables = []TableCount{}
 	}
+	cleanup := func() {
+		_ = os.Remove(gzPath)
+		_ = os.Remove(filesArchivePath(gzPath))
+		_ = os.Remove(filepath.Join(dir, id+".manifest.json"))
+	}
+	fa, err := s.archiveFiles(ctx, ws, dir, id, raw, m.CreatedAt)
+	if err != nil {
+		cleanup()
+		return admin.Backup{}, fmt.Errorf("backup: files: %w", err)
+	}
+	if fa != nil {
+		m.Files, m.FilesBytes, m.SHA256Files, m.FilesMissing = fa.list, fa.bytes, fa.sha, fa.missing
+	}
 	signed, err := s.sign(m)
 	if err != nil {
+		cleanup()
 		return admin.Backup{}, err
 	}
 	if err := writeFileSync(filepath.Join(dir, id+".manifest.json"), signed); err != nil {
-		_ = os.Remove(gzPath)
+		cleanup()
 		return admin.Backup{}, err
 	}
 	b := admin.Backup{ID: id, WorkspaceID: ws, Kind: kind, Path: gzPath, RawBytes: rawBytes, GzBytes: gzBytes, SHA256Gz: shaGz,
 		CreatedAt: m.CreatedAt, CreatedBy: by, ManifestJSON: string(signed)}
 	if err := s.Admin.InsertBackup(ctx, b); err != nil {
-		_ = os.Remove(gzPath)
-		_ = os.Remove(filepath.Join(dir, id+".manifest.json"))
+		cleanup()
 		return admin.Backup{}, err
 	}
 	if err := s.ApplyRetention(ctx, ws); err != nil {
@@ -527,6 +550,9 @@ func (s *Service) Verify(ctx context.Context, b admin.Backup) (Manifest, error) 
 	}
 	if n != m.GzBytes || hex.EncodeToString(h.Sum(nil)) != m.SHA256Gz {
 		return invalid("The backup file does not match its manifest; it is damaged or was modified.")
+	}
+	if err := verifyFiles(ctx, b.Path, m); err != nil {
+		return Manifest{}, err
 	}
 	return m, nil
 }
@@ -710,8 +736,20 @@ func (s *Service) Restore(ctx context.Context, ws ids.WorkspaceID, backupID, by 
 	}
 	defer release()
 
-	tmp, _, err := s.prepare(ctx, b, ws, fmt.Sprintf("%s-%s-%d.db", ws, backupID, s.clock().UnixNano()))
+	tmp, man, err := s.prepare(ctx, b, ws, fmt.Sprintf("%s-%s-%d.db", ws, backupID, s.clock().UnixNano()))
 	if err != nil {
+		return err
+	}
+	// The backup's files go back into the bucket before the database is
+	// switched, so no restored row can point at a file that is missing.
+	stage := tmp + ".files"
+	defer func() { _ = os.RemoveAll(stage) }()
+	if err := s.stageFiles(ctx, b.Path, man, stage); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := s.mergeFiles(ws, stage); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	j := journal{State: jPrepared, WorkspaceID: string(ws), BackupID: backupID, RestorePath: tmp,
@@ -1093,12 +1131,30 @@ func (s *Service) RestoreAsNew(ctx context.Context, backupID string, create func
 		}
 		return "", err
 	}
-	tmp, _, err := s.prepare(ctx, b, id, string(id)+"-"+backupID+".db")
+	tmp, man, err := s.prepare(ctx, b, id, string(id)+"-"+backupID+".db")
 	if err != nil {
 		return fail(err)
 	}
+	// A new workspace gets its own copy of the files.
+	var bucket string
+	if s.Files != nil && man.SHA256Files != "" {
+		bk, err := s.Files.BucketFor(id)
+		if err != nil {
+			_ = os.Remove(tmp)
+			return fail(err)
+		}
+		bucket = bk.Dir
+		if err := extractFiles(ctx, b.Path, man, bk); err != nil {
+			_ = os.Remove(tmp)
+			_ = os.RemoveAll(bucket)
+			return fail(err)
+		}
+	}
 	if err := s.Workspaces.Adopt(ctx, id, tmp); err != nil {
 		_ = os.Remove(tmp)
+		if bucket != "" {
+			_ = os.RemoveAll(bucket)
+		}
 		return fail(err)
 	}
 	st := admin.StatusActive
@@ -1173,7 +1229,7 @@ func keepSet(all []admin.Backup, r Retention, now time.Time) map[string]bool {
 
 // Delete removes a backup's files and record.
 func (s *Service) Delete(ctx context.Context, b admin.Backup) error {
-	for _, p := range []string{b.Path, strings.TrimSuffix(b.Path, ".db.gz") + ".manifest.json"} {
+	for _, p := range []string{b.Path, filesArchivePath(b.Path), strings.TrimSuffix(b.Path, ".db.gz") + ".manifest.json"} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}

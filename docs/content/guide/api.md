@@ -124,6 +124,7 @@ Send and receive each field in this JSON form. `null` clears a field.
 | Hyperlink | string starting with `http://` or `https://` |
 | Location (`geo_point`) | a GeoJSON `Point` object such as `{"type":"Point","coordinates":[-0.14189,51.50135]}` (longitude first). Also accepted when sending: `{"lat":51.50135,"lon":-0.14189}`, the string `"51.50135, -0.14189"` and a GeoJSON `Feature`. Responses always use the `Point` form, rounded to 7 decimals |
 | Area (`geo_area`) | a GeoJSON `Polygon` or `MultiPolygon` object, normalised on write (rings closed, outer rings counter-clockwise, holes clockwise, 7 decimals). A `Feature` is accepted when sending. At most 10,000 positions and 1 MiB; areas crossing the 180° meridian are refused |
+| Attachments | an array of file ids such as `["01J...", "01J..."]`, in the order shown; `[]` or `null` clears it. See [Upload and download files](#files) |
 | Autonumber, calculated | read-only; sending them is refused |
 
 A geometry that is not valid is refused with [VALIDATION_FAILED](/docs/reference/errors#validation-failed) and a message naming the field and the problem. A calculated field whose result type is Location or Area is returned as GeoJSON in the same way.
@@ -266,6 +267,48 @@ curl -sS "${H[@]}" -X POST "$ABIDATA/api/v1/w/$WS/tables/$T/rows/batch" \
 ```
 
 If any operation fails, the response is the error for that operation and `details.op_index` tells you which one (counting from 0). Nothing was applied, so fix it and send the whole batch again.
+
+## Upload and download files {#files}
+
+Files (photos, PDFs, spreadsheets) are stored once per workspace and attached to a row through an **attachments** field. Attaching is an ordinary record write: upload the file, then put its id in the field.
+
+Upload with a raw body and the name in `X-File-Name` (percent-encode non-ASCII names). Editors and above can upload; a viewer key gets 403.
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $KEY" \
+  -H "X-File-Name: sighting-017.jpg" --data-binary @sighting-017.jpg \
+  "$ABIDATA/api/v1/w/$WS/files"
+```
+
+```json
+{"id":"01J8Z0...","sha256":"9f2c...","size":184223,"name":"sighting-017.jpg","content_type":"image/jpeg",
+ "width":4032,"height":3024,"state":"pending","has_thumbnail":true,"created_at":"2026-10-11T09:14:02.113Z"}
+```
+
+`multipart/form-data` with the file in a field named `file` works too (`curl -F file=@report.pdf`). The `content_type` is detected from the bytes; a type you send is ignored. The default size limit is 25 MiB (`ABIDATA_MAX_FILE_BYTES`) and a workspace has a storage quota; both answer with an error envelope (`BAD_REQUEST`, `QUOTA_EXCEEDED`). Images over 40 megapixels are refused. Uploading the same bytes again costs no extra storage.
+
+A new file is `pending`. It becomes `attached` when a row refers to it, and a pending file nothing refers to within 24 hours is deleted. A file that loses its last reference is kept for 7 days (undo and row history still show it), then deleted.
+
+Attach it by writing the field (`$PHOTOS` is the attachments field's id; each field holds at most its `max_files`, 20 by default):
+
+```bash
+curl -sS -X PATCH "${H[@]}" -H 'If-Match: "3"' \
+  -d '{"fields":{"'$PHOTOS'":["01J8Z0...","01J8Z1..."]}}' \
+  "$ABIDATA/api/v1/w/$WS/tables/$T/rows/17"
+```
+
+Every id must be a file of the same workspace, or the write fails with `BAD_REQUEST`. Duplicates in one list are dropped and the order is kept.
+
+Download:
+
+```bash
+curl -sS -H "Authorization: Bearer $KEY" -o photo.jpg "$ABIDATA/api/v1/w/$WS/files/01J8Z0.../content"
+curl -sS -H "Authorization: Bearer $KEY" "$ABIDATA/api/v1/w/$WS/files/01J8Z0..."            # metadata
+curl -sS -H "Authorization: Bearer $KEY" -o thumb.jpg "$ABIDATA/api/v1/w/$WS/files/01J8Z0.../thumbnail"
+curl -sS -H "Authorization: Bearer $KEY" "$ABIDATA/api/v1/w/$WS/files?ids=01J8Z0...,01J8Z1..."   # several at once
+```
+
+Every key role (viewer and above) can download. `/content` supports `Range` requests and `ETag`; add `?download=true` to force a download. Thumbnails are JPEGs of at most 320 pixels for PNG, JPEG and GIF files; other files answer 404. Uploads count against the key's [rate limit](#limits), and a workspace accepts only a few uploads at the same time.
 
 ## Run a saved query {#queries}
 

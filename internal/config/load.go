@@ -51,6 +51,14 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.MaxOpenWorkspaces, err = l.integer("ABIDATA_MAX_OPEN_WORKSPACES", 128, 1); err != nil {
 		return Config{}, err
 	}
+	maxFile, err := l.integer("ABIDATA_MAX_FILE_BYTES", 25<<20, 1)
+	if err != nil {
+		return Config{}, err
+	}
+	if maxFile > 1<<30 {
+		return Config{}, errors.New("config: ABIDATA_MAX_FILE_BYTES must be at most 1073741824 (1 GiB)")
+	}
+	c.MaxFileBytes = int64(maxFile)
 	if c.Synchronous, err = l.synchronous("ABIDATA_SYNCHRONOUS"); err != nil {
 		return Config{}, err
 	}

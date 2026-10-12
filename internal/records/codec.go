@@ -109,6 +109,8 @@ func DecodeValue(c catalog.Column, v any) (any, error) {
 			return nil, badf(c, "must be a web address starting with http:// or https://.")
 		}
 		return s, nil
+	case catalog.Attachments:
+		return decodeAttachments(c, v)
 	case catalog.GeoPoint, catalog.GeoArea:
 		return decodeGeo(c, v)
 	}
@@ -276,6 +278,9 @@ func EncodeValue(c catalog.Column, v any) any {
 	}
 	if b, ok := v.([]byte); ok {
 		return base64.StdEncoding.EncodeToString(b)
+	}
+	if c.Type == catalog.Attachments {
+		return encodeAttachments(v)
 	}
 	t := c.Type
 	if t == catalog.Calculated {

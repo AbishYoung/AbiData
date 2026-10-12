@@ -37,6 +37,9 @@ func (s *Server) removeWorkspaceFiles(id ids.WorkspaceID) {
 	for _, f := range []string{p.DB, p.WAL, p.SHM} {
 		_ = os.Remove(f)
 	}
+	if s.deps.Files != nil {
+		_ = s.deps.Files.RemoveBucket(id)
+	}
 }
 
 func (s *Server) registerWorkspace(api huma.API) {

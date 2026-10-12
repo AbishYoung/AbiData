@@ -21,6 +21,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/events"
+	"abidata/internal/files"
 	"abidata/internal/forms"
 	"abidata/internal/ids"
 	"abidata/internal/ingest"
@@ -99,7 +100,15 @@ func newEnv(t *testing.T) *env {
 	backups := &backup.Service{DataDir: dir, BackupDir: filepath.Join(dir, "backups"), Admin: ad, Workspaces: wm,
 		Key: []byte(strings.Repeat("m", 32)), AfterRestore: func(_ context.Context, id ids.WorkspaceID) { schemas.Drop(id) }}
 	t.Cleanup(backups.Wait)
-	s := New(Deps{Config: cfg, Ingest: ingestSvc, Backups: backups, Logs: events.NewBus(100), Docs: testDocs(t), Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
+	fileSvc := &files.Service{DataDir: dir, Quota: func(id ids.WorkspaceID) int64 {
+		w, err := ad.GetWorkspace(context.Background(), id)
+		if err != nil {
+			return 0
+		}
+		return w.Quota.MaxFileBytes
+	}}
+	backups.Files = fileSvc
+	s := New(Deps{Config: cfg, Files: fileSvc, Ingest: ingestSvc, Backups: backups, Logs: events.NewBus(100), Docs: testDocs(t), Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
 		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
 		Queries: querySvc, Scripts: scriptSvc, Jobs: jobSvc, Ops: opsSvc, Artifacts: arts,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub},

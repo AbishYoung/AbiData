@@ -13,6 +13,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/egress"
 	"abidata/internal/fault"
+	"abidata/internal/files"
 	"abidata/internal/ids"
 	"abidata/internal/ingest"
 	"abidata/internal/records"
@@ -33,6 +34,7 @@ type LuaExecutor struct {
 	Runner     *script.Runner
 	Schemas    *catalog.Cache
 	Records    *records.Service
+	Files      *files.Service  // nil: the files module is unavailable
 	Egress     *egress.Gateway // nil: fetch unavailable
 	Artifacts  *artifacts.Store
 	Ingest     *ingest.Service // nil: the staging module is unavailable
@@ -65,7 +67,7 @@ func (x *LuaExecutor) Execute(ctx context.Context, ws ids.WorkspaceID, job Job, 
 		return failure(err)
 	}
 	user := Principal(job.ID)
-	d := &host.Data{Lease: l, Schemas: x.Schemas, Records: x.Records, CanWrite: true, UserID: user,
+	d := &host.Data{Lease: l, Schemas: x.Schemas, Records: x.Records, Files: x.Files, CanWrite: true, UserID: user,
 		Job: &host.JobRun{JobID: job.ID, JobName: job.Name, RunID: run.ID, Args: run.Args,
 			SaveArtifact: func(name, mime string, content []byte) (int64, error) {
 				if x.Artifacts == nil {

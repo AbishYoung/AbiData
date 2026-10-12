@@ -17,6 +17,7 @@ type Config struct {
 	MaxMemoryMB         int            // ABIDATA_MAX_MEMORY_MB, default 0 (unset: GOMEMLIMIT untouched)
 	JobWorkers          int            // ABIDATA_JOB_WORKERS, default runtime.GOMAXPROCS(0)
 	MaxOpenWorkspaces   int            // ABIDATA_MAX_OPEN_WORKSPACES, default 128
+	MaxFileBytes        int64          // ABIDATA_MAX_FILE_BYTES, default 26214400 (25 MiB); the largest single attachment
 	Synchronous         string         // ABIDATA_SYNCHRONOUS: "normal" (default) or "full"; stored upper-case
 	SessionKey          []byte         // ABIDATA_SESSION_KEY: base64 (std or url, padded or not), ≥32 bytes decoded; nil = generate on first boot
 	ManifestKey         []byte         // ABIDATA_MANIFEST_KEY: same format as SessionKey

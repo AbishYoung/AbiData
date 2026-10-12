@@ -520,6 +520,9 @@ func (s *Service) Insert(ctx context.Context, l *workspace.Lease, tableID string
 }
 
 func insertRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *catalog.Table, cols []catalog.Column, vals []any) (Row, error) {
+	if err := checkAttachments(ctx, tx, cols, vals); err != nil {
+		return Row{}, err
+	}
 	var sql string
 	if len(cols) == 0 {
 		sql = fmt.Sprintf(`INSERT INTO %s DEFAULT VALUES`, catalog.Quote(t.PhysicalName))
@@ -567,6 +570,9 @@ func (s *Service) Update(ctx context.Context, l *workspace.Lease, tableID string
 }
 
 func updateRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *catalog.Table, id, expected int64, cols []catalog.Column, vals []any, wantBefore bool) (Row, *Row, error) {
+	if err := checkAttachments(ctx, tx, cols, vals); err != nil {
+		return Row{}, nil, err
+	}
 	var before *Row
 	if wantBefore {
 		b, err := getRow(ctx, tx, sch, t, id)

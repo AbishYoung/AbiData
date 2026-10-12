@@ -532,6 +532,82 @@
     "global": true
   },
   {
+    "name": "files",
+    "doc": "File attachments. A file is identified by its id, the value stored in an attachments field. Content is read and written as a Lua string; reads count against the run's memory budget.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "info",
+        "signature": "files.info(id) → info|nil",
+        "params": [
+          {
+            "name": "id",
+            "type": "string",
+            "doc": "A file id, as stored in an attachments field."
+          }
+        ],
+        "returns": "{id, name, size, content_type, sha256, width, height, state, created_at} (width and height only for images; state is \"pending\" or \"attached\"), or nil when no such file exists in this workspace.",
+        "doc": "Describes a file without reading it.",
+        "example": "local f = files.info(record.Photos[1])\nif f then log.info(f.name, {size = f.size}) end"
+      },
+      {
+        "name": "read",
+        "signature": "files.read(id) → content|nil",
+        "params": [
+          {
+            "name": "id",
+            "type": "string",
+            "doc": "A file id."
+          }
+        ],
+        "returns": "The file's bytes as a string, or nil when no such file exists.",
+        "errors": [
+          "BAD_REQUEST: the file is larger than this context allows (1 MiB in form events and reports, 10 MiB in jobs)",
+          "SCRIPT_LIMIT_EXCEEDED: the run has read more than its memory budget"
+        ],
+        "doc": "Reads a whole file. Use it for small text or data files; images and documents are meant to be shown to people, not parsed in Lua.",
+        "example": "local text = files.read(id)\nlocal rows = csv.parse(text)"
+      },
+      {
+        "name": "create",
+        "signature": "files.create(name, content, content_type?) → info",
+        "params": [
+          {
+            "name": "name",
+            "type": "string",
+            "doc": "The file name people will see; any directory part is dropped."
+          },
+          {
+            "name": "content",
+            "type": "string",
+            "doc": "The bytes (at most the server's file size limit, 25 MiB by default)."
+          },
+          {
+            "name": "content_type",
+            "type": "string",
+            "doc": "Accepted for readability and ignored: the type is detected from the content.",
+            "optional": true
+          }
+        ],
+        "returns": "The new file's info table. The file is pending until a row refers to it: put info.id into an attachments field within 24 hours.",
+        "errors": [
+          "QUOTA_EXCEEDED: the workspace's file storage is full",
+          "BAD_REQUEST: empty or too large",
+          "RATE_LIMITED: too many uploads at once"
+        ],
+        "doc": "Stores a new file.",
+        "example": "local f = files.create(\"totals.csv\", csv.encode(rows, {columns = {\"id\", \"total\"}}))\nrecords.update(\"Reports\", report_id, {Attachment = {f.id}})",
+        "contexts": [
+          "job"
+        ]
+      }
+    ]
+  },
+  {
     "name": "geo",
     "doc": "Locations and areas. Use these with geo_point and geo_area fields: records.get returns their values as geometry tables and records.insert and records.update accept them.\n\nA point is a table {type = \"Point\", coordinates = {longitude, latitude}} and an area is a GeoJSON Polygon or MultiPolygon table. Everywhere a point is expected you can also pass {lat = .., lon = ..}, the text \"lat, lon\", or a GeoJSON Feature; everywhere an area is expected, a Feature or GeoJSON text. Coordinates are rounded to 7 decimal places. Areas that cross the 180° meridian are not supported.\n\nDistances are in metres along the Earth's surface (haversine) and areas in square metres (spherical approximation).",
     "contexts": [

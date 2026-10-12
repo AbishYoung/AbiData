@@ -160,7 +160,7 @@ func (s *Service) handlerFor(l *workspace.Lease, c Caller, p *prepared, req Even
 
 func (s *Service) hostData(l *workspace.Lease, c Caller, p *prepared) *host.Data {
 	d := &host.Data{Lease: l, Schemas: s.Schemas, Records: s.Records, Builder: c.Role.AtLeast(admin.RoleBuilder),
-		CanWrite: c.Role.AtLeast(admin.RoleEditor), UserID: c.UserID, UI: p.session}
+		CanWrite: c.Role.AtLeast(admin.RoleEditor), UserID: c.UserID, UI: p.session, Files: s.Files}
 	// Enqueueing a job is a write: editors and above only.
 	if s.Enqueue != nil && c.Role.AtLeast(admin.RoleEditor) {
 		d.Enqueue = func(ctx context.Context, name string, args map[string]any) (string, error) {
@@ -458,7 +458,7 @@ func (s *Service) computeCalc(ctx context.Context, l *workspace.Lease, c Caller,
 	res, err := s.Runner.Exec(ctx, script.ExecRequest{Kind: script.Report, Workspace: l.ID(), TZ: c.TZ,
 		Principal: script.Principal{UserID: c.UserID, Role: string(c.Role)}, Proto: proto,
 		Budget: script.Budget{Wall: 250 * time.Millisecond, MaxString: 1 << 20},
-		Host:   &host.Data{Lease: l, Schemas: s.Schemas, Records: s.Records, UserID: c.UserID},
+		Host:   &host.Data{Lease: l, Schemas: s.Schemas, Records: s.Records, UserID: c.UserID, Files: s.Files},
 		Globals: func(r *script.Run) map[string]lua.LValue {
 			g := map[string]lua.LValue{}
 			if table == nil {

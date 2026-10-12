@@ -65,6 +65,12 @@ func (p Policy) Authorizer(d *Denial) sqlitex.Authorizer {
 		if schema != "" && schema != "main" && schema != "temp" {
 			return deny("other databases cannot be accessed")
 		}
+		// AbiData's file-reference triggers (_att_*, catalog/attachments.go) keep
+		// _sys_file_refs in step with attachments cells. The statement that fired
+		// one was itself authorized; users cannot create triggers.
+		if strings.HasPrefix(strings.ToLower(inner), "_att_") {
+			return sqlite3.AUTH_OK
+		}
 		switch action {
 		case sqlite3.AUTH_SELECT, sqlite3.AUTH_RECURSIVE:
 			return sqlite3.AUTH_OK
