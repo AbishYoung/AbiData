@@ -27,6 +27,10 @@ AbiData then appears in your app drawer and on your home screen.
 2. Tap the **Share** button.
 3. Choose **Add to Home Screen**, then **Add**.
 
+## Photos in the field {#photos}
+
+On a phone, a record that has an [Attachments field](/docs/guide/tables#attachments) shows its photos on the record sheet with a large **Take photo** button. It opens the camera; the photo is uploaded and added to the record, and **Save** stores the record. Several photos can be taken one after another. The browser asks for camera access the first time.
+
 ## Offline behaviour {#offline}
 
 AbiData always needs a connection to reach your data. When you are offline, the app opens and shows that it cannot connect instead of a browser error page. Your data, API calls and live updates are never stored on the phone by the installed app.

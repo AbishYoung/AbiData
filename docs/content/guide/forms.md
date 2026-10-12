@@ -32,8 +32,17 @@ The form's **Permissions** group has **Allow edits**, **Allow additions** and **
 | Button | Runs a Lua handler when clicked |
 | Line, Rectangle | Decoration |
 | Subform | Embeds another form |
+| Attachments | A gallery of the files in an Attachments field; see [Attachments control](#attachments) |
 
 The property sheet for a control has these groups: **General** (name, caption and section), **Position and size**, **Behavior** (**Visible**, **Enabled**, **Locked**), **Data**, and **Events**. The **Data** group sets **Control source** to **None (unbound)**, **Bound field** or **Calculation**.
+
+### Attachments control {#attachments}
+
+An **Attachments** control shows the files of an [Attachments field](/docs/guide/tables#attachments) as a gallery of thumbnails. Add it from the **Toolbox**, or drag an Attachments field from the **Field list** onto the form, which creates the control already bound. In the property sheet, **Bound field** lists only Attachments fields. The control has no calculation and no format.
+
+When the form allows edits, the record is editable, and the control is neither **Locked** nor disabled, the gallery has the same controls as the datasheet: drag and drop or **Browse**, **Take photo** on a phone, reorder, remove, download and the full-screen viewer. The limit is the field's **Files per record**. Changes are part of the record: they save with **Save**, with `Shift+Enter`, or when you move to another record, and **Undo** or **Esc** discards them. Without edit permission the gallery only shows and downloads the files. The control supports the **Before update** and **After update** events, with the new list of file ids as `new_value`.
+
+In the datasheet view of a form, Attachments controls are left out; use the datasheet itself for a column of thumbnails.
 
 ## Events {#events}
 

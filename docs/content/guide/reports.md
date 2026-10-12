@@ -40,7 +40,13 @@ Each band has these settings:
 - **Force new page**: the band starts on a new page.
 - **Visible**.
 
-Controls can be a label, a textbox, a line, a rectangle, and three special controls: **Page number**, **Page count** and **Now**. A textbox's **Control source** is **None (caption text)**, **Field**, **Calculation** or **Aggregate**.
+Controls can be a label, a textbox, a line, a rectangle, an image, and three special controls: **Page number**, **Page count** and **Now**. A textbox's **Control source** is **None (caption text)**, **Field**, **Calculation** or **Aggregate**.
+
+### Image control {#images}
+
+An **Image** control prints the pictures in an [Attachments field](/docs/guide/tables#attachments). Add it from the **Toolbox**, or add an Attachments field from the **Field list**, which creates an Image control bound to it. Choose the **Attachments field** and set **Images shown**: 1 prints the first image, and a larger number prints a gallery of up to that many images (at most 24), arranged in a grid inside the control's size. Files that are not PNG, JPEG, GIF or WebP images are skipped. A record with no images prints nothing in the control.
+
+Images print as ordinary pictures, so they appear in the print preview and in **Save as PDF**. Give the control a fixed height that suits the band: the band does not grow to fit it. In the viewer, wait for the images to load before printing.
 
 ## Grouping and sorting {#grouping}
 

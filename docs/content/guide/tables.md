@@ -38,6 +38,7 @@ Each field has a field name (what people see) and an SQL name (used in queries a
 | Lookup | A link to a record in another table | See [Relationships and lookups](#lookups) |
 | Hyperlink | Text starting with `http://` or `https://` | |
 | Calculated | A value computed from other fields | Read-only; see [Calculated fields](#calculated) |
+| Attachments | A list of files, in order | Photos and documents kept with the record; see [Files and photos](#attachments) |
 | Location | One point on the Earth (latitude, longitude) | See [Locations and areas](#geo) |
 | Area | A boundary: a polygon, with holes if needed, or several polygons | See [Locations and areas](#geo) |
 
@@ -105,9 +106,24 @@ In the datasheet, a lookup cell is a combobox that searches the parent table as 
 
 A calculated field holds an SQL **Expression** over the other fields in the same table, such as `Quantity * Unit_price`. Choose a **Result type**: **Text**, **Integer**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. The expression may use built-in deterministic SQL functions only. Calculated fields cannot be edited in the datasheet.
 
+## Files and photos {#attachments}
+
+An **Attachments** field keeps files with a record: for example several phone photos of an invasive-species sighting, a permit PDF, or a specification sheet. Choose **Attachments** as the field's **Data type**. In the field's properties, **Files per record** sets how many files one record can hold, from 1 to 100 (the default is 20). Use 1 for a single document.
+
+- **Add files.** Select the cell and press `Enter` or `F2`, or double-click it. A dialog opens with the files of the record. Drag files onto it, or choose **Browse**. Each upload shows its progress. Choose **Done** to keep the changes, or **Cancel** to throw them away. As with any other field, the record is saved when you press `Shift+Enter` or leave the row.
+- **On a phone**, the record sheet shows the gallery inline with a large **Take photo** button, which opens the camera. **Browse** picks files from the device. A photo is uploaded while you stay on the sheet; **Save** waits until it is done.
+- **Manage files.** Thumbnails show images; other files show an icon with their name and size. **Move earlier** and **Move later** reorder the files (you can also drag a thumbnail onto another), **Remove** takes a file off the record, and **Download** saves the original. Choose a thumbnail to open the full-screen viewer, where the arrow keys or the **Previous image** and **Next image** buttons move between images and `Esc` closes it.
+- **In the grid**, a cell shows the number of files and small thumbnails of the first three.
+- **Limits.** The field holds at most **Files per record** files; the dialog says so and stops accepting more. One file can be at most 25 MiB unless your administrator changed the limit, and the whole workspace has a file storage quota. An upload that is refused shows the reason beside the file: the file is too large or empty, the storage quota is used up, or your role may not upload files. Viewers can see and download files but cannot change them.
+- **Thumbnails.** PNG, JPEG and GIF files have thumbnails. WebP images are shown but have no thumbnail, and HEIC photos are kept as downloads.
+- **No default, no index.** An attachments field cannot have a default value or be indexed. It cannot be converted to or from another type: add a new field instead.
+- **Deleting.** Removing a file from a record does not delete it at once. A file that no record refers to is purged after a grace period of 7 days, and the record's history keeps naming it until then. After that the history shows "file removed".
+
+Files are also available to [scripts](/docs/guide/scripts) and over the [API](/docs/guide/api#files).
+
 ## Enter and edit records {#editing}
 
-Click a cell, or move with the arrow keys. Press `Enter` or `F2` to edit the cell, or start typing to replace its content.
+Click a cell, or move with the arrow keys. Press `Enter` or `F2` to edit the cell, or start typing to replace its content. In an [Attachments](#attachments) cell, `Enter` and `F2` open the file dialog.
 
 - `Tab` and `Shift+Tab` move between cells.
 - `Shift+Enter` saves the record. `Esc` discards your unsaved changes to the record.
@@ -153,7 +169,7 @@ Anyone who can read the table can see a record's history, including the history 
 - **In the datasheet**, select a cell in the record and choose **History** in the toolbar.
 - **In a form**, open the record and choose **History** in the form toolbar. It is available once the record is saved.
 
-A panel opens with the changes, newest first. Each entry shows who made the change and when, and what changed. A new record lists its initial values and a deleted record lists its last values. An update lists only the fields that changed, as old value → new value. Fields that were later removed from the table appear as "(removed field)". Choose **Load older** to see earlier entries. Press `Esc` or choose **Close history** to close the panel.
+A panel opens with the changes, newest first. Each entry shows who made the change and when, and what changed. A new record lists its initial values and a deleted record lists its last values. An update lists only the fields that changed, as old value → new value. Fields that were later removed from the table appear as "(removed field)". An Attachments field lists the file names; a file that has been purged shows as "file removed". Choose **Load older** to see earlier entries. Press `Esc` or choose **Close history** to close the panel.
 
 If the table does not track history, the panel says so. A builder can turn tracking on in **Design**. Only changes made after tracking was turned on are recorded.
 
