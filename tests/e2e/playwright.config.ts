@@ -6,6 +6,10 @@ const port = process.env.ABIDATA_E2E_PORT ?? "18080";
 // smoke.spec.ts is never run.
 const external = process.env.ABIDATA_E2E_EXTERNAL_URL;
 const baseURL = external ?? `http://127.0.0.1:${port}`;
+// A second server with the Northwind Traders sample workspace (see server.mjs) for the specs that open the demo.
+const demoPort = process.env.ABIDATA_E2E_DEMO_PORT ?? String(Number(port) + 1);
+const demoBaseURL = `http://127.0.0.1:${demoPort}`;
+process.env.E2E_DEMO_BASE_URL = demoBaseURL;
 
 export default defineConfig({
   testDir: ".",
@@ -37,12 +41,23 @@ export default defineConfig({
   ],
   webServer: external
     ? undefined
-    : {
-        command: "node server.mjs",
-        url: `${baseURL}/healthz`,
-        reuseExistingServer: false,
-        timeout: 300_000,
-        stdout: "pipe",
-        stderr: "pipe",
-      },
+    : [
+        {
+          command: "node server.mjs",
+          url: `${baseURL}/healthz`,
+          reuseExistingServer: false,
+          timeout: 300_000,
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+        {
+          command: "node server.mjs",
+          url: `${demoBaseURL}/healthz`,
+          env: { E2E_WITH_DEMO: "1", E2E_SERVER_PORT: demoPort },
+          reuseExistingServer: false,
+          timeout: 300_000,
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      ],
 });

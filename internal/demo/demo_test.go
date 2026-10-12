@@ -479,7 +479,7 @@ func TestBiosecuritySpatialQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"Zone", "Species", "Observed_at", "Status", "Zone status"}; len(out.Columns) != len(want) {
+	if want := []string{"Zone", "Species", "Observed at", "Status", "Zone status"}; !reflect.DeepEqual(out.Columns, want) {
 		t.Fatalf("columns: %v", out.Columns)
 	}
 	if len(out.Rows) < 5 || len(out.Rows) >= total {

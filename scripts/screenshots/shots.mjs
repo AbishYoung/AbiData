@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const DESKTOP = { width: 1440, height: 900 };
 // Names that are stored as JPEG (quality 85) because they are large, photo-like or chart-heavy.
-const JPEG = new Set(["command-palette", "workspace-settings", "sign-in", "row-history", "import-wizard", "table-design", "job-runs", "datasheet-orders", "datasheet-orders-dark", "admin-dashboard", "admin-dashboard-dark", "report-viewer", "docs-panel"]);
+const JPEG = new Set(["command-palette", "workspace-settings", "sign-in", "row-history", "import-wizard", "table-design", "job-runs", "datasheet-orders", "datasheet-orders-dark", "admin-dashboard", "admin-dashboard-dark", "report-viewer", "docs-panel", "biosecurity-report"]);
 
 const STYLE = `
   *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; caret-color: transparent !important; scroll-behavior: auto !important; }
@@ -196,6 +196,55 @@ export async function shoot(ctx) {
       await page.waitForTimeout(1500);
       await save(page, "report-viewer");
     }
+
+    // The biosecurity scenario of the sample workspace (maps, zones and photos).
+    if (want("sighting-form") || want("zone-editor") || want("biosecurity-report")) {
+      // A tall window so the whole form (map, photos, notes) is in one capture.
+      await page.setViewportSize({ width: 1440, height: 1440 });
+    }
+    if (want("sighting-form")) {
+      await openObject(page, "Record a sighting");
+      const form = page.getByRole("group", { name: "Record a sighting", exact: true });
+      await form.getByRole("application", { name: "Location map" }).waitFor();
+      // A sighting with photos inside a quarantine zone: walk back from the newest, zooming the map out
+      // a few steps (it opens at street level around the point) until a zone outline is in view.
+      await form.getByRole("button", { name: "Last record" }).click();
+      const tiles = form.getByTestId("attachment-tile");
+      const zoneInView = () => form.locator("path.abd-overlay").evaluateAll((ps) => ps.some((p) => p.getAttribute("d") !== "M0 0"));
+      for (let i = 0; i < 40; i++) {
+        await page.waitForTimeout(250);
+        if ((await tiles.count()) >= 2) {
+          for (let z = 0; z < 4; z++) await form.getByRole("button", { name: "Zoom out" }).click();
+          await page.waitForTimeout(300);
+          if (await zoneInView()) break;
+        }
+        await form.getByRole("button", { name: "Previous record" }).click();
+      }
+      await tiles.first().locator("img").waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="attachment-tile"] img')].every((i) => i.complete && i.naturalWidth > 0));
+      await save(page, "sighting-form");
+    }
+
+    if (want("zone-editor") || want("biosecurity-report")) await page.setViewportSize({ width: 1440, height: 1000 });
+    if (want("zone-editor")) {
+      await openObject(page, "Quarantine zone");
+      const form = page.getByRole("group", { name: "Quarantine zone", exact: true });
+      await form.getByRole("application").waitFor();
+      // The Loire zone has a hole (the treated orchard block).
+      await form.getByRole("button", { name: "Next record" }).click();
+      await form.getByTestId("map-value").getByText(/Area/).waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll("path.abd-overlay-point")].some((p) => p.getAttribute("d") !== "M0 0"));
+      await save(page, "zone-editor");
+    }
+
+    if (want("biosecurity-report")) {
+      await openObject(page, "Biosecurity sightings report");
+      await page.getByText("Page 1 of").first().waitFor();
+      await page.getByTestId("report-map").first().waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="report-image"] img')].every((i) => i.complete && i.naturalWidth > 0));
+      await save(page, "biosecurity-report");
+    }
+    if (want("sighting-form") || want("zone-editor") || want("biosecurity-report")) await page.setViewportSize(DESKTOP);
 
     if (want("script-editor")) {
       await page.getByRole("region", { name: "Scripts" }).getByRole("button", { name: "Refresh low-stock flags", exact: true }).click();

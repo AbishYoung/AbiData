@@ -428,7 +428,7 @@ func sightingForm(t bioTables, qs bioQueries) forms.FormInput {
 	s.add("Count / abundance", "Count", "textbox", 32, bound(t.sig.col("Count / abundance")))
 	s.add("Status", "Status", "combobox", 32, pick(t.sig.col("Status"), forms.Lookup{SourceQueryID: qs.sightingStatus, ValueColumnID: "Status", DisplayColumnID: "Status"}))
 	s.add("Supplier (farm)", "Supplier", "combobox", 32, pick(t.sig.col("Supplier"), forms.Lookup{TableID: t.sup.id(), ValueColumnID: "id", DisplayColumnID: t.sup.col("Name")}))
-	s.add("Photos", "Photos", "attachments", 210, bound(t.sig.col("Photos")))
+	s.add("Photos", "Photos", "attachments", 250, bound(t.sig.col("Photos")))
 	s.add("Notes", "Notes", "textbox", 90, bound(t.sig.col("Notes")))
 	return forms.FormInput{Name: "Record a sighting", SourceKind: "table", SourceID: t.sig.id(), DefaultView: "single",
 		Layout: forms.Layout{Width: 420, Sections: forms.Sections{Detail: forms.Section{Height: s.y + 4, Controls: s.controls}}}}
@@ -466,7 +466,7 @@ func sightingsReport(t bioTables, qs bioQueries) reports.ReportInput {
 		Bands: reports.Bands{
 			ReportHeader: reports.Band{Height: 56, Controls: []reports.ReportControl{
 				{ID: "title", Name: "Title", Type: "label", W: 480, H: 30, Caption: "Biosecurity sightings", Style: map[string]string{"bold": "true", "font_size": "20"}},
-				{ID: "sub", Name: "Subtitle", Type: "label", Y: 32, W: 560, H: 20, Caption: "Invasive species recorded on supplier farms, with their location, the quarantine zones and the first photo."}}},
+				{ID: "sub", Name: "Subtitle", Type: "label", Y: 32, W: 560, H: 20, Caption: "Invasive species seen on supplier farms, with zones and photos."}}},
 			Detail: reports.Band{Height: 190, KeepTogether: true, Controls: []reports.ReportControl{
 				caption("c1", "CObserved", 4, "Observed"), value("d1", "ObservedAt", 64, 4, 162, 20, "Observed at"),
 				caption("c2", "CSupplier", 28, "Supplier"), value("d2", "SupplierName", 64, 28, 162, 20, "Supplier"),
