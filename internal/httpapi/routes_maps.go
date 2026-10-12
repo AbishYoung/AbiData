@@ -159,16 +159,15 @@ func LoadMaps(ctx context.Context, a *admin.Store) (MapsSettings, error) {
 	if err != nil {
 		return MapsSettings{}, err
 	}
+	// A stored value is re-validated so a hand-edited row cannot widen the CSP; anything
+	// unreadable or invalid means no tiles.
 	var m MapsSettings
-	if json.Unmarshal([]byte(v), &m) != nil {
-		return MapsSettings{}, nil
+	if json.Unmarshal([]byte(v), &m) == nil {
+		if valid, _, verr := validateMaps(m); verr == nil {
+			return valid, nil
+		}
 	}
-	// A stored value is re-validated so a hand-edited row cannot widen the CSP.
-	m, _, err = validateMaps(m)
-	if err != nil {
-		return MapsSettings{}, nil
-	}
-	return m, nil
+	return MapsSettings{}, nil
 }
 
 // baseCSP is the policy without any map tile origin.
