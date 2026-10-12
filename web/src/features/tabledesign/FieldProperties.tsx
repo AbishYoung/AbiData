@@ -59,6 +59,14 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
         )}
       </p>
 
+      {(type === "geo_point" || type === "geo_area") && (
+        <p className={hint}>
+          {type === "geo_point"
+            ? "Stored as a GeoJSON point. The datasheet shows it as latitude, longitude and edits it on a map. To keep GPS accuracy, add a number field whose name contains \u201caccuracy\u201d; Use my location fills it."
+            : "Stored as a GeoJSON polygon or multipolygon. The datasheet shows its corner count and size and edits it on a map."}
+        </p>
+      )}
+
       {type === "short_text" && (
         <div>
           <label className={labelClass} htmlFor={id("max")}>

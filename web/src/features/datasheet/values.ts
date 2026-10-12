@@ -1,4 +1,6 @@
 import type { Column } from "@/lib/schema";
+import { formatGeoValue } from "@/lib/geo/format";
+import { parseAreaText, parseLatLonText, pointGeometry, pointOf, sameGeometry } from "@/lib/geo/geometry";
 
 /** How a column's value is shown, edited and serialized. */
 export type ValueKind =
@@ -12,7 +14,9 @@ export type ValueKind =
   | "date"
   | "datetime"
   | "lookup"
-  | "autonumber";
+  | "autonumber"
+  | "geo_point"
+  | "geo_area";
 
 export type ParseResult = { ok: true; value: unknown } | { ok: false; message: string };
 
@@ -48,6 +52,10 @@ export function kindOf(col: Column): ValueKind {
       return "hyperlink";
     case "lookup":
       return "lookup";
+    case "geo_point":
+      return "geo_point";
+    case "geo_area":
+      return "geo_area";
     case "calculated":
       return CALC_KINDS[col.type_options.result_type ?? "text"] ?? "text";
     default:
@@ -220,6 +228,15 @@ export function parseDraft(col: Column, text: string): ParseResult {
       return parseText(text);
     case "text":
       return parseText(text, col.type_options.max_length);
+    case "geo_point": {
+      const r = parseLatLonText(text);
+      if (!r.ok) return r;
+      return { ok: true, value: r.value ? pointGeometry(r.value.lat, r.value.lon) : null };
+    }
+    case "geo_area": {
+      if (text.trim() === "") return { ok: true, value: null };
+      return parseAreaText(text);
+    }
     default:
       return { ok: true, value: text === "" ? null : text };
   }
@@ -233,6 +250,12 @@ export function draftOf(col: Column, value: unknown): string {
       return typeof value === "string" ? isoToLocalInput(value) : "";
     case "currency":
       return typeof value === "string" ? value.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "") : String(value);
+    case "geo_point": {
+      const p = pointOf(value);
+      return p ? `${p.lat}, ${p.lon}` : String(value);
+    }
+    case "geo_area":
+      return typeof value === "string" ? value : JSON.stringify(value);
     default:
       return String(value);
   }
@@ -250,8 +273,11 @@ export function formatValue(col: Column, value: unknown, display?: string): stri
       return typeof value === "string" ? formatCurrency(value) : String(value);
     case "datetime":
       return typeof value === "string" ? formatDateTime(value) : String(value);
+    case "geo_point":
+    case "geo_area":
+      return formatGeoValue(value);
     default:
-      return String(value);
+      return typeof value === "object" ? JSON.stringify(value) : String(value);
   }
 }
 
@@ -268,6 +294,9 @@ export function valuesEqual(col: Column, a: unknown, b: unknown): boolean {
       const y = canonicalDecimal(b);
       return x !== null && y !== null ? x === y : a === b;
     }
+    case "geo_point":
+    case "geo_area":
+      return sameGeometry(a, b);
     default:
       return a === b;
   }

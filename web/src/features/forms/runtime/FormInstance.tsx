@@ -13,6 +13,7 @@ import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { useSavedQuery } from "@/features/queries/savedQueries";
 import { formKeys, getForm, type Form, type FormControl, type FormSection } from "../formsApi";
 import { ControlView, StackedContext, domId, type ControlEnv } from "./Controls";
+import { accuracyColumn } from "@/lib/geo/locate";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { ParentContext, useFormEnv, type ParentLink } from "./env";
 import {
@@ -223,6 +224,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   }, [layout]);
 
   const columnOf = useCallback((id: string): Column | undefined => writeTable?.columns?.find((c) => c.id === id) ?? sourceTable?.columns?.find((c) => c.id === id), [writeTable, sourceTable]);
+  const accuracyCol = useMemo(() => accuracyColumn(writeTable?.columns ?? []), [writeTable]);
   const columnName = useCallback(
     (id: string): string | undefined => (id === "id" ? "ID" : (columnOf(id)?.display_name ?? (kind === "query" ? id : undefined))),
     [columnOf, kind],
@@ -276,6 +278,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       ws: env.ws,
       columnOf,
       columnName,
+      accuracyCol,
       editable: isCurrent ? recEditable : canEdit || (i >= count && canAdd),
       overrides,
       calc: isCurrent ? calc : (rowCalc[rowKey] ?? emptyCalc),

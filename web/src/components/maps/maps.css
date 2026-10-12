@@ -1,0 +1,126 @@
+/* Leaflet (bundled locally) themed with the design tokens. Paths get their colours from these
+   classes, not from Leaflet options, so light and dark both work. */
+
+.abd-map.leaflet-container {
+  background: var(--surface-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.75rem;
+  outline-offset: 2px;
+}
+.abd-map.leaflet-container:focus-visible {
+  outline: 2px solid var(--focus);
+}
+.abd-map .leaflet-bar {
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.abd-map .leaflet-bar a {
+  background: var(--surface);
+  color: var(--fg);
+  border-bottom-color: var(--border);
+}
+.abd-map .leaflet-bar a:hover,
+.abd-map .leaflet-bar a:focus-visible {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.abd-map .leaflet-bar a.leaflet-disabled {
+  background: var(--surface-2);
+  color: var(--fg-subtle);
+}
+.abd-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--fg-muted);
+}
+.abd-map .leaflet-control-attribution a {
+  color: var(--accent);
+}
+
+/* Graticule: the offline background when no tile server is configured. */
+.abd-graticule {
+  stroke: var(--border-strong);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  fill: none;
+}
+.abd-graticule-label {
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 2px var(--surface-2), 0 0 2px var(--surface-2);
+}
+
+/* The record's own geometry. */
+.abd-area {
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: var(--accent);
+  fill-opacity: 0.18;
+}
+.abd-area-draft {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  fill: none;
+}
+.abd-pin span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 3px;
+  border-radius: 9999px;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-md);
+}
+.abd-vertex span {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 6px;
+  border-radius: 3px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+.abd-vertex.is-selected span {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.abd-vertex.is-first span {
+  border-radius: 9999px;
+}
+@media (pointer: coarse) {
+  .abd-vertex span {
+    width: 16px;
+    height: 16px;
+    margin: 4px;
+  }
+}
+
+/* Read-only overlay (for example quarantine zones). */
+.abd-overlay {
+  stroke: var(--warning);
+  stroke-width: 1.5;
+  fill: var(--warning);
+  fill-opacity: 0.08;
+}
+.abd-overlay-point {
+  stroke: var(--warning);
+  fill: var(--warning);
+  fill-opacity: 0.6;
+}
+.abd-map .leaflet-tooltip.abd-overlay-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--fg);
+  font-weight: 600;
+  padding: 0;
+  text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface);
+}
+.abd-map .leaflet-tooltip.abd-overlay-label::before {
+  display: none;
+}

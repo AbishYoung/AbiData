@@ -24,6 +24,8 @@ describe("QueryResultsGrid", () => {
     expect(formatCell(4390000, "currency")).toBe("439.00");
     expect(formatCell(12345678900, "currency")).toBe("1,234,567.89");
     expect(formatCell(-15000, "currency")).toBe("-1.50");
+    expect(formatCell('{"type":"Point","coordinates":[-0.1418923,51.5013512]}', "geo_point")).toBe("51.50135, -0.14189");
+    expect(formatCell('{"type":"Polygon","coordinates":[[[0,0],[0.01,0],[0.01,0.01],[0,0.01],[0,0]]]}', "geo_area")).toBe("Area · 4 points · 1.2 km²");
     expect(formatCell("9007199254740993000", "currency")).toBe("900,719,925,474,099.30");
     expect(formatCell(1234567, "integer")).toBe("1234567");
     expect(formatCell("2024-03-05T14:30:00.000Z", "datetime")).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);

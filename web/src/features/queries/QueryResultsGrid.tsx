@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/features/datasheet/values";
 import type { QueryResult } from "./savedQueries";
+import { formatGeoValue } from "@/lib/geo/format";
 
 const ROW_HEIGHT = 32;
 const COL_WIDTH = 176;
@@ -50,6 +51,7 @@ export function formatCell(v: unknown, type?: string): string {
     return d === null ? String(v) : formatCurrency(d);
   }
   if (type === "datetime" && typeof v === "string") return formatDateTime(v);
+  if (type === "geo_point" || type === "geo_area") return formatGeoValue(v);
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }

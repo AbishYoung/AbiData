@@ -26,6 +26,8 @@ const DEFAULT_WIDTH: Record<ValueKind, number> = {
   datetime: 170,
   lookup: 180,
   autonumber: 90,
+  geo_point: 170,
+  geo_area: 220,
 };
 
 /** Room a header needs for its name: ~7.4px per character plus padding, sort arrow and menu button. */

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Trash2, TriangleAlert } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { input } from "@/components/styles";
-import { FIELD_TYPES, blankField, fieldTypeLabel, type DraftField } from "./draft";
+import { FIELD_TYPES, blankField, fieldTypeHint, fieldTypeLabel, type DraftField } from "./draft";
 
 export interface FieldGridProps {
   fields: DraftField[];
@@ -114,19 +114,21 @@ export function FieldGrid(props: FieldGridProps) {
                     <option value="autonumber">{fieldTypeLabel("autonumber")}</option>
                   </select>
                 ) : (
-                  <select
-                    aria-label="Data type"
-                    className={input}
-                    value={f.fieldType}
-                    disabled={placeholder}
-                    onChange={(e) => props.onTypeChange(f.id, e.target.value)}
-                  >
-                    {FIELD_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Tip label={fieldTypeHint(f.fieldType) ?? `${fieldTypeLabel(f.fieldType)}. Choose the kind of value the field holds.`}>
+                    <select
+                      aria-label="Data type"
+                      className={input}
+                      value={f.fieldType}
+                      disabled={placeholder}
+                      onChange={(e) => props.onTypeChange(f.id, e.target.value)}
+                    >
+                      {FIELD_TYPES.map((t) => (
+                        <option key={t.value} value={t.value} title={t.hint}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Tip>
                 )}
               </td>
               <td className="px-2 py-1.5">

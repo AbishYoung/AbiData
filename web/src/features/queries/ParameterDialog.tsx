@@ -1,5 +1,8 @@
 import { useId, useState, type FormEvent } from "react";
-import { btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { Map as MapIcon } from "lucide-react";
+import { btn, btnPrimary, btnSm, input, label as labelClass } from "@/components/styles";
+import { AreaEditor, MapDialog } from "@/components/maps/GeoEditors";
+import { areaOf, type AreaGeometry } from "@/lib/geo/geometry";
 import { Modal } from "./Modal";
 import type { Param } from "./model";
 import { paramValue, type ParamRaw } from "./params";
@@ -33,6 +36,8 @@ export function ParameterDialog({
     Object.fromEntries(params.map((p) => [p.name, initial[p.name] ?? (p.type === "yes_no" ? false : "")])),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [drawing, setDrawing] = useState<string | null>(null);
+  const [drawn, setDrawn] = useState<AreaGeometry | null>(null);
 
   function submit(e: FormEvent): void {
     e.preventDefault();
@@ -82,6 +87,12 @@ export function ParameterDialog({
                     aria-describedby={err ? `${id}-err` : undefined}
                     onChange={(e) => setRaw({ ...raw, [p.name]: e.target.value })}
                   />
+                  {p.type === "area" && (
+                    <button type="button" className={`${btnSm} mt-1.5`} onClick={() => setDrawing(p.name)}>
+                      <MapIcon size={12} aria-hidden="true" />
+                      Draw on map…
+                    </button>
+                  )}
                 </>
               )}
               {err && (
@@ -101,6 +112,20 @@ export function ParameterDialog({
           </button>
         </div>
       </form>
+      {drawing !== null && (
+        <MapDialog
+          title={`Parameter ${drawing}`}
+          description="Draw the area for this parameter."
+          onCancel={() => setDrawing(null)}
+          submitLabel="Use this area"
+          onSubmit={() => {
+            if (drawn) setRaw({ ...raw, [drawing]: JSON.stringify(drawn) });
+            setDrawing(null);
+          }}
+        >
+          <AreaEditor fieldName={`Parameter ${drawing}`} value={areaOf(raw[drawing])} onChange={(a) => setDrawn(a)} />
+        </MapDialog>
+      )}
     </Modal>
   );
 }

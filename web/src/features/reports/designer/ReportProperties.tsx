@@ -4,6 +4,8 @@ import { AreaField, CheckField, Group, SelectField, TextField } from "@/componen
 import { Tip } from "@/components/Tip";
 import { btn } from "@/components/styles";
 import { CONTROL_NAME } from "@/features/forms/designer/layoutModel";
+import { mapOptions } from "@/features/forms/designer/propertyValues";
+import { guessGeoColumn } from "@/components/maps/overlay";
 import type { Schema } from "@/lib/schema";
 import type { Saved } from "@/features/queries/savedQueries";
 import {
@@ -116,11 +118,13 @@ export function ControlProperties({
   control,
   state,
   columns,
+  queries,
   onChange,
 }: {
   control: DesignControl;
   state: ReportState;
   columns: SourceColumn[];
+  queries?: readonly Saved[];
   onChange: (c: DesignControl) => void;
 }) {
   const caps = capabilities(control.type);
@@ -245,6 +249,7 @@ export function ControlProperties({
           )}
         </Group>
       )}
+      {caps.map && <MapProperties control={control} columns={columns} queries={queries ?? []} onChange={onChange} />}
       {caps.text && (
         <Group title="Text style">
           <SelectField label="Align" value={style.align ?? ""} onChange={(e) => setStyle("align", e.target.value)}>
@@ -280,6 +285,73 @@ export function ControlProperties({
         </Group>
       )}
     </form>
+  );
+}
+
+/** A report map's field and its optional read-only overlay query. */
+function MapProperties({ control, columns, queries, onChange }: { control: DesignControl; columns: SourceColumn[]; queries: readonly Saved[]; onChange: (c: DesignControl) => void }) {
+  const typed = columns.some((c) => c.fieldType !== "short_text");
+  const geoCols = columns.filter((c) => !typed || c.fieldType === "geo_point" || c.fieldType === "geo_area");
+  const m = control.map;
+  const overlayCols = queries.find((q) => q.id === m?.overlay_query_id)?.columns ?? [];
+  const setMap = (query: string, geo: string, label: string) => {
+    const { map: _m, ...rest } = control;
+    void _m;
+    const next = mapOptions(query, geo, label);
+    onChange(next ? { ...rest, map: next } : rest);
+  };
+  return (
+    <>
+      <Group title="Data">
+        <SelectField label="Field" hint="The location or area drawn on the map." value={control.bind?.column_id ?? ""} onChange={(e) => onChange({ ...control, bind: { column_id: e.target.value } })}>
+          <option value="">Choose a field</option>
+          {geoCols.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </SelectField>
+      </Group>
+      <Group title="Map overlay">
+        <SelectField
+          label="Overlay query"
+          hint="Optional: a saved query with a location or area column, drawn under the field (for example quarantine zones)."
+          value={m?.overlay_query_id ?? ""}
+          onChange={(e) => {
+            const cols = queries.find((q) => q.id === e.target.value)?.columns ?? [];
+            const geo = guessGeoColumn(cols);
+            setMap(e.target.value, geo, cols.find((c) => c !== geo) ?? "");
+          }}
+        >
+          <option value="">None</option>
+          {queries.map((q) => (
+            <option key={q.id} value={q.id}>
+              {q.name}
+            </option>
+          ))}
+        </SelectField>
+        {m?.overlay_query_id && (
+          <>
+            <SelectField label="Geo column" value={m.overlay_geo_column ?? ""} onChange={(e) => setMap(m.overlay_query_id ?? "", e.target.value, m.overlay_label_column ?? "")}>
+              <option value="">Choose a column</option>
+              {overlayCols.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField label="Label column" value={m.overlay_label_column ?? ""} onChange={(e) => setMap(m.overlay_query_id ?? "", m.overlay_geo_column ?? "", e.target.value)}>
+              <option value="">No labels</option>
+              {overlayCols.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </SelectField>
+          </>
+        )}
+      </Group>
+    </>
   );
 }
 

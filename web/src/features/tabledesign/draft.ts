@@ -5,7 +5,8 @@ export type Op = components["schemas"]["Op"];
 export type ColumnSpec = components["schemas"]["ColumnSpec"];
 export type ImpactReport = components["schemas"]["ImpactReport"];
 
-export const FIELD_TYPES: readonly { value: string; label: string }[] = [
+/** Field types offered in Table Design; `hint` is the tooltip that explains the type. */
+export const FIELD_TYPES: readonly { value: string; label: string; hint?: string }[] = [
   { value: "short_text", label: "Short text" },
   { value: "long_text", label: "Long text" },
   { value: "integer", label: "Integer" },
@@ -17,7 +18,13 @@ export const FIELD_TYPES: readonly { value: string; label: string }[] = [
   { value: "lookup", label: "Lookup" },
   { value: "hyperlink", label: "Hyperlink" },
   { value: "calculated", label: "Calculated" },
+  { value: "geo_point", label: "Geo point", hint: "A location (latitude and longitude), set on a map, by typing or with Use my location" },
+  { value: "geo_area", label: "Geo area (fence)", hint: "An area drawn on a map, such as a zone or boundary; it can have holes and several parts" },
 ];
+
+export function fieldTypeHint(type: string): string | undefined {
+  return FIELD_TYPES.find((t) => t.value === type)?.hint;
+}
 
 export const RESULT_TYPES: readonly { value: string; label: string }[] = [
   { value: "text", label: "Text" },

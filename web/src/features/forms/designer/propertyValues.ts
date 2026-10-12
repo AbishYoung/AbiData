@@ -28,6 +28,9 @@ export interface ControlValues {
   subform_form: string;
   link_master: string;
   link_child: string;
+  map_overlay_query: string;
+  map_overlay_geo: string;
+  map_overlay_label: string;
   ev_click: string;
   ev_before_update: string;
   ev_after_update: string;
@@ -59,6 +62,9 @@ export function controlToValues(c: DesignControl): ControlValues {
     subform_form: c.subform?.form_id ?? "",
     link_master: c.subform?.link_master_column_id ?? "",
     link_child: c.subform?.link_child_column_id ?? "",
+    map_overlay_query: c.map?.overlay_query_id ?? "",
+    map_overlay_geo: c.map?.overlay_geo_column ?? "",
+    map_overlay_label: c.map?.overlay_label_column ?? "",
     ev_click: c.events?.click ?? "",
     ev_before_update: c.events?.before_update ?? "",
     ev_after_update: c.events?.after_update ?? "",
@@ -101,6 +107,10 @@ export function applyValues(c: DesignControl, v: ControlValues): DesignControl {
   if (c.type === "subform") {
     next.subform = { form_id: v.subform_form, link_master_column_id: v.link_master, link_child_column_id: v.link_child };
   }
+  if (c.type === "map") {
+    const map = mapOptions(v.map_overlay_query, v.map_overlay_geo, v.map_overlay_label);
+    if (map) next.map = map;
+  }
   const events: Record<string, string> = {};
   const pairs: [string, string][] = [
     ["click", v.ev_click],
@@ -113,6 +123,12 @@ export function applyValues(c: DesignControl, v: ControlValues): DesignControl {
   return next;
 }
 
+/** Map overlay settings, or undefined when there is no overlay. */
+export function mapOptions(query: string, geo: string, label: string): FormControl["map"] {
+  if (query === "") return undefined;
+  return { overlay_query_id: query, ...(geo ? { overlay_geo_column: geo } : {}), ...(label ? { overlay_label_column: label } : {}) };
+}
+
 /** Which property groups apply to a control type. */
 export function controlCapabilities(type: FormControl["type"]): {
   caption: boolean;
@@ -120,6 +136,7 @@ export function controlCapabilities(type: FormControl["type"]): {
   format: boolean;
   lookup: boolean;
   subform: boolean;
+  map?: boolean;
   events: readonly (typeof CONTROL_EVENTS)[number][];
 } {
   switch (type) {
@@ -135,6 +152,8 @@ export function controlCapabilities(type: FormControl["type"]): {
       return { caption: true, data: true, format: false, lookup: false, subform: false, events: CONTROL_EVENTS };
     case "subform":
       return { caption: false, data: false, format: false, lookup: false, subform: true, events: [] };
+    case "map":
+      return { caption: false, data: true, format: false, lookup: false, subform: false, map: true, events: ["before_update", "after_update"] };
     default:
       return { caption: false, data: false, format: false, lookup: false, subform: false, events: [] };
   }

@@ -82,6 +82,7 @@ export function joinSummary(j: Join, infos: ReadonlyMap<string, SourceInfo>): st
     const i = infos.get(alias);
     return `${i?.title ?? alias}.${i?.columns.find((c) => c.id === col)?.label ?? col}`;
   };
+  if (j.op === "within") return `${side(j.left_alias, j.left_column_id)} within ${side(j.right_alias, j.right_column_id)} (${j.kind}, point within area)`;
   return `${side(j.left_alias, j.left_column_id)} to ${side(j.right_alias, j.right_column_id)} (${j.kind})`;
 }
 
@@ -128,7 +129,7 @@ export function QueryCanvas(props: QueryCanvasProps) {
     target: j.right_alias,
     sourceHandle: `r:${j.left_column_id}`,
     targetHandle: `l:${j.right_column_id}`,
-    label: j.kind === "left" ? "left join" : "inner join",
+    label: `${j.kind === "left" ? "left join" : "inner join"}${j.op === "within" ? ": within" : ""}`,
     ariaLabel: `Join ${joinSummary(j, infos)}. Select to edit.`,
     interactionWidth: 24,
     labelStyle: { fontSize: 12 },

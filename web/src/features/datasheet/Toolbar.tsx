@@ -1,6 +1,6 @@
 import { useId, type Ref } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, RefreshCw, Search, Table2, Trash2, X } from "lucide-react";
+import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, MapPin, RefreshCw, Search, Table2, Trash2, X } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { btnGhost, iconBtn, input, menu, menuItem, menuSeparator } from "@/components/styles";
 
@@ -26,6 +26,9 @@ interface ToolbarProps {
   canHistory: boolean;
   onHistory: () => void;
   filterRef: Ref<HTMLInputElement>;
+  /** The table has a location (point) field: offer "within area" and "near" filters. */
+  canGeoFilter?: boolean;
+  onGeoFilter?: () => void;
   /** Phone layout: search, a cards/grid toggle and a More menu. */
   compact?: boolean;
   mode?: "cards" | "grid";
@@ -95,6 +98,12 @@ function CompactToolbar({ filterRef, ...p }: ToolbarProps) {
                 <DropdownMenu.Item className={item} disabled={!p.canFilterBySelection} onSelect={p.onFilterBySelection}>
                   <ListFilter size={16} aria-hidden="true" />
                   Filter by selection
+                </DropdownMenu.Item>
+              )}
+              {p.canGeoFilter && (
+                <DropdownMenu.Item className={item} onSelect={p.onGeoFilter}>
+                  <MapPin size={16} aria-hidden="true" />
+                  Location filter…
                 </DropdownMenu.Item>
               )}
               <DropdownMenu.Item className={item} disabled={!p.filterActive} onSelect={p.onClearFilter}>
@@ -178,6 +187,14 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
           </button>
         </span>
       </Tip>
+      {p.canGeoFilter && (
+        <Tip label="Show records whose location is inside an area or near a point">
+          <button type="button" className={btnGhost} onClick={p.onGeoFilter}>
+            <MapPin size={14} aria-hidden="true" />
+            Location filter…
+          </button>
+        </Tip>
+      )}
       <Tip label={p.filterActive ? "Remove the search text and all filters" : "No filter is applied"}>
         <span className="inline-flex">
           <button type="button" className={btnGhost} onClick={p.onClearFilter} disabled={!p.filterActive}>

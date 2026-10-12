@@ -24,6 +24,7 @@ export const OPERATORS: readonly OpInfo[] = [
   { op: "between", label: "between", arity: 2 },
   { op: "is_null", label: "is empty", arity: 0 },
   { op: "not_null", label: "is not empty", arity: 0 },
+  { op: "within", label: "is within", arity: 1 },
 ];
 
 export function opInfo(op: CriterionOp): OpInfo {
@@ -40,9 +41,11 @@ export function kindForOp(kind: ValueKind, op: CriterionOp): ValueKind {
 
 /** Operators that make sense for a column of this kind. */
 export function operatorsFor(kind: ValueKind): readonly OpInfo[] {
-  if (kind === "text") return OPERATORS;
+  if (kind === "geo_point") return OPERATORS.filter((o) => ["within", "is_null", "not_null"].includes(o.op));
+  if (kind === "geo_area") return OPERATORS.filter((o) => ["is_null", "not_null"].includes(o.op));
+  if (kind === "text") return OPERATORS.filter((o) => o.op !== "within");
   if (kind === "yes_no") return OPERATORS.filter((o) => ["eq", "ne", "is_null", "not_null"].includes(o.op));
-  return OPERATORS.filter((o) => !TEXT_OPS.has(o.op));
+  return OPERATORS.filter((o) => !TEXT_OPS.has(o.op) && o.op !== "within");
 }
 
 /** Parses one typed scalar; undefined when the text is empty or not valid for the kind. */
@@ -69,6 +72,9 @@ export function parseScalar(kind: ValueKind, text: string): string | number | bo
       return t === "true" ? true : t === "false" ? false : undefined;
     case "date":
       return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : undefined;
+    case "geo_point":
+    case "geo_area":
+      return undefined;
     case "datetime": {
       if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(t)) return t.length === 16 ? `${t}:00Z` : `${t}Z`;
       return /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/.test(t) ? t : undefined;
@@ -135,6 +141,8 @@ export function describeCriterion(c: Criterion): string {
   const info = opInfo(c.op);
   if (info.arity === 0) return info.label;
   if (c.param) return `${info.label} :${c.param}`;
+  if (c.ref_alias) return `${info.label} ${c.ref_alias}.${c.ref_column_id ?? ""}`;
+  if (c.op === "within") return c.value ? `${info.label} a drawn area` : info.label;
   const v = c.value;
   if (Array.isArray(v)) return `${info.label} ${v.map((x) => String(x)).join(info.arity === 2 ? " and " : ", ")}`;
   return `${info.label} ${String(v ?? "")}`.trim();

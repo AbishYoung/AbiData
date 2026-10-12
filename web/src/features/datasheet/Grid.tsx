@@ -52,6 +52,8 @@ export interface GridProps {
   sort: SortState | null;
   canEdit: boolean;
   lookupFor: (col: Column) => LookupInfo | undefined;
+  /** Number field that "Use my location" may fill with the GPS accuracy. */
+  accuracyCol?: Column;
   editorRef: Ref<EditorHandle>;
   onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void;
   onCellMouseDown: (cell: Cell) => void;
@@ -62,7 +64,7 @@ export interface GridProps {
   onResize: (colId: string, width: number) => void;
   onMoveColumn: (colId: string, delta: number) => void;
   onDropColumn: (colId: string, targetId: string) => void;
-  onCommit: (value: unknown, display: string | undefined, move: Move) => void;
+  onCommit: (value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) => void;
   onCancel: () => void;
 }
 
@@ -284,6 +286,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
           initialDisplay={display}
           starter={editing.starter}
           lookup={props.lookupFor(col)}
+          accuracyCol={props.accuracyCol}
           onCommit={props.onCommit}
           onCancel={props.onCancel}
         />

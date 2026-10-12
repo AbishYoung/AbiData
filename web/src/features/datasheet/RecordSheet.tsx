@@ -1,7 +1,11 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Dialog, DropdownMenu } from "radix-ui";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Ellipsis, History, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Ellipsis, History, MapPin, Trash2, X } from "lucide-react";
+import { GeoValueDialog, LocateButton } from "@/components/maps/GeoEditors";
+import { formatGeoValue } from "@/lib/geo/format";
+import { pointGeometry } from "@/lib/geo/geometry";
+import { accuracyValue } from "@/lib/geo/locate";
 import type { Column } from "@/lib/schema";
 import { badge, btn, btnPrimary, fieldError, hint, iconBtn, input, label as labelClass, menu, menuItem, textarea } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
@@ -30,6 +34,8 @@ interface Props {
   canEdit: boolean;
   buffer: RowBuffer | undefined;
   lookupFor: (col: Column) => LookupInfo | undefined;
+  /** Number field that "Use my location" may fill with the GPS accuracy. */
+  accuracyCol?: Column;
   /** `base` is the record as the sheet showed it when editing began (its version is the base for If-Match). */
   onSave: (changes: FieldChange[], base: Row | undefined) => Promise<SheetSave>;
   onGo: (index: number) => void;
@@ -72,6 +78,7 @@ function initialDraft(col: Column, row: Row | undefined): Draft {
   const value = row?.fields[col.id];
   if (kind === "boolean") return { value: value === true ? true : value === false ? false : null };
   if (kind === "lookup") return { value: value ?? null, display: row?.display?.[col.id] };
+  if (kind === "geo_point" || kind === "geo_area") return { value: value ?? null };
   return { text: draftOf(col, value) };
 }
 
@@ -245,7 +252,9 @@ export function RecordSheet(props: Props) {
                   canEdit={canEdit}
                   error={errors[col.id]}
                   lookup={props.lookupFor(col)}
+                  accuracyCol={props.accuracyCol}
                   onChange={(d) => touch(col.id, d)}
+                  onAccuracy={(c, v) => touch(c.id, { text: String(v) })}
                 />
               ))
             )}
@@ -275,7 +284,9 @@ function Field({
   canEdit,
   error,
   lookup,
+  accuracyCol,
   onChange,
+  onAccuracy,
 }: {
   id: string;
   col: Column;
@@ -284,7 +295,9 @@ function Field({
   canEdit: boolean;
   error: string | undefined;
   lookup: LookupInfo | undefined;
+  accuracyCol?: Column;
   onChange: (d: Draft) => void;
+  onAccuracy: (col: Column, value: number) => void;
 }) {
   const kind = kindOf(col);
   const errId = `${id}-err`;
@@ -331,7 +344,24 @@ function Field({
       </div>
     );
   }
-  if (kind === "lookup") {
+  if (kind === "geo_point" || kind === "geo_area") {
+    const v = draft && "value" in draft ? draft.value : null;
+    control = (
+      <GeoField
+        id={id}
+        col={col}
+        kind={kind}
+        value={v}
+        error={error}
+        errId={errId}
+        accuracyCol={accuracyCol}
+        onChange={(value, accuracy) => {
+          onChange({ value });
+          if (accuracyCol && accuracy !== null) onAccuracy(accuracyCol, accuracyValue(accuracyCol, accuracy));
+        }}
+      />
+    );
+  } else if (kind === "lookup") {
     const d = draft && "value" in draft ? draft : { value: null };
     control = <LookupField id={id} col={col} lookup={lookup} value={d.value} display={"display" in d ? d.display : undefined} error={error} errId={errId} onChange={(value, display) => onChange({ value, ...(display !== undefined ? { display } : {}) })} />;
   } else if (kind === "longtext") {
@@ -373,6 +403,65 @@ function Field({
         <p id={errId} role="alert" className={fieldError}>
           {error}
         </p>
+      )}
+    </div>
+  );
+}
+
+/** A location or area on the phone record sheet: its value, a map editor and (for points) Use my location. */
+function GeoField({
+  id,
+  col,
+  kind,
+  value,
+  error,
+  errId,
+  accuracyCol,
+  onChange,
+}: {
+  id: string;
+  col: Column;
+  kind: "geo_point" | "geo_area";
+  value: unknown;
+  error: string | undefined;
+  errId: string;
+  accuracyCol?: Column;
+  onChange: (value: unknown, accuracy: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = formatGeoValue(value);
+  return (
+    <div className="space-y-2">
+      {kind === "geo_point" && (
+        <LocateButton
+          prominent
+          onLocated={(lat, lon, accuracy) => onChange(pointGeometry(lat, lon), accuracy)}
+        />
+      )}
+      <button
+        id={id}
+        type="button"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errId : undefined}
+        onClick={() => setOpen(true)}
+        className={`${input} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${shown ? "text-fg" : "text-fg-subtle"}`}>{shown || (kind === "geo_point" ? "Set on map…" : "Draw area…")}</span>
+        <MapPin size={16} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+      </button>
+      {kind === "geo_point" && accuracyCol && <p className={hint}>Use my location also fills {accuracyCol.display_name}.</p>}
+      {open && (
+        <GeoValueDialog
+          kind={kind}
+          fieldName={col.display_name}
+          initial={value}
+          accuracyField={accuracyCol?.display_name}
+          onCancel={() => setOpen(false)}
+          onSave={(v, accuracy) => {
+            setOpen(false);
+            onChange(v, accuracy);
+          }}
+        />
       )}
     </div>
   );
