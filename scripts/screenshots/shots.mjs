@@ -206,16 +206,14 @@ export async function shoot(ctx) {
       await openObject(page, "Record a sighting");
       const form = page.getByRole("group", { name: "Record a sighting", exact: true });
       await form.getByRole("application", { name: "Location map" }).waitFor();
-      // A sighting with photos inside a quarantine zone: walk back from the newest, zooming the map out
-      // a few steps (it opens at street level around the point) until a zone outline is in view.
+      // A sighting with photos inside a quarantine zone (the map fits the zones near the point):
+      // walk back from the newest until one is in view.
       await form.getByRole("button", { name: "Last record" }).click();
       const tiles = form.getByTestId("attachment-tile");
       const zoneInView = () => form.locator("path.abd-overlay").evaluateAll((ps) => ps.some((p) => p.getAttribute("d") !== "M0 0"));
       for (let i = 0; i < 40; i++) {
         await page.waitForTimeout(250);
         if ((await tiles.count()) >= 2) {
-          for (let z = 0; z < 4; z++) await form.getByRole("button", { name: "Zoom out" }).click();
-          await page.waitForTimeout(300);
           if (await zoneInView()) break;
         }
         await form.getByRole("button", { name: "Previous record" }).click();

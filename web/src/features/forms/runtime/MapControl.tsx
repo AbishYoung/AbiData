@@ -8,7 +8,7 @@ import { GeoValueDialog, LocateButton } from "@/components/maps/GeoEditors";
 import { LeafletMap, useGeometryLayer, usePointMarker } from "@/components/maps/LeafletMap";
 import { useOverlay } from "@/components/maps/overlay";
 import { formatGeoValue } from "@/lib/geo/format";
-import { bboxOf, parseGeometry, pointGeometry, pointOf } from "@/lib/geo/geometry";
+import { bboxOf, bboxWithNearby, parseGeometry, pointGeometry, pointOf } from "@/lib/geo/geometry";
 import { accuracyValue } from "@/lib/geo/locate";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import type { FormControl } from "../formsApi";
@@ -54,7 +54,8 @@ export function MapControl({
   const kind: "geo_point" | "geo_area" =
     col?.field_type === "geo_area" || (col === undefined && geometry !== null && geometry.type !== "Point") ? "geo_area" : "geo_point";
   const point = useMemo(() => (kind === "geo_point" ? pointOf(value) : null), [kind, value]);
-  const fit = bboxOf([geometry]) ?? (overlay.shapes && overlay.shapes.length > 0 ? bboxOf(overlay.shapes.map((s) => s.geometry)) : null);
+  const shapes = overlay.shapes?.map((s) => s.geometry) ?? [];
+  const fit = bboxWithNearby(bboxOf([geometry]), shapes) ?? (overlay.shapes && overlay.shapes.length > 0 ? bboxOf(overlay.shapes.map((s) => s.geometry)) : null);
   const fitKey = `${recordKey}|${geometry ? "v" : "-"}|${overlay.shapes ? overlay.shapes.length : "…"}`;
 
   usePointMarker(map, point, {

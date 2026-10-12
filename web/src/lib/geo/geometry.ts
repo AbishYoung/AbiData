@@ -195,6 +195,25 @@ export function bboxOf(geoms: readonly (Geometry | null | undefined)[]): BBox | 
   return Number.isFinite(minLon) ? [minLon, minLat, maxLon, maxLat] : null;
 }
 
+/**
+ * Grows a view to take in the shapes that lie within `km` of it, so a record's
+ * map shows the nearby overlay (for example the zone a sighting is in) rather
+ * than only its own point. Shapes farther away are left out of the view.
+ */
+export function bboxWithNearby(b: BBox | null, shapes: readonly (Geometry | null | undefined)[], km = 5): BBox | null {
+  if (!b) return b;
+  const dLat = km / 111.32;
+  const dLon = dLat / Math.max(Math.cos((((b[1] + b[3]) / 2) * Math.PI) / 180), 0.01);
+  const near: BBox = [b[0] - dLon, b[1] - dLat, b[2] + dLon, b[3] + dLat];
+  let out: BBox = b;
+  for (const g of shapes) {
+    const s = bboxOf([g]);
+    if (!s || s[0] > near[2] || s[2] < near[0] || s[1] > near[3] || s[3] < near[1]) continue;
+    out = [Math.min(out[0], s[0]), Math.min(out[1], s[1]), Math.max(out[2], s[2]), Math.max(out[3], s[3])];
+  }
+  return out;
+}
+
 /** A label position for an area: the centre of its largest polygon's bounding box. */
 export function labelPoint(a: AreaGeometry): LatLon {
   let best: Position[][] | undefined;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addHole, addPart, addVertex, areaFromDraft, draftFromArea, moveVertex, removeVertex, EMPTY_DRAFT } from "./areaDraft";
 import { areaText, formatArea, formatGeoValue, formatMetres, formatPoint } from "./format";
-import { areaM2, bboxOf, parseAreaText, parseGeometry, parseLatLonText, pointGeometry, vertexCount, type AreaGeometry } from "./geometry";
+import { areaM2, bboxOf, bboxWithNearby, parseAreaText, parseGeometry, parseLatLonText, pointGeometry, vertexCount, type AreaGeometry, type BBox, type Geometry } from "./geometry";
 import { fitProjection, formatDegree, graticule, latToTileY, lonToTileX, niceStep, tileLat, tileLon, tileUrl, tileZoom } from "./projection";
 
 const square: AreaGeometry = { type: "Polygon", coordinates: [[[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01], [0, 0]]] };
@@ -144,5 +144,21 @@ describe("projection", () => {
     expect(latToTileY(tileLat(7, 4) - 0.001, 4)).toBe(7);
     expect(tileUrl("https://{s}.t.org/{z}/{x}/{y}{r}.png", 2, 5, 1)).toBe("https://c.t.org/2/1/1.png");
     expect(tileZoom(fitProjection([0, 0, 360 / 16, 1], 256 * 16, 100000, 0))).toBe(8);
+  });
+});
+
+describe("bboxWithNearby", () => {
+  const square = (lon: number, lat: number, d: number): Geometry => ({
+    type: "Polygon",
+    coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]],
+  });
+  it("takes in shapes near the view and leaves far ones out", () => {
+    const point: BBox = [2.0, 47.0, 2.0, 47.0];
+    const out = bboxWithNearby(point, [square(1.99, 46.99, 0.04), square(10, 50, 0.1)]);
+    expect(out).toEqual([1.99, 46.99, 2.03, 47.03]);
+  });
+  it("keeps the view when nothing is near, and null stays null", () => {
+    expect(bboxWithNearby([2, 47, 2, 47], [square(10, 50, 0.1)])).toEqual([2, 47, 2, 47]);
+    expect(bboxWithNearby(null, [square(10, 50, 0.1)])).toBeNull();
   });
 });
