@@ -391,7 +391,7 @@ function GeoEditor({ col, kind, initialValue, accuracyCol, onCommit, onCancel, r
         accuracyField={accuracyCol?.display_name}
         onCancel={onCancel}
         onSave={(value, accuracy) =>
-          onCommit(value, undefined, "stay", accuracyCol && accuracy !== null ? [{ col: accuracyCol, value: accuracyValue(accuracyCol, accuracy) }] : undefined)
+          onCommit(value, undefined, "save", accuracyCol && accuracy !== null ? [{ col: accuracyCol, value: accuracyValue(accuracyCol, accuracy) }] : undefined)
         }
       />
     </>
