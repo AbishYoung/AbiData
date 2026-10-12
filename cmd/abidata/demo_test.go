@@ -155,7 +155,8 @@ func TestSetupCreatesDemoWorkspace(t *testing.T) {
 	if st != 200 {
 		t.Fatalf("schema: %d", st)
 	}
-	want := map[string]int{"Customers": 25, "Products": 20, "Orders": 60, "Employees": 6, "Order lines": 60}
+	want := map[string]int{"Customers": 25, "Products": 20, "Orders": 60, "Employees": 6, "Order lines": 60,
+		"Suppliers": 6, "Species": 6, "Pest sightings": 40, "Quarantine zones": 3}
 	tables := map[string]string{}
 	for _, x := range sch["tables"].([]any) {
 		tm := x.(map[string]any)

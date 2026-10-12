@@ -288,7 +288,7 @@ func serve() error {
 	schedDone := make(chan struct{})
 	go func() { sched.Start(schedCtx); close(schedDone) }()
 
-	demoBuilder := demo.NewBuilder(adm, wm, sched, obs.Subsystem(log, "demo"))
+	demoBuilder := demo.NewBuilder(adm, wm, sched, fileSvc, obs.Subsystem(log, "demo"))
 	var onSetup func(context.Context, admin.User)
 	if cfg.DemoWorkspace {
 		onSetup = func(ctx context.Context, u admin.User) {

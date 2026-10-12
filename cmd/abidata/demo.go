@@ -13,6 +13,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/demo"
+	"abidata/internal/files"
 	"abidata/internal/ids"
 	"abidata/internal/workspace"
 )
@@ -84,7 +85,7 @@ func demoCmd(args []string) error {
 	}
 	defer func() { _ = wm.Shutdown(ctx) }()
 
-	res, err := demo.NewBuilder(adm, wm, nil, slog.Default()).Create(ctx, u.ID)
+	res, err := demo.NewBuilder(adm, wm, nil, &files.Service{DataDir: cfg.DataDir}, slog.Default()).Create(ctx, u.ID)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,10 @@
 // Package demo builds the "Northwind Traders" sample workspace: tables with
-// realistic rows, saved queries, a form, a report, a job script and a
-// scheduled job. It drives the same services the HTTP handlers use, so
+// realistic rows, saved queries, forms, reports, a job script and a
+// scheduled job. It also carries a biosecurity (invasive species) scenario that
+// shows geographic fields and file attachments: suppliers with a map location,
+// species, pest sightings with GPS positions and photos, quarantine zones
+// (polygons, one with a hole), spatial queries, a sighting form with a map, and
+// a report with maps and images. It drives the same services the HTTP handlers use, so
 // validation, audit and row history behave exactly as they do for a user.
 //
 // Content is deterministic (fixed random seed); dates are relative to the
@@ -22,6 +26,7 @@ import (
 
 	"abidata/internal/admin"
 	"abidata/internal/catalog"
+	"abidata/internal/files"
 	"abidata/internal/forms"
 	"abidata/internal/ids"
 	"abidata/internal/jobs"
@@ -34,7 +39,10 @@ import (
 )
 
 // WorkspaceName is the name of the sample workspace; Create does nothing when a
-// workspace with this name already exists.
+// workspace with this name already exists. That includes workspaces created by
+// an earlier version: there is no upgrade path, so only new installs (or a
+// workspace deleted and recreated with `abidata demo`) get the biosecurity
+// scenario. Existing workspaces are never modified.
 const WorkspaceName = "Northwind Traders"
 
 // Builder holds the services the demo is built with. Every field is required.
@@ -49,7 +57,10 @@ type Builder struct {
 	Forms      *forms.Service
 	Reports    *reports.Service
 	Jobs       *jobs.Service
-	Log        *slog.Logger
+	// Files stores the sample photos (ADR 0011). When nil the biosecurity
+	// sightings are created without photos.
+	Files *files.Service
+	Log   *slog.Logger
 	// Now overrides the clock (tests). Zero means time.Now.
 	Now func() time.Time
 }
@@ -59,14 +70,14 @@ type Builder struct {
 // reloads from the workspace file, so sharing the server's cache is not
 // needed). sched may be nil (the `abidata demo` command): the job index is then
 // rebuilt when the server next opens the workspace.
-func NewBuilder(adm *admin.Store, wm *workspace.Manager, sched *jobs.Scheduler, log *slog.Logger) *Builder {
+func NewBuilder(adm *admin.Store, wm *workspace.Manager, sched *jobs.Scheduler, fs *files.Service, log *slog.Logger) *Builder {
 	schemas := catalog.NewCache()
 	rec := &records.Service{Schemas: schemas}
 	qs := &query.Service{Schemas: schemas}
 	ss := &scripts.Service{}
 	runner := script.NewRunner(2, 2)
 	return &Builder{
-		Admin: adm, Workspaces: wm, Schemas: schemas, Records: rec, Queries: qs, Scripts: ss, Log: log,
+		Admin: adm, Workspaces: wm, Schemas: schemas, Records: rec, Queries: qs, Scripts: ss, Files: fs, Log: log,
 		Catalog: &catalog.Engine{
 			Validators:  []catalog.Validator{query.SchemaValidator, forms.SchemaValidator, reports.SchemaValidator},
 			AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) { schemas.Put(l.ID(), s) },
@@ -125,6 +136,11 @@ func (b *Builder) Create(ctx context.Context, ownerID string) (Result, error) {
 
 // retire hides a half-built workspace and frees its name.
 func (b *Builder) retire(ctx context.Context, id ids.WorkspaceID) {
+	if b.Files != nil {
+		if err := b.Files.RemoveBucket(id); err != nil && b.Log != nil {
+			b.Log.Warn("remove sample photos of failed demo workspace", "workspace_id", id, "err", err)
+		}
+	}
 	st := admin.StatusDeleted
 	name := fmt.Sprintf("%s (failed %s)", WorkspaceName, id)
 	if err := b.Admin.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st, Name: &name}); err != nil && b.Log != nil {
@@ -162,6 +178,27 @@ func num(n int64) json.Number { return json.Number(strconv.FormatInt(n, 10)) }
 // money formats cents as a decimal currency string.
 func money(cents int64) string { return fmt.Sprintf("%d.%02d", cents/100, cents%100) }
 
+// Column and table spec helpers shared by the Northwind and biosecurity parts.
+
+func create(name, desc string, cols ...catalog.ColumnSpec) catalog.Op {
+	return catalog.Op{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: name, Description: desc, TrackHistory: true, Columns: cols}}
+}
+
+func text(name string) catalog.ColumnSpec {
+	return catalog.ColumnSpec{DisplayName: name, Type: catalog.ShortText}
+}
+
+func typed(name string, t catalog.FieldType) catalog.ColumnSpec {
+	return catalog.ColumnSpec{DisplayName: name, Type: t}
+}
+
+func lookup(name string, parent tbl, display string) catalog.ColumnSpec {
+	return catalog.ColumnSpec{DisplayName: name, Type: catalog.Lookup,
+		Lookup: &catalog.LookupSpec{ParentTableID: parent.id(), DisplayColumnID: parent.col(display)}}
+}
+
+func required(c catalog.ColumnSpec) catalog.ColumnSpec { c.Required = true; return c }
+
 func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, now time.Time) error {
 	l, err := b.Workspaces.Acquire(ctx, id)
 	if err != nil {
@@ -184,20 +221,6 @@ func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, n
 		}
 		panic("demo: no table " + display)
 	}
-	create := func(name, desc string, cols ...catalog.ColumnSpec) catalog.Op {
-		return catalog.Op{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: name, Description: desc, TrackHistory: true, Columns: cols}}
-	}
-	text := func(name string) catalog.ColumnSpec {
-		return catalog.ColumnSpec{DisplayName: name, Type: catalog.ShortText}
-	}
-	typed := func(name string, t catalog.FieldType) catalog.ColumnSpec {
-		return catalog.ColumnSpec{DisplayName: name, Type: t}
-	}
-	lookup := func(name string, parent tbl, display string) catalog.ColumnSpec {
-		return catalog.ColumnSpec{DisplayName: name, Type: catalog.Lookup,
-			Lookup: &catalog.LookupSpec{ParentTableID: parent.id(), DisplayColumnID: parent.col(display)}}
-	}
-	required := func(c catalog.ColumnSpec) catalog.ColumnSpec { c.Required = true; return c }
 
 	// ---- tables -------------------------------------------------------
 	sch, err := apply(
@@ -434,6 +457,12 @@ func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, n
 	// ---- report -------------------------------------------------------
 	if _, err := b.Reports.Put(ctx, l, "", 0, productReport(prod), owner); err != nil {
 		return fmt.Errorf("create report: %w", err)
+	}
+
+	// ---- biosecurity: geographic fields and attachments ---------------
+	kit := &bioKit{b: b, ctx: ctx, l: l, owner: owner, now: now, apply: apply, table: table, insert: insert}
+	if err := kit.run(); err != nil {
+		return fmt.Errorf("biosecurity: %w", err)
 	}
 
 	// ---- job script and job -------------------------------------------
