@@ -52,6 +52,10 @@ The tokens live in `web/src/styles/tokens.css`, the shared class strings in `web
   - Rows are 32px. Zebra striping is very subtle (`even:bg-surface-2/30`), and hover is `bg-surface-2/60`.
   - The selected row is `bg-accent-soft/60`. The active cell gets a 2px accent outline.
   - Yes/no cells show a check glyph. Lookup cells show their display text, left-aligned.
+- **Attachments** (`features/files`): one `AttachmentManager` serves every place that edits files (datasheet dialog, phone record sheet, form control) and `AttachmentThumbs` shows the count and up to three thumbnails in cells.
+  - Tiles are `surface` cards with a square thumbnail, the name and size, and a row of `iconBtnSm` buttons (earlier, later, download, remove), each with a `Tip` and an `aria-label` that names the file. Reordering is by those buttons or by drag; never by drag alone.
+  - The drop zone is a dashed `border-border-strong` box; on compact screens a full-width primary **Take photo** button leads it. Upload progress is a labelled `progressbar`; a refusal is an inline `role="alert"` row that can be dismissed.
+  - The full-screen viewer is the one place a literal dark overlay with white text is allowed (it shows photos).
 - **Dialogs**:
   - The title row holds a `KindIcon` or semantic icon, the title and a close `iconBtn`.
   - The body is `p-5 space-y-4`.

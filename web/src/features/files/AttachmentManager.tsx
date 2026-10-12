@@ -260,7 +260,7 @@ export function AttachmentManager({ ws, value, onChange, maxFiles, readOnly = fa
               <p className="m-0 truncate text-xs font-medium text-fg">{meta === null ? "File removed" : name}</p>
               {meta && <p className="m-0 text-xs text-fg-muted">{formatBytes(meta.size)}</p>}
             </div>
-            <div className="flex items-center justify-end gap-0.5 p-1">
+            <div className="flex flex-wrap items-center justify-end gap-0.5 p-1">
               {!readOnly && (
                 <>
                   <Tip label={`Move ${name} earlier`}>

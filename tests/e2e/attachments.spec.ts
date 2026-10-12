@@ -166,6 +166,8 @@ test("designer: Attachments type with a tooltip and a files-per-record option", 
 
 test("datasheet: upload, thumbnails, reorder, viewer, download, remove and the limit", async ({ page }) => {
   test.setTimeout(120_000);
+  const requests: string[] = [];
+  page.on("request", (r) => requests.push(r.url()));
   await enter(page);
   const grid = await openSightings(page);
 
@@ -262,6 +264,13 @@ test("datasheet: upload, thumbnails, reorder, viewer, download, remove and the l
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   expect((await storedPhotos(page)).length).toBe(2);
+
+  // File details were looked up in batches (GET /files?ids=), never one request per file.
+  const perFile = requests.filter((u) => /\/files\/[0-9A-Z]{26}$/.test(new URL(u).pathname));
+  const batched = requests.filter((u) => new URL(u).pathname.endsWith("/files") && new URL(u).searchParams.has("ids"));
+  expect(perFile).toEqual([]);
+  expect(batched.length).toBeGreaterThan(0);
+  expect(batched.length).toBeLessThanOrEqual(8);
 });
 
 test("datasheet: a refused upload shows its reason, and history lists file names", async ({ page }) => {
