@@ -10,7 +10,7 @@ AbiData is a self-hosted database application platform for teams, in the spirit 
 
 ## Features
 
-On first setup AbiData creates a **Northwind Traders** sample workspace (employees, customers, products, orders, saved queries, a form, a report and a scheduled job), and every screenshot below comes from it.
+On first setup AbiData creates a **Northwind Traders** sample workspace (employees, customers, products, orders, saved queries, forms, reports and a scheduled job) plus an **invasive species** scenario (supplier farms, sightings with GPS positions and photos, quarantine zones drawn as fences on a map, spatial queries and a report with maps), and every screenshot below comes from it.
 
 ### Data
 
@@ -23,6 +23,21 @@ On first setup AbiData creates a **Northwind Traders** sample workspace (employe
 |---|---|
 | ![Table design](docs/images/table-design.jpg) | ![Import wizard](docs/images/import-wizard.jpg) |
 | Design fields and lookups, then preview and apply | Import CSV, Excel or JSON into a new or existing table |
+
+### Maps, fences and attachments
+
+- **Location and area fields** store a point or a fence (a polygon, with holes if you need them) as GeoJSON. Forms and reports have a **Map** control that draws the value and read-only overlays, such as quarantine zones. On a phone, **Use my location** records the position and its accuracy. Base map tiles are off by default, so nothing about your locations leaves your server unless an administrator sets a tile source.
+- **Spatial queries**: a visual join of points to areas, SQL functions such as `geo_distance_m`, `geo_within` and `geo_area_m2`, and `within` and `near` filters in the API.
+- **Attachments fields** hold photos and documents in a per-workspace file bucket that is included in backups. Forms show a gallery with **Take photo** on phones, and reports can print the first image.
+
+The sample's [invasive species walkthrough](docs/content/guide/example-invasive-species.md) covers recording a sighting on a phone, drawing a zone, the queries, the report and the API calls.
+
+| | |
+|---|---|
+| ![Record a sighting form with a map and photos](docs/images/sighting-form.png) | ![Quarantine zone editor](docs/images/zone-editor.png) |
+| Record a sighting: zones on the map, accuracy and photos | A quarantine zone with a hole, and the sightings around it |
+
+![Biosecurity sightings report with maps and photos](docs/images/biosecurity-report.jpg)
 
 ### Queries
 
@@ -248,7 +263,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 
 - **Go**: `go test -race ./...` covers the server packages, including the demo workspace.
 - **Web**: Vitest unit and component tests in `web/`.
-- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`. `make e2e` builds the web app and the server, starts the server on port 18080 (set `ABIDATA_E2E_PORT` to change it) with a fresh data directory, and runs the desktop suite on Chromium plus the phone suite on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
+- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`. `make e2e` builds the web app and the server, starts the server on port 18080 (set `ABIDATA_E2E_PORT` to change it) with a fresh data directory, plus a second one on the next port that has the Northwind Traders sample workspace for `invasive-species.spec.ts`, and runs the desktop suite on Chromium plus the phone suite on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
 
 ### Screenshots
 
