@@ -40,7 +40,13 @@ Each band has these settings:
 - **Force new page**: the band starts on a new page.
 - **Visible**.
 
-Controls can be a label, a textbox, a line, a rectangle, an image, and three special controls: **Page number**, **Page count** and **Now**. A textbox's **Control source** is **None (caption text)**, **Field**, **Calculation** or **Aggregate**.
+Controls can be a label, a textbox, a line, a rectangle, an image, a map, and three special controls: **Page number**, **Page count** and **Now**. A textbox's **Control source** is **None (caption text)**, **Field**, **Calculation** or **Aggregate**.
+
+A textbox bound to a Location or Area field prints it like the datasheet: `51.50135, -0.14189` or `Area · 12 points · 3.4 km²`.
+
+### Map controls {#maps}
+
+A **Map** control draws a Location or Area field as a small map, fitted to the value, with a latitude/longitude grid. Choose its **Field**, and optionally an **Overlay query** with a **Geo column** and **Label column** to draw, for example, the zones each sighting is compared with. Maps are drawn as vector graphics, so they print sharply. If an administrator has set a map tile server, the map images are shown on screen only; printed pages and PDFs show the grid.
 
 ### Image control {#images}
 

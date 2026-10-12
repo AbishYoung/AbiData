@@ -16,6 +16,7 @@ import {
   type SourceInfo,
   type VisualModel,
 } from "./model";
+import { areaColumns } from "./model";
 
 const TOTALS: { value: GroupFn; label: string }[] = [
   { value: "group_by", label: "Group By" },
@@ -209,6 +210,7 @@ export function QbeGrid({ model, infos, showTotals, onChange, onMove, onRemove, 
                       kind={fieldValueKind(f, infos)}
                       criterion={criterionAt(f, row)}
                       params={model.parameters}
+                      areaRefs={fieldValueKind(f, infos) === "geo_point" ? areaColumns(infos, f.alias) : undefined}
                       onChange={(c) => onCriterion(i, row, c)}
                     />
                   </td>

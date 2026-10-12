@@ -5,7 +5,8 @@ export type Op = components["schemas"]["Op"];
 export type ColumnSpec = components["schemas"]["ColumnSpec"];
 export type ImpactReport = components["schemas"]["ImpactReport"];
 
-export const FIELD_TYPES: readonly { value: string; label: string }[] = [
+/** Field types offered in Table Design; `hint` is the tooltip that explains the type. */
+export const FIELD_TYPES: readonly { value: string; label: string; hint?: string }[] = [
   { value: "short_text", label: "Short text" },
   { value: "long_text", label: "Long text" },
   { value: "integer", label: "Integer" },
@@ -17,17 +18,13 @@ export const FIELD_TYPES: readonly { value: string; label: string }[] = [
   { value: "lookup", label: "Lookup" },
   { value: "hyperlink", label: "Hyperlink" },
   { value: "calculated", label: "Calculated" },
-  { value: "attachments", label: "Attachments" },
+  { value: "geo_point", label: "Geo point", hint: "A location (latitude and longitude), set on a map, by typing or with Use my location" },
+  { value: "geo_area", label: "Geo area (fence)", hint: "An area drawn on a map, such as a zone or boundary; it can have holes and several parts" },
+  { value: "attachments", label: "Attachments", hint: "Photos and documents kept with the record, for example several phone photos of a sighting; you set how many files a record can hold. Cannot be converted to or from another type" },
 ];
 
-/** What a data type is for; shown as a tooltip on the Data type picker. */
-export const FIELD_TYPE_HINTS: Readonly<Record<string, string>> = {
-  attachments:
-    "Attachments: photos and documents kept with the record, for example several phone photos of a sighting. Set how many files a record can hold in the field properties. Cannot be converted to or from another type.",
-};
-
 export function fieldTypeHint(type: string): string | undefined {
-  return FIELD_TYPE_HINTS[type];
+  return FIELD_TYPES.find((t) => t.value === type)?.hint;
 }
 
 export const DEFAULT_MAX_FILES = "20";

@@ -38,6 +38,7 @@ type MeBody struct {
 	User        UserDTO         `json:"user"`
 	CSRFToken   string          `json:"csrf_token"`
 	Memberships []MembershipDTO `json:"memberships"`
+	Maps        MapsSettings    `json:"maps" doc:"Base map tiles; an empty tile_url means maps draw without tiles."`
 }
 
 type meOutput struct {
@@ -60,8 +61,12 @@ func (s *Server) me(ctx context.Context, p auth.Principal) (MeBody, error) {
 		ms = append(ms, MembershipDTO{WorkspaceID: string(a.Workspace.ID), WorkspaceName: a.Workspace.Name,
 			Role: string(a.Role), Status: string(a.Workspace.Status)})
 	}
+	maps, err := LoadMaps(ctx, s.deps.Admin)
+	if err != nil {
+		return MeBody{}, err
+	}
 	return MeBody{User: UserDTO{ID: p.UserID, Email: p.Email, DisplayName: p.DisplayName, IsPlatformAdmin: p.IsPlatformAdmin},
-		CSRFToken: p.CSRFToken, Memberships: ms}, nil
+		CSRFToken: p.CSRFToken, Memberships: ms, Maps: maps}, nil
 }
 
 func userDTO(u admin.User) UserDTO {

@@ -1124,6 +1124,9 @@
           "lookup": {
             "$ref": "#/components/schemas/Lookup"
           },
+          "map": {
+            "$ref": "#/components/schemas/MapOptions"
+          },
           "name": {
             "type": "string"
           },
@@ -1150,6 +1153,7 @@
               "line",
               "rect",
               "subform",
+              "map",
               "attachments"
             ],
             "type": "string"
@@ -2906,6 +2910,43 @@
         ],
         "type": "object"
       },
+      "MapOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "overlay_geo_column": {
+            "description": "Output name of the overlay query's geo column.",
+            "type": "string"
+          },
+          "overlay_label_column": {
+            "description": "Output name of the column used as each overlay shape's label.",
+            "type": "string"
+          },
+          "overlay_query_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MapsSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "description": "Plain-text attribution shown on maps, for example © OpenStreetMap contributors.",
+            "maxLength": 300,
+            "type": "string"
+          },
+          "tile_url": {
+            "description": "Tile URL template with {z}, {x} and {y} (optionally {s} as the first host label, and {r}); https only, or http for localhost. Empty turns tiles off.",
+            "maxLength": 2048,
+            "type": "string"
+          }
+        },
+        "required": [
+          "tile_url",
+          "attribution"
+        ],
+        "type": "object"
+      },
       "Marker": {
         "additionalProperties": false,
         "properties": {
@@ -2947,6 +2988,10 @@
           "csrf_token": {
             "type": "string"
           },
+          "maps": {
+            "$ref": "#/components/schemas/MapsSettings",
+            "description": "Base map tiles; an empty tile_url means maps draw without tiles."
+          },
           "memberships": {
             "items": {
               "$ref": "#/components/schemas/MembershipDTO"
@@ -2963,7 +3008,8 @@
         "required": [
           "user",
           "csrf_token",
-          "memberships"
+          "memberships",
+          "maps"
         ],
         "type": "object"
       },
@@ -4238,6 +4284,9 @@
           "id": {
             "type": "string"
           },
+          "map": {
+            "$ref": "#/components/schemas/MapOptions"
+          },
           "max_images": {
             "format": "int64",
             "type": "integer"
@@ -4260,6 +4309,7 @@
               "page_number",
               "page_count",
               "now",
+              "map",
               "image"
             ],
             "type": "string"
@@ -6142,6 +6192,136 @@
           }
         },
         "summary": "Replace the platform egress policy and allowlist",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/settings/maps": {
+      "get": {
+        "operationId": "adminGetMaps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapsSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "The base map tile settings",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "adminPutMaps",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapsSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapsSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Replace the base map tile settings (an empty tile URL turns tiles off)",
         "tags": [
           "admin"
         ]

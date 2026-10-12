@@ -46,6 +46,9 @@
   display: none;
 }
 @media print {
+  .rv-screen-only {
+    display: none !important;
+  }
   html,
   body {
     height: auto !important;

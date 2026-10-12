@@ -9,6 +9,7 @@ export type AdminUser = components["schemas"]["AdminUserDTO"];
 export type Quota = components["schemas"]["Quota"];
 export type BackupPolicy = components["schemas"]["Policy"];
 export type PlatformEgress = components["schemas"]["Global"];
+export type MapsSettings = components["schemas"]["MapsSettings"];
 
 export const adminKeys = {
   stats: ["admin", "stats"] as const,
@@ -17,6 +18,7 @@ export const adminKeys = {
   users: ["admin", "users"] as const,
   backupPolicy: ["admin", "settings", "backup"] as const,
   egress: ["admin", "settings", "egress"] as const,
+  maps: ["admin", "settings", "maps"] as const,
   settings: ["admin", "settings", "all"] as const,
 };
 
@@ -81,6 +83,14 @@ export async function getEgressPolicy(): Promise<PlatformEgress> {
 
 export async function putEgressPolicy(body: PlatformEgress): Promise<PlatformEgress> {
   return api.requestData((c, init) => c.PUT("/api/v1/admin/settings/egress", { ...init, body }), { label: "Saving egress policy" });
+}
+
+export async function getMaps(): Promise<MapsSettings> {
+  return api.requestData((c, init) => c.GET("/api/v1/admin/settings/maps", init), { label: "Loading map settings" });
+}
+
+export async function putMaps(body: MapsSettings): Promise<MapsSettings> {
+  return api.requestData((c, init) => c.PUT("/api/v1/admin/settings/maps", { ...init, body }), { label: "Saving map settings" });
 }
 
 export async function resetUserPassword(id: string, newPassword: string): Promise<void> {

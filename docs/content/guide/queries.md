@@ -57,7 +57,7 @@ FROM Sightings s JOIN Zones z ON geo_within(s.Spot, z.Fence)
 WHERE geo_distance_m(s.Spot, geo_point(51.5, -0.14)) < 500
 ```
 
-In the visual query model (see the OpenAPI document) a join can have the condition `within`: it keeps pairs where the location field of one source lies inside the area field of the other. A criterion `within` ("is within") compares a location field with an area parameter, a GeoJSON area, or an area field of another source. All of these compile to `geo_within`. Result columns that hold locations or areas are typed `geo_point` and `geo_area` in the response's `column_types`.
+In the designer, choose **Add join** and set **Match rows where** to **Point within area…**: the join keeps pairs where the location field of one source lies inside the area field of the other. It is offered when one column is a Location and the other an Area. For a location field, the criterion **is within** compares it with an area you draw on the map (**Draw area…**), an Area parameter, or an Area field of another source on the canvas. In the visual query model (see the OpenAPI document) these are the join condition `within` and the criterion `within`. All of these compile to `geo_within`. Result columns that hold locations or areas are typed `geo_point` and `geo_area` in the response's `column_types`, and the results grid shows them like the datasheet.
 
 A spatial join compares every location with every area, so it is slow for very large tables on both sides.
 
@@ -65,7 +65,7 @@ A spatial join compares every location with every area, so it is slow for very l
 
 Parameters ask the person running the query for a value, like an Access parameter query.
 
-- In a visual query, open the **Parameters** panel and choose to add a parameter. Give it a **Name** and a **Type**: **Text**, **Whole number**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. Then use the parameter in a criterion. A parameter of type **Area** takes a GeoJSON Polygon or MultiPolygon (see [Locations and areas](#geo)).
+- In a visual query, open the **Parameters** panel and choose to add a parameter. Give it a **Name** and a **Type**: **Text**, **Whole number**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. Then use the parameter in a criterion. A parameter of type **Area** takes a GeoJSON Polygon or MultiPolygon (see [Locations and areas](#geo)); when the query runs, **Draw on map…** lets you draw it.
 - In SQL, write a named placeholder such as `:customer`. The SQL editor finds it and lists it for you to fill in.
 
 When you run the query, a dialog asks for each value. Values are bound to the query, never pasted into the SQL text.

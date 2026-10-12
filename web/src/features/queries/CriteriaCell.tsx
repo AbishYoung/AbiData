@@ -1,4 +1,9 @@
 import { useId, useState } from "react";
+import { Map as MapIcon } from "lucide-react";
+import { AreaEditor, MapDialog } from "@/components/maps/GeoEditors";
+import { formatGeoValue } from "@/lib/geo/format";
+import { areaOf, type AreaGeometry } from "@/lib/geo/geometry";
+import { btnSm } from "@/components/styles";
 import { input } from "@/components/styles";
 import { makeCriterion, opInfo, operatorsFor, kindForOp, valueTexts, type CriterionOp } from "./criteria";
 import { selectClass } from "./Modal";
@@ -51,22 +56,27 @@ function ValueInput({
  * One cell of the criteria grid: an operator, then a typed value, or a declared
  * parameter to ask for when the query runs.
  */
-export function CriteriaCell({
-  label,
-  row,
-  kind,
-  criterion,
-  params,
-  onChange,
-}: {
+type CellProps = {
   /** Names the cell for assistive technology, e.g. "Orders.Qty criteria". */
   label: string;
   row: number;
   kind: ValueKind;
   criterion: Criterion | undefined;
   params: readonly Param[];
+  /** Area columns of other sources that an "is within" criterion may compare with. */
+  areaRefs?: readonly { alias: string; columnId: string; label: string }[];
   onChange: (c: Criterion | null) => void;
-}) {
+};
+
+export function CriteriaCell(props: CellProps) {
+  const { criterion, kind } = props;
+  if (criterion?.op === "within" || kind === "geo_point" || kind === "geo_area") {
+    return <WithinCell label={props.label} row={props.row} criterion={criterion} params={props.params} areaRefs={kind === "geo_area" ? null : (props.areaRefs ?? [])} onChange={props.onChange} />;
+  }
+  return <ScalarCriteriaCell {...props} />;
+}
+
+function ScalarCriteriaCell({ label, row, kind, criterion, params, onChange }: CellProps) {
   const sourceId = useId();
   const op = criterion?.op;
   const arity = op ? opInfo(op).arity : 0;
@@ -147,6 +157,102 @@ export function CriteriaCell({
       )}
       {op && arity === 1 && !usesParam && (
         <ValueInput kind={effKind} label={`${label} value`} value={texts[0] ?? ""} onChange={(v) => setText(0, v)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Criteria for a location field: "is within" an area drawn on a map, an area parameter, or an
+ * area field of a joined source; or is empty / not empty.
+ */
+function WithinCell({
+  label,
+  row,
+  criterion,
+  params,
+  areaRefs,
+  onChange,
+}: {
+  label: string;
+  row: number;
+  criterion: Criterion | undefined;
+  params: readonly Param[];
+  /** Null for an area field: only "is empty" / "is not empty" apply. */
+  areaRefs: readonly { alias: string; columnId: string; label: string }[] | null;
+  onChange: (c: Criterion | null) => void;
+}) {
+  const [drawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState<AreaGeometry | null>(null);
+  const op = criterion?.op;
+  const areaParams = params.filter((p) => p.type === "area");
+  const source = criterion?.param ? `p:${criterion.param}` : criterion?.ref_alias ? `r:${criterion.ref_alias}:${criterion.ref_column_id ?? ""}` : "value";
+  const drawn = areaOf(criterion?.value);
+
+  function chooseOp(v: string): void {
+    if (v === "") onChange(null);
+    else if (v === "within") onChange({ row, op: "within" });
+    else onChange({ row, op: v as Criterion["op"] });
+  }
+
+  function chooseSource(v: string): void {
+    if (v === "value") onChange(drawn ? { row, op: "within", value: drawn } : { row, op: "within" });
+    else if (v.startsWith("p:")) onChange({ row, op: "within", param: v.slice(2) });
+    else {
+      const [, alias, col] = v.split(":");
+      onChange({ row, op: "within", ref_alias: alias ?? "", ref_column_id: col ?? "" });
+    }
+  }
+
+  return (
+    <div className="flex min-w-44 flex-col gap-1">
+      <select aria-label={`${label} operator`} className={selectClass} value={op ?? ""} onChange={(e) => chooseOp(e.target.value)}>
+        <option value="">(none)</option>
+        {areaRefs !== null && <option value="within">is within</option>}
+        <option value="is_null">is empty</option>
+        <option value="not_null">is not empty</option>
+      </select>
+      {op === "within" && (
+        <select aria-label={`${label} area`} className={selectClass} value={source} onChange={(e) => chooseSource(e.target.value)}>
+          <option value="value">an area drawn on a map</option>
+          {areaParams.map((p) => (
+            <option key={p.name} value={`p:${p.name}`}>
+              parameter :{p.name}
+            </option>
+          ))}
+          {(areaRefs ?? []).map((r) => (
+            <option key={`${r.alias}.${r.columnId}`} value={`r:${r.alias}:${r.columnId}`}>
+              area field {r.label}
+            </option>
+          ))}
+        </select>
+      )}
+      {op === "within" && source === "value" && (
+        <button
+          type="button"
+          className={`${btnSm} justify-start`}
+          onClick={() => {
+            setDraft(drawn);
+            setDrawing(true);
+          }}
+        >
+          <MapIcon size={12} aria-hidden="true" />
+          <span className="truncate">{drawn ? formatGeoValue(drawn) : "Draw area…"}</span>
+        </button>
+      )}
+      {drawing && (
+        <MapDialog
+          title={`${label}: is within`}
+          description="Draw the area that matching locations must lie inside."
+          onCancel={() => setDrawing(false)}
+          submitLabel="Use this area"
+          onSubmit={() => {
+            setDrawing(false);
+            onChange(draft ? { row, op: "within", value: draft } : { row, op: "within" });
+          }}
+        >
+          <AreaEditor fieldName="Criteria area" value={drawn} onChange={(a) => setDraft(a)} />
+        </MapDialog>
       )}
     </div>
   );

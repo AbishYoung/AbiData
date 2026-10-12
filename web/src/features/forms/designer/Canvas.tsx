@@ -1,3 +1,4 @@
+import { Map as MapIcon } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { ControlFrame, type DragDelta } from "@/components/designer/ControlFrame";
@@ -62,6 +63,13 @@ function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: str
       return <span className={`${clip} border border-dashed border-fg text-fg-muted`}>Subform</span>;
     case "attachments":
       return <span className={`${clip} rounded border border-dashed border-border-strong bg-surface text-fg-muted`}>Attachments {text}</span>;
+    case "map":
+      return (
+        <span className="flex h-full w-full items-center justify-center gap-1 rounded border border-border-strong/50 bg-surface-2 text-sm text-fg-muted">
+          <MapIcon size={16} aria-hidden="true" />
+          {text || "Map"}
+        </span>
+      );
   }
 }
 

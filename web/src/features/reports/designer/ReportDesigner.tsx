@@ -639,6 +639,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                     control={single}
                     state={state}
                     columns={info.columns}
+                    queries={info.queries}
                     onChange={(c: DesignControl) => update((s) => moveToBand({ ...s, controls: s.controls.map((x) => (x.id === c.id ? c : x)) }, c.id, c.band))}
                   />
                 ) : selection.size > 1 ? (

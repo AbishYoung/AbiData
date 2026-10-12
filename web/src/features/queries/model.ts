@@ -153,6 +153,36 @@ function sameJoin(a: Join, b: Join): boolean {
   );
 }
 
+/** True when one side is a point column and the other an area column: a spatial join fits. */
+export function canSpatialJoin(j: Pick<Join, "left_alias" | "left_column_id" | "right_alias" | "right_column_id">, infos: ReadonlyMap<string, SourceInfo>): boolean {
+  const l = columnInfo(infos, j.left_alias, j.left_column_id)?.kind;
+  const r = columnInfo(infos, j.right_alias, j.right_column_id)?.kind;
+  return (l === "geo_point" && r === "geo_area") || (l === "geo_area" && r === "geo_point");
+}
+
+/** A "point within area" join, oriented point (left) → area (right) as the server expects. */
+export function spatialJoin(j: Join, infos: ReadonlyMap<string, SourceInfo>): Join {
+  if (columnInfo(infos, j.left_alias, j.left_column_id)?.kind === "geo_area") {
+    return { left_alias: j.right_alias, left_column_id: j.right_column_id, right_alias: j.left_alias, right_column_id: j.left_column_id, kind: j.kind, op: "within" };
+  }
+  return { ...j, op: "within" };
+}
+
+/** A join dragged between two columns: a point and an area become a spatial join. */
+export function joinForColumns(j: Join, infos: ReadonlyMap<string, SourceInfo>): Join {
+  return canSpatialJoin(j, infos) ? spatialJoin(j, infos) : j;
+}
+
+/** Area columns of other sources, for an "is within" criterion that compares with a joined area. */
+export function areaColumns(infos: ReadonlyMap<string, SourceInfo>, exceptAlias: string): { alias: string; columnId: string; label: string }[] {
+  const out: { alias: string; columnId: string; label: string }[] = [];
+  for (const info of infos.values()) {
+    if (info.alias === exceptAlias) continue;
+    for (const c of info.columns) if (c.kind === "geo_area") out.push({ alias: info.alias, columnId: c.id, label: `${info.title}.${c.label}` });
+  }
+  return out;
+}
+
 export function addJoin(m: VisualModel, j: Join): VisualModel {
   if (j.left_alias === j.right_alias || m.joins.some((x) => sameJoin(x, j))) return m;
   return { ...m, joins: [...m.joins, j] };
@@ -247,7 +277,7 @@ export function removeParameter(m: VisualModel, index: number): VisualModel {
   return { ...m, parameters: m.parameters.filter((_, i) => i !== index) };
 }
 
-export type ValueKind = "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime";
+export type ValueKind = "text" | "integer" | "number" | "currency" | "yes_no" | "date" | "datetime" | "geo_point" | "geo_area";
 
 export interface ColumnInfo {
   id: string;
@@ -279,6 +309,10 @@ export function valueKindFor(fieldType: string, resultType?: string): ValueKind 
       return "date";
     case "datetime":
       return "datetime";
+    case "geo_point":
+      return "geo_point";
+    case "geo_area":
+      return "geo_area";
     case "calculated":
       return resultType ? valueKindFor(resultType) : "text";
     default:

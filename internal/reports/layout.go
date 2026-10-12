@@ -42,7 +42,7 @@ type Band struct {
 type ReportControl struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
-	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now,image"`
+	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now,map,image"`
 	X         int               `json:"x"`
 	Y         int               `json:"y"`
 	W         int               `json:"w"`
@@ -54,7 +54,8 @@ type ReportControl struct {
 	Calc      *forms.Calc       `json:"calc,omitempty"`
 	Aggregate *Aggregate        `json:"aggregate,omitempty"`
 	// MaxImages is an image control's gallery size: how many of the field's images print (default 1, at most MaxImagesLimit).
-	MaxImages int `json:"max_images,omitempty"`
+	MaxImages int               `json:"max_images,omitempty"`
+	Map       *forms.MapOptions `json:"map,omitempty"`
 }
 
 // Aggregate is a structured aggregate (never parsed from text, D12).
@@ -190,6 +191,21 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 			names[c.Name] = true
 			switch c.Type {
 			case "label", "textbox", "line", "rect", "page_number", "page_count", "now", "image":
+				if c.Map != nil {
+					return bad("%s: only map controls have map settings.", where)
+				}
+			case "map":
+				if c.Bind == nil || c.Calc != nil || c.Aggregate != nil {
+					return bad("%s: a map must be bound to a location or area field.", where)
+				}
+				if t != nil {
+					if col, ok := t.Column(c.Bind.ColumnID); ok && !forms.IsGeoColumn(col) {
+						return bad("%s: a map must be bound to a location or area field.", where)
+					}
+				}
+				if err := forms.ValidateMapOptions(where, c.Map); err != nil {
+					return err
+				}
 			default:
 				return bad("%s has unknown type %q.", where, c.Type)
 			}

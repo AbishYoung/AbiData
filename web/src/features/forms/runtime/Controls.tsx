@@ -12,6 +12,7 @@ import type { FormControl } from "../formsApi";
 import { formatCalcValue, formatNumeric } from "./format";
 import { effectiveProps, type CalcState, type Fields, type Overrides } from "./model";
 import { lookupKeys } from "./sources";
+import { MapControl } from "./MapControl";
 
 export interface ControlActions {
   commit: (control: FormControl, colId: string, value: unknown, display?: string) => Promise<boolean>;
@@ -28,6 +29,8 @@ export interface ControlEnv {
   ws: string;
   columnOf: (colId: string) => Column | undefined;
   columnName: (colId: string) => string | undefined;
+  /** Number field that "Use my location" on a map may fill with the GPS accuracy. */
+  accuracyCol?: Column;
   /** The form accepts edits for this record. */
   editable: boolean;
   overrides: Overrides;
@@ -65,6 +68,7 @@ function posStyle(c: FormControl, fill: boolean, stacked: boolean): CSSPropertie
   if (stacked && !fill) {
     if (c.type === "label") return { position: "relative", width: "100%" };
     if (c.type === "line") return { position: "relative", width: "100%", height: 1 };
+    if (c.type === "map") return { position: "relative", width: "100%", height: Math.max(c.h, 320) };
     return { position: "relative", width: "100%", height: Math.max(c.h, 44) };
   }
   return fill ? { width: "100%", height: "100%" } : { position: "absolute", left: c.x, top: c.y, width: c.w, height: c.h };
@@ -184,6 +188,32 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
             />
             {name}
           </label>
+        </div>
+      );
+    }
+    case "map": {
+      const readOnly = !env.editable || p.locked || !p.enabled || !colId || (col ? isReadOnlyColumn(col) : false);
+      return (
+        <div style={style} data-control-name={c.name}>
+          <MapControl
+            ws={env.ws}
+            control={c}
+            id={id}
+            col={col}
+            value={colId ? fields[colId] : undefined}
+            recordKey={String(recordId ?? "new")}
+            readOnly={readOnly}
+            label={p.caption || (colId ? env.columnName(colId) : undefined) || c.name}
+            error={colId ? env.fieldErrors[colId] : undefined}
+            accuracyCol={env.accuracyCol}
+            onEnter={env.actions.enterRow}
+            onCommit={(value, also) => {
+              if (!colId) return;
+              void env.actions.commit(c, colId, value).then((ok) => {
+                if (ok && also) void env.actions.commit(c, also.col.id, also.value);
+              });
+            }}
+          />
         </div>
       );
     }

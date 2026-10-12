@@ -36,7 +36,7 @@ type Section struct {
 type Control struct {
 	ID       string            `json:"id"`
 	Name     string            `json:"name"`
-	Type     string            `json:"type" enum:"label,textbox,combobox,checkbox,button,line,rect,subform,attachments"`
+	Type     string            `json:"type" enum:"label,textbox,combobox,checkbox,button,line,rect,subform,map,attachments"`
 	X        int               `json:"x"`
 	Y        int               `json:"y"`
 	W        int               `json:"w"`
@@ -52,6 +52,7 @@ type Control struct {
 	Caption  string            `json:"caption,omitempty"`
 	Lookup   *Lookup           `json:"lookup,omitempty"`
 	Subform  *Subform          `json:"subform,omitempty"`
+	Map      *MapOptions       `json:"map,omitempty"`
 	Events   map[string]string `json:"events,omitempty"` // click|before_update|after_update|change → handler
 }
 
@@ -80,11 +81,42 @@ type Subform struct {
 	LinkChildColumnID  string `json:"link_child_column_id"`
 }
 
+// MapOptions configures a map control (ADR 0010): an optional read-only
+// overlay drawn from a saved query's geo column, labelled by another column.
+type MapOptions struct {
+	OverlayQueryID     string `json:"overlay_query_id,omitempty"`
+	OverlayGeoColumn   string `json:"overlay_geo_column,omitempty" doc:"Output name of the overlay query's geo column."`
+	OverlayLabelColumn string `json:"overlay_label_column,omitempty" doc:"Output name of the column used as each overlay shape's label."`
+}
+
+// ValidateMapOptions checks a map control's options; where names the control
+// in messages. Report map controls share it.
+func ValidateMapOptions(where string, m *MapOptions) error {
+	if m == nil {
+		return nil
+	}
+	if len(m.OverlayQueryID) > 64 || len(m.OverlayGeoColumn) > 200 || len(m.OverlayLabelColumn) > 200 {
+		return bad("%s: the map overlay settings are too long.", where)
+	}
+	if m.OverlayQueryID == "" && (m.OverlayGeoColumn != "" || m.OverlayLabelColumn != "") {
+		return bad("%s: choose the overlay query or clear the overlay columns.", where)
+	}
+	if m.OverlayQueryID != "" && m.OverlayGeoColumn == "" {
+		return bad("%s: choose the overlay query's geo column.", where)
+	}
+	return nil
+}
+
+// IsGeoColumn reports whether a catalog column holds a point or an area.
+func IsGeoColumn(c *catalog.Column) bool {
+	return c.Type == catalog.GeoPoint || c.Type == catalog.GeoArea
+}
+
 // Form events and control events (brief <forms>).
 var (
 	FormEvents    = map[string]bool{"load": true, "current": true, "before_insert": true, "before_update": true, "after_update": true, "before_delete": true, "after_delete": true, "close": true}
 	ControlEvents = map[string]bool{"click": true, "before_update": true, "after_update": true, "change": true}
-	controlTypes  = map[string]bool{"label": true, "textbox": true, "combobox": true, "checkbox": true, "button": true, "line": true, "rect": true, "subform": true, "attachments": true}
+	controlTypes  = map[string]bool{"label": true, "textbox": true, "combobox": true, "checkbox": true, "button": true, "line": true, "rect": true, "subform": true, "map": true, "attachments": true}
 	identRe       = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,99}$`)
 	controlNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,62}$`)
 )
@@ -223,6 +255,21 @@ func Validate(l *Layout, src Source, sch *catalog.Schema, formExists func(id str
 					return bad("%s: an attachments control must be bound to an attachments field.", where)
 				}
 			}
+		}
+		if c.Type == "map" {
+			if c.Bind == nil {
+				return bad("%s: a map must be bound to a location or area field.", where)
+			}
+			if src.Table != nil {
+				if col, ok := src.Table.Column(c.Bind.ColumnID); ok && !IsGeoColumn(col) {
+					return bad("%s: a map must be bound to a location or area field.", where)
+				}
+			}
+			if err := ValidateMapOptions(where, c.Map); err != nil {
+				return err
+			}
+		} else if c.Map != nil {
+			return bad("%s: only map controls have map settings.", where)
 		}
 		if c.Type == "subform" {
 			if c.Subform == nil || !formExists(c.Subform.FormID) {

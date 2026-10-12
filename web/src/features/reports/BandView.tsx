@@ -1,7 +1,21 @@
-import { memo } from "react";
+import { createContext, memo, useContext } from "react";
+import { SvgMap } from "@/components/maps/SvgMap";
+import { useOverlay } from "@/components/maps/overlay";
+import { useMapTiles } from "@/components/maps/useMapTiles";
+import { parseGeometry } from "@/lib/geo/geometry";
 import { controlText, type ReportControl, type ReportInstance } from "./paginate";
 import { ReportImages } from "./ReportImages";
 import { controlCss } from "./viewerLogic";
+
+/** The workspace a report runs in (map overlays run saved queries there). */
+export const ReportWsContext = createContext("");
+
+function ReportMap({ control, value }: { control: ReportControl; value: unknown }) {
+  const ws = useContext(ReportWsContext);
+  const overlay = useOverlay(ws, control.map);
+  const tiles = useMapTiles();
+  return <SvgMap width={control.w} height={control.h} geometry={parseGeometry(value)} overlay={overlay.shapes} tiles={tiles} label={control.name} />;
+}
 
 /** One band instance: its controls at their layout positions, relative to the band's top-left. */
 export const BandView = memo(function BandView({
@@ -26,6 +40,13 @@ export const BandView = memo(function BandView({
           return (
             <div key={c.id} className="rv-ctl rv-fixed" style={css}>
               <ReportImages value={instance.values[c.id]} max={c.max_images ?? 1} label={c.name} />
+            </div>
+          );
+        }
+        if (c.type === "map") {
+          return (
+            <div key={c.id} className="rv-ctl rv-fixed" style={{ ...css, height: c.h }}>
+              <ReportMap control={c} value={instance.values[c.id]} />
             </div>
           );
         }

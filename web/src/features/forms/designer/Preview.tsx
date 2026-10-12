@@ -1,3 +1,5 @@
+import { formatGeoValue } from "@/lib/geo/format";
+import { parseGeometry } from "@/lib/geo/geometry";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { btn } from "@/components/styles";
@@ -9,6 +11,7 @@ export type SampleRow = Record<string, string>;
 
 function show(v: unknown): string {
   if (v === null || v === undefined) return "";
+  if (typeof v === "object") return parseGeometry(v) ? formatGeoValue(v) : JSON.stringify(v);
   return typeof v === "string" ? v : String(v);
 }
 
@@ -80,6 +83,9 @@ function PreviewControl({ c, row, columnName }: { c: DesignControl; row: SampleR
       break;
     case "subform":
       inner = <div className="h-full w-full border border-dashed border-fg p-2 text-sm text-fg-muted">Subform (not shown in preview)</div>;
+      break;
+    case "map":
+      inner = <div className="flex h-full w-full items-center justify-center rounded-sm border border-border bg-surface-2 p-2 text-center text-sm text-fg-muted">Map{value ? `: ${value}` : ""}</div>;
       break;
   }
   void columnName;

@@ -23,6 +23,13 @@ import {
   type FormValues,
 } from "./propertyValues";
 import { columnsOfSource } from "./sourceColumns";
+import { guessGeoColumn } from "@/components/maps/overlay";
+
+/** A map binds to a location or area field (query sources do not know their types, so all are offered). */
+function isGeoSource(c: SourceColumn, all: readonly SourceColumn[]): boolean {
+  const typed = all.some((x) => x.fieldType !== "short_text");
+  return !typed || c.fieldType === "geo_point" || c.fieldType === "geo_area";
+}
 import { AreaField, CheckField, Group, SelectField, TextField } from "@/components/designer/fields";
 
 export interface Catalog {
@@ -103,6 +110,13 @@ export function ControlProperties({
     const sub = watch((_values, info) => {
       if (info.type !== "change") return;
       const { control: c, onChange: emit, catalog: cat } = latest.current;
+      if (info.name === "map_overlay_query") {
+        const v = getValues();
+        const cols = cat.queries?.find((q) => q.id === v.map_overlay_query)?.columns ?? [];
+        const geo = guessGeoColumn(cols);
+        setValue("map_overlay_geo", geo);
+        setValue("map_overlay_label", cols.find((c) => c !== geo) ?? "");
+      }
       if (info.name === "lookup_source" || info.name === "lookup_kind") {
         const v = getValues();
         const cols = columnsOfSource(cat.schema, cat.queries, v.lookup_kind, v.lookup_source);
@@ -122,6 +136,7 @@ export function ControlProperties({
   const subformTarget = catalog.forms.find((f) => f.id === v.subform_form);
   const childCols = subformTarget ? columnsOfSource(catalog.schema, catalog.queries, subformTarget.source_kind, subformTarget.source_id ?? "") : [];
   const errors = formState.errors;
+  const overlayCols = catalog.queries?.find((q) => q.id === v.map_overlay_query)?.columns ?? [];
 
   return (
     <form aria-label={`Properties of ${control.name}`} onSubmit={(e) => e.preventDefault()}>
@@ -187,6 +202,7 @@ export function ControlProperties({
               <option value="">Choose a field</option>
               {catalog.columns
                 .filter((c) => control.type !== "attachments" || c.fieldType === "attachments")
+                .filter((c) => !caps.map || isGeoSource(c, catalog.columns))
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -240,6 +256,42 @@ export function ControlProperties({
               </option>
             ))}
           </SelectField>
+        </Group>
+      )}
+      {caps.map && (
+        <Group title="Map overlay">
+          <SelectField
+            label="Overlay query"
+            hint="Optional: a saved query with a location or area column, drawn read-only under the field (for example quarantine zones)."
+            {...register("map_overlay_query")}
+          >
+            <option value="">None</option>
+            {(catalog.queries ?? []).map((q) => (
+              <option key={q.id} value={q.id}>
+                {q.name}
+              </option>
+            ))}
+          </SelectField>
+          {v.map_overlay_query !== "" && (
+            <>
+              <SelectField label="Geo column" hint="The query column holding the points or areas." {...register("map_overlay_geo")}>
+                <option value="">Choose a column</option>
+                {overlayCols.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField label="Label column" hint="Text shown on each overlay shape." {...register("map_overlay_label")}>
+                <option value="">No labels</option>
+                {overlayCols.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </SelectField>
+            </>
+          )}
         </Group>
       )}
       {caps.subform && (

@@ -9,6 +9,8 @@ import { effectiveParams, recallParams, rememberParams } from "@/features/querie
 import { useSavedQuery, type Params } from "@/features/queries/savedQueries";
 import { FilesWorkspaceProvider } from "@/features/files/FileParts";
 import { MeasureLayer } from "./MeasureLayer";
+import { ReportWsContext } from "./BandView";
+import { prefetchOverlays } from "./mapOverlays";
 import { paginate, type ReportInstance } from "./paginate";
 import { ReportViewer } from "./ReportViewer";
 import { runReport, useReport } from "./reportsApi";
@@ -88,6 +90,9 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
       try {
         const got = await runReport(ws, reportId, values, ctl.signal, tick);
         if (ctl.signal.aborted) return;
+        // Map overlays load before layout so the first paint (and print) already shows them.
+        await prefetchOverlays(ws, layoutRef.current);
+        if (ctl.signal.aborted) return;
         setCount(got.length);
         setInstances(got);
         const lay = layoutRef.current;
@@ -156,6 +161,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
 
   return (
     <FilesWorkspaceProvider ws={ws}>
+    <ReportWsContext.Provider value={ws}>
     <div className="flex min-h-0 flex-1 flex-col" data-testid="report-viewer">
       {phase === "prompt" && asking && (
         <ParameterDialog
@@ -219,6 +225,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         />
       )}
     </div>
+    </ReportWsContext.Provider>
     </FilesWorkspaceProvider>
   );
 }

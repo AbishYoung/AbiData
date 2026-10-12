@@ -14,7 +14,7 @@ export const SECTIONS: readonly SectionName[] = ["header", "detail", "footer"];
 export const SECTION_LABEL: Readonly<Record<SectionName, string>> = { header: "Header", detail: "Detail", footer: "Footer" };
 
 export type ControlType = FormControl["type"];
-export const CONTROL_TYPES: readonly ControlType[] = ["label", "textbox", "combobox", "checkbox", "button", "line", "rect", "subform", "attachments"];
+export const CONTROL_TYPES: readonly ControlType[] = ["label", "textbox", "combobox", "checkbox", "button", "line", "rect", "subform", "map", "attachments"];
 export const TYPE_LABEL: Readonly<Record<ControlType, string>> = {
   label: "Label",
   textbox: "Textbox",
@@ -25,6 +25,7 @@ export const TYPE_LABEL: Readonly<Record<ControlType, string>> = {
   rect: "Rectangle",
   subform: "Subform",
   attachments: "Attachments",
+  map: "Map",
 };
 
 export const FORM_EVENTS = ["load", "current", "before_insert", "before_update", "after_update", "before_delete", "after_delete", "close"] as const;
@@ -302,6 +303,7 @@ const DEFAULT_SIZE: Readonly<Record<ControlType, { w: number; h: number }>> = {
   rect: { w: 160, h: 96 },
   subform: { w: 320, h: 160 },
   attachments: { w: 320, h: 192 },
+  map: { w: 320, h: 224 },
 };
 
 function baseControl(s: DesignState, type: ControlType, section: SectionName, x: number, y: number, nameBase: string): DesignControl {
@@ -364,6 +366,7 @@ export interface FieldControlSpec {
 export function fieldControlSpec(col: SourceColumn): FieldControlSpec {
   if (col.fieldType === "attachments") return { type: "attachments", bindColumnId: col.id };
   if (col.fieldType === "yes_no") return { type: "checkbox", bindColumnId: col.id };
+  if (col.fieldType === "geo_point" || col.fieldType === "geo_area") return { type: "map", bindColumnId: col.id };
   if (col.fieldType === "lookup" && col.lookup) {
     return {
       type: "combobox",
@@ -481,6 +484,12 @@ export function validateState(s: DesignState): Issue[] {
     }
     if (c.type === "attachments" && !c.bind) {
       issues.push({ controlId: c.id, message: `${c.name}: choose the attachments field this control shows.` });
+    }
+    if (c.type === "map" && !c.bind) {
+      issues.push({ controlId: c.id, message: `${c.name}: bind the map to a location or area field.` });
+    }
+    if (c.type === "map" && c.map?.overlay_query_id && !c.map.overlay_geo_column) {
+      issues.push({ controlId: c.id, message: `${c.name}: choose the overlay query's geo column.` });
     }
     if (c.type === "subform" && !(c.subform && c.subform.form_id)) {
       issues.push({ controlId: c.id, message: `${c.name}: choose the form to embed.` });

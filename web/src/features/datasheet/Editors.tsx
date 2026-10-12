@@ -8,6 +8,8 @@ import { AttachmentThumbs, useFilesWorkspace } from "@/features/files/FileParts"
 import { maxFilesOf, parseIds } from "@/features/files/filesLogic";
 import { draftOf, isEmpty, parseDraft, type ValueKind } from "./values";
 import { searchParent } from "./rowsApi";
+import { GeoValueDialog } from "@/components/maps/GeoEditors";
+import { accuracyValue } from "@/lib/geo/locate";
 
 /** Where focus goes after an edit is committed. */
 export type Move = "down" | "right" | "left" | "stay" | "save";
@@ -33,7 +35,10 @@ export interface EditorProps {
   lookup?: LookupInfo;
   /** The record cannot be edited: an attachments dialog only shows the files. */
   readOnly?: boolean;
-  onCommit: (value: unknown, display: string | undefined, move: Move) => void;
+  /** A number field that "Use my location" may fill with the GPS accuracy (point fields). */
+  accuracyCol?: Column;
+  /** `also` carries changes to other fields of the record (the GPS accuracy). */
+  onCommit: (value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) => void;
   onCancel: () => void;
   ref?: Ref<EditorHandle>;
 }
@@ -405,11 +410,34 @@ function AttachmentsEditor({ col, initialValue, readOnly, onCommit, onCancel, re
   );
 }
 
+/** Point and area cells edit in a map dialog. */
+function GeoEditor({ col, kind, initialValue, accuracyCol, onCommit, onCancel, ref }: EditorProps) {
+  useImperativeHandle(ref, () => ({ commit: () => true }));
+  return (
+    <>
+      <div className="h-full w-full truncate px-2 leading-7 outline-2 -outline-offset-2 outline-focus" aria-hidden="true" />
+      <GeoValueDialog
+        kind={kind === "geo_area" ? "geo_area" : "geo_point"}
+        fieldName={col.display_name}
+        initial={initialValue}
+        accuracyField={accuracyCol?.display_name}
+        onCancel={onCancel}
+        onSave={(value, accuracy) =>
+          onCommit(value, undefined, "save", accuracyCol && accuracy !== null ? [{ col: accuracyCol, value: accuracyValue(accuracyCol, accuracy) }] : undefined)
+        }
+      />
+    </>
+  );
+}
+
 /** The inline editor for a cell; picks the control that matches the field type. */
 export function CellEditor(props: EditorProps) {
   switch (props.kind) {
     case "attachments":
       return <AttachmentsEditor {...props} />;
+    case "geo_point":
+    case "geo_area":
+      return <GeoEditor {...props} />;
     case "longtext":
       return <LongTextEditor {...props} />;
     case "lookup":

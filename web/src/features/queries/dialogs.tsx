@@ -3,7 +3,7 @@ import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/compone
 import type { Schema } from "@/lib/schema";
 import { Modal, selectClass } from "./Modal";
 import type { Join, JoinKind, NewSource, QField, SourceInfo } from "./model";
-import { blankExprField, blankField } from "./model";
+import { blankExprField, blankField, canSpatialJoin, spatialJoin } from "./model";
 import type { Saved } from "./savedQueries";
 
 function Actions({ children }: { children: ReactNode }) {
@@ -138,6 +138,8 @@ function SourceColumnSelects({
 /** Keyboard alternative to dragging a column onto another: pick both ends and the join kind. */
 export function AddJoinDialog({ infos, onAdd, onClose }: { infos: readonly SourceInfo[]; onAdd: (j: Join) => void; onClose: () => void }) {
   const kindId = useId();
+  const matchId = useId();
+  const [match, setMatch] = useState<"eq" | "within">("eq");
   const [la, setLa] = useState("");
   const [lc, setLc] = useState("");
   const [ra, setRa] = useState("");
@@ -155,14 +157,37 @@ export function AddJoinDialog({ infos, onAdd, onClose }: { infos: readonly Sourc
       setError("A join connects two different boxes. Add the table again to join it to itself.");
       return;
     }
-    onAdd({ left_alias: la, left_column_id: lc, right_alias: ra, right_column_id: rc, kind });
+    const j: Join = { left_alias: la, left_column_id: lc, right_alias: ra, right_column_id: rc, kind };
+    const map = new Map(infos.map((i) => [i.alias, i]));
+    if (match === "within") {
+      if (!canSpatialJoin(j, map)) {
+        setError("Point within area needs a location (point) column on one side and an area column on the other.");
+        return;
+      }
+      onAdd(spatialJoin(j, map));
+      return;
+    }
+    onAdd(j);
   }
+  const spatialOk = la !== "" && ra !== "" && canSpatialJoin({ left_alias: la, left_column_id: lc, right_alias: ra, right_column_id: rc }, new Map(infos.map((i) => [i.alias, i])));
 
   return (
     <Modal title="Add join" description="Rows are matched where the two columns are equal." onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <SourceColumnSelects prefix="Left" infos={infos} alias={la} column={lc} onAlias={setLa} onColumn={setLc} />
         <SourceColumnSelects prefix="Right" infos={infos} alias={ra} column={rc} onAlias={setRa} onColumn={setRc} />
+        <div>
+          <label className={labelClass} htmlFor={matchId}>
+            Match rows where
+          </label>
+          <select id={matchId} className={selectClass} value={match} onChange={(e) => setMatch(e.target.value === "within" ? "within" : "eq")}>
+            <option value="eq">The two columns are equal</option>
+            <option value="within" disabled={!spatialOk}>
+              Point within area (the location lies inside the area)
+            </option>
+          </select>
+          <p className="m-0 mt-1 text-xs text-fg-muted">Point within area is offered when one column is a geo point and the other a geo area.</p>
+        </div>
         <div>
           <label className={labelClass} htmlFor={kindId}>
             Join kind

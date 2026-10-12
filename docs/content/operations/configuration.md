@@ -91,3 +91,14 @@ These are fixed in this version:
 ## Settings that live in the admin console {#console-settings}
 
 Some operator settings are not environment variables because administrators change them while the server runs. The outbound-request allowlist is one of them: no environment variable lets jobs reach the internet, and a fresh install allows nothing. Add hosts under **Settings**, **Outbound requests** in the admin console. See [Security](/docs/operations/security#egress).
+
+### Maps {#maps}
+
+Maps for [location and area fields](/docs/guide/tables#geo) draw a plain latitude/longitude grid by default. They then load nothing from outside the server and work offline. To show a street or satellite map underneath, open **Settings**, **Maps** in the admin console and set:
+
+- **Tile URL template**: an XYZ tile URL containing `{z}`, `{x}` and `{y}`, for example `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. `{s}` may be the first part of the host name for `a`, `b`, `c` subdomains (`{r}` is accepted and left empty). It must use `https://`; `http://` is accepted only for `localhost`.
+- **Attribution**: the credit the provider requires, shown on every map.
+
+While a tile server is set, the server's `Content-Security-Policy` allows images from that one origin (`img-src`); clearing the URL removes it again. People see the change after they reload the page.
+
+With tiles on, every user's browser asks the tile server for the images of the map areas they view. The provider therefore learns roughly where your users are looking, and their IP addresses. For sensitive locations, such as protected species, use a self-hosted tile server or leave tiles off. Check the provider's usage policy too: the public OpenStreetMap servers, for example, are not meant for heavy use.

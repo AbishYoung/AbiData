@@ -114,7 +114,7 @@ export function FieldGrid(props: FieldGridProps) {
                     <option value="autonumber">{fieldTypeLabel("autonumber")}</option>
                   </select>
                 ) : (
-                  <Tip label={fieldTypeHint(f.fieldType) ?? `Data type: ${fieldTypeLabel(f.fieldType)}`}>
+                  <Tip label={fieldTypeHint(f.fieldType) ?? `${fieldTypeLabel(f.fieldType)}. Choose the kind of value the field holds.`}>
                     <select
                       aria-label="Data type"
                       className={input}
@@ -124,7 +124,7 @@ export function FieldGrid(props: FieldGridProps) {
                       onChange={(e) => props.onTypeChange(f.id, e.target.value)}
                     >
                       {FIELD_TYPES.filter((t) => t.value !== "attachments" || f.isNew || placeholder).map((t) => (
-                        <option key={t.value} value={t.value} title={fieldTypeHint(t.value)}>
+                        <option key={t.value} value={t.value} title={t.hint}>
                           {t.label}
                         </option>
                       ))}

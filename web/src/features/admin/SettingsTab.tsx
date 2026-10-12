@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { alertBox, btnPrimary, input } from "@/components/styles";
-import { adminKeys, getAllSettings, getBackupPolicy, getEgressPolicy, putBackupPolicy, type BackupPolicy } from "./adminApi";
+import { adminKeys, getAllSettings, getBackupPolicy, getEgressPolicy, getMaps, putBackupPolicy, type BackupPolicy } from "./adminApi";
+import { MapsSettingsForm } from "./MapsSettingsForm";
 import { EgressPolicyForm } from "./EgressPolicyForm";
 import { ErrorBox, Field, useUnloadGuard } from "./ui";
 
@@ -116,6 +117,7 @@ function StoredSettings() {
 export function SettingsTab() {
   const backup = useQuery({ queryKey: adminKeys.backupPolicy, queryFn: getBackupPolicy });
   const egress = useQuery({ queryKey: adminKeys.egress, queryFn: getEgressPolicy });
+  const maps = useQuery({ queryKey: adminKeys.maps, queryFn: getMaps });
   return (
     <section aria-label="Platform settings" className="flex flex-col gap-8">
       {backup.isError && <ErrorBox error={backup.error} onRetry={() => void backup.refetch()} />}
@@ -135,6 +137,16 @@ export function SettingsTab() {
         !egress.isError && (
           <p role="status" className="m-0 text-fg-muted">
             Loading egress policy…
+          </p>
+        )
+      )}
+      {maps.isError && <ErrorBox error={maps.error} onRetry={() => void maps.refetch()} />}
+      {maps.data ? (
+        <MapsSettingsForm initial={maps.data} />
+      ) : (
+        !maps.isError && (
+          <p role="status" className="m-0 text-fg-muted">
+            Loading map settings…
           </p>
         )
       )}

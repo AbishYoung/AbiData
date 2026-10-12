@@ -13,6 +13,7 @@ import { Modal } from "./Modal";
 import {
   addField,
   addJoin,
+  joinForColumns,
   addParameter,
   addSource,
   blankField,
@@ -112,7 +113,7 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
   }
 
   function addJoinFromCanvas(j: Join): void {
-    edit((m) => addJoin(m, j));
+    edit((m) => addJoin(m, joinForColumns(j, infos)));
   }
 
   async function convert(): Promise<string | null> {

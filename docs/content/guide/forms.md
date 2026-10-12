@@ -33,6 +33,7 @@ The form's **Permissions** group has **Allow edits**, **Allow additions** and **
 | Line, Rectangle | Decoration |
 | Subform | Embeds another form |
 | Attachments | A gallery of the files in an Attachments field; see [Attachments control](#attachments) |
+| Map | Shows and edits a Location or Area field on a map. See [Map controls](#maps) |
 
 The property sheet for a control has these groups: **General** (name, caption and section), **Position and size**, **Behavior** (**Visible**, **Enabled**, **Locked**), **Data**, and **Events**. The **Data** group sets **Control source** to **None (unbound)**, **Bound field** or **Calculation**.
 
@@ -135,6 +136,16 @@ A subform embeds another form, usually to show the child records of the current 
 3. Set **Link master field** to the field on this form, and **Link child field** to the matching field on the embedded form.
 
 The subform shows only records whose child field equals the master field. New records created in it get that value automatically.
+
+## Map controls {#maps}
+
+A **Map** control is bound to a Location or Area field (drag the field from the field list, or add a Map and choose its **Bound field**). On the form it shows the value as text and on a map:
+
+- For a location, click the map or drag the marker to move it, or choose **Use my location**. If the table has a number field whose name contains "accuracy", the GPS accuracy is filled in too.
+- **Edit…** (or **Edit area…**) opens the same editor as the datasheet, where you can type coordinates or draw an area. See [Draw an area](/docs/guide/tables#geo-area-editor).
+- A **Locked** or disabled control, or a form that does not allow edits, shows the map read-only.
+
+In the **Map overlay** group, choose an **Overlay query**: a saved query whose results are drawn underneath, such as the quarantine zones. Set its **Geo column** (the Location or Area column to draw) and optionally a **Label column**. The overlay query runs without parameters, so choose one that needs none.
 
 ## Move around {#navigation}
 

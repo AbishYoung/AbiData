@@ -19,6 +19,8 @@ import { RecordSheet, type FieldChange, type SheetSave } from "./RecordSheet";
 import { ExportDialog } from "@/features/imports/ExportDialog";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
+import { GeoFilterDialog } from "./GeoFilterDialog";
+import { accuracyColumn } from "@/lib/geo/locate";
 import { DeleteDialog } from "./DeleteDialog";
 import type { EditorHandle, LookupInfo, Move } from "./Editors";
 import {
@@ -32,6 +34,7 @@ import {
 } from "./buffer";
 import {
   buildFilter,
+  canFilterBySelection as canSelectFilter,
   nextSort,
   selectionCondition,
   serializeFilter,
@@ -102,6 +105,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [layout, setLayout] = useState<Layout>(() => loadLayout(ws, tableId));
   const [sort, setSort] = useState<SortState | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [geoFilterOpen, setGeoFilterOpen] = useState(false);
   const [historyRow, setHistoryRow] = useState<number | null>(null);
   const [quick, setQuick] = useState("");
   const [appliedQuick, setAppliedQuick] = useState("");
@@ -428,7 +432,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     setEditing({ cell: activeCell, starter, row });
   }
 
-  function commitEdit(value: unknown, display: string | undefined, move: Move) {
+  function commitEdit(value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) {
     const ed = editing;
     if (!ed) return;
     const col = columns[ed.cell.col];
@@ -437,7 +441,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     const key: RowKey | undefined = ed.row ? ed.row.id : canEdit ? "new" : undefined;
     if (col && key !== undefined) {
       updateBuffers((m) => {
-        const next = applyChange(m.get(key), key, ed.row, col, value, display);
+        let next = applyChange(m.get(key), key, ed.row, col, value, display);
+        for (const a of also ?? []) next = applyChange(next, key, ed.row, a.col, a.value);
         if (next) m.set(key, next);
         else m.delete(key);
       });
@@ -612,6 +617,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     const col = columns[activeCell.col];
     const cur = effectiveValue(activeCell);
     if (!col || !cur || activeCell.row >= total) return;
+    if (!canSelectFilter(col, cur.value)) return;
     const cond = selectionCondition(col, cur.value, formatValue(col, cur.value, cur.display));
     setConditions((prev) => [...prev.filter((c) => c.col !== cond.col), cond]);
     resetView();
@@ -668,6 +674,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   // ---- effects --------------------------------------------------------------------------
+  const accuracyCol = useMemo(() => accuracyColumn(allColumns), [allColumns]);
+
   const lookupFor = (col: Column): LookupInfo | undefined => {
     if (col.field_type !== "lookup" || !col.lookup_display_column_id) return undefined;
     const rel = schema.relationships?.find((r) => r.id === col.lookup_relationship_id);
@@ -727,7 +735,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     document.getElementById(cellId(gridId, activeCell.row, activeCell.col))?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [gridId, activeCell.row, activeCell.col, firstIndex, items.length]);
 
-  const canFilterBySelection = activeCell.row < total && rowAt(activeCell.row) !== undefined && columns[activeCell.col] !== undefined;
+  const activeCol = columns[activeCell.col];
+  const canFilterBySelection =
+    activeCell.row < total && rowAt(activeCell.row) !== undefined && activeCol !== undefined && canSelectFilter(activeCol, effectiveValue(activeCell)?.value);
+  const pointColumns = columns.filter((c) => c.field_type === "geo_point");
   const selectedActive = selected.size > 0 || (activeCell.row < total && rowAt(activeCell.row) !== undefined);
 
   return (
@@ -758,10 +769,23 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           if (row) setHistoryRow(row.id);
         }}
         filterRef={filterRef}
+        canGeoFilter={pointColumns.length > 0}
+        onGeoFilter={() => setGeoFilterOpen(true)}
         compact={compact}
         mode={mode}
         onMode={setViewMode}
       />
+      {geoFilterOpen && (
+        <GeoFilterDialog
+          columns={pointColumns}
+          onCancel={() => setGeoFilterOpen(false)}
+          onApply={(cond) => {
+            setGeoFilterOpen(false);
+            setConditions((prev) => [...prev, cond]);
+            resetView();
+          }}
+        />
+      )}
       {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive } }} onClose={() => setExportOpen(false)} />}
       {historyRow !== null && (
         <RowHistoryPanel
@@ -827,6 +851,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         sort={sort}
         canEdit={canEdit}
         lookupFor={lookupFor}
+        accuracyCol={accuracyCol}
         editorRef={editorRef}
         onKeyDown={onKeyDown}
         onCellMouseDown={onCellMouseDown}
@@ -867,6 +892,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           canEdit={canEdit}
           buffer={buffers.get(sheetIndex >= total ? "new" : (rowAt(sheetIndex)?.id ?? -1))}
           lookupFor={lookupFor}
+          accuracyCol={accuracyCol}
           onSave={(changes, base) => {
             // Save against the record as the sheet opened it, so a change made by someone else in the
             // meantime is a conflict instead of being overwritten.
