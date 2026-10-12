@@ -7,6 +7,7 @@ import { ParameterDialog } from "@/features/queries/ParameterDialog";
 import type { ParamType } from "@/features/queries/model";
 import { effectiveParams, recallParams, rememberParams } from "@/features/queries/params";
 import { useSavedQuery, type Params } from "@/features/queries/savedQueries";
+import { FilesWorkspaceProvider } from "@/features/files/FileParts";
 import { MeasureLayer } from "./MeasureLayer";
 import { paginate, type ReportInstance } from "./paginate";
 import { ReportViewer } from "./ReportViewer";
@@ -154,6 +155,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
   if (!def || !layout) return <SkeletonLines rows={6} label="Loading report…" />;
 
   return (
+    <FilesWorkspaceProvider ws={ws}>
     <div className="flex min-h-0 flex-1 flex-col" data-testid="report-viewer">
       {phase === "prompt" && asking && (
         <ParameterDialog
@@ -217,5 +219,6 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         />
       )}
     </div>
+    </FilesWorkspaceProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { controlText, type ReportControl, type ReportInstance } from "./paginate";
+import { ReportImages } from "./ReportImages";
 import { controlCss } from "./viewerLogic";
 
 /** One band instance: its controls at their layout positions, relative to the band's top-left. */
@@ -21,6 +22,13 @@ export const BandView = memo(function BandView({
       {controls.map((c) => {
         const css = controlCss(c, grow);
         if (c.type === "line" || c.type === "rect") return <div key={c.id} className="rv-ctl" style={css} aria-hidden="true" />;
+        if (c.type === "image") {
+          return (
+            <div key={c.id} className="rv-ctl rv-fixed" style={css}>
+              <ReportImages value={instance.values[c.id]} max={c.max_images ?? 1} label={c.name} />
+            </div>
+          );
+        }
         const fixed = !(grow && (c.type === "textbox" || c.type === "label"));
         return (
           <div key={c.id} className={fixed ? "rv-ctl rv-fixed" : "rv-ctl"} style={css}>

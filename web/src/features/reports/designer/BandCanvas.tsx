@@ -89,6 +89,13 @@ function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: str
           [Date and time]
         </span>
       );
+    case "image":
+      return (
+        <span className={`${clip} h-full rounded border border-dashed border-border-strong bg-surface-2 text-fg-muted`}>
+          Image {c.bind ? controlText(c, columnName) : ""}
+          {c.max_images && c.max_images > 1 ? ` × ${c.max_images}` : ""}
+        </span>
+      );
     case "line":
       return <span className="block h-1/2 border-b-2 border-fg" />;
     case "rect":

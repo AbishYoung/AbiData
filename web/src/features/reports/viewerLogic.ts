@@ -40,7 +40,7 @@ export function controlCss(c: ReportControl, grow: boolean): CSSProperties {
     return c.w >= c.h ? { ...css, height: 0, borderTop: "1px solid #000" } : { ...css, width: 0, height: c.h, borderLeft: "1px solid #000" };
   }
   if (c.type === "rect") return { ...css, height: c.h, border: "1px solid #000", boxSizing: "border-box" };
-  if (grow && c.type !== "page_number" && c.type !== "page_count" && c.type !== "now") css.minHeight = c.h;
+  if (grow && c.type !== "page_number" && c.type !== "page_count" && c.type !== "now" && c.type !== "image") css.minHeight = c.h;
   else css.height = c.h;
   const align = s.align ?? s.text_align ?? s["text-align"];
   if (align && ALIGN.has(align)) css.textAlign = align as CSSProperties["textAlign"];

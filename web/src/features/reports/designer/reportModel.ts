@@ -20,9 +20,11 @@ export type { AlignMode, DistributeAxis, PageSetup, SourceColumn };
 export const MAX_BAND_HEIGHT = 2000;
 export const MAX_GROUPS = 8;
 export const MAX_MARGIN = 300;
+/** The most images one image control can print (internal/reports/layout.go MaxImagesLimit). */
+export const MAX_IMAGES = 24;
 
 export type ControlType = ReportControl["type"];
-export const CONTROL_TYPES: readonly ControlType[] = ["label", "textbox", "line", "rect", "page_number", "page_count", "now"];
+export const CONTROL_TYPES: readonly ControlType[] = ["label", "textbox", "line", "rect", "page_number", "page_count", "now", "image"];
 export const TYPE_LABEL: Readonly<Record<ControlType, string>> = {
   label: "Label",
   textbox: "Textbox",
@@ -31,6 +33,7 @@ export const TYPE_LABEL: Readonly<Record<ControlType, string>> = {
   page_number: "Page number",
   page_count: "Page count",
   now: "Date and time",
+  image: "Image",
 };
 
 /** Base for a new control's name (made unique and identifier-safe when added). */
@@ -42,6 +45,7 @@ const NAME_BASE: Readonly<Record<ControlType, string>> = {
   page_number: "PageNumber",
   page_count: "PageCount",
   now: "Now",
+  image: "Image",
 };
 
 export type SourceKind = "table" | "query";
@@ -473,6 +477,7 @@ const DEFAULT_SIZE: Readonly<Record<ControlType, { w: number; h: number }>> = {
   page_number: { w: 56, h: 24 },
   page_count: { w: 56, h: 24 },
   now: { w: 144, h: 24 },
+  image: { w: 160, h: 120 },
 };
 
 /**
@@ -516,9 +521,11 @@ export function addControl(s: ReportState, type: ControlType, band: BandId = "de
  * created, the textbox last.
  */
 export function addField(s: ReportState, col: SourceColumn, band: BandId = "detail", at?: { x: number; y: number }): { state: ReportState; ids: string[] } {
-  const size = DEFAULT_SIZE.textbox;
+  // An attachments field prints as an image control.
+  const type: ControlType = col.fieldType === "attachments" ? "image" : "textbox";
+  const size = DEFAULT_SIZE[type];
   const pos = at ?? nextFreePosition(s, band, size.w);
-  const box = { ...baseControl(s, "textbox", band, pos.x, pos.y, col.name), bind: { column_id: col.id } };
+  const box = { ...baseControl(s, type, band, pos.x, pos.y, col.name), bind: { column_id: col.id } };
   const ids: string[] = [];
   let state = s;
   if (band === "detail" && "page_header" in s.bands) {
@@ -624,6 +631,10 @@ export function validateState(s: ReportState): Issue[] {
     }
     seen.add(key);
     if (c.bind && c.bind.column_id === "") issues.push({ controlId: c.id, message: `${c.name}: choose the field to show.` });
+    if (c.type === "image" && !c.bind) issues.push({ controlId: c.id, message: `${c.name}: choose the attachments field whose images this control prints.` });
+    if (c.type === "image" && c.max_images !== undefined && (c.max_images < 1 || c.max_images > MAX_IMAGES)) {
+      issues.push({ controlId: c.id, message: `${c.name}: show between 1 and ${MAX_IMAGES} images.` });
+    }
     if (c.calc && c.calc.lua_expr.trim() === "") issues.push({ controlId: c.id, message: `${c.name}: enter an expression or remove the calculation.` });
     const a = c.aggregate;
     if (a && a.aggregate !== "count" && !a.column_id) issues.push({ controlId: c.id, message: `${c.name}: choose the field to ${a.aggregate}.` });
@@ -720,10 +731,11 @@ export function withStyle(c: DesignControl, key: StyleKey, value: string): Desig
 }
 
 /** Which property groups a control type offers. */
-export function capabilities(type: ControlType): { caption: boolean; data: boolean; text: boolean } {
+export function capabilities(type: ControlType): { caption: boolean; data: boolean; text: boolean; image: boolean } {
   return {
     caption: type === "label" || type === "textbox",
     data: type === "textbox",
-    text: type !== "line" && type !== "rect",
+    text: type !== "line" && type !== "rect" && type !== "image",
+    image: type === "image",
   };
 }

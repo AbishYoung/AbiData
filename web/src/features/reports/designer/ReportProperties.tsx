@@ -9,6 +9,7 @@ import type { Saved } from "@/features/queries/savedQueries";
 import {
   FORMAT_CHOICES,
   MAX_GROUPS,
+  MAX_IMAGES,
   MAX_MARGIN,
   PAPER_LABEL,
   TYPE_LABEL,
@@ -243,6 +244,41 @@ export function ControlProperties({
               ))}
             </SelectField>
           )}
+        </Group>
+      )}
+      {caps.image && (
+        <Group title="Images">
+          <SelectField
+            label="Attachments field"
+            hint={columns.some((c) => c.fieldType === "attachments") ? undefined : "The record source has no Attachments field. Add one in the table design."}
+            value={control.bind?.column_id ?? ""}
+            onChange={(e) => {
+              const { bind: _b, ...rest } = control;
+              void _b;
+              onChange(e.target.value === "" ? rest : { ...rest, bind: { column_id: e.target.value } });
+            }}
+          >
+            <option value="">Choose a field</option>
+            {columns
+              .filter((c) => c.fieldType === "attachments")
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </SelectField>
+          <NumField
+            label="Images shown"
+            value={control.max_images ?? 1}
+            min={1}
+            max={MAX_IMAGES}
+            hint="1 prints the first image. More prints a gallery of up to that many, filling the control's size."
+            onCommit={(n) => {
+              const { max_images: _m, ...rest } = control;
+              void _m;
+              onChange(n === 1 ? rest : { ...rest, max_images: n });
+            }}
+          />
         </Group>
       )}
       {caps.text && (
