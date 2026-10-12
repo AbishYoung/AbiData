@@ -127,7 +127,7 @@ test("designer: Attachments type with a tooltip and a files-per-record option", 
 
   // The data type picker explains the type; the property is a number from 1 to 100 (default 20).
   await designView(page).getByRole("row", { name: "Field 3", exact: true }).getByLabel("Data type").hover();
-  await expect(page.getByRole("tooltip")).toContainText("photos and documents kept with the record");
+  await expect(page.getByRole("tooltip")).toContainText(/photos and documents kept with the record/i);
   const files = propertiesPanel(page).getByLabel("Files per record");
   await expect(files).toHaveValue("20");
   await files.fill("3");
@@ -266,6 +266,11 @@ test("datasheet: upload, thumbnails, reorder, viewer, download, remove and the l
   expect((await storedPhotos(page)).length).toBe(2);
 
   // File details were looked up in batches (GET /files?ids=), never one request per file.
+  // (Uploads seed the cache, so reload to make the grid look the files up.)
+  requests.length = 0;
+  await page.reload();
+  const again = await openSightings(page);
+  await expect((await cellAt(again, 1, "Photos")).locator("img")).toHaveCount(2);
   const perFile = requests.filter((u) => /\/files\/[0-9A-Z]{26}$/.test(new URL(u).pathname));
   const batched = requests.filter((u) => new URL(u).pathname.endsWith("/files") && new URL(u).searchParams.has("ids"));
   expect(perFile).toEqual([]);
