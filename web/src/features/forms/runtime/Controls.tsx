@@ -6,6 +6,8 @@ import { fetchRows } from "@/features/datasheet/rowsApi";
 import { draftOf, formatValue, isEmpty, isReadOnlyColumn, kindOf, parseDraft } from "@/features/datasheet/values";
 import { runSaved } from "@/features/queries/savedQueries";
 import { btn } from "@/components/styles";
+import { AttachmentManager } from "@/features/files/AttachmentManager";
+import { maxFilesOf, parseIds, toValue } from "@/features/files/filesLogic";
 import type { FormControl } from "../formsApi";
 import { formatCalcValue, formatNumeric } from "./format";
 import { effectiveProps, type CalcState, type Fields, type Overrides } from "./model";
@@ -135,6 +137,26 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
           {env.renderSubform(c, fields)}
         </div>
       );
+    case "attachments": {
+      const readOnly = !env.editable || p.locked || !p.enabled || !colId || (col ? isReadOnlyColumn(col) : false);
+      const name = p.caption || c.caption || (colId ? env.columnName(colId) : undefined) || c.name;
+      const error = colId ? env.fieldErrors[colId] : undefined;
+      return (
+        <div style={style} data-control-name={c.name} className="relative overflow-auto rounded border border-border bg-surface p-1.5" onFocus={env.actions.enterRow}>
+          <AttachmentManager
+            ws={env.ws}
+            value={parseIds(colId ? fields[colId] : undefined)}
+            maxFiles={maxFilesOf(col?.type_options)}
+            readOnly={readOnly}
+            label={name}
+            onChange={(ids) => {
+              if (colId) void env.actions.commit(c, colId, toValue(ids));
+            }}
+          />
+          {error && <ErrorNote id={`${id}-err`} message={error} />}
+        </div>
+      );
+    }
     case "checkbox": {
       const checked = c.calc ? env.calc.values[c.id] === true : colId ? fields[colId] === true : env.overrides[c.name]?.value === true;
       const readOnly = !env.editable || p.locked || !colId || (col ? isReadOnlyColumn(col) : false);
@@ -190,7 +212,8 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
       const calcErr = env.calc.errors[c.id];
       const calcText = c.calc ? (calcErr ? "#Error" : formatCalcValue(env.calc.values[c.id], c.format ?? "")) : undefined;
       const unbound = !colId && !c.calc;
-      const readOnly = !env.editable || p.locked || !!c.calc || unbound || (col ? isReadOnlyColumn(col) : false);
+      // A text box over an attachments field only shows how many files there are.
+      const readOnly = !env.editable || p.locked || !!c.calc || unbound || (col ? isReadOnlyColumn(col) || kindOf(col) === "attachments" : false);
       const value = colId ? (colId === "id" ? recordId : fields[colId]) : env.overrides[c.name]?.value;
       return (
         <div style={style} data-control-name={c.name} className={`relative ${tone}`}>

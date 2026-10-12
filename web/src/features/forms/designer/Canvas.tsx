@@ -60,6 +60,8 @@ function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: str
       return <span className="block h-full w-full border-2 border-fg" />;
     case "subform":
       return <span className={`${clip} border border-dashed border-fg text-fg-muted`}>Subform</span>;
+    case "attachments":
+      return <span className={`${clip} rounded border border-dashed border-border-strong bg-surface text-fg-muted`}>Attachments {text}</span>;
   }
 }
 

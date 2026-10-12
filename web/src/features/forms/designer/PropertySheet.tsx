@@ -165,23 +165,33 @@ export function ControlProperties({
       </Group>
       {caps.data && (
         <Group title="Data">
-          <SelectField label="Control source" {...register("data")}>
-            <option value="none">None (unbound)</option>
-            <option value="field">Field</option>
-            <option value="calc">Calculation</option>
-          </SelectField>
-          {v.data === "field" && (
+          {control.type !== "attachments" && (
+            <SelectField label="Control source" {...register("data")}>
+              <option value="none">None (unbound)</option>
+              <option value="field">Field</option>
+              <option value="calc">Calculation</option>
+            </SelectField>
+          )}
+          {(v.data === "field" || control.type === "attachments") && (
             <SelectField
               label="Bound field"
-              hint={catalog.columns.length === 0 ? "The form has no record source with fields." : undefined}
+              hint={
+                control.type === "attachments" && !catalog.columns.some((c) => c.fieldType === "attachments")
+                  ? "The record source has no Attachments field. Add one in the table design."
+                  : catalog.columns.length === 0
+                    ? "The form has no record source with fields."
+                    : undefined
+              }
               {...register("bind_column")}
             >
               <option value="">Choose a field</option>
-              {catalog.columns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              {catalog.columns
+                .filter((c) => control.type !== "attachments" || c.fieldType === "attachments")
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
             </SelectField>
           )}
           {v.data === "calc" && (

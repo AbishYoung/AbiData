@@ -75,6 +75,9 @@ function PreviewControl({ c, row, columnName }: { c: DesignControl; row: SampleR
     case "rect":
       inner = <div className="h-full w-full border-2 border-fg" />;
       break;
+    case "attachments":
+      inner = <div className="h-full w-full rounded-sm border border-dashed border-border-strong p-2 text-sm text-fg-muted">Attachments (files are shown when the form runs)</div>;
+      break;
     case "subform":
       inner = <div className="h-full w-full border border-dashed border-fg p-2 text-sm text-fg-muted">Subform (not shown in preview)</div>;
       break;

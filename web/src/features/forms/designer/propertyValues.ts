@@ -89,8 +89,10 @@ export function applyValues(c: DesignControl, v: ControlValues): DesignControl {
   if (c.style) next.style = c.style;
   if (v.caption !== "") next.caption = v.caption;
   if (v.format !== "") next.format = v.format;
-  if (v.data === "field" && v.bind_column !== "") next.bind = { column_id: v.bind_column };
-  if (v.data === "calc") next.calc = { lua_expr: v.calc_expr };
+  // An attachments control is always bound to a field.
+  const data = c.type === "attachments" ? "field" : v.data;
+  if (data === "field" && v.bind_column !== "") next.bind = { column_id: v.bind_column };
+  if (data === "calc") next.calc = { lua_expr: v.calc_expr };
   if (c.type === "combobox") {
     next.lookup = {
       ...(v.lookup_kind === "query" ? { source_query_id: v.lookup_source } : { table_id: v.lookup_source }),
@@ -135,6 +137,8 @@ export function controlCapabilities(type: FormControl["type"]): {
       return { caption: true, data: true, format: false, lookup: false, subform: false, events: CONTROL_EVENTS };
     case "subform":
       return { caption: false, data: false, format: false, lookup: false, subform: true, events: [] };
+    case "attachments":
+      return { caption: false, data: true, format: false, lookup: false, subform: false, events: ["before_update", "after_update"] };
     default:
       return { caption: false, data: false, format: false, lookup: false, subform: false, events: [] };
   }

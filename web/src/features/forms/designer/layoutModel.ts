@@ -14,7 +14,7 @@ export const SECTIONS: readonly SectionName[] = ["header", "detail", "footer"];
 export const SECTION_LABEL: Readonly<Record<SectionName, string>> = { header: "Header", detail: "Detail", footer: "Footer" };
 
 export type ControlType = FormControl["type"];
-export const CONTROL_TYPES: readonly ControlType[] = ["label", "textbox", "combobox", "checkbox", "button", "line", "rect", "subform"];
+export const CONTROL_TYPES: readonly ControlType[] = ["label", "textbox", "combobox", "checkbox", "button", "line", "rect", "subform", "attachments"];
 export const TYPE_LABEL: Readonly<Record<ControlType, string>> = {
   label: "Label",
   textbox: "Textbox",
@@ -24,6 +24,7 @@ export const TYPE_LABEL: Readonly<Record<ControlType, string>> = {
   line: "Line",
   rect: "Rectangle",
   subform: "Subform",
+  attachments: "Attachments",
 };
 
 export const FORM_EVENTS = ["load", "current", "before_insert", "before_update", "after_update", "before_delete", "after_delete", "close"] as const;
@@ -300,6 +301,7 @@ const DEFAULT_SIZE: Readonly<Record<ControlType, { w: number; h: number }>> = {
   line: { w: 160, h: 8 },
   rect: { w: 160, h: 96 },
   subform: { w: 320, h: 160 },
+  attachments: { w: 320, h: 192 },
 };
 
 function baseControl(s: DesignState, type: ControlType, section: SectionName, x: number, y: number, nameBase: string): DesignControl {
@@ -360,6 +362,7 @@ export interface FieldControlSpec {
 
 /** yes_no → checkbox; lookup columns with a known parent → combobox with the lookup prefilled; else textbox. */
 export function fieldControlSpec(col: SourceColumn): FieldControlSpec {
+  if (col.fieldType === "attachments") return { type: "attachments", bindColumnId: col.id };
   if (col.fieldType === "yes_no") return { type: "checkbox", bindColumnId: col.id };
   if (col.fieldType === "lookup" && col.lookup) {
     return {
@@ -475,6 +478,9 @@ export function validateState(s: DesignState): Issue[] {
       issues.push({ controlId: c.id, message: `${c.name}: a combobox needs a row source (table or saved query).` });
     } else if (c.type === "combobox" && c.lookup && (!c.lookup.value_column_id || !c.lookup.display_column_id)) {
       issues.push({ controlId: c.id, message: `${c.name}: choose the value and display columns.` });
+    }
+    if (c.type === "attachments" && !c.bind) {
+      issues.push({ controlId: c.id, message: `${c.name}: choose the attachments field this control shows.` });
     }
     if (c.type === "subform" && !(c.subform && c.subform.form_id)) {
       issues.push({ controlId: c.id, message: `${c.name}: choose the form to embed.` });
