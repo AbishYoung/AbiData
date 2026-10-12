@@ -3,6 +3,9 @@ import { Popover } from "radix-ui";
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import type { Column } from "@/lib/schema";
+import { AttachmentsDialog } from "@/features/files/AttachmentsDialog";
+import { AttachmentThumbs, useFilesWorkspace } from "@/features/files/FileParts";
+import { maxFilesOf, parseIds } from "@/features/files/filesLogic";
 import { draftOf, isEmpty, parseDraft, type ValueKind } from "./values";
 import { searchParent } from "./rowsApi";
 
@@ -28,6 +31,8 @@ export interface EditorProps {
   /** Character that started the edit by typing, or null for Enter / F2 / double click. */
   starter: string | null;
   lookup?: LookupInfo;
+  /** The record cannot be edited: an attachments dialog only shows the files. */
+  readOnly?: boolean;
   onCommit: (value: unknown, display: string | undefined, move: Move) => void;
   onCancel: () => void;
   ref?: Ref<EditorHandle>;
@@ -373,9 +378,38 @@ function LookupEditor({ col, initialValue, initialDisplay, starter, lookup, onCo
   );
 }
 
+/** Attachments open the attachment manager in a dialog; the cell keeps showing its thumbnails behind it. */
+function AttachmentsEditor({ col, initialValue, readOnly, onCommit, onCancel, ref }: EditorProps) {
+  const ws = useFilesWorkspace();
+  const ids = parseIds(initialValue);
+  // The dialog is modal, so no other cell can be clicked while it is open; Done / Cancel end the edit.
+  useImperativeHandle(ref, () => ({
+    commit: () => {
+      onCancel();
+      return true;
+    },
+  }));
+  return (
+    <>
+      <AttachmentThumbs ws={ws} ids={ids} />
+      <AttachmentsDialog
+        ws={ws}
+        label={col.display_name}
+        value={ids}
+        maxFiles={maxFilesOf(col.type_options)}
+        readOnly={readOnly === true}
+        onDone={(v) => onCommit(v, undefined, "stay")}
+        onCancel={onCancel}
+      />
+    </>
+  );
+}
+
 /** The inline editor for a cell; picks the control that matches the field type. */
 export function CellEditor(props: EditorProps) {
   switch (props.kind) {
+    case "attachments":
+      return <AttachmentsEditor {...props} />;
     case "longtext":
       return <LongTextEditor {...props} />;
     case "lookup":

@@ -24,7 +24,7 @@ export type FilterNode =
 /** A "filter by selection" condition with a human-readable label. */
 export interface Condition {
   col: string;
-  op: "eq" | "is_null";
+  op: "eq" | "is_null" | "not_null";
   value?: unknown;
   label: string;
 }
@@ -52,7 +52,7 @@ export function buildFilter(quick: string, textCols: readonly string[], conditio
     parts.push({ or: textCols.map((col) => ({ col, op: "contains" as const, value: q })) });
   }
   for (const c of conditions) {
-    parts.push(c.op === "is_null" ? { col: c.col, op: "is_null" } : { col: c.col, op: "eq", value: c.value });
+    parts.push(c.op === "eq" ? { col: c.col, op: "eq", value: c.value } : { col: c.col, op: c.op });
   }
   if (parts.length === 0) return undefined;
   const [first] = parts;
@@ -68,6 +68,8 @@ export function selectionCondition(col: Column, value: unknown, shown: string): 
   if (isEmpty(value)) {
     return { col: col.id, op: "is_null", label: `${col.display_name} is empty` };
   }
+  // A list of files has no single value to compare with.
+  if (kindOf(col) === "attachments") return { col: col.id, op: "not_null", label: `${col.display_name} has files` };
   return { col: col.id, op: "eq", value, label: `${col.display_name} = ${shown}` };
 }
 

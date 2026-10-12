@@ -1,4 +1,5 @@
 import type { Column } from "@/lib/schema";
+import { sameIds, summaryOf } from "@/features/files/filesLogic";
 
 /** How a column's value is shown, edited and serialized. */
 export type ValueKind =
@@ -12,7 +13,8 @@ export type ValueKind =
   | "date"
   | "datetime"
   | "lookup"
-  | "autonumber";
+  | "autonumber"
+  | "attachments";
 
 export type ParseResult = { ok: true; value: unknown } | { ok: false; message: string };
 
@@ -48,6 +50,8 @@ export function kindOf(col: Column): ValueKind {
       return "hyperlink";
     case "lookup":
       return "lookup";
+    case "attachments":
+      return "attachments";
     case "calculated":
       return CALC_KINDS[col.type_options.result_type ?? "text"] ?? "text";
     default:
@@ -65,7 +69,7 @@ export function isNumericKind(kind: ValueKind): boolean {
 }
 
 export function isEmpty(v: unknown): boolean {
-  return v === null || v === undefined || v === "";
+  return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 }
 
 // ---- currency (decimal strings, never floats) -------------------------------
@@ -233,6 +237,8 @@ export function draftOf(col: Column, value: unknown): string {
       return typeof value === "string" ? isoToLocalInput(value) : "";
     case "currency":
       return typeof value === "string" ? value.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "") : String(value);
+    case "attachments":
+      return summaryOf(value);
     default:
       return String(value);
   }
@@ -250,6 +256,8 @@ export function formatValue(col: Column, value: unknown, display?: string): stri
       return typeof value === "string" ? formatCurrency(value) : String(value);
     case "datetime":
       return typeof value === "string" ? formatDateTime(value) : String(value);
+    case "attachments":
+      return summaryOf(value);
     default:
       return String(value);
   }
@@ -268,6 +276,8 @@ export function valuesEqual(col: Column, a: unknown, b: unknown): boolean {
       const y = canonicalDecimal(b);
       return x !== null && y !== null ? x === y : a === b;
     }
+    case "attachments":
+      return sameIds(a, b);
     default:
       return a === b;
   }

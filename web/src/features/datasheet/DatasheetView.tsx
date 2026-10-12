@@ -10,6 +10,7 @@ import { useTabs } from "@/app/tabs";
 import type { Column, Schema, Table } from "@/lib/schema";
 import { alertBox, badge, badgeWarning, btn } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
+import { FilesWorkspaceProvider } from "@/features/files/FileParts";
 import { docFooter } from "@/components/EditorParts";
 import { Grid, HEADER_HEIGHT, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
@@ -408,8 +409,15 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   function startEdit(starter: string | null) {
-    if (!canEdit) return;
     const col = columns[activeCell.col];
+    // Attachments open their dialog on Enter, F2 or a double click (not on typing); viewers see the files.
+    if (col && kindOf(col) === "attachments") {
+      const row = rowAt(activeCell.row);
+      if (starter !== null || (activeCell.row < total && !row)) return;
+      setEditing({ cell: activeCell, starter, row });
+      return;
+    }
+    if (!canEdit) return;
     if (!col || isReadOnlyColumn(col)) return;
     if (kindOf(col) === "boolean") {
       toggleBoolean(activeCell);
@@ -723,6 +731,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const selectedActive = selected.size > 0 || (activeCell.row < total && rowAt(activeCell.row) !== undefined);
 
   return (
+    <FilesWorkspaceProvider ws={ws}>
     <div className="flex min-h-0 flex-1 flex-col">
       <Toolbar
         quick={quick}
@@ -901,5 +910,6 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         />
       )}
     </div>
+    </FilesWorkspaceProvider>
   );
 }

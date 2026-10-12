@@ -1,6 +1,7 @@
 import type { components } from "@/generated/api";
 import type { Column } from "@/lib/schema";
-import { formatValue, valuesEqual } from "@/features/datasheet/values";
+import { formatValue, kindOf, valuesEqual } from "@/features/datasheet/values";
+import { parseIds } from "@/features/files/filesLogic";
 
 export type HistoryItem = components["schemas"]["HistoryItem"];
 
@@ -14,6 +15,9 @@ export interface FieldChange {
   removed: boolean;
   before: string;
   after: string;
+  /** Attachments fields: the file ids before and after, so the panel can show file names. */
+  beforeIds?: string[];
+  afterIds?: string[];
 }
 
 export interface ValueLine {
@@ -21,6 +25,13 @@ export interface ValueLine {
   label: string;
   removed: boolean;
   value: string;
+  /** Attachments fields: the file ids, so the panel can show file names. */
+  ids?: string[];
+}
+
+/** True for an attachments column, whose values are lists of file ids. */
+export function isAttachments(col: Column | undefined): col is Column {
+  return col !== undefined && kindOf(col) === "attachments";
 }
 
 /** Who made a change: a current member's name, a former member, or the system. */
@@ -83,7 +94,12 @@ export function diffFields(
     const y = a[id];
     const same = col ? valuesEqual(col, x, y) : isBlank(x) && isBlank(y) ? true : JSON.stringify(x) === JSON.stringify(y);
     if (same) continue;
-    out.push({ colId: id, label: labelOf(col), removed: !col, before: text(col, x), after: text(col, y) });
+    const change: FieldChange = { colId: id, label: labelOf(col), removed: !col, before: text(col, x), after: text(col, y) };
+    if (isAttachments(col)) {
+      change.beforeIds = parseIds(x);
+      change.afterIds = parseIds(y);
+    }
+    out.push(change);
   }
   return out;
 }
@@ -94,7 +110,9 @@ export function snapshotLines(values: Record<string, unknown> | undefined, colum
   const byId = new Map(columns.map((c) => [c.id, c] as const));
   return sortKeys(Object.keys(v), columns).map((id) => {
     const col = byId.get(id);
-    return { colId: id, label: labelOf(col), removed: !col, value: text(col, v[id]) };
+    const line: ValueLine = { colId: id, label: labelOf(col), removed: !col, value: text(col, v[id]) };
+    if (isAttachments(col)) line.ids = parseIds(v[id]);
+    return line;
   });
 }
 

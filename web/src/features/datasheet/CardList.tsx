@@ -5,6 +5,7 @@ import type { Column } from "@/lib/schema";
 import { badgeWarning, btnPrimary } from "@/components/styles";
 import type { Row } from "./rowsApi";
 import type { RowBuffer, RowKey } from "./buffer";
+import { AttachmentCell } from "@/features/files/FileParts";
 import { formatValue, isEmpty, kindOf } from "./values";
 
 /**
@@ -75,7 +76,11 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                         {preview.map((c) => (
                           <span key={c.id} className="flex gap-1.5 text-sm leading-5">
                             <span className="shrink-0 text-fg-muted">{c.display_name}</span>
-                            <span className="truncate text-fg">{textOf(c, row) || "—"}</span>
+                            {kindOf(c) === "attachments" && textOf(c, row) !== "" ? (
+                              <AttachmentCell value={row.fields[c.id]} />
+                            ) : (
+                              <span className="truncate text-fg">{textOf(c, row) || "—"}</span>
+                            )}
                           </span>
                         ))}
                       </span>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Trash2, TriangleAlert } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { input } from "@/components/styles";
-import { FIELD_TYPES, blankField, fieldTypeLabel, type DraftField } from "./draft";
+import { FIELD_TYPES, blankField, fieldTypeHint, fieldTypeLabel, type DraftField } from "./draft";
 
 export interface FieldGridProps {
   fields: DraftField[];
@@ -114,19 +114,22 @@ export function FieldGrid(props: FieldGridProps) {
                     <option value="autonumber">{fieldTypeLabel("autonumber")}</option>
                   </select>
                 ) : (
-                  <select
-                    aria-label="Data type"
-                    className={input}
-                    value={f.fieldType}
-                    disabled={placeholder}
-                    onChange={(e) => props.onTypeChange(f.id, e.target.value)}
-                  >
-                    {FIELD_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Tip label={fieldTypeHint(f.fieldType) ?? `Data type: ${fieldTypeLabel(f.fieldType)}`}>
+                    <select
+                      aria-label="Data type"
+                      className={input}
+                      value={f.fieldType}
+                      // A saved field cannot become an attachments field, nor stop being one (the server says so too).
+                      disabled={placeholder || (!f.isNew && f.fieldType === "attachments")}
+                      onChange={(e) => props.onTypeChange(f.id, e.target.value)}
+                    >
+                      {FIELD_TYPES.filter((t) => t.value !== "attachments" || f.isNew || placeholder).map((t) => (
+                        <option key={t.value} value={t.value} title={fieldTypeHint(t.value)}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Tip>
                 )}
               </td>
               <td className="px-2 py-1.5">

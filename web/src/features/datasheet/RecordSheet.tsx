@@ -5,6 +5,9 @@ import { ChevronDown, ChevronLeft, ChevronRight, Ellipsis, History, Trash2, X } 
 import type { Column } from "@/lib/schema";
 import { badge, btn, btnPrimary, fieldError, hint, iconBtn, input, label as labelClass, menu, menuItem, textarea } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
+import { AttachmentManager } from "@/features/files/AttachmentManager";
+import { useFilesWorkspace } from "@/features/files/FileParts";
+import { maxFilesOf, parseIds, toValue } from "@/features/files/filesLogic";
 import type { LookupInfo } from "./Editors";
 import type { RowBuffer } from "./buffer";
 import { searchParent, type Row } from "./rowsApi";
@@ -72,6 +75,7 @@ function initialDraft(col: Column, row: Row | undefined): Draft {
   const value = row?.fields[col.id];
   if (kind === "boolean") return { value: value === true ? true : value === false ? false : null };
   if (kind === "lookup") return { value: value ?? null, display: row?.display?.[col.id] };
+  if (kind === "attachments") return { value: toValue(parseIds(value)) };
   return { text: draftOf(col, value) };
 }
 
@@ -93,6 +97,8 @@ export function RecordSheet(props: Props) {
   const [local, setLocal] = useState<{ key: string | number; errors: Record<string, string> }>({ key, errors: {} });
   const [busy, setBusy] = useState(false);
   const [awaitingMerge, setAwaitingMerge] = useState(false);
+  /** A photo is still uploading: saving now would leave it out of the record. */
+  const [uploading, setUploading] = useState(false);
 
   // A different record (or one that finished loading) starts from its own values.
   if (form.key !== key) {
@@ -246,6 +252,7 @@ export function RecordSheet(props: Props) {
                   error={errors[col.id]}
                   lookup={props.lookupFor(col)}
                   onChange={(d) => touch(col.id, d)}
+                  onBusy={setUploading}
                 />
               ))
             )}
@@ -256,8 +263,8 @@ export function RecordSheet(props: Props) {
               <button type="button" className={`${btn} flex-1`} onClick={close}>
                 Cancel
               </button>
-              <button type="submit" form={formId} className={`${btnPrimary} flex-1`} disabled={busy || loading || !dirty}>
-                {busy ? "Saving…" : isNew ? "Add record" : "Save"}
+              <button type="submit" form={formId} className={`${btnPrimary} flex-1`} disabled={busy || loading || !dirty || uploading}>
+                {busy ? "Saving…" : uploading ? "Uploading…" : isNew ? "Add record" : "Save"}
               </button>
             </div>
           )}
@@ -276,6 +283,7 @@ function Field({
   error,
   lookup,
   onChange,
+  onBusy,
 }: {
   id: string;
   col: Column;
@@ -285,10 +293,31 @@ function Field({
   error: string | undefined;
   lookup: LookupInfo | undefined;
   onChange: (d: Draft) => void;
+  onBusy: (busy: boolean) => void;
 }) {
   const kind = kindOf(col);
   const errId = `${id}-err`;
   const readOnly = !canEdit || isReadOnlyColumn(col);
+
+  if (kind === "attachments") {
+    return (
+      <div>
+        <p className={labelClass}>{col.display_name}</p>
+        <PhoneAttachments
+          col={col}
+          value={draft && "value" in draft ? draft.value : row?.fields[col.id]}
+          readOnly={!canEdit}
+          onChange={(ids) => onChange({ value: toValue(ids) })}
+          onBusy={onBusy}
+        />
+        {error && (
+          <p id={errId} role="alert" className={fieldError}>
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   if (readOnly) {
     const value = col.field_type === "autonumber" ? row?.id : row?.fields[col.id];
@@ -375,6 +404,21 @@ function Field({
         </p>
       )}
     </div>
+  );
+}
+
+/** The gallery of an attachments field in the phone record sheet, with Take photo. */
+function PhoneAttachments({ col, value, readOnly, onChange, onBusy }: { col: Column; value: unknown; readOnly: boolean; onChange: (ids: string[]) => void; onBusy: (busy: boolean) => void }) {
+  return (
+    <AttachmentManager
+      ws={useFilesWorkspace()}
+      value={parseIds(value)}
+      onChange={onChange}
+      onBusyChange={onBusy}
+      maxFiles={maxFilesOf(col.type_options)}
+      readOnly={readOnly}
+      label={col.display_name}
+    />
   );
 }
 

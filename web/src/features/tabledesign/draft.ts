@@ -17,7 +17,20 @@ export const FIELD_TYPES: readonly { value: string; label: string }[] = [
   { value: "lookup", label: "Lookup" },
   { value: "hyperlink", label: "Hyperlink" },
   { value: "calculated", label: "Calculated" },
+  { value: "attachments", label: "Attachments" },
 ];
+
+/** What a data type is for; shown as a tooltip on the Data type picker. */
+export const FIELD_TYPE_HINTS: Readonly<Record<string, string>> = {
+  attachments:
+    "Attachments: photos and documents kept with the record, for example several phone photos of a sighting. Set how many files a record can hold in the field properties. Cannot be converted to or from another type.",
+};
+
+export function fieldTypeHint(type: string): string | undefined {
+  return FIELD_TYPE_HINTS[type];
+}
+
+export const DEFAULT_MAX_FILES = "20";
 
 export const RESULT_TYPES: readonly { value: string; label: string }[] = [
   { value: "text", label: "Text" },
@@ -50,6 +63,8 @@ export interface DraftField {
   fieldType: string;
   description: string;
   maxLength: string;
+  /** Attachments: files per record, 1 to 100. */
+  maxFiles: string;
   required: boolean;
   defaultSql: string;
   validationSql: string;
@@ -98,6 +113,7 @@ export function blankField(id: string): DraftField {
     fieldType: "short_text",
     description: "",
     maxLength: DEFAULT_MAX_LENGTH,
+    maxFiles: DEFAULT_MAX_FILES,
     required: false,
     defaultSql: "",
     validationSql: "",
@@ -129,6 +145,7 @@ export function fieldFromColumn(c: Column, schema: Schema): DraftField {
     fieldType: c.field_type,
     description: c.description,
     maxLength: c.type_options.max_length ? String(c.type_options.max_length) : c.field_type === "short_text" ? DEFAULT_MAX_LENGTH : "",
+    maxFiles: c.field_type === "attachments" ? String(c.type_options.max_files || DEFAULT_MAX_FILES) : DEFAULT_MAX_FILES,
     required: c.is_required,
     defaultSql: c.default_sql ?? "",
     validationSql: c.validation_sql ?? "",
@@ -206,7 +223,7 @@ export type IndexedState = "none" | "duplicates_ok" | "unique";
 
 /** Whether the field can take the "Indexed" property (the system ID field is already the primary key). */
 export function isIndexable(f: DraftField): boolean {
-  return f.fieldType !== "autonumber";
+  return f.fieldType !== "autonumber" && f.fieldType !== "attachments";
 }
 
 /** Indexes with exactly this one field. */
@@ -261,6 +278,10 @@ export function indexFieldNames(draft: Draft, x: DraftIndex): string {
 export function withFieldType(f: DraftField, type: string): DraftField {
   const next: DraftField = { ...f, fieldType: type };
   if (type === "short_text") next.maxLength = f.maxLength === "" ? DEFAULT_MAX_LENGTH : f.maxLength;
+  if (type === "attachments") {
+    next.defaultSql = "";
+    next.maxFiles = f.maxFiles === "" ? DEFAULT_MAX_FILES : f.maxFiles;
+  }
   if (type === "calculated") {
     next.required = false;
     next.defaultSql = "";
@@ -282,15 +303,16 @@ export function specFromField(f: DraftField, includeId: boolean): ColumnSpec {
   if (includeId) spec.id = f.id;
   const options: NonNullable<ColumnSpec["type_options"]> = {};
   if (f.fieldType === "short_text") options.max_length = Number.parseInt(f.maxLength, 10) || 255;
+  if (f.fieldType === "attachments") options.max_files = Number.parseInt(f.maxFiles, 10) || 20;
   if (f.fieldType === "calculated") {
     options.expression = trimmed(f.expression);
     options.result_type = f.resultType || "text";
   }
-  if (f.format !== "" && f.fieldType !== "short_text" && f.fieldType !== "calculated") options.format = f.format;
+  if (f.format !== "" && f.fieldType !== "short_text" && f.fieldType !== "calculated" && f.fieldType !== "attachments") options.format = f.format;
   if (Object.keys(options).length > 0) spec.type_options = options;
   if (f.fieldType !== "calculated") {
     spec.is_required = f.required;
-    if (trimmed(f.defaultSql) !== "") spec.default_sql = trimmed(f.defaultSql);
+    if (trimmed(f.defaultSql) !== "" && f.fieldType !== "attachments") spec.default_sql = trimmed(f.defaultSql);
     if (trimmed(f.validationSql) !== "") spec.validation_sql = trimmed(f.validationSql);
     if (trimmed(f.validationText) !== "") spec.validation_text = trimmed(f.validationText);
   }
@@ -473,6 +495,9 @@ export function validateDraft(draft: Draft): DraftErrors {
     if (f.fieldType === "short_text") {
       const n = Number(f.maxLength);
       if (!Number.isInteger(n) || n < 1 || n > 65535) errors.fields[f.id] = "Field size must be a whole number from 1 to 65535.";
+    } else if (f.fieldType === "attachments") {
+      const n = Number(f.maxFiles);
+      if (!Number.isInteger(n) || n < 1 || n > 100) errors.fields[f.id] = "Files per record must be a whole number from 1 to 100.";
     } else if (f.fieldType === "lookup" && f.lookupParentId === "") {
       errors.fields[f.id] = "Choose the table this lookup points to.";
     } else if (f.fieldType === "calculated" && f.expression.trim() === "") {

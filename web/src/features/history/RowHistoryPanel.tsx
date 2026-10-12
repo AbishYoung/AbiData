@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { findTable, useSchema, type Column } from "@/lib/schema";
 import { alertBox, badgeAccent, badgeDanger, badgeSuccess, btn, iconBtn } from "@/components/styles";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
+import { FileNames } from "@/features/files/FileParts";
 import { useRowHistory } from "./historyApi";
 import {
   actorLabel,
@@ -74,7 +75,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
       <>
         <ol aria-label="Changes, newest first" className="m-0 flex list-none flex-col gap-3 p-0">
           {items.map((item) => (
-            <Entry key={item.id} item={item} columns={columns} />
+            <Entry key={item.id} ws={ws} item={item} columns={columns} />
           ))}
         </ol>
         {history.hasNextPage && (
@@ -119,7 +120,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
   );
 }
 
-function Entry({ item, columns }: { item: HistoryItem; columns: readonly Column[] }) {
+function Entry({ ws, item, columns }: { ws: string; item: HistoryItem; columns: readonly Column[] }) {
   return (
     <li className="rounded-xl border border-border bg-surface p-3 shadow-xs" data-testid="history-entry" data-op={item.op}>
       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -131,16 +132,16 @@ function Entry({ item, columns }: { item: HistoryItem; columns: readonly Column[
       </time>
       <div className="mt-2">
         {item.op === "update" ? (
-          <Changes changes={diffFields(item.before, item.after, columns)} />
+          <Changes ws={ws} changes={diffFields(item.before, item.after, columns)} />
         ) : (
-          <Snapshot lines={snapshotLines(item.op === "insert" ? item.after : item.before, columns)} />
+          <Snapshot ws={ws} lines={snapshotLines(item.op === "insert" ? item.after : item.before, columns)} />
         )}
       </div>
     </li>
   );
 }
 
-function Changes({ changes }: { changes: FieldChange[] }) {
+function Changes({ ws, changes }: { ws: string; changes: FieldChange[] }) {
   if (changes.length === 0) return <p className="m-0 text-sm text-fg-muted">No visible field changed.</p>;
   return (
     <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
@@ -148,16 +149,16 @@ function Changes({ changes }: { changes: FieldChange[] }) {
         <li key={c.colId} data-testid="history-change">
           <span className={`font-medium ${c.removed ? "italic" : ""}`}>{c.label}</span>
           {": "}
-          <Text value={c.before} muted />
+          {c.beforeIds ? <Files ws={ws} ids={c.beforeIds} muted /> : <Text value={c.before} muted />}
           <span aria-label="changed to"> → </span>
-          <Text value={c.after} />
+          {c.afterIds ? <Files ws={ws} ids={c.afterIds} /> : <Text value={c.after} />}
         </li>
       ))}
     </ul>
   );
 }
 
-function Snapshot({ lines }: { lines: ValueLine[] }) {
+function Snapshot({ ws, lines }: { ws: string; lines: ValueLine[] }) {
   if (lines.length === 0) return <p className="m-0 text-sm text-fg-muted">No values were recorded.</p>;
   return (
     <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
@@ -165,10 +166,20 @@ function Snapshot({ lines }: { lines: ValueLine[] }) {
         <li key={l.colId}>
           <span className={`font-medium ${l.removed ? "italic" : ""}`}>{l.label}</span>
           {": "}
-          <Text value={l.value} />
+          {l.ids ? <Files ws={ws} ids={l.ids} /> : <Text value={l.value} />}
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The files of an attachments value by name; a file that has been purged shows "file removed". */
+function Files({ ws, ids, muted }: { ws: string; ids: string[]; muted?: boolean }) {
+  if (ids.length === 0) return <span className={muted ? "text-fg-muted" : ""}>(empty)</span>;
+  return (
+    <span className={`break-words ${muted ? "text-fg-muted" : ""}`}>
+      <FileNames ws={ws} ids={ids} />
+    </span>
   );
 }
 

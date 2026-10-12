@@ -4,7 +4,7 @@ import { input, label as labelClass } from "@/components/styles";
 import type { Schema } from "@/lib/schema";
 import { DELETE_RULES, RESULT_TYPES, fieldTypeLabel, type DraftField, type IndexedState } from "./draft";
 
-type TextKey = "maxLength" | "defaultSql" | "validationSql" | "validationText" | "expression" | "lookupDisplayId" | "resultType";
+type TextKey = "maxLength" | "maxFiles" | "defaultSql" | "validationSql" | "validationText" | "expression" | "lookupDisplayId" | "resultType";
 type BoolKey = "required" | "hidden" | "lookupEnforce";
 
 const hint = "m-0 mt-1 text-sm text-fg-muted";
@@ -66,6 +66,18 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
           </label>
           <input id={id("max")} inputMode="numeric" className={input} {...text("maxLength")} />
           <p className={hint}>Maximum number of characters, 1 to 65535.</p>
+        </div>
+      )}
+
+      {type === "attachments" && (
+        <div>
+          <label className={labelClass} htmlFor={id("files")}>
+            Files per record
+          </label>
+          <input id={id("files")} inputMode="numeric" className={input} aria-describedby={id("files-hint")} {...text("maxFiles")} />
+          <p id={id("files-hint")} className={hint}>
+            1 to 100; the default is 20. Use 1 for a single document. Each file can be at most 25 MiB unless your administrator changed the limit.
+          </p>
         </div>
       )}
 
@@ -165,13 +177,15 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
               Required
             </label>
           </div>
-          <div>
-            <label className={labelClass} htmlFor={id("default")}>
-              Default value
-            </label>
-            <input id={id("default")} className={`${input} font-mono`} {...text("defaultSql")} />
-            <p className={hint}>A fixed SQL value such as 0 or &apos;New&apos;.</p>
-          </div>
+          {type !== "attachments" && (
+            <div>
+              <label className={labelClass} htmlFor={id("default")}>
+                Default value
+              </label>
+              <input id={id("default")} className={`${input} font-mono`} {...text("defaultSql")} />
+              <p className={hint}>A fixed SQL value such as 0 or &apos;New&apos;.</p>
+            </div>
+          )}
           <div>
             <label className={labelClass} htmlFor={id("rule-sql")}>
               Validation rule
@@ -189,6 +203,7 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
         </>
       )}
 
+      {type !== "attachments" && (
       <div>
         <label className={labelClass} htmlFor={id("indexed")}>
           Indexed
@@ -212,6 +227,7 @@ export function FieldProperties({ field, schema, onChange, indexed, inMultiField
           {inMultiFieldIndex ? " This field is also part of a multi-field index; change that under Indexes." : ""}
         </p>
       </div>
+      )}
 
       <div className="flex items-center gap-2">
         <input id={id("hidden")} type="checkbox" {...flag("hidden")} />

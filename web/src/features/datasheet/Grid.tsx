@@ -13,6 +13,7 @@ import {
 import type { Column } from "@/lib/schema";
 import { Tip } from "@/components/Tip";
 import { menu, menuItem } from "@/components/styles";
+import { AttachmentCell } from "@/features/files/FileParts";
 import { CellEditor, type EditorHandle, type LookupInfo, type Move } from "./Editors";
 import type { Cell } from "./nav";
 import type { RowBuffer, RowKey } from "./buffer";
@@ -284,6 +285,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
           initialDisplay={display}
           starter={editing.starter}
           lookup={props.lookupFor(col)}
+          readOnly={readOnly}
           onCommit={props.onCommit}
           onCancel={props.onCancel}
         />
@@ -310,6 +312,8 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
           />
         </span>
       );
+    } else if (kind === "attachments") {
+      body = <AttachmentCell value={value} />;
     } else if (kind === "hyperlink" && typeof value === "string" && value !== "") {
       body = (
         <a href={value} target="_blank" rel="noreferrer noopener" tabIndex={-1} className="truncate text-accent underline">
