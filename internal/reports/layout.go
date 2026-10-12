@@ -42,7 +42,7 @@ type Band struct {
 type ReportControl struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
-	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now"`
+	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now,image"`
 	X         int               `json:"x"`
 	Y         int               `json:"y"`
 	W         int               `json:"w"`
@@ -53,6 +53,8 @@ type ReportControl struct {
 	Bind      *forms.Bind       `json:"bind,omitempty"`
 	Calc      *forms.Calc       `json:"calc,omitempty"`
 	Aggregate *Aggregate        `json:"aggregate,omitempty"`
+	// MaxImages is an image control's gallery size: how many of the field's images print (default 1, at most MaxImagesLimit).
+	MaxImages int `json:"max_images,omitempty"`
 }
 
 // Aggregate is a structured aggregate (never parsed from text, D12).
@@ -94,6 +96,8 @@ var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,62}$`)
 const (
 	MaxGroups = 8
 	maxBand   = 2000
+	// MaxImagesLimit is the most images one image control can show.
+	MaxImagesLimit = 24
 )
 
 func bad(format string, args ...any) error { return fault.Newf(fault.BadRequest, format, args...) }
@@ -185,7 +189,7 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 			}
 			names[c.Name] = true
 			switch c.Type {
-			case "label", "textbox", "line", "rect", "page_number", "page_count", "now":
+			case "label", "textbox", "line", "rect", "page_number", "page_count", "now", "image":
 			default:
 				return bad("%s has unknown type %q.", where, c.Type)
 			}
@@ -226,6 +230,20 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 			}
 			if n > 1 {
 				return bad("%s can only have one of bind, calc or aggregate.", where)
+			}
+			if c.MaxImages < 0 || c.MaxImages > MaxImagesLimit {
+				return bad("%s: show between 1 and %d images.", where, MaxImagesLimit)
+			}
+			if c.Type == "image" {
+				// ADR 0011: shows the images of an attachments field.
+				if c.Bind == nil {
+					return bad("%s: an image control must be bound to an attachments field.", where)
+				}
+				if t != nil {
+					if col, ok := t.Column(c.Bind.ColumnID); !ok || col.Type != catalog.Attachments {
+						return bad("%s: an image control must be bound to an attachments field.", where)
+					}
+				}
 			}
 		}
 	}

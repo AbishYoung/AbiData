@@ -36,7 +36,7 @@ type Section struct {
 type Control struct {
 	ID       string            `json:"id"`
 	Name     string            `json:"name"`
-	Type     string            `json:"type" enum:"label,textbox,combobox,checkbox,button,line,rect,subform"`
+	Type     string            `json:"type" enum:"label,textbox,combobox,checkbox,button,line,rect,subform,attachments"`
 	X        int               `json:"x"`
 	Y        int               `json:"y"`
 	W        int               `json:"w"`
@@ -84,7 +84,7 @@ type Subform struct {
 var (
 	FormEvents    = map[string]bool{"load": true, "current": true, "before_insert": true, "before_update": true, "after_update": true, "before_delete": true, "after_delete": true, "close": true}
 	ControlEvents = map[string]bool{"click": true, "before_update": true, "after_update": true, "change": true}
-	controlTypes  = map[string]bool{"label": true, "textbox": true, "combobox": true, "checkbox": true, "button": true, "line": true, "rect": true, "subform": true}
+	controlTypes  = map[string]bool{"label": true, "textbox": true, "combobox": true, "checkbox": true, "button": true, "line": true, "rect": true, "subform": true, "attachments": true}
 	identRe       = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,99}$`)
 	controlNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,62}$`)
 )
@@ -211,6 +211,17 @@ func Validate(l *Layout, src Source, sch *catalog.Schema, formExists func(id str
 				}
 			} else if c.Lookup.SourceQueryID == "" {
 				return bad("%s: a combo box needs a table or query row source.", where)
+			}
+		}
+		if c.Type == "attachments" {
+			// ADR 0011: a gallery bound to an attachments field of the record source.
+			if c.Bind == nil || c.Calc != nil {
+				return bad("%s: an attachments control must be bound to an attachments field.", where)
+			}
+			if src.Table != nil {
+				if col, ok := src.Table.Column(c.Bind.ColumnID); !ok || col.Type != catalog.Attachments {
+					return bad("%s: an attachments control must be bound to an attachments field.", where)
+				}
 			}
 		}
 		if c.Type == "subform" {

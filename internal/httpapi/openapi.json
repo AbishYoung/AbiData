@@ -1149,7 +1149,8 @@
               "button",
               "line",
               "rect",
-              "subform"
+              "subform",
+              "attachments"
             ],
             "type": "string"
           },
@@ -4237,6 +4238,10 @@
           "id": {
             "type": "string"
           },
+          "max_images": {
+            "format": "int64",
+            "type": "integer"
+          },
           "name": {
             "type": "string"
           },
@@ -4254,7 +4259,8 @@
               "rect",
               "page_number",
               "page_count",
-              "now"
+              "now",
+              "image"
             ],
             "type": "string"
           },

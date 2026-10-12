@@ -1659,7 +1659,7 @@ export interface components {
             /** Format: int64 */
             tab_index: number;
             /** @enum {string} */
-            type: "label" | "textbox" | "combobox" | "checkbox" | "button" | "line" | "rect" | "subform";
+            type: "label" | "textbox" | "combobox" | "checkbox" | "button" | "line" | "rect" | "subform" | "attachments";
             visible?: boolean;
             /** Format: int64 */
             w: number;
@@ -2488,12 +2488,14 @@ export interface components {
             /** Format: int64 */
             h: number;
             id: string;
+            /** Format: int64 */
+            max_images?: number;
             name: string;
             style?: {
                 [key: string]: string;
             };
             /** @enum {string} */
-            type: "label" | "textbox" | "line" | "rect" | "page_number" | "page_count" | "now";
+            type: "label" | "textbox" | "line" | "rect" | "page_number" | "page_count" | "now" | "image";
             /** Format: int64 */
             w: number;
             /** Format: int64 */
