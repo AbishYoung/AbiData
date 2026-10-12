@@ -100,3 +100,12 @@ The server side is built as decided, with these details and deviations:
 - **Lua:** also provides `geo.lat` and `geo.lon`; `geo.bbox` returns a list.
 - **Workspace portability:** a calculated field that uses `geo_*` cannot be read by stock sqlite3 tools; the stored GeoJSON text can.
 - **Deferred from this step:** CSV mapping from two numeric columns, GeoJSON FeatureCollection import/export, CSV/GeoJSON export, and everything under Maps in the browser and Where geo appears in the UI.
+
+The browser side (maps, editors, controls, tile setting) followed with these details and deviations:
+- **The tile setting reaches users through `GET /auth/me`** (`maps: {tile_url, attribution}`), not a separate endpoint, since every page already loads it. The admin endpoint is `GET/PUT /admin/settings/maps`; the value is stored in `_adm_settings` (`maps_tiles`) and re-validated when loaded, so a hand-edited bad value never widens the CSP.
+- **The CSP is built per server and cached;** it changes on save. A page keeps the CSP it was loaded with, so users reload to see tiles appear or disappear. `{s}` becomes a `*.` wildcard for that host only; `{r}` is accepted and left empty.
+- **Accuracy field:** "fills an accuracy field" means a number or integer field whose name contains "accuracy". The editor offers it with a checkbox (ticked by default) rather than filling it silently.
+- **Area editor extras:** **Add part** (a second polygon, so MultiPolygons can be drawn), **Undo**, and a **Corners** list of latitude/longitude inputs as the keyboard alternative to drawing. GeoJSON is pasted, not imported from a file.
+- **Datasheet:** saving the map dialog saves the row at once (the dialog is the edit). The filter UI is a **Location filter…** dialog; **Filter by selection** on a point means "within 1 m".
+- **Overlays run without parameters** and draw every row the query returns, labelled by an optional column. A report prefetches its overlays before laying out pages so the first paint and print include them.
+- **Report tiles are approximate:** the report map uses an equirectangular projection (longitude scaled by cos of the centre latitude), so Web Mercator tiles are stretched to fit, are drawn on screen only, and are capped at 48 per map. Printing shows the graticule.

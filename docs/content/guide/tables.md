@@ -38,12 +38,12 @@ Each field has a field name (what people see) and an SQL name (used in queries a
 | Lookup | A link to a record in another table | See [Relationships and lookups](#lookups) |
 | Hyperlink | Text starting with `http://` or `https://` | |
 | Calculated | A value computed from other fields | Read-only; see [Calculated fields](#calculated) |
-| Location | One point on the Earth (latitude, longitude) | See [Locations and areas](#geo) |
-| Area | A boundary: a polygon, with holes if needed, or several polygons | See [Locations and areas](#geo) |
+| Geo point (Location) | One point on the Earth (latitude, longitude) | See [Locations and areas](#geo) |
+| Geo area (fence) | A boundary: a polygon, with holes if needed, or several polygons | See [Locations and areas](#geo) |
 
 ## Locations and areas {#geo}
 
-A **Location** field holds one point and an **Area** field holds a boundary such as a quarantine zone or a survey area. Both are stored as standard [GeoJSON](https://geojson.org) text, in WGS84 with the longitude first, so scripts, exports and the API can read them directly. Use an ordinary number field for anything about the position, such as GPS accuracy.
+A **Location** field (data type **Geo point**) holds one point and an **Area** field (data type **Geo area (fence)**) holds a boundary such as a quarantine zone or a survey area. Both are stored as standard [GeoJSON](https://geojson.org) text, in WGS84 with the longitude first, so scripts, exports and the API can read them directly. Use an ordinary number field for anything about the position, such as GPS accuracy.
 
 - **Where values come from.** The API and scripts accept GeoJSON. A location also accepts `{"lat": 51.50135, "lon": -0.14189}` and the text `51.50135, -0.14189`, and an import maps text such as `51.50135, -0.14189`, `POINT(-0.14189 51.50135)` or GeoJSON into a Location. A GeoJSON `Feature` is accepted anywhere a geometry is: its geometry is used.
 - **What is stored.** Coordinates are rounded to 7 decimal places (about 1 cm). Rings are closed, outer rings are stored counter-clockwise and holes clockwise. A location may carry an altitude as a third coordinate; it is kept.
@@ -51,6 +51,46 @@ A **Location** field holds one point and an **Area** field holds a boundary such
 - **The 180° meridian.** Areas that cross the 180° meridian are not supported and are rejected. Draw such an area as a MultiPolygon with one polygon on each side of the meridian.
 - **No spatial index.** Spatial filters and joins scan the table, which is fine for tens of thousands of locations. A spatial join compares every location with every area, so keep both sides modest.
 - **Changing the type.** A Location or Area can be changed to short or long text (a location becomes `lat, lon`, an area becomes its GeoJSON) and back, as long as the text is valid. Changing to or from any other type, or between Location and Area, is reported as a breaking change because the values cannot be converted.
+
+### Enter a location {#geo-point-editor}
+
+In the datasheet, a location shows as `latitude, longitude` with 5 decimals, for example `51.50135, -0.14189`. Select the cell and press `Enter` or `F2`, or double-click it, to open the map editor:
+
+- Type the **Latitude** and **Longitude** in decimal degrees. **Show on map** moves the map to what you typed.
+- Or click the map to place the point, then drag the marker to adjust it.
+- **Use my location** asks the browser for your position, using GPS when the device has it. The editor shows how accurate the fix is, for example *Location accuracy: about 12 m*. If the table has a number field whose name contains "accuracy", such as **GPS accuracy (m)**, the editor offers to fill it in too.
+- **Clear** empties the field. **Save location** saves the record; **Cancel** or `Esc` leaves it unchanged.
+
+The browser asks once whether AbiData may use your location. If you refuse, or the device cannot get a fix within 20 seconds, the editor says so and you can still type or click. Location needs a secure connection (`https://`), so it is not offered on a plain `http://` address other than `localhost`.
+
+### Draw an area {#geo-area-editor}
+
+An area shows as a summary such as `Area · 12 points · 3.4 km²`. Open its cell the same way to draw it:
+
+- Click the map to add corners. The outline closes itself; you need at least 3 corners. The size is shown as you draw.
+- Drag a corner to move it. Click a corner to select it, then press `Delete` or `Backspace` to remove it. A new corner is added after the selected one.
+- **Add hole** starts a hole inside the outline, for example a lake inside a survey area. **Add part** starts a separate polygon in the same area.
+- **Undo** (`Ctrl+Z`) reverses the last change and **Clear** removes everything.
+- **Paste GeoJSON** reads a Polygon, MultiPolygon, Feature or FeatureCollection, for example one exported from a GIS; choose **Use this area** to load it.
+- **Corners** lists every corner as latitude and longitude boxes, so an area can be drawn or corrected with the keyboard alone.
+- **Save area** saves the record.
+
+### On a phone {#geo-phone}
+
+In the record sheet on a phone, a location field has a large **Use my location** button, so a sighting can be recorded with one tap where you stand. The map editors open full screen with large buttons. Set up a number field for GPS accuracy so that each sighting records how precise it is.
+
+### Filter by location {#geo-filter}
+
+Choose **Location filter…** in the datasheet toolbar. Pick the **Location field**, then either:
+
+- **Within an area**: draw the area on the map. Records whose location lies inside it are kept (the edge counts as inside).
+- **Near a point**: type or click a point and set the **Distance (metres)**.
+
+**Filter by selection** on a location keeps records within 1 m of it.
+
+### Maps and privacy {#geo-maps}
+
+By default maps show a plain latitude/longitude grid and contact no outside server, so they work offline. An administrator can set a map tile server to show streets or satellite images underneath (see [Configuration](/docs/operations/configuration#maps)). When one is set, your browser asks that server for the map images of the areas you view.
 
 ### SQL functions {#geo-sql}
 
