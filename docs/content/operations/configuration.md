@@ -38,6 +38,7 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_DEBUG_ADDR` | (empty: off) | Address for the Go profiler (`/debug/pprof/`), such as `127.0.0.1:6060`. See below |
 | `ABIDATA_METRICS_ADDR` | (empty: off) | Extra listener serving `/metrics` without authentication, for Prometheus. Bind it to a private address. See [Monitoring](/docs/operations/monitoring#metrics) |
 | `ABIDATA_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `ABIDATA_ALLOWED_ORIGINS` | (none) | Comma-separated extra origins (`scheme://host[:port]`) allowed to change data, besides the public URL. See [below](#public-url) |
 | `ABIDATA_TRUSTED_PROXIES` | (none) | Comma-separated IP addresses or CIDR ranges of reverse proxies whose `X-Forwarded-For` header is trusted |
 
 ## Notes {#notes}
@@ -45,6 +46,10 @@ An invalid value stops the server at start with a message naming the variable.
 ### ABIDATA_PUBLIC_URL {#public-url}
 
 AbiData compares the `Origin` header of every request that changes data with this value, and refuses requests from any other origin. If it does not match the address in the browser, sign-in and saving fail with [FORBIDDEN](/docs/reference/errors#forbidden). Use `https://` in production: the session cookie is marked `Secure` (and uses the `__Host-` prefix) only when the URL starts with `https://`.
+
+When the public URL is a loopback address (`localhost`, `127.0.0.1` or `[::1]`), the other loopback spellings on the same port are accepted too, because they are the same machine and a browser sends whichever one is in its address bar. A different port is a different origin and is still refused.
+
+To reach a server by a second address, for example a LAN address while testing on a phone, list it in `ABIDATA_ALLOWED_ORIGINS`, such as `http://192.168.1.20:8080`. Each entry must match exactly: no wildcards and no paths.
 
 ### Keys {#keys}
 

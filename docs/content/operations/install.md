@@ -89,9 +89,9 @@ The two secret files are passed as `ABIDATA_SESSION_KEY_FILE` and `ABIDATA_MANIF
 | Script | Binds | Serves |
 |---|---|---|
 | `scripts/docker-prod.sh` | 80 and 443 on all interfaces (Caddy) | `https://$ABIDATA_SITE`; the app's own port 8080 is not published |
-| `scripts/docker-dev.sh` | `127.0.0.1:8080` only (set `ABIDATA_DEV_PORT` for another port) | `http://localhost:8080`, the app alone without Caddy, debug logging |
+| `scripts/docker-dev.sh` | `127.0.0.1:8080` only (set `ABIDATA_DEV_PORT` for another port; `up --lan` also listens on this network) | `http://localhost:8080` or `http://127.0.0.1:8080`, the app alone without Caddy, debug logging |
 
-The development stack uses its own Compose project (`abidata-dev`) and volumes, so it can run next to a production stack on the same machine without sharing data. Stop it with `scripts/docker-dev.sh down`; `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes its data. Never expose the development port beyond the machine: it serves plain http.
+The development stack uses its own Compose project (`abidata-dev`) and volumes, so it can run next to a production stack on the same machine without sharing data. Stop it with `scripts/docker-dev.sh down`; `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes its data. Never expose the development port beyond a network you trust: it serves plain http. To try the app from a phone on the same Wi-Fi, run `scripts/docker-dev.sh up --lan`: it listens on all interfaces, allows this machine's LAN address as an origin and prints it. Installing the app as a PWA needs https, so use the production stack for that.
 
 ### Tell AbiData about the proxy {#proxy}
 

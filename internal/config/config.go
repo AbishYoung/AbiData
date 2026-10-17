@@ -6,6 +6,7 @@ package config
 import (
 	"log/slog"
 	"net/netip"
+	"net/url"
 )
 
 // Config is the server configuration.
@@ -27,7 +28,55 @@ type Config struct {
 	MetricsAddr         string         // ABIDATA_METRICS_ADDR, default "" (metrics only at /metrics for admins); unauthenticated, bind to a private interface
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info
 	TrustedProxies      []netip.Prefix // ABIDATA_TRUSTED_PROXIES: comma-separated CIDRs or bare IPs
+	AllowedOrigins      []string       // ABIDATA_ALLOWED_ORIGINS: comma-separated extra origins (scheme://host[:port]) the Origin check accepts, e.g. a LAN address for testing on a phone
 }
 
 // SecureCookies reports whether cookies must carry Secure (and may use __Host-).
 func (c Config) SecureCookies() bool { return len(c.PublicURL) >= 8 && c.PublicURL[:8] == "https://" }
+
+// OriginAllowed reports whether a browser Origin may make unsafe requests: the
+// public URL, an AllowedOrigins entry, or, when the public URL is a loopback
+// address, another spelling of that same loopback address and port
+// (localhost, 127.0.0.1 and [::1] are one machine, and a browser sends
+// whichever is in its address bar). Other ports on loopback are other origins
+// and stay refused.
+func (c Config) OriginAllowed(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	if origin == c.PublicURL {
+		return true
+	}
+	for _, o := range c.AllowedOrigins {
+		if origin == o {
+			return true
+		}
+	}
+	pub, err := url.Parse(c.PublicURL)
+	if err != nil || !isLoopbackHost(pub.Hostname()) {
+		return false
+	}
+	o, err := url.Parse(origin)
+	if err != nil || o.Scheme != pub.Scheme || o.Path != "" || o.User != nil || !isLoopbackHost(o.Hostname()) {
+		return false
+	}
+	return portOf(o) == portOf(pub)
+}
+
+func isLoopbackHost(h string) bool {
+	if h == "localhost" {
+		return true
+	}
+	a, err := netip.ParseAddr(h)
+	return err == nil && a.IsLoopback()
+}
+
+func portOf(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	return "80"
+}

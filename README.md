@@ -135,7 +135,7 @@ You need Docker with the Compose plugin.
 **Try it on your machine** (the app alone on `http://localhost:8080`, debug logging, no TLS):
 
 ```sh
-scripts/docker-dev.sh          # also: down | logs | status
+scripts/docker-dev.sh          # also: up --lan | down | logs | status
 ```
 
 Set `ABIDATA_DEV_PORT` to use another port. `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes the development data. The script uses the first-administrator email `admin@example.com` unless you set `ABIDATA_BOOTSTRAP_ADMIN_EMAIL`.

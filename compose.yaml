@@ -10,6 +10,7 @@ services:
       ABIDATA_BOOTSTRAP_ADMIN_EMAIL: ${ABIDATA_BOOTSTRAP_ADMIN_EMAIL:-}
       # Trust X-Forwarded-For only from Caddy's fixed address on the internal network.
       ABIDATA_TRUSTED_PROXIES: ${ABIDATA_TRUSTED_PROXIES:-172.30.70.2}
+      ABIDATA_ALLOWED_ORIGINS: ${ABIDATA_ALLOWED_ORIGINS:-}
     volumes:
       - abidata-data:/var/lib/abidata
       - abidata-backups:/var/lib/abidata-backups

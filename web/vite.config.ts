@@ -66,6 +66,9 @@ export default defineConfig({
   build: { outDir: "dist", emptyOutDir: false, sourcemap: true },
   server: {
     port: 5173,
+    // IPv4 loopback: "localhost" can resolve to ::1 alone, which leaves
+    // http://127.0.0.1:5173 refused. Browsers try 127.0.0.1 for localhost too.
+    host: "127.0.0.1",
     // ABIDATA_API_TARGET points the dev server at another backend (e.g. the
     // docker dev stack on :18100). Origin is rewritten to the backend's own
     // origin so its CSRF Origin check accepts proxied requests in development.

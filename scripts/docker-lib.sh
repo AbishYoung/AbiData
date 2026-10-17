@@ -42,6 +42,6 @@ show_setup() {
 }
 
 usage() {
-  echo "usage: $0 [up|down|logs|status]  (default: up)" >&2
+  echo "usage: $0 [up [--lan]|down|logs|status]  (default: up)" >&2
   exit 2
 }
