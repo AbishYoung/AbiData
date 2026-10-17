@@ -34,6 +34,9 @@ test("an administrator gives every user their own Northwind demo", async ({ page
   await page.getByRole("button", { name: "Demo for everyone…" }).click();
   await page.getByRole("dialog", { name: "Give everyone the Northwind demo?" }).getByRole("button", { name: "Create demo workspaces" }).click();
   await expect(page.getByRole("status").filter({ hasText: /^No new demo workspaces were needed;/ })).toBeVisible({ timeout: 60_000 });
+  // The server holds exactly one copy for the user, whatever the page says.
+  const list: { items: { name: string }[] } = await (await page.request.get("/api/v1/admin/workspaces")).json();
+  expect(list.items.filter((w) => w.name === `Northwind Traders (${NAME})`)).toHaveLength(1);
 });
 
 test("the new user owns a full copy of the demo", async ({ page }) => {

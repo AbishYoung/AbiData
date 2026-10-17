@@ -78,6 +78,8 @@ describe("new table defaults", () => {
     expect(clash.some((p) => p.field === "name")).toBe(true);
     const dup = { ...m, newColumns: m.newColumns.map((c) => (c.source === 1 ? { ...c, name: "email" } : c)) };
     expect(mappingProblems(dup, undefined, []).some((p) => p.message.includes("used twice"))).toBe(true);
+    const shouty = { ...m, newColumns: m.newColumns.map((c) => (c.source === 1 ? { ...c, name: "EMAIL" } : c)) };
+    expect(mappingProblems(shouty, undefined, []).some((p) => p.message.includes("used twice"))).toBe(true);
     expect(mappingProblems(m, undefined, [])).toEqual([]);
   });
 
@@ -126,7 +128,7 @@ describe("existing table mapping", () => {
 describe("upsert key eligibility", () => {
   it("only offers single-field unique, writable fields", () => {
     const t = table([col("a", "A"), col("b", "B"), col("n", "N", "autonumber")], ["a", "n"]);
-    t.indexes = [...(t.indexes ?? []), { id: "multi", column_ids: ["a", "b"], is_unique: true, physical_name: "m", table_id: "t1" }, { id: "plain", column_ids: ["b"], is_unique: false, physical_name: "p", table_id: "t1" }];
+    t.indexes = [...(t.indexes ?? []), { id: "multi", column_ids: ["b", "a"], is_unique: true, physical_name: "m", table_id: "t1" }, { id: "plain", column_ids: ["b"], is_unique: false, physical_name: "p", table_id: "t1" }];
     expect(keyCandidates(t).map((c) => c.id)).toEqual(["a"]);
   });
 

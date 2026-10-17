@@ -172,6 +172,7 @@ describe("interactive activity", () => {
     target?.cancel();
     const err = await first;
     expect(err.canceled).toBe(true);
+    expect(err.retry).toBeUndefined(); // a cancelled request offers no "Try again"
     expect(aborted).toEqual(["GET"]);
     expect(useActivityStore.getState().activities).toHaveLength(1);
 

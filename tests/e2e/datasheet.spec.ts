@@ -581,6 +581,59 @@ test("renders with a throwing localStorage and has no axe violations", async ({ 
   await page.keyboard.press("Escape");
 });
 
+test("the datasheet follows the member's role: viewers read, editors edit, only builders design", async ({ page, browser, baseURL }) => {
+  await signIn(page);
+  const run = Date.now().toString(36);
+  const as = async (role: "viewer" | "editor") => {
+    const email = `${role}-${run}@example.com`;
+    const password = `${role}-password-${run}`;
+    expect((await callApi(page, "POST", "/api/v1/admin/users", { email, display_name: `${role} ${run}`, password })).status).toBe(201);
+    expect((await callApi(page, "POST", `/api/v1/w/${f.ws}/members`, { email, role })).status).toBeLessThan(300);
+    const context = await browser.newContext({ baseURL });
+    const p = await context.newPage();
+    await p.goto("/login");
+    await p.getByLabel("Email").fill(email);
+    await p.getByLabel("Password").fill(password);
+    await p.getByRole("button", { name: "Sign in" }).click();
+    await expect(p.getByRole("heading", { name: "Your workspaces" })).toBeVisible();
+    await p.goto(`/w/${f.ws}`);
+    return { p, grid: await switchTable(p, "Everything"), close: () => context.close() };
+  };
+
+  const viewer = await as("viewer");
+  try {
+    await expect.poll(() => countOf(viewer.grid)).toBeGreaterThan(0);
+    await expect(viewer.p.getByRole("group", { name: "View" })).toHaveCount(0);
+    await expect(viewer.grid.getByText("New record")).toHaveCount(0);
+    const cell = await cellAt(viewer.grid, 1, "Name");
+    const before = await cell.innerText();
+    await cell.click();
+    await viewer.p.keyboard.press("Enter");
+    await expect(viewer.p.getByRole("textbox", { name: "Name", exact: true })).toHaveCount(0);
+    await viewer.p.keyboard.type("x");
+    await expect(cell).toHaveText(before);
+  } finally {
+    await viewer.close();
+  }
+
+  const editor = await as("editor");
+  try {
+    await expect.poll(() => countOf(editor.grid)).toBeGreaterThan(0);
+    await expect(editor.p.getByRole("group", { name: "View" })).toHaveCount(0);
+    await (await cellAt(editor.grid, 1, "Name")).click();
+    await editor.p.keyboard.press("Enter");
+    await expect(editor.p.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
+    await editor.p.keyboard.press("Escape");
+  } finally {
+    await editor.close();
+  }
+
+  // The owner gets the Design view of the same table.
+  await page.goto(`/w/${f.ws}`);
+  await switchTable(page, "Everything");
+  await expect(page.getByRole("group", { name: "View" }).getByRole("button", { name: "Design" })).toBeVisible();
+});
+
 test("fetches only the visible pages of a large table", async ({ page }) => {
   const grid = await openTable(page, f, "People");
   await expect.poll(() => countOf(grid)).toBe(2);
