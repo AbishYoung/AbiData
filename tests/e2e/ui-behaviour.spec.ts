@@ -58,8 +58,8 @@ test("the mouse wheel scrolls a datasheet past the selected cell, a notch at a t
   const end = await scrollTop(grid);
   await page.waitForTimeout(300);
   expect(await scrollTop(grid)).toBe(end);
-  // The selection did not move while scrolling.
-  expect(await activeText(grid)).toContain("Item00002");
+  // The selection did not move while scrolling (its row is no longer rendered, so ask the status bar).
+  await expect(page.getByText(`Record 2 of ${ROWS}`)).toBeVisible();
 });
 
 test("moving the selection with the keyboard brings it back into view", async ({ page }) => {
@@ -98,10 +98,10 @@ test("right-clicking a datasheet cell selects it and offers actions for it", asy
   // Sort descending from the menu puts the last record first.
   await grid.getByRole("gridcell", { name: "Item00004" }).click({ button: "right" });
   await menu.getByRole("menuitem", { name: "Sort descending" }).click();
-  await expect(grid.locator('[role="row"][aria-rowindex="2"]')).toContainText(`Item${String(ROWS).padStart(5, "0")}`);
+  await expect(grid.locator('[role="row"][aria-rowindex="1"]')).toContainText(`Item${String(ROWS).padStart(5, "0")}`);
   await grid.getByRole("gridcell", { name: "Item00300" }).click({ button: "right" });
   await menu.getByRole("menuitem", { name: "Clear sort" }).click();
-  await expect(grid.locator('[role="row"][aria-rowindex="2"]')).toContainText("Item00001");
+  await expect(grid.locator('[role="row"][aria-rowindex="1"]')).toContainText("Item00001");
 
   // Delete record asks first, like the Delete key.
   await grid.getByRole("gridcell", { name: "Item00005" }).click({ button: "right" });
@@ -120,10 +120,10 @@ test("right-clicking a column heading offers sorting and moving that column", as
   const menu = page.getByRole("menu", { name: "Big actions" });
   await expect(menu.getByRole("menuitem", { name: "Move column right" })).toHaveAttribute("aria-disabled", "true");
   await menu.getByRole("menuitem", { name: "Sort descending" }).click();
-  await expect(grid.locator('[role="row"][aria-rowindex="2"]')).toContainText(String(ROWS));
+  await expect(grid.locator('[role="row"][aria-rowindex="1"]')).toContainText(String(ROWS));
   await grid.getByRole("columnheader").filter({ hasText: "Qty" }).click({ button: "right" });
   await menu.getByRole("menuitem", { name: "Clear sort" }).click();
-  await expect(grid.locator('[role="row"][aria-rowindex="2"]')).toContainText("Item00001");
+  await expect(grid.locator('[role="row"][aria-rowindex="1"]')).toContainText("Item00001");
 });
 
 test("text being edited keeps the browser's own menu", async ({ page }) => {
