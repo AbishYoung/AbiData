@@ -936,7 +936,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         filterActive={filterActive}
         onClearFilter={clearFilter}
         canFilterBySelection={canFilterBySelection}
-        onFilterBySelection={filterBySelection}
+        onFilterBySelection={() => filterBySelection()}
         onRefresh={refreshData}
         refreshing={fetching}
         canDelete={canEdit && selectedActive}
