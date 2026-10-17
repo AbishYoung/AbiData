@@ -49,6 +49,18 @@ describe("record buffer", () => {
     expect(saveFields(setField(r, "a", "q"))).toEqual({ link: 5, a: "q" });
     expect(saveFields(setField(recFromRow(row), "a", "q"))).toEqual({ a: "q" });
   });
+  it("lets the user change a defaulted field of a new record, and setting the default back is no change", () => {
+    let r = setField(newRec({ link: 5 }), "link", 5);
+    expect(isDirty(r)).toBe(false);
+    r = setField(r, "link", 6);
+    expect(bufferOf(r)).toEqual({ link: 6 });
+    expect(saveFields(r)).toEqual({ link: 6 });
+  });
+  it("keeps lookup display text only for fields that are still changed", () => {
+    const r = setField(recFromRow({ ...row, display: {} }), "a", "x", undefined, "Shown");
+    expect(r.changes).toEqual({});
+    expect(r.display).toEqual({});
+  });
   it("merges handler-assigned fields as changes and hides the synthetic id from the server", () => {
     const r = mergeAssigned(recFromRow(row), { b: 9, a: "x" });
     expect(r.changes).toEqual({ b: 9 });
@@ -63,12 +75,15 @@ describe("control overrides and responses", () => {
     expect(o).toEqual({ A: { visible: true, enabled: false } });
     expect(overridesPayload(o)).toEqual({ A: { visible: true, enabled: false } });
     expect(overridesPayload({})).toBeUndefined();
+    const unknownOp = [{ op: "remove", control: "B", props: { visible: false } }] as unknown as Parameters<typeof applyPatches>[1];
+    expect(applyPatches(o, unknownOp)).toEqual(o);
   });
   it("applies calc values and errors, including the global error", () => {
     const base = applyCalc({ values: {}, errors: {} }, { calc: { c1: 5 } }, ["c1", "c2"]);
     expect(base.values).toEqual({ c1: 5 });
     const err = applyCalc(base, { calc: {}, calc_errors: { "*": "boom" } }, ["c1", "c2"]);
     expect(err.errors).toEqual({ c1: "boom", c2: "boom" });
+    expect(err.values).toEqual({ c1: null, c2: null });
     const fixed = applyCalc(err, { calc: { c1: 6 } }, ["c1", "c2"]);
     expect(fixed.errors).toEqual({ c2: "boom" });
     expect(fixed.values.c1).toBe(6);
@@ -93,6 +108,9 @@ describe("control overrides and responses", () => {
     expect(fx.alerts[0]?.title).toBe("Oops");
     expect(fx).toMatchObject({ cancelMessage: "No", confirm: { continuation: "go" }, focus: "Qty", record: "next", close: true });
     expect(planResponse({ patches: null, record: {}, calc: {}, notifications: null, navigate: { form: "Lines" } }).openForm).toBe("Lines");
+    const bogus = { patches: null, record: {}, calc: {}, notifications: null, navigate: { record: "sideways" } } as unknown as FormEventResponse;
+    expect(planResponse(bogus).record).toBeNull();
+    expect(planResponse({ patches: null, record: {}, calc: {}, notifications: null, navigate: { record: 12 } }).record).toBe(12);
   });
 });
 

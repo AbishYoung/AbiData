@@ -117,6 +117,35 @@ describe("dates", () => {
   });
 });
 
+describe("value edge cases", () => {
+  it("tells numbers of opposite sign apart", () => {
+    for (const t of ["currency", "integer", "number"]) {
+      expect(valuesEqual(col("c", t), "-5", "5")).toBe(false);
+      expect(valuesEqual(col("c", t), -5, 5)).toBe(false);
+      expect(valuesEqual(col("c", t), "-0", "0")).toBe(true);
+    }
+  });
+
+  it("counts characters, not UTF-16 units, against the maximum length", () => {
+    const c = col("s", "short_text", { type_options: { max_length: 3 } });
+    expect(parseDraft(c, "🦊🦊🦊")).toEqual({ ok: true, value: "🦊🦊🦊" });
+    expect(parseDraft(c, "🦊🦊🦊🦊").ok).toBe(false);
+  });
+
+  it("accepts a hyperlink only when it starts with the scheme", () => {
+    expect(parseHyperlink("javascript:alert(1)//http://example.com").ok).toBe(false);
+    expect(parseHyperlink("see https://example.com").ok).toBe(false);
+  });
+
+  it("rejects numbers out of range", () => {
+    expect(parseNumber("1e999").ok).toBe(false);
+  });
+
+  it("shows No for false", () => {
+    expect(formatValue(col("y", "yes_no"), false)).toBe("No");
+  });
+});
+
 describe("text, hyperlink and display", () => {
   it("enforces short_text max length in characters", () => {
     const c = col("s", "short_text", { type_options: { max_length: 3 } });

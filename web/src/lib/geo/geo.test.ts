@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addHole, addPart, addVertex, areaFromDraft, draftFromArea, moveVertex, removeVertex, EMPTY_DRAFT } from "./areaDraft";
 import { areaText, formatArea, formatGeoValue, formatMetres, formatPoint } from "./format";
-import { areaM2, bboxOf, bboxWithNearby, parseAreaText, parseGeometry, parseLatLonText, pointGeometry, vertexCount, type AreaGeometry, type BBox, type Geometry } from "./geometry";
+import { areaM2, bboxOf, bboxWithNearby, labelPoint, parseAreaText, parseGeometry, parseLatLonText, pointGeometry, sameGeometry, vertexCount, type AreaGeometry, type BBox, type Geometry } from "./geometry";
 import { fitProjection, formatDegree, graticule, latToTileY, lonToTileX, niceStep, tileLat, tileLon, tileUrl, tileZoom } from "./projection";
 
 const square: AreaGeometry = { type: "Polygon", coordinates: [[[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01], [0, 0]]] };
@@ -65,6 +65,39 @@ describe("geometry", () => {
     expect(parseAreaText('{"type":"Polygon","coordinates":[[[0,0],[1,0],[0,0]]]}').ok).toBe(false);
   });
 
+  it("rejects pasted areas with positions off the globe or no rings", () => {
+    expect(parseAreaText('{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,95],[0,0]]]}').ok).toBe(false);
+    expect(parseAreaText('{"type":"Polygon","coordinates":[[[0,0],[190,0],[1,1],[0,0]]]}').ok).toBe(false);
+    expect(parseAreaText('{"type":"Polygon","coordinates":[]}').ok).toBe(false);
+    expect(parseGeometry({ type: "MultiPolygon", coordinates: [[]] })).toBeNull();
+    expect(parseLatLonText("10, 181").ok).toBe(false);
+  });
+
+  it("keeps a one-feature collection a Polygon", () => {
+    const fc = { type: "FeatureCollection", features: [{ type: "Feature", geometry: square }, { type: "Feature", geometry: { type: "Point", coordinates: [0, 0] } }] };
+    expect(parseAreaText(JSON.stringify(fc))).toEqual({ ok: true, value: square });
+  });
+
+  it("tells geometries apart by their coordinates", () => {
+    expect(sameGeometry({ type: "Point", coordinates: [1, 2] }, { type: "Point", coordinates: [1, 2.0000001] })).toBe(false);
+    expect(sameGeometry({ type: "Point", coordinates: [1, 2] }, '{"type":"Point","coordinates":[1,2]}')).toBe(true);
+    expect(sameGeometry(null, null)).toBe(true);
+    expect(sameGeometry(null, { type: "Point", coordinates: [1, 2] })).toBe(false);
+  });
+
+  it("labels an area at the centre of its largest part", () => {
+    const multi: AreaGeometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [[[10, 10], [10.001, 10], [10.001, 10.001], [10, 10.001], [10, 10]]],
+        square.coordinates,
+      ],
+    };
+    const p = labelPoint(multi);
+    expect(p.lat).toBeCloseTo(0.005, 9);
+    expect(p.lon).toBeCloseTo(0.005, 9);
+  });
+
   it("finds bounds", () => {
     expect(bboxOf([square, { type: "Point", coordinates: [-1, 5] }, null])).toEqual([-1, 0, 0.01, 5]);
     expect(bboxOf([])).toBeNull();
@@ -94,6 +127,16 @@ describe("area draft", () => {
     d = removeVertex(d, { p: 1, r: 0, v: 2 });
     expect(d.selected).toEqual({ p: 1, r: 0, v: 1 });
     expect(areaFromDraft(d).area?.type).toBe("Polygon");
+  });
+
+  it("keeps a three-corner hole and needs an outline before a hole", () => {
+    expect(addHole(addVertex(addVertex(EMPTY_DRAFT, 0, 0), 1, 0))).toEqual(addVertex(addVertex(EMPTY_DRAFT, 0, 0), 1, 0));
+    let d = addVertex(addVertex(addVertex(EMPTY_DRAFT, 0, 0), 1, 0), 1, 1);
+    d = addHole(d);
+    d = addVertex(addVertex(addVertex(d, 0.5, 0.2), 0.8, 0.2), 0.8, 0.5);
+    const res = areaFromDraft(d);
+    expect(res.problem).toBeNull();
+    expect(res.area?.type === "Polygon" && res.area.coordinates).toHaveLength(2);
   });
 
   it("inserts after the selected vertex and round-trips an area", () => {
@@ -156,6 +199,13 @@ describe("bboxWithNearby", () => {
     const point: BBox = [2.0, 47.0, 2.0, 47.0];
     const out = bboxWithNearby(point, [square(1.99, 46.99, 0.04), square(10, 50, 0.1)]);
     expect(out).toEqual([1.99, 46.99, 2.03, 47.03]);
+  });
+  it("leaves out shapes beyond the margin on every side", () => {
+    const point: BBox = [2.0, 47.0, 2.0, 47.0];
+    const far = 0.2; // about 22 km, well past the 5 km margin
+    for (const [lon, lat] of [[2 - far - 0.01, 47], [2 + far, 47], [2, 47 - far - 0.01], [2, 47 + far]] as [number, number][]) {
+      expect(bboxWithNearby(point, [square(lon, lat, 0.01)])).toEqual(point);
+    }
   });
   it("keeps the view when nothing is near, and null stays null", () => {
     expect(bboxWithNearby([2, 47, 2, 47], [square(10, 50, 0.1)])).toEqual([2, 47, 2, 47]);
