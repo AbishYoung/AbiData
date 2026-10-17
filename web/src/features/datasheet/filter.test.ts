@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ariaSort, buildFilter, nextSort, selectionCondition, serializeFilter, sortParam, textColumnIds } from "./filter";
+import { ariaSort, buildFilter, canFilterBySelection,nextSort, selectionCondition, serializeFilter, sortParam, textColumnIds } from "./filter";
 import { col } from "./testutil";
 
 describe("filters", () => {
@@ -30,6 +30,21 @@ describe("filters", () => {
     expect(selectionCondition(c, "", "")).toMatchObject({ op: "is_null" });
     expect(selectionCondition(c, "Ann", "Ann")).toMatchObject({ op: "eq", value: "Ann", label: "Name = Ann" });
     expect(selectionCondition(col("y", "yes_no"), false, "No")).toMatchObject({ op: "eq", value: false });
+  });
+});
+
+describe("filter by selection on special fields", () => {
+  it("filters a files field by having files, never by equality", () => {
+    const files = col("f", "attachments", { display_name: "Photos" });
+    expect(selectionCondition(files, ["01A", "01B"], "2 files")).toEqual({ col: "f", op: "not_null", label: "Photos has files" });
+    expect(buildFilter("", [], [selectionCondition(files, ["01A"], "1 file")])).toEqual({ col: "f", op: "not_null" });
+  });
+
+  it("allows areas only when empty", () => {
+    const area = col("a", "geo_area");
+    expect(canFilterBySelection(area, null)).toBe(true);
+    expect(canFilterBySelection(area, { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] })).toBe(false);
+    expect(canFilterBySelection(col("p", "geo_point"), { type: "Point", coordinates: [0, 0] })).toBe(true);
   });
 });
 

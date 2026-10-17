@@ -2,7 +2,7 @@
 // touch targets, no horizontal page scroll, and axe in both colour schemes.
 // Runs on the "mobile-pixel" (Pixel 7) and "mobile-iphone" (390x844 touch) projects only.
 import { mkdirSync } from "node:fs";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { ADMIN_EMAIL, ADMIN_PASSWORD, expectNoAxeViolations, settleAnimations, signIn } from "./helpers";
 import { apiPost, createSampleData } from "./queries-helpers";
 import { createReportViaApi, createSales, salesReportBody } from "./reports-helpers";
@@ -194,7 +194,8 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
     return res.status;
   });
   expect(theirs).toBe(200);
-  await page.waitForTimeout(1000); // the live update reaches the page behind the sheet
+  // The live update reaches the card behind the sheet (hidden from the accessibility tree while the sheet is open).
+  await expect(behindSheet(page).getByRole("button", { name: /Ann/, includeHidden: true })).toContainText("Theirs");
   await sheet.getByRole("button", { name: "Save", exact: true }).tap();
   await expect(page.getByRole("dialog", { name: "Someone else changed this record" })).toBeVisible();
   await page.getByRole("dialog", { name: "Someone else changed this record" }).getByRole("button", { name: "Discard mine" }).tap();
@@ -233,6 +234,11 @@ test("drawer navigation, record cards and the record sheet", async ({ page }) =>
   await page.keyboard.press("Escape");
 });
 
+/** The Customers record cards behind an open record sheet (the modal sheet hides them from the accessibility tree). */
+function behindSheet(page: Page): Locator {
+  return page.getByRole("list", { name: "Customers records", includeHidden: true });
+}
+
 /** Another user (a second browser context) changes fields of a Customers record by name. */
 async function otherUserEdits(browser: Browser, baseURL: string | undefined, ws: string, record: string, fields: Record<string, string>): Promise<void> {
   const context = await browser.newContext({ baseURL });
@@ -269,7 +275,8 @@ test("the record sheet merges another user's changes field by field", async ({ p
   await cards.getByRole("button", { name: /Ann/ }).tap();
   await sheet.getByLabel("City").fill("Mine City");
   await otherUserEdits(browser, baseURL, ws, "Ann", { Name: "Ann Theirs" });
-  await page.waitForTimeout(1000); // the live update reaches the page behind the sheet
+  // The live update reaches the card behind the sheet (hidden from the accessibility tree while the sheet is open).
+  await expect(behindSheet(page).getByRole("button", { name: /Ann Theirs/, includeHidden: true })).toHaveCount(1);
   await sheet.getByRole("button", { name: "Save", exact: true }).tap();
   await expect(sheet).toHaveCount(0);
   await expect(page.getByText("Merged with changes made by someone else")).toBeVisible();
@@ -279,7 +286,7 @@ test("the record sheet merges another user's changes field by field", async ({ p
   await cards.getByRole("button", { name: /Ann Theirs/ }).tap();
   await sheet.getByLabel("City").fill("City mine 2");
   await otherUserEdits(browser, baseURL, ws, "Ann Theirs", { City: "City theirs 2" });
-  await page.waitForTimeout(1000);
+  await expect(behindSheet(page).getByRole("button", { name: /Ann Theirs/, includeHidden: true })).toContainText("City theirs 2");
   await sheet.getByRole("button", { name: "Save", exact: true }).tap();
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("group")).toHaveCount(1);
@@ -303,7 +310,7 @@ test("the record sheet merges another user's changes field by field", async ({ p
   await cards.getByRole("button", { name: /Ann Theirs/ }).tap();
   await sheet.getByLabel("City").fill("City mine 3");
   await otherUserEdits(browser, baseURL, ws, "Ann Theirs", { City: "City theirs 3" });
-  await page.waitForTimeout(1000);
+  await expect(behindSheet(page).getByRole("button", { name: /Ann Theirs/, includeHidden: true })).toContainText("City theirs 3");
   await sheet.getByRole("button", { name: "Save", exact: true }).tap();
   await expect(dialog).toBeVisible();
   await dialog.getByRole("radio", { name: /Theirs/ }).check();

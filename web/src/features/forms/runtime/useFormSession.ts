@@ -17,6 +17,7 @@ import {
   bufferOf,
   dirtyFields,
   emptyCalc,
+  afterSave,
   indexAfterDelete,
   isDirty,
   layoutControls,
@@ -333,12 +334,13 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     abortInFlight();
     set({ busy: true, message: null, conflict: null, conflictFields: [], fieldErrors: {}, notice: null });
     let resp: FormEventResponse;
+    const sent = saveFields(rec);
     try {
       resp = await formSave(env.ws, form.id, {
         ...(rec.id !== null ? { record_id: rec.id } : {}),
         ...(rec.version !== null ? { record_version: rec.version } : {}),
         is_new: rec.isNew,
-        fields: saveFields(rec),
+        fields: sent,
       });
     } catch (e) {
       set({ busy: false });
@@ -366,9 +368,11 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     applyResponse(resp, true);
     if (cancelled || !resp.saved) return !cancelled;
     const saved = resp.saved;
-    set((s) => ({
-      rec: { ...recFromRow(saved), display: { ...(s.rec?.display ?? {}), ...(saved.display ?? {}) } },
-    }));
+    // Fields the user changed while the save was running stay as unsaved edits.
+    set((s) => {
+      const next = afterSave(s.rec, sent, saved, eq);
+      return { rec: { ...next, display: { ...(s.rec?.display ?? {}), ...(saved.display ?? {}), ...next.display } } };
+    });
     set((s) => ({ calcBase: s.calc }));
     invalidateSource();
     o.current.parent?.changed();

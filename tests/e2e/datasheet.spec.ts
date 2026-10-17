@@ -413,6 +413,48 @@ test("asks only about the field both users changed, with Before, Theirs and Mine
   }
 });
 
+test("an edit made while the record is still saving is kept and saved too", async ({ page }) => {
+  const grid = await openTable(page, f, "Everything");
+  await expect.poll(() => countOf(grid)).toBeGreaterThan(0);
+  const before = await countOf(grid);
+  const nameId = f.cols.Name ?? "";
+  const qtyId = f.cols.Quantity ?? "";
+  const rec = await insertRow(page, f, { [nameId]: "Slow save", [qtyId]: 1 });
+  await expect.poll(() => countOf(grid)).toBe(before + 1);
+  // Hold the first save on the wire, as on a slow phone connection.
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => (release = r));
+  let patches = 0;
+  await page.route(`**/tables/${f.everythingId}/rows/${rec.id}`, async (route) => {
+    if (route.request().method() === "PATCH" && patches++ === 0) await held;
+    await route.continue();
+  });
+  try {
+    await typeInto(page, grid, "Slow save", "Name", "Slow save 2");
+    const n = await rowIndexOf(grid, "Slow save 2");
+    await page.keyboard.press("ArrowDown"); // leaving the row starts the save
+    await expect(rowAt(grid, n).getByRole("rowheader")).toContainText("Saving");
+    await clickCell(grid, n, "Quantity");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type("77");
+    await page.keyboard.press("Tab");
+    expect(patches).toBe(1);
+    expect((await getRow(page, f, f.everythingId, rec.id)).fields[nameId]).toBe("Slow save");
+    release();
+    await expect.poll(async () => (await getRow(page, f, f.everythingId, rec.id)).fields[nameId]).toBe("Slow save 2");
+    await expect(rowAt(grid, n).getByRole("rowheader")).toContainText("Unsaved changes");
+    await expect(await cellAt(grid, n, "Quantity")).toHaveText("77");
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(async () => Number((await getRow(page, f, f.everythingId, rec.id)).fields[qtyId])).toBe(77);
+    expect((await getRow(page, f, f.everythingId, rec.id)).fields[nameId]).toBe("Slow save 2");
+  } finally {
+    release();
+    await page.unroute(`**/tables/${f.everythingId}/rows/${rec.id}`);
+    await removeRow(page, rec.id);
+  }
+});
+
 test("an edit in progress never lands on another record when a live update shifts the rows", async ({ page }) => {
   const grid = await openTable(page, f, "Everything");
   await expect.poll(() => countOf(grid)).toBe(5);
@@ -537,6 +579,59 @@ test("renders with a throwing localStorage and has no axe violations", async ({ 
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
   await expectDatasheetAccessible(page);
   await page.keyboard.press("Escape");
+});
+
+test("the datasheet follows the member's role: viewers read, editors edit, only builders design", async ({ page, browser, baseURL }) => {
+  await signIn(page);
+  const run = Date.now().toString(36);
+  const as = async (role: "viewer" | "editor") => {
+    const email = `${role}-${run}@example.com`;
+    const password = `${role}-password-${run}`;
+    expect((await callApi(page, "POST", "/api/v1/admin/users", { email, display_name: `${role} ${run}`, password })).status).toBe(201);
+    expect((await callApi(page, "POST", `/api/v1/w/${f.ws}/members`, { email, role })).status).toBeLessThan(300);
+    const context = await browser.newContext({ baseURL });
+    const p = await context.newPage();
+    await p.goto("/login");
+    await p.getByLabel("Email").fill(email);
+    await p.getByLabel("Password").fill(password);
+    await p.getByRole("button", { name: "Sign in" }).click();
+    await expect(p.getByRole("heading", { name: "Your workspaces" })).toBeVisible();
+    await p.goto(`/w/${f.ws}`);
+    return { p, grid: await switchTable(p, "Everything"), close: () => context.close() };
+  };
+
+  const viewer = await as("viewer");
+  try {
+    await expect.poll(() => countOf(viewer.grid)).toBeGreaterThan(0);
+    await expect(viewer.p.getByRole("group", { name: "View" })).toHaveCount(0);
+    await expect(viewer.grid.getByText("New record")).toHaveCount(0);
+    const cell = await cellAt(viewer.grid, 1, "Name");
+    const before = await cell.innerText();
+    await cell.click();
+    await viewer.p.keyboard.press("Enter");
+    await expect(viewer.p.getByRole("textbox", { name: "Name", exact: true })).toHaveCount(0);
+    await viewer.p.keyboard.type("x");
+    await expect(cell).toHaveText(before);
+  } finally {
+    await viewer.close();
+  }
+
+  const editor = await as("editor");
+  try {
+    await expect.poll(() => countOf(editor.grid)).toBeGreaterThan(0);
+    await expect(editor.p.getByRole("group", { name: "View" })).toHaveCount(0);
+    await (await cellAt(editor.grid, 1, "Name")).click();
+    await editor.p.keyboard.press("Enter");
+    await expect(editor.p.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
+    await editor.p.keyboard.press("Escape");
+  } finally {
+    await editor.close();
+  }
+
+  // The owner gets the Design view of the same table.
+  await page.goto(`/w/${f.ws}`);
+  await switchTable(page, "Everything");
+  await expect(page.getByRole("group", { name: "View" }).getByRole("button", { name: "Design" })).toBeVisible();
 });
 
 test("fetches only the visible pages of a large table", async ({ page }) => {

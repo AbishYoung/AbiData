@@ -25,6 +25,7 @@ import { DeleteDialog } from "./DeleteDialog";
 import type { EditorHandle, LookupInfo, Move } from "./Editors";
 import {
   applyChange,
+  editsDuringSave,
   hasChanges,
   persistWithMerge,
   rebaseBuffer,
@@ -289,14 +290,21 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
   }
 
-  function applyOutcome(key: RowKey, buf: RowBuffer, outcome: MergeSaveOutcome) {
+  function applyOutcome(key: RowKey, sent: RowBuffer, outcome: MergeSaveOutcome) {
+    // The user may have kept editing the record while it was being saved: never drop those edits.
+    const buf = buffersRef.current.get(key) ?? sent;
     switch (outcome.kind) {
-      case "ok":
-        dropBuffer(key);
+      case "ok": {
+        const late = editsDuringSave(buffersRef.current.get(key), sent, outcome.row, allColumns);
+        updateBuffers((m) => {
+          m.delete(key);
+          if (late) m.set(outcome.row.id, late);
+        });
         if (outcome.created) refreshData();
         else setRowInCache(outcome.row);
         if (outcome.merged) toast("info", "Merged with changes made by someone else");
         return;
+      }
       case "canceled":
         updateBuffers((m) => m.set(key, { ...buf, status: "editing" }));
         return;

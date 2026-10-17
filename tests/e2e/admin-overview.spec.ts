@@ -143,4 +143,21 @@ test("a non-admin API call to the overview is refused", async ({ page }) => {
   // Not signed in: no session.
   const res = await page.request.get("/api/v1/admin/overview");
   expect(res.status()).toBe(401);
+
+  // Signed in without the platform admin role.
+  await signIn(page);
+  const email = `ops-user-${Date.now().toString(36)}@example.com`;
+  const me = (await (await page.request.get("/api/v1/auth/me")).json()) as { csrf_token: string };
+  const created = await page.request.post("/api/v1/admin/users", {
+    headers: { "X-CSRF-Token": me.csrf_token, Origin: new URL(page.url()).origin },
+    data: { email, display_name: "Ops user", password: "ops-user-password-1" },
+  });
+  expect(created.status()).toBe(201);
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("ops-user-password-1");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Your workspaces" })).toBeVisible();
+  expect((await page.request.get("/api/v1/admin/overview")).status()).toBe(403);
 });

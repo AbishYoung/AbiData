@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildValue, makeCriterion, parseScalar, valueTexts } from "./criteria";
+import { buildValue, makeCriterion, operatorsFor, parseScalar, valueTexts } from "./criteria";
 
 describe("criterion values", () => {
   it("keeps currency as a decimal string, never a float", () => {
@@ -26,6 +26,28 @@ describe("criterion values", () => {
     expect(buildValue("integer", "in", ["1, 2, x, 3"])).toEqual([1, 2, 3]);
     expect(buildValue("currency", "in", ["1.50,2"])).toEqual(["1.50", "2"]);
     expect(valueTexts("integer", "in", [1, 2])).toEqual(["1, 2"]);
+  });
+
+  it("rejects integers a float cannot hold exactly", () => {
+    expect(parseScalar("integer", "9007199254740993")).toBeUndefined();
+    expect(parseScalar("integer", "-12")).toBe(-12);
+  });
+
+  it("reads a date and time without a zone as UTC", () => {
+    expect(parseScalar("datetime", "2024-01-01T10:00")).toBe("2024-01-01T10:00:00Z");
+    expect(parseScalar("datetime", "2024-01-01T10:00:30")).toBe("2024-01-01T10:00:30Z");
+    expect(parseScalar("datetime", "2024-01-01T10:00:00+02:00")).toBe("2024-01-01T10:00:00+02:00");
+    expect(parseScalar("datetime", "yesterday")).toBeUndefined();
+  });
+
+  it("offers text matching only for text, and location tests only for points", () => {
+    const ops = (k: Parameters<typeof operatorsFor>[0]) => operatorsFor(k).map((o) => o.op);
+    expect(ops("integer")).not.toContain("contains");
+    expect(ops("integer")).not.toContain("within");
+    expect(ops("integer")).toContain("between");
+    expect(ops("text")).toContain("like");
+    expect(ops("geo_point")).toEqual(["is_null", "not_null", "within"]);
+    expect(ops("yes_no")).toEqual(["eq", "ne", "is_null", "not_null"]);
   });
 
   it("text matching operators always use text; parameters carry no value", () => {

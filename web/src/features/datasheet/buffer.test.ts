@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "@/lib/api";
-import { applyChange, hasChanges, patchRequest, persistBuffer, persistWithMerge, rebaseBuffer, type RowBuffer } from "./buffer";
+import { applyChange, editsDuringSave, hasChanges,patchRequest, persistBuffer, persistWithMerge, rebaseBuffer, type RowBuffer } from "./buffer";
 import { classifyFailure } from "./rowsApi";
 import { col, row } from "./testutil";
 
@@ -70,6 +70,75 @@ describe("edit buffer", () => {
     let buf = applyChange(undefined, 7, original, name, "Alicia");
     buf = applyChange(buf, 7, original, amount, "12.3400");
     expect(buf && patchRequest(buf)).toEqual({ version: 3, fields: { c_name: "Alicia", c_amount: "12.3400" } });
+  });
+});
+
+describe("edits around a save", () => {
+  const owner = col("c_owner", "lookup");
+  const original = row(7, 3, { c_name: "Alice", c_owner: 1 }, { c_owner: "Ann" });
+
+  it("keeps the base from the first edit when the row is refreshed under the buffer", () => {
+    // A live update replaced the row while the user was still typing: the base must stay what the
+    // user started from, or the merge would silently overwrite the other user's value.
+    let buf = applyChange(undefined, 7, original, name, "A");
+    const refreshed = row(7, 4, { c_name: "Theirs", c_owner: 1 });
+    buf = applyChange(buf, 7, refreshed, name, "AB");
+    expect(buf?.base).toEqual({ c_name: "Alice" });
+  });
+
+  it("goes back to editing when the user changes a record that is being saved", () => {
+    const buf = applyChange(undefined, 7, original, name, "A") as RowBuffer;
+    const next = applyChange({ ...buf, status: "saving" }, 7, original, name, "AB");
+    expect(next?.status).toBe("editing");
+    const conflicted = applyChange({ ...buf, status: "conflict" }, 7, original, name, "AB");
+    expect(conflicted?.status).toBe("conflict");
+  });
+
+  it("carries edits made while a save was on the wire over to the saved row", () => {
+    const qty = col("c_qty", "integer");
+    const sent = applyChange(undefined, 7, original, name, "Saved name") as RowBuffer;
+    const saving: RowBuffer = { ...sent, status: "saving" };
+    const saved = row(7, 4, { c_name: "Saved name", c_owner: 1, c_qty: null });
+    // Nothing happened meanwhile: nothing is left.
+    expect(editsDuringSave(saving, sent, saved, [name, owner, qty])).toBeUndefined();
+    expect(editsDuringSave(undefined, sent, saved, [name, owner, qty])).toBeUndefined();
+    // The user changed the owner and typed a quantity while the save was running.
+    let now = applyChange(saving, 7, original, owner, 2, "Bob");
+    now = applyChange(now, 7, original, qty, 5) as RowBuffer;
+    const late = editsDuringSave(now, sent, saved, [name, owner, qty]);
+    expect(late).toMatchObject({
+      key: 7,
+      baseVersion: 4,
+      status: "editing",
+      changes: { c_owner: 2, c_qty: 5 },
+      display: { c_owner: "Bob" },
+      base: { c_owner: 1, c_qty: null },
+    });
+    expect(late && patchRequest(late)).toEqual({ version: 4, fields: { c_owner: 2, c_qty: 5 } });
+  });
+
+  it("does not resend a saved value the server changed, but keeps a field typed over again", () => {
+    const sent = applyChange(undefined, 7, original, name, "bob") as RowBuffer;
+    const saved = row(7, 4, { c_name: "Bob", c_owner: 1 }); // the server capitalised it on save
+    const same = applyChange({ ...sent, status: "saving" }, 7, original, owner, 1);
+    expect(editsDuringSave(same, sent, saved, [name, owner])).toBeUndefined();
+    const retyped = applyChange({ ...sent, status: "saving" }, 7, original, name, "Robert");
+    expect(editsDuringSave(retyped, sent, saved, [name, owner])?.changes).toEqual({ c_name: "Robert" });
+  });
+
+  it("moves edits made to a new record while it was being created onto the created row", () => {
+    const sent = applyChange(undefined, "new", undefined, name, "Zed") as RowBuffer;
+    const now = applyChange({ ...sent, status: "saving" }, "new", undefined, owner, 2, "Bob");
+    const created = row(12, 1, { c_name: "Zed", c_owner: null });
+    expect(editsDuringSave(now, sent, created, [name, owner])).toMatchObject({ key: 12, baseVersion: 1, changes: { c_owner: 2 } });
+  });
+
+  it("forgets the lookup text of an earlier choice when a value comes without one", () => {
+    let buf = applyChange(undefined, 7, original, owner, 2, "Bob");
+    expect(buf?.display).toEqual({ c_owner: "Bob" });
+    buf = applyChange(buf, 7, original, owner, 3);
+    expect(buf?.changes).toEqual({ c_owner: 3 });
+    expect(buf?.display).toEqual({});
   });
 });
 

@@ -41,6 +41,12 @@ describe("moveActive", () => {
     expect(moveActive({ row: 0, col: 0 }, "ArrowDown", none, empty)).toEqual({ row: 0, col: 0 });
     expect(clampCell({ row: 9, col: 9 }, empty)).toEqual({ row: 0, col: 0 });
   });
+
+  it("clamps to the last row and column, never past them", () => {
+    const small: NavDims = { rowCount: 5, colCount: 3, pageSize: 10 };
+    expect(clampCell({ row: 9, col: 9 }, small)).toEqual({ row: 4, col: 2 });
+    expect(clampCell({ row: -1, col: -1 }, small)).toEqual({ row: 0, col: 0 });
+  });
 });
 
 describe("tabTarget", () => {

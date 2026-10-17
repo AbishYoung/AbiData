@@ -207,8 +207,14 @@ test("the datasheet toolbar exports JSON", async ({ page }) => {
   await dialog.getByRole("button", { name: "Export", exact: true }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/\.json$/);
-  const data: unknown = JSON.parse(await readFile(await file.path(), "utf8"));
-  expect(Array.isArray(data) ? data.length : -1).toBe(3);
+  const data = JSON.parse(await readFile(await file.path(), "utf8")) as Record<string, unknown>[];
+  expect(data).toHaveLength(3);
+  // An array of objects keyed by field name, with the values the CSV export shows.
+  expect(data.map((r) => [r.Name, r.Qty])).toEqual([
+    ["Apple", 3],
+    ["Pear", 10],
+    ["Fig", 7],
+  ]);
 });
 
 test("CSV exports start with a UTF-8 BOM, which can be turned off and is remembered; a filtered export holds only the matching rows", async ({ page }) => {

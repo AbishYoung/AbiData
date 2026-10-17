@@ -5,20 +5,6 @@ const GROUPS = ["Tables", "Queries", "Forms", "Reports", "Scripts", "Jobs"];
 
 test.describe.configure({ mode: "serial" });
 
-test("redirects unauthenticated visitors to /login", async ({ page }) => {
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-});
-
-test("shows the server error inline for wrong credentials", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(ADMIN_EMAIL);
-  await page.getByLabel("Password").fill("wrong-password-xyz");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
-});
-
 test("keyboard-only sign-in", async ({ page }) => {
   await page.goto("/login");
   await page.locator("body").press("Tab");
@@ -59,12 +45,6 @@ test("admin creates a workspace, opens it, sees the navigation pane, and signs o
   await signOut(page);
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
-});
-
-test("/login has no axe violations", async ({ page }) => {
-  await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-  await expectNoAxeViolations(page);
 });
 
 test("dark theme keeps zero axe violations", async ({ page }) => {

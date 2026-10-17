@@ -117,6 +117,20 @@ export function saveFields(r: RecState): Fields {
   return r.isNew ? { ...r.defaults, ...r.changes } : { ...r.changes };
 }
 
+/**
+ * The record after a successful save: the saved row, plus the edits the user made while the save was
+ * running (fields of `now` that differ from what was `sent`). A sent value the server changed stands.
+ */
+export function afterSave(now: RecState | null, sent: Fields, saved: RowLike, eq: Equal = strictEqual): RecState {
+  let next = recFromRow(saved);
+  if (!now) return next;
+  for (const [k, v] of Object.entries(now.changes)) {
+    if (k in sent && eq(k, v, sent[k])) continue;
+    next = setField(next, k, v, eq, now.display[k]);
+  }
+  return next;
+}
+
 /** Record buffer for the server: only known columns (never the synthetic id). */
 export function bufferForServer(r: RecState, known?: (colId: string) => boolean): Fields {
   const out: Fields = {};
