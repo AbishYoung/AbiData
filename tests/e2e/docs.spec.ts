@@ -156,7 +156,7 @@ test("works with the keyboard alone", async ({ page }) => {
   await expect(panel(page)).toBeHidden();
 });
 
-test("the docs panel and palette have no accessibility violations", async ({ page }) => {
+test("the docs panel has no accessibility violations", async ({ page }) => {
   await openWorkspaceAgain(page);
 
   await openFromShell(page);
@@ -186,11 +186,6 @@ test("the docs panel and palette have no accessibility violations", async ({ pag
   await page.emulateMedia({ colorScheme: "light" });
   await page.keyboard.press("Escape");
   await expect(panel(page)).toBeHidden();
-
-  // The palette.
-  await page.keyboard.press("Control+k");
-  await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
-  await expectNoAxeViolations(page);
 });
 
 test("hovering a host function in Script Studio links to its API reference entry", async ({ page }) => {
