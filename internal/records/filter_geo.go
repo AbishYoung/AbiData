@@ -8,6 +8,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
 	"abidata/internal/geo"
+	"abidata/internal/sqlgen"
 )
 
 // Spatial filter operators for geo_point fields (ADR 0010):
@@ -37,35 +38,35 @@ func geoFilterErr(format string, args ...any) error {
 
 // geoCond compiles within and near, and refuses every other comparison on a
 // geo field except is_null and not_null.
-func (fc *filterCompiler) geoCond(col catalog.Column, q string, f *Filter) (string, bool, error) {
+func (fc *filterCompiler) geoCond(col catalog.Column, q sqlgen.Col, f *Filter) (sqlgen.Expr, bool, error) {
 	gt := geoFieldType(col)
 	switch f.Op {
 	case OpWithin, OpNear:
 		if gt != catalog.GeoPoint {
-			return "", true, geoFilterErr("%s is only available for location fields.", f.Op)
+			return nil, true, geoFilterErr("%s is only available for location fields.", f.Op)
 		}
 	case OpIsNull, OpNotNull:
-		return "", false, nil
+		return nil, false, nil
 	default:
 		if gt != "" {
-			return "", true, geoFilterErr("Location and area fields can only be filtered with within, near, is_null or not_null.")
+			return nil, true, geoFilterErr("Location and area fields can only be filtered with within, near, is_null or not_null.")
 		}
-		return "", false, nil
+		return nil, false, nil
 	}
 	if f.Op == OpWithin {
 		a, err := geo.ParseArea(f.Value)
 		if err != nil {
-			return "", true, geoFilterErr("The within filter needs an area (GeoJSON Polygon or MultiPolygon): %s.", err)
+			return nil, true, geoFilterErr("The within filter needs an area (GeoJSON Polygon or MultiPolygon): %s.", err)
 		}
-		fc.args = append(fc.args, a.JSON())
-		return "geo_within(" + q + ", ?) = 1", true, nil
+		within := sqlgen.Func{Name: "geo_within", Args: []sqlgen.Expr{q, sqlgen.Arg{Value: a.JSON(), Type: sqlgen.GeoArea}}}
+		return sqlgen.Binary{Op: sqlgen.OpEq, L: within, R: sqlgen.Lit{Value: 1, Type: sqlgen.Integer}}, true, nil
 	}
 	p, metres, err := parseNear(f.Value)
 	if err != nil {
-		return "", true, err
+		return nil, true, err
 	}
-	fc.args = append(fc.args, p.JSON(), metres)
-	return "geo_distance_m(" + q + ", ?) <= ?", true, nil
+	dist := sqlgen.Func{Name: "geo_distance_m", Args: []sqlgen.Expr{q, sqlgen.Arg{Value: p.JSON(), Type: sqlgen.GeoPoint}}}
+	return sqlgen.Binary{Op: sqlgen.OpLe, L: dist, R: sqlgen.Arg{Value: metres, Type: sqlgen.Number}}, true, nil
 }
 
 func parseNear(v any) (geo.Point, float64, error) {

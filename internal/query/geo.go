@@ -5,6 +5,7 @@ import (
 
 	"abidata/internal/catalog"
 	"abidata/internal/geo"
+	"abidata/internal/sqlgen"
 )
 
 // Geographic support for visual queries (ADR 0010): the spatial join, the
@@ -29,31 +30,35 @@ func colGeoType(c *catalog.Column) string {
 	return ""
 }
 
-// joinCondition renders the ON condition of one join column pair.
-func joinCondition(j Join, le, re string, lc, rc *catalog.Column) (string, error) {
+// joinCondition builds the ON condition of one join column pair.
+func joinCondition(j Join, le, re sqlgen.Col, lc, rc *catalog.Column) (sqlgen.Expr, error) {
 	switch j.Op {
 	case "", "eq":
-		return le + " = " + re, nil
+		return sqlgen.Binary{Op: sqlgen.OpEq, L: le, R: re}, nil
 	case "within":
 		lt, rt := colGeoType(lc), colGeoType(rc)
 		sys := func(id string) bool { return id == "id" || id == "_version" }
 		if sys(j.LeftColumnID) || sys(j.RightColumnID) || (lc != nil && lt == "") || (rc != nil && rt == "") || (lt != "" && lt == rt) {
-			return "", bad("A spatial join needs one location field and one area field.")
+			return nil, bad("A spatial join needs one location field and one area field.")
 		}
 		if lt == typeGeoArea || rt == typeGeoPoint {
-			return "geo_within(" + re + ", " + le + ")", nil
+			return geoWithin(re, le), nil
 		}
-		return "geo_within(" + le + ", " + re + ")", nil
+		return geoWithin(le, re), nil
 	}
-	return "", bad("Unknown join condition %q.", j.Op)
+	return nil, bad("Unknown join condition %q.", j.Op)
 }
 
-// withinCriterion renders "is within": col (a location) inside an area given as
+func geoWithin(point, area sqlgen.Expr) sqlgen.Expr {
+	return sqlgen.Func{Name: "geo_within", Args: []sqlgen.Expr{point, area}}
+}
+
+// withinCriterion builds "is within": col (a location) inside an area given as
 // an area parameter, a GeoJSON literal, or another source's area field.
-func withinCriterion(expr string, col *catalog.Column, c Criterion, params map[string]Param,
-	ref func(alias, colID string) (string, *catalog.Column, error)) (string, error) {
+func withinCriterion(expr sqlgen.Expr, col *catalog.Column, c Criterion, params map[string]Param,
+	ref func(alias, colID string) (sqlgen.Col, *catalog.Column, error)) (sqlgen.Expr, error) {
 	if col != nil && colGeoType(col) != typeGeoPoint {
-		return "", bad("'is within' is only available for location fields.")
+		return nil, bad("'is within' is only available for location fields.")
 	}
 	given := 0
 	for _, ok := range []bool{c.Param != "", c.Value != nil, c.RefAlias != "" || c.RefColumnID != ""} {
@@ -62,40 +67,36 @@ func withinCriterion(expr string, col *catalog.Column, c Criterion, params map[s
 		}
 	}
 	if given != 1 {
-		return "", bad("'is within' needs exactly one area: a parameter, a GeoJSON area, or an area field of another table.")
+		return nil, bad("'is within' needs exactly one area: a parameter, a GeoJSON area, or an area field of another table.")
 	}
 	switch {
 	case c.Param != "":
 		p, ok := params[strings.ToLower(c.Param)]
 		if !ok {
-			return "", bad("Parameter %q is not declared.", c.Param)
+			return nil, bad("Parameter %q is not declared.", c.Param)
 		}
 		if p.Type != "area" {
-			return "", bad("Parameter %q must have the type area to be used with 'is within'.", c.Param)
+			return nil, bad("Parameter %q must have the type area to be used with 'is within'.", c.Param)
 		}
-		return "geo_within(" + expr + ", :" + p.Name + ")", nil
+		return geoWithin(expr, sqlgen.Param{Name: p.Name, Type: sqlgen.GeoArea}), nil
 	case c.Value != nil:
 		area, err := geo.NormalizeArea(c.Value)
 		if err != nil {
-			return "", bad("'is within' needs an area (GeoJSON Polygon or MultiPolygon): %s.", err)
+			return nil, bad("'is within' needs an area (GeoJSON Polygon or MultiPolygon): %s.", err)
 		}
-		lit, err := sqlLiteral(area)
-		if err != nil {
-			return "", err
-		}
-		return "geo_within(" + expr + ", " + lit + ")", nil
+		return geoWithin(expr, sqlgen.Lit{Value: area, Type: sqlgen.GeoArea}), nil
 	}
 	if c.RefAlias == "" || c.RefColumnID == "" || ref == nil {
-		return "", bad("'is within' needs both the table and the field of the area.")
+		return nil, bad("'is within' needs both the table and the field of the area.")
 	}
 	re, rc, err := ref(c.RefAlias, c.RefColumnID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if rc != nil && colGeoType(rc) != typeGeoArea {
-		return "", bad("%q is not an area field.", rc.DisplayName)
+		return nil, bad("%q is not an area field.", rc.DisplayName)
 	}
-	return "geo_within(" + expr + ", " + re + ")", nil
+	return geoWithin(expr, re), nil
 }
 
 // areaParamProblem validates a value for an "area" parameter ("" when fine).

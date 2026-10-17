@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
 	"abidata/internal/records"
+	"abidata/internal/sqlgen"
 )
 
 // Model is the visual (QBE) query model (brief <query_engine>). Columns are
@@ -121,23 +121,27 @@ type source struct {
 	query *SavedQuery
 }
 
-func (s source) column(id string) (expr string, col *catalog.Column, err error) {
+func (s source) column(id string) (expr sqlgen.Col, col *catalog.Column, err error) {
 	if s.table != nil {
 		if id == "id" || id == "_version" {
-			return Q(s.Alias) + "." + Q(id), nil, nil
+			return sqlgen.Col{Table: s.Alias, Name: id, Type: sqlgen.Integer}, nil, nil
 		}
 		c, ok := s.table.Column(id)
 		if !ok {
-			return "", nil, bad("Field %s is not in table %q.", id, s.table.DisplayName)
+			return sqlgen.Col{}, nil, bad("Field %s is not in table %q.", id, s.table.DisplayName)
 		}
-		return Q(s.Alias) + "." + Q(c.PhysicalName), c, nil
+		return sqlgen.Col{Table: s.Alias, Name: c.PhysicalName, Type: sqlgen.Type(FieldDisplayType(c))}, c, nil
 	}
 	for _, name := range s.query.Columns {
 		if name == id {
-			return Q(s.Alias) + "." + Q(name), nil, nil
+			t := sqlgen.Unknown
+			if id == "id" || id == "_version" {
+				t = sqlgen.Integer
+			}
+			return sqlgen.Col{Table: s.Alias, Name: name, Type: t}, nil, nil
 		}
 	}
-	return "", nil, bad("Column %q is not produced by query source %q.", id, s.Alias)
+	return sqlgen.Col{}, nil, bad("Column %q is not produced by query source %q.", id, s.Alias)
 }
 
 // Q quotes an identifier.
@@ -200,11 +204,11 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 	}
 
 	// FROM + joins: the first source is the root; each join attaches a new source.
+	sel := &sqlgen.Select{Distinct: m.Distinct, From: sourceOf(srcs[order[0]])}
 	joined := map[string]bool{order[0]: true}
-	from := []string{sourceSQL(srcs[order[0]])}
 	type edge struct {
-		kind  string
-		conds []string
+		kind  sqlgen.JoinKind
+		conds []sqlgen.Expr
 	}
 	pending := map[string]*edge{}
 	var pendingOrder []string
@@ -228,11 +232,13 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 				deps["c"][c.ID] = true
 			}
 		}
-		kind := strings.ToUpper(j.Kind)
-		if kind == "" {
-			kind = "INNER"
-		}
-		if kind != "INNER" && kind != "LEFT" {
+		var kind sqlgen.JoinKind
+		switch strings.ToLower(j.Kind) {
+		case "", "inner":
+			kind = sqlgen.InnerJoin
+		case "left":
+			kind = sqlgen.LeftJoin
+		default:
 			return out, bad("Unknown join kind %q.", j.Kind)
 		}
 		// Attach the not-yet-joined side; for LEFT joins the right side is optional.
@@ -261,12 +267,16 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 			}
 			joined[a] = true
 			progress = true
-			from = append(from, fmt.Sprintf("%s JOIN %s ON %s", e.kind, sourceSQL(srcs[a]), strings.Join(e.conds, " AND ")))
+			on := e.conds[0]
+			if len(e.conds) > 1 {
+				on = sqlgen.And(e.conds)
+			}
+			sel.Joins = append(sel.Joins, sqlgen.Join{Kind: e.kind, Source: sourceOf(srcs[a]), On: on})
 		}
 	}
 	for _, a := range order[1:] {
 		if !joined[a] {
-			from = append(from, "CROSS JOIN "+sourceSQL(srcs[a]))
+			sel.Joins = append(sel.Joins, sqlgen.Join{Kind: sqlgen.CrossJoin, Source: sourceOf(srcs[a])})
 			joined[a] = true
 		}
 	}
@@ -278,26 +288,25 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 			grouped = true
 		}
 	}
-	var sel, groupBy []string
 	type sortKey struct {
 		order, idx int
-		expr       string
+		expr       sqlgen.Expr
 		desc       bool
 	}
 	var sorts []sortKey
-	where := map[int][]string{}
-	having := map[int][]string{}
+	where := map[int][]sqlgen.Expr{}
+	having := map[int][]sqlgen.Expr{}
 	seenNames := map[string]bool{}
 	selectsID, selectsVersion := false, false
 	for i, f := range m.Fields {
-		var expr string
+		var expr sqlgen.Expr
 		var col *catalog.Column
 		switch {
 		case f.ExprSQL != "" && f.ColumnID == "":
 			if err := catalog.CheckExpr(f.ExprSQL); err != nil {
 				return out, err
 			}
-			expr = "(" + f.ExprSQL + ")"
+			expr = sqlgen.Raw{SQL: f.ExprSQL}
 		case f.ColumnID != "":
 			s, ok := srcs[strings.ToLower(f.Alias)]
 			if !ok {
@@ -314,25 +323,33 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 		default:
 			return out, bad("Field %d needs a column or an expression.", i+1)
 		}
-		agg := ""
+		var agg sqlgen.AggFn
 		switch f.Group {
 		case "", "group_by":
-		case "sum", "avg", "count", "min", "max":
-			agg = strings.ToUpper(f.Group)
+		case "sum":
+			agg = sqlgen.AggSum
+		case "avg":
+			agg = sqlgen.AggAvg
+		case "count":
+			agg = sqlgen.AggCount
+		case "min":
+			agg = sqlgen.AggMin
+		case "max":
+			agg = sqlgen.AggMax
 		default:
 			return out, bad("Unknown total %q.", f.Group)
 		}
 		valueExpr := expr
-		if agg != "" {
-			valueExpr = agg + "(" + expr + ")"
+		if agg != 0 {
+			valueExpr = sqlgen.Agg{Fn: agg, X: expr}
 		}
 		visible := f.Visible == nil || *f.Visible
 		if visible {
 			name := f.OutputName
 			if name == "" {
 				switch {
-				case col != nil && agg != "":
-					name = strings.ToLower(agg) + " of " + col.DisplayName
+				case col != nil && agg != 0:
+					name = f.Group + " of " + col.DisplayName
 				case col != nil:
 					name = col.DisplayName
 				case f.ColumnID != "":
@@ -345,18 +362,16 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 				return out, bad("Two fields are both named %q; give one an output name.", name)
 			}
 			seenNames[strings.ToLower(name)] = true
-			sel = append(sel, valueExpr+" AS "+Q(name))
-			out.Columns = append(out.Columns, name)
-			out.Types = append(out.Types, fieldType(col, f.ColumnID, f.Group))
-			if agg == "" && f.ColumnID == "id" {
+			sel.Columns = append(sel.Columns, sqlgen.Column{Expr: valueExpr, As: name})
+			if agg == 0 && f.ColumnID == "id" {
 				selectsID = true
 			}
-			if agg == "" && f.ColumnID == "_version" {
+			if agg == 0 && f.ColumnID == "_version" {
 				selectsVersion = true
 			}
 		}
-		if grouped && agg == "" {
-			groupBy = append(groupBy, expr)
+		if grouped && agg == 0 {
+			sel.GroupBy = append(sel.GroupBy, expr)
 		}
 		switch f.Sort {
 		case "":
@@ -367,14 +382,14 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 		}
 		// A count is a plain number whatever the column holds, so its criteria are not typed by the column.
 		critCol := col
-		if agg == "COUNT" {
+		if agg == sqlgen.AggCount {
 			critCol = nil
 		}
 		for _, c := range f.Criteria {
-			cond, err := criterion(valueExpr, critCol, c, params, func(alias, colID string) (string, *catalog.Column, error) {
+			cond, err := criterion(valueExpr, critCol, c, params, func(alias, colID string) (sqlgen.Col, *catalog.Column, error) {
 				s, ok := srcs[strings.ToLower(alias)]
 				if !ok {
-					return "", nil, bad("Source %q is not in the query.", alias)
+					return sqlgen.Col{}, nil, bad("Source %q is not in the query.", alias)
 				}
 				e, rc, err := s.column(colID)
 				if rc != nil {
@@ -388,60 +403,50 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 			if c.Row < 0 || c.Row > 31 {
 				return out, bad("Criteria rows must be between 0 and 31.")
 			}
-			if agg != "" {
+			if agg != 0 {
 				having[c.Row] = append(having[c.Row], cond)
 			} else {
 				where[c.Row] = append(where[c.Row], cond)
 			}
 		}
 	}
-	if len(sel) == 0 {
+	if len(sel.Columns) == 0 {
 		return out, bad("At least one field must be shown.")
 	}
-	var b strings.Builder
-	b.WriteString("SELECT ")
-	if m.Distinct {
-		b.WriteString("DISTINCT ")
-	}
-	b.WriteString(strings.Join(sel, ", "))
-	b.WriteString(" FROM ")
-	b.WriteString(strings.Join(from, " "))
-	if w := orRows(where); w != "" {
-		b.WriteString(" WHERE " + w)
-	}
-	if len(groupBy) > 0 {
-		b.WriteString(" GROUP BY " + strings.Join(groupBy, ", "))
-	}
-	if h := orRows(having); h != "" {
+	sel.Where = orRows(where)
+	if h := orRows(having); h != nil {
 		if !grouped {
 			return out, bad("Criteria on totals need a grouped query.")
 		}
-		b.WriteString(" HAVING " + h)
+		sel.Having = h
 	}
-	if len(sorts) > 0 {
-		sort.SliceStable(sorts, func(i, j int) bool {
-			if sorts[i].order != sorts[j].order {
-				return sorts[i].order < sorts[j].order
-			}
-			return sorts[i].idx < sorts[j].idx
-		})
-		var parts []string
-		for _, s := range sorts {
-			d := " ASC"
-			if s.desc {
-				d = " DESC"
-			}
-			parts = append(parts, s.expr+d)
+	sort.SliceStable(sorts, func(i, j int) bool {
+		if sorts[i].order != sorts[j].order {
+			return sorts[i].order < sorts[j].order
 		}
-		b.WriteString(" ORDER BY " + strings.Join(parts, ", "))
+		return sorts[i].idx < sorts[j].idx
+	})
+	for _, s := range sorts {
+		sel.OrderBy = append(sel.OrderBy, sqlgen.Order{Expr: s.expr, Desc: s.desc})
 	}
 	if m.Limit < 0 || m.Limit > MaxRows {
 		return out, bad("Limit must be between 1 and %d.", MaxRows)
 	}
 	if m.Limit > 0 {
-		fmt.Fprintf(&b, " LIMIT %d", m.Limit)
+		sel.Limit = sqlgen.Lit{Value: m.Limit, Type: sqlgen.Integer}
 	}
-	out.SQL = b.String()
+	r, err := sqlgen.Render(sqlgen.SQLite, sel)
+	if err != nil {
+		// Values are decoded and checked before they reach the renderer; what
+		// is left (text with NUL characters, non-finite numbers) is the
+		// person's input, not a server fault.
+		return out, bad("The query cannot be built: %s.", strings.TrimPrefix(err.Error(), "sqlgen: "))
+	}
+	out.SQL = r.SQL
+	for _, c := range r.Columns {
+		out.Columns = append(out.Columns, c.Name)
+		out.Types = append(out.Types, string(c.Type))
+	}
 	if len(m.Sources) == 1 && srcs[order[0]].table != nil && !grouped && !m.Distinct && selectsID && selectsVersion {
 		out.Editable, out.TableID = true, srcs[order[0]].table.ID
 	}
@@ -449,30 +454,32 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 	return out, nil
 }
 
-func sourceSQL(s source) string {
+func sourceOf(s source) sqlgen.Source {
 	if s.table != nil {
-		return Q(s.table.PhysicalName) + " AS " + Q(s.Alias)
+		return sqlgen.Table{Name: s.table.PhysicalName, Alias: s.Alias}
 	}
-	return "(" + s.query.SQL + ") AS " + Q(s.Alias)
+	return sqlgen.RawSource{SQL: s.query.SQL, Alias: s.Alias}
 }
 
-func orRows(rows map[int][]string) string {
+// orRows combines criteria rows: conditions in a row are AND-ed, rows are
+// OR-ed (Access semantics). nil when there are none.
+func orRows(rows map[int][]sqlgen.Expr) sqlgen.Expr {
 	if len(rows) == 0 {
-		return ""
+		return nil
 	}
 	keys := make([]int, 0, len(rows))
 	for k := range rows {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)
-	parts := make([]string, 0, len(keys))
+	parts := make(sqlgen.Or, 0, len(keys))
 	for _, k := range keys {
-		parts = append(parts, "("+strings.Join(rows[k], " AND ")+")")
+		parts = append(parts, sqlgen.And(rows[k]))
 	}
 	if len(parts) == 1 {
 		return parts[0]
 	}
-	return "(" + strings.Join(parts, " OR ") + ")"
+	return parts
 }
 
 func keysOf(m map[string]bool) []string {
@@ -484,163 +491,101 @@ func keysOf(m map[string]bool) []string {
 	return out
 }
 
-// criterion renders one condition. Literal values are inlined as SQL literals
-// (the compiled SQL is stored and shown to builders), produced only by
-// sqlLiteral from decoded, typed values; parameters become :name.
-func criterion(expr string, col *catalog.Column, c Criterion, params map[string]Param, ref func(alias, colID string) (string, *catalog.Column, error)) (string, error) {
-	operand := func(v any) (string, error) {
+// criterion builds one condition. Literal values are inlined (the compiled SQL
+// is stored and shown to builders) from decoded, typed values; parameters
+// become :name.
+func criterion(expr sqlgen.Expr, col *catalog.Column, c Criterion, params map[string]Param, ref func(alias, colID string) (sqlgen.Col, *catalog.Column, error)) (sqlgen.Expr, error) {
+	operand := func(v any) (sqlgen.Expr, error) {
 		if c.Param != "" {
 			p, ok := params[strings.ToLower(c.Param)]
 			if !ok {
-				return "", bad("Parameter %q is not declared.", c.Param)
+				return nil, bad("Parameter %q is not declared.", c.Param)
 			}
 			if col != nil && col.Type == catalog.Currency {
 				// Currency is stored in ten-thousandths; the person types an amount such as 12.50.
-				return "CAST(ROUND(:" + p.Name + " * 10000.0) AS INTEGER)", nil
+				return sqlgen.Cast{Type: sqlgen.Currency, X: sqlgen.Func{Name: "round", Args: []sqlgen.Expr{
+					sqlgen.Binary{Op: sqlgen.OpMul, L: sqlgen.Param{Name: p.Name}, R: sqlgen.Lit{Value: 10000.0, Type: sqlgen.Number}}}}}, nil
 			}
-			return ":" + p.Name, nil
+			return sqlgen.Param{Name: p.Name}, nil
 		}
 		if col != nil {
 			dv, err := records.DecodeValue(*col, v)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			v = dv
 		}
-		return sqlLiteral(v)
+		switch v.(type) {
+		case nil, bool, int64, float64, json.Number, string:
+			return sqlgen.Lit{Value: v}, nil
+		}
+		return nil, bad("Unsupported value %v.", v)
 	}
 	switch c.Op {
 	case "eq", "ne", "lt", "le", "gt", "ge":
 		if c.Param == "" && c.Value == nil {
-			return "", bad("Use 'is empty' to match empty values.")
+			return nil, bad("Use 'is empty' to match empty values.")
 		}
 		o, err := operand(c.Value)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		sym := map[string]string{"eq": "=", "ne": "IS NOT", "lt": "<", "le": "<=", "gt": ">", "ge": ">="}[c.Op]
-		return expr + " " + sym + " " + o, nil
+		op := map[string]sqlgen.BinOp{"eq": sqlgen.OpEq, "ne": sqlgen.OpIsNot, "lt": sqlgen.OpLt, "le": sqlgen.OpLe, "gt": sqlgen.OpGt, "ge": sqlgen.OpGe}[c.Op]
+		return sqlgen.Binary{Op: op, L: expr, R: o}, nil
 	case "like", "contains", "starts", "ends":
-		var o string
+		kind := map[string]sqlgen.MatchKind{"like": sqlgen.MatchLike, "contains": sqlgen.MatchContains, "starts": sqlgen.MatchStarts, "ends": sqlgen.MatchEnds}[c.Op]
 		if c.Param != "" {
 			p, err := operand(nil)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			o = map[string]string{"like": p, "contains": "'%' || " + p + " || '%'", "starts": p + " || '%'", "ends": "'%' || " + p}[c.Op]
-		} else {
-			s, ok := c.Value.(string)
-			if !ok {
-				return "", bad("Text matching needs a text value.")
-			}
-			if c.Op == "like" {
-				// Access-style wildcards: * and ?.
-				s = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`, "*", "%", "?", "_").Replace(s)
-			} else {
-				s = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
-				s = map[string]string{"contains": "%" + s + "%", "starts": s + "%", "ends": "%" + s}[c.Op]
-			}
-			lit, err := sqlLiteral(s)
-			if err != nil {
-				return "", err
-			}
-			o = lit
+			return sqlgen.Match{Kind: kind, X: expr, Pattern: p, CI: true}, nil
 		}
-		return expr + " LIKE " + o + ` ESCAPE '\'`, nil
+		s, ok := c.Value.(string)
+		if !ok {
+			return nil, bad("Text matching needs a text value.")
+		}
+		if kind == sqlgen.MatchLike {
+			s = sqlgen.AccessWildcards(s) // Access-style wildcards: * and ?
+		}
+		return sqlgen.Match{Kind: kind, X: expr, Pattern: sqlgen.Lit{Value: s, Type: sqlgen.Text}, CI: true}, nil
 	case "in":
 		vals, ok := c.Value.([]any)
 		if !ok || len(vals) == 0 || len(vals) > 500 {
-			return "", bad("'in' needs a list of 1 to 500 values.")
+			return nil, bad("'in' needs a list of 1 to 500 values.")
 		}
-		parts := make([]string, len(vals))
+		list := make([]sqlgen.Expr, len(vals))
 		for i, v := range vals {
 			if v == nil {
-				return "", bad("'in' values cannot be empty.")
+				return nil, bad("'in' values cannot be empty.")
 			}
 			o, err := operand(v)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			parts[i] = o
+			list[i] = o
 		}
-		return expr + " IN (" + strings.Join(parts, ", ") + ")", nil
+		return sqlgen.In{X: expr, List: list}, nil
 	case "between":
 		vals, ok := c.Value.([]any)
 		if !ok || len(vals) != 2 || vals[0] == nil || vals[1] == nil {
-			return "", bad("'between' needs two values.")
+			return nil, bad("'between' needs two values.")
 		}
 		a, err := operand(vals[0])
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		z, err := operand(vals[1])
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return expr + " BETWEEN " + a + " AND " + z, nil
+		return sqlgen.Between{X: expr, Lo: a, Hi: z}, nil
 	case "is_null":
-		return expr + " IS NULL", nil
+		return sqlgen.IsNull{X: expr}, nil
 	case "not_null":
-		return expr + " IS NOT NULL", nil
+		return sqlgen.IsNull{X: expr, Negate: true}, nil
 	case "within":
 		return withinCriterion(expr, col, c, params, ref)
 	}
-	return "", bad("Unknown operator %q.", c.Op)
-}
-
-// sqlLiteral renders a decoded storage value as a SQL literal.
-func sqlLiteral(v any) (string, error) {
-	switch x := v.(type) {
-	case nil:
-		return "NULL", nil
-	case int64:
-		return fmt.Sprint(x), nil
-	case float64:
-		return fmt.Sprintf("%v", x), nil
-	case bool:
-		if x {
-			return "1", nil
-		}
-		return "0", nil
-	case json.Number:
-		if _, err := strconv.ParseFloat(string(x), 64); err != nil {
-			return "", bad("%q is not a number.", string(x))
-		}
-		return string(x), nil
-	case string:
-		if strings.ContainsRune(x, 0) {
-			return "", bad("Text values cannot contain NUL characters.")
-		}
-		return "'" + strings.ReplaceAll(x, "'", "''") + "'", nil
-	}
-	return "", bad("Unsupported value %v.", v)
-}
-
-// fieldType is the display type of a visible field ("" when unknown).
-func fieldType(col *catalog.Column, columnID, group string) string {
-	if group == "count" {
-		return "integer"
-	}
-	base := ""
-	switch {
-	case col != nil:
-		base = FieldDisplayType(col)
-	case columnID == "id" || columnID == "_version":
-		base = "integer"
-	}
-	switch base {
-	case "boolean":
-		if group != "" && group != "group_by" {
-			return "integer"
-		}
-	case "integer":
-		if group == "avg" {
-			return "number"
-		}
-	case "text", "date", "datetime":
-		if group == "sum" || group == "avg" {
-			return ""
-		}
-	}
-	return base
+	return nil, bad("Unknown operator %q.", c.Op)
 }

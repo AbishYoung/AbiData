@@ -67,7 +67,7 @@ func TestCompileJoinGroupCriteriaParams(t *testing.T) {
 	want := `SELECT "c"."Name" AS "Name", SUM("o"."Amount") AS "Total", COUNT("i"."Name") AS "Lines" FROM "Orders" AS "o" ` +
 		`INNER JOIN "Customers" AS "c" ON "o"."Customer" = "c"."id" LEFT JOIN "Items" AS "i" ON "o"."Item" = "i"."id" ` +
 		`WHERE (("c"."City" LIKE 'Lon%' ESCAPE '\') OR ("c"."City" = 'Paris')) GROUP BY "c"."Name", "c"."City" ` +
-		`HAVING (SUM("o"."Amount") > CAST(ROUND(:min_total * 10000.0) AS INTEGER)) ORDER BY "c"."Name" ASC`
+		`HAVING (SUM("o"."Amount") > CAST(round(:min_total * 10000.0) AS INTEGER)) ORDER BY "c"."Name" ASC`
 	if c.SQL != want {
 		t.Fatalf("got\n%s\nwant\n%s", c.SQL, want)
 	}

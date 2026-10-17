@@ -558,7 +558,8 @@ func SchemaValidator(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema) (
 
 // CompilerVersion changes whenever the visual query compiler starts producing
 // different SQL for the same model (for example scaling currency parameters).
-const CompilerVersion = "2"
+// 3: generated through internal/sqlgen (ADR 0013).
+const CompilerVersion = "3"
 
 // RefreshCompiled recompiles every visual query's stored SQL once per
 // compiler version, so consumers of the stored SQL (reports, exports) get the

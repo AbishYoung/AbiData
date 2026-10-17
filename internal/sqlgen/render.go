@@ -65,6 +65,19 @@ func RenderExpr(d Dialect, e Expr) (Rendered, error) {
 	return r.result(nil)
 }
 
+// RenderOrderBy renders the body of an ORDER BY clause (without the keyword).
+func RenderOrderBy(d Dialect, keys []Order) (Rendered, error) {
+	r, err := newRenderer(d)
+	if err != nil {
+		return Rendered{}, err
+	}
+	if len(keys) == 0 {
+		r.fail("an empty ORDER BY")
+	}
+	r.list(len(keys), ", ", func(i int) { r.order(keys[i]) })
+	return r.result(nil)
+}
+
 // TypeOf is the logical type of e (Unknown when not known statically).
 func TypeOf(e Expr) Type { return typeOf(e) }
 
@@ -237,8 +250,17 @@ func (r *renderer) source(s Source) {
 }
 
 func (r *renderer) insert(s *Insert) {
-	if s.Table == "" || len(s.Columns) == 0 {
-		r.fail("INSERT needs a table and columns")
+	if s.Table == "" {
+		r.fail("INSERT needs a table")
+		return
+	}
+	if len(s.Columns) == 0 {
+		if len(s.Rows) > 0 || s.From != nil || s.OnConflict != nil {
+			r.fail("an INSERT without columns takes no values")
+			return
+		}
+		r.w("INSERT INTO " + Quote(s.Table) + " DEFAULT VALUES")
+		r.returning(s.Returning)
 		return
 	}
 	r.w("INSERT INTO " + Quote(s.Table) + " (")

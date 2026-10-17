@@ -14,6 +14,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/events"
 	"abidata/internal/fault"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -90,15 +91,16 @@ type ListQuery struct {
 	Limit  int
 }
 
-// selectList renders the column list for t plus lookup display subqueries.
-func selectList(sch *catalog.Schema, t *catalog.Table) (string, []catalog.Column, []catalog.Column) {
-	cols := []string{`t."id"`, `t."_version"`}
+// selectList builds the column list for t (as alias "t") plus lookup display
+// subqueries.
+func selectList(sch *catalog.Schema, t *catalog.Table) ([]sqlgen.Column, []catalog.Column, []catalog.Column) {
+	cols := []sqlgen.Column{{Expr: sqlgen.Col{Table: "t", Name: "id", Type: sqlgen.Integer}}, {Expr: sqlgen.Col{Table: "t", Name: "_version", Type: sqlgen.Integer}}}
 	var data, lookups []catalog.Column
 	for _, c := range t.Columns {
 		if c.Type == catalog.Autonumber {
 			continue
 		}
-		cols = append(cols, "t."+catalog.Quote(c.PhysicalName))
+		cols = append(cols, sqlgen.Column{Expr: sqlgen.Col{Table: "t", Name: c.PhysicalName}})
 		data = append(data, c)
 	}
 	for _, c := range data {
@@ -117,11 +119,24 @@ func selectList(sch *catalog.Schema, t *catalog.Table) (string, []catalog.Column
 		if !ok {
 			continue
 		}
-		cols = append(cols, fmt.Sprintf(`(SELECT p.%s FROM %s p WHERE p."id" = t.%s)`,
-			catalog.Quote(disp.PhysicalName), catalog.Quote(parent.PhysicalName), catalog.Quote(c.PhysicalName)))
+		cols = append(cols, sqlgen.Column{Expr: sqlgen.Subquery{Select: &sqlgen.Select{
+			Columns: []sqlgen.Column{{Expr: sqlgen.Col{Table: "p", Name: disp.PhysicalName}}},
+			From:    sqlgen.Table{Name: parent.PhysicalName, Alias: "p"},
+			Where:   sqlgen.Binary{Op: sqlgen.OpEq, L: sqlgen.Col{Table: "p", Name: "id"}, R: sqlgen.Col{Table: "t", Name: c.PhysicalName}},
+		}}})
 		lookups = append(lookups, c)
 	}
-	return strings.Join(cols, ", "), data, lookups
+	return cols, data, lookups
+}
+
+// render renders a statement this package built; failures are programming
+// errors, since every value was decoded and checked first.
+func render(s sqlgen.Stmt) (sqlgen.Rendered, error) {
+	r, err := sqlgen.Render(sqlgen.SQLite, s)
+	if err != nil {
+		return r, fmt.Errorf("records: %w", err)
+	}
+	return r, nil
 }
 
 func scanRow(rows *sqlitex.Rows, data, lookups []catalog.Column) (Row, error) {
@@ -159,24 +174,23 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 	if q.Offset < 0 {
 		return nil, false, fault.New(fault.BadRequest, "Offset cannot be negative.")
 	}
-	where, args, err := CompileFilter(t, q.Filter, DecodeValue)
+	where, err := filterExpr(t, q.Filter, DecodeValue, "t")
 	if err != nil {
 		return nil, false, err
 	}
-	order, err := CompileSort(t, q.Sort)
+	order, err := sortOrders(t, q.Sort, "t")
 	if err != nil {
 		return nil, false, err
 	}
 	cols, data, lookups := selectList(sch, t)
-	sql := fmt.Sprintf(`SELECT %s FROM %s t`, cols, catalog.Quote(t.PhysicalName))
-	if where != "" {
-		sql += " WHERE " + qualify(where)
+	stmt, err := render(&sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, OrderBy: order,
+		Limit: sqlgen.Arg{Value: q.Limit + 1}, Offset: sqlgen.Arg{Value: q.Offset}})
+	if err != nil {
+		return nil, false, err
 	}
-	sql += " ORDER BY " + qualify(order) + " LIMIT ? OFFSET ?"
-	args = append(args, q.Limit+1, q.Offset)
 	var out []Row
 	err = l.Read(ctx, func(qr sqlitex.Querier) error {
-		rows, err := qr.Query(ctx, sql, args...)
+		rows, err := qr.Query(ctx, stmt.SQL, stmt.Args...)
 		if err != nil {
 			return err
 		}
@@ -210,59 +224,25 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 	return out, more, nil
 }
 
-// qualify prefixes bare quoted identifiers from the compilers with the table
-// alias "t." so lookup subqueries (alias p) cannot capture them.
-func qualify(sqlFrag string) string {
-	var b strings.Builder
-	inStr := false
-	for i := 0; i < len(sqlFrag); i++ {
-		c := sqlFrag[i]
-		switch {
-		case c == '\'':
-			inStr = !inStr
-			b.WriteByte(c)
-		case c == '"' && !inStr:
-			j := i + 1
-			for j < len(sqlFrag) {
-				if sqlFrag[j] == '"' {
-					if j+1 < len(sqlFrag) && sqlFrag[j+1] == '"' {
-						j += 2
-						continue
-					}
-					break
-				}
-				j++
-			}
-			if i == 0 || sqlFrag[i-1] != '.' {
-				b.WriteString("t.")
-			}
-			b.WriteString(sqlFrag[i : j+1])
-			i = j
-		default:
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
-}
-
 // Count returns the number of matching rows, capped at CountCap.
 func (s *Service) Count(ctx context.Context, l *workspace.Lease, tableID string, f *Filter) (int64, bool, error) {
 	_, t, err := s.Table(ctx, l, tableID)
 	if err != nil {
 		return 0, false, err
 	}
-	where, args, err := CompileFilter(t, f, DecodeValue)
+	where, err := filterExpr(t, f, DecodeValue, "t")
 	if err != nil {
 		return 0, false, err
 	}
-	sql := fmt.Sprintf(`SELECT count(*) FROM (SELECT 1 FROM %s t`, catalog.Quote(t.PhysicalName))
-	if where != "" {
-		sql += " WHERE " + qualify(where)
+	// Counting stops one past the cap, so a huge table costs no more than that.
+	stmt, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
+		From: sqlgen.SubSelect{Alias: "c", Select: &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Lit{Value: 1}}},
+			From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, Limit: sqlgen.Arg{Value: CountCap + 1}}}})
+	if err != nil {
+		return 0, false, err
 	}
-	sql += " LIMIT ?)"
-	args = append(args, CountCap+1)
 	var n int64
-	err = l.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, sql, args...).Scan(&n) })
+	err = l.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, stmt.SQL, stmt.Args...).Scan(&n) })
 	if err != nil {
 		return 0, false, fault.Classify(err)
 	}
@@ -289,7 +269,12 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, tableID string, i
 
 func getRow(ctx context.Context, q sqlitex.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
 	cols, data, lookups := selectList(sch, t)
-	rows, err := q.Query(ctx, fmt.Sprintf(`SELECT %s FROM %s t WHERE t."id" = ?`, cols, catalog.Quote(t.PhysicalName)), id)
+	stmt, err := render(&sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"},
+		Where: sqlgen.Binary{Op: sqlgen.OpEq, L: sqlgen.Col{Table: "t", Name: "id"}, R: sqlgen.Arg{Value: id}}})
+	if err != nil {
+		return Row{}, err
+	}
+	rows, err := q.Query(ctx, stmt.SQL, stmt.Args...)
 	if err != nil {
 		return Row{}, fault.Classify(err)
 	}
@@ -523,22 +508,24 @@ func insertRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *cata
 	if err := checkAttachments(ctx, tx, cols, vals); err != nil {
 		return Row{}, err
 	}
-	var sql string
-	if len(cols) == 0 {
-		sql = fmt.Sprintf(`INSERT INTO %s DEFAULT VALUES`, catalog.Quote(t.PhysicalName))
-	} else {
-		names := make([]string, len(cols))
-		marks := make([]string, len(cols))
+	ins := &sqlgen.Insert{Table: t.PhysicalName, Returning: []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}}}
+	if len(cols) > 0 {
+		row := make([]sqlgen.Expr, len(cols))
 		for i, c := range cols {
-			names[i], marks[i] = catalog.Quote(c.PhysicalName), "?"
+			ins.Columns = append(ins.Columns, c.PhysicalName)
+			row[i] = sqlgen.Arg{Value: vals[i]}
 		}
-		sql = fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, catalog.Quote(t.PhysicalName), strings.Join(names, ", "), strings.Join(marks, ", "))
+		ins.Rows = [][]sqlgen.Expr{row}
 	}
-	res, err := tx.Exec(ctx, sql, vals...)
+	stmt, err := render(ins)
 	if err != nil {
 		return Row{}, err
 	}
-	return getRow(ctx, tx, sch, t, res.LastInsertID)
+	var id int64
+	if err := tx.QueryRow(ctx, stmt.SQL, stmt.Args...).Scan(&id); err != nil {
+		return Row{}, err
+	}
+	return getRow(ctx, tx, sch, t, id)
 }
 
 // Update applies fields to row id if its version is expectedVersion (OCC).
@@ -583,12 +570,15 @@ func updateRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *cata
 			before = &b
 		}
 	}
-	sets := []string{`"_version" = "_version" + 1`}
-	for _, c := range cols {
-		sets = append(sets, catalog.Quote(c.PhysicalName)+" = ?")
+	set := []sqlgen.Assign{{Column: "_version", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "_version"}, R: sqlgen.Lit{Value: 1}}}}
+	for i, c := range cols {
+		set = append(set, sqlgen.Assign{Column: c.PhysicalName, Value: sqlgen.Arg{Value: vals[i]}})
 	}
-	args := append(append([]any{}, vals...), id, expected)
-	res, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE %s SET %s WHERE "id" = ? AND "_version" = ?`, catalog.Quote(t.PhysicalName), strings.Join(sets, ", ")), args...)
+	stmt, err := render(&sqlgen.Update{Table: t.PhysicalName, Set: set, Where: versionMatch(id, expected)})
+	if err != nil {
+		return Row{}, nil, err
+	}
+	res, err := tx.Exec(ctx, stmt.SQL, stmt.Args...)
 	if err != nil {
 		return Row{}, nil, err
 	}
@@ -597,6 +587,14 @@ func updateRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *cata
 	}
 	r, err := getRow(ctx, tx, sch, t, id)
 	return r, before, err
+}
+
+// versionMatch selects row id only at the expected version (OCC).
+func versionMatch(id, expected int64) sqlgen.Expr {
+	return sqlgen.And{
+		sqlgen.Binary{Op: sqlgen.OpEq, L: sqlgen.Col{Name: "id"}, R: sqlgen.Arg{Value: id}},
+		sqlgen.Binary{Op: sqlgen.OpEq, L: sqlgen.Col{Name: "_version"}, R: sqlgen.Arg{Value: expected}},
+	}
 }
 
 // occFailure distinguishes a missing row from a version conflict.
@@ -634,7 +632,11 @@ func deleteRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *cata
 			before = &b
 		}
 	}
-	res, err := tx.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE "id" = ? AND "_version" = ?`, catalog.Quote(t.PhysicalName)), id, expected)
+	stmt, err := render(&sqlgen.Delete{Table: t.PhysicalName, Where: versionMatch(id, expected)})
+	if err != nil {
+		return err
+	}
+	res, err := tx.Exec(ctx, stmt.SQL, stmt.Args...)
 	if err != nil {
 		return err
 	}

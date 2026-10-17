@@ -112,6 +112,9 @@ func TestRenderWrites(t *testing.T) {
 			&Update{Table: "Orders", Set: []Assign{{Column: "Qty", Value: Arg{Value: int64(3)}}, {Column: "_version", Value: Binary{Op: OpAdd, L: Col{Name: "_version"}, R: Lit{Value: 1}}}},
 				Where: And{Binary{Op: OpEq, L: Col{Name: "id"}, R: Arg{Value: int64(7)}}, Binary{Op: OpEq, L: Col{Name: "_version"}, R: Arg{Value: int64(2)}}}},
 			`UPDATE "Orders" SET "Qty" = ?, "_version" = "_version" + 1 WHERE ("id" = ? AND "_version" = ?)`, []any{int64(3), int64(7), int64(2)}},
+		{"insert defaults returning",
+			&Insert{Table: "Orders", Returning: []Column{{Expr: Col{Name: "id"}}}},
+			`INSERT INTO "Orders" DEFAULT VALUES RETURNING "id"`, nil},
 		{"delete",
 			&Delete{Table: "Orders", Where: Binary{Op: OpEq, L: Col{Name: "id"}, R: Arg{Value: int64(7)}}},
 			`DELETE FROM "Orders" WHERE "id" = ?`, []any{int64(7)}},
@@ -182,6 +185,7 @@ func TestRenderRefusesMalformedInput(t *testing.T) {
 		"no columns":               &Select{From: Table{Name: "t"}},
 		"insert row width":         &Insert{Table: "t", Columns: []string{"a", "b"}, Rows: [][]Expr{{Arg{Value: 1}}}},
 		"insert rows and select":   &Insert{Table: "t", Columns: []string{"a"}},
+		"defaults with values":     &Insert{Table: "t", Rows: [][]Expr{{Arg{Value: 1}}}},
 		"update without set":       &Update{Table: "t"},
 		"upsert update no target":  &Insert{Table: "t", Columns: []string{"a"}, Rows: [][]Expr{{Arg{Value: 1}}}, OnConflict: &OnConflict{Set: []Assign{{Column: "a", Value: Arg{Value: 2}}}}},
 	}
@@ -206,5 +210,18 @@ func TestRenderParamsListedOnce(t *testing.T) {
 	}
 	if strings.Count(r.SQL, ":") != 3 {
 		t.Errorf("SQL = %s", r.SQL)
+	}
+}
+
+func TestRenderOrderBy(t *testing.T) {
+	r, err := RenderOrderBy(SQLite, []Order{{Expr: Col{Name: "Name", CI: true}, Desc: true, Nulls: NullsLast}, {Expr: Col{Name: "id"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"Name" COLLATE NOCASE DESC NULLS LAST, "id" ASC`; r.SQL != want {
+		t.Errorf("got %s, want %s", r.SQL, want)
+	}
+	if _, err := RenderOrderBy(SQLite, nil); err == nil {
+		t.Error("an empty ORDER BY rendered")
 	}
 }
