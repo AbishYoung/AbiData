@@ -217,7 +217,7 @@ The layering is ADR 0013 §1: services build models in `internal/sqlgen`, which 
 Stored expressions and saved SQL are written **verbatim with their dialect tag**. A PostgreSQL archive restored into PostgreSQL is therefore exact.
 
 **Import across dialects (SQLite archive to PostgreSQL).**
-1. **Structural objects** (tables, columns, relationships, indexes, forms, reports, scripts, jobs, visual queries) carry over losslessly. Visual queries are recompiled for the target dialect.
+1. **Structural objects** (tables, columns, relationships, indexes, forms, reports, scripts, jobs, visual queries) carry over losslessly. Visual queries are recompiled for the target dialect. Their raw SQL expression columns, if any, are the exception and are handled like saved SQL in step 3 (ADR 0013 §6).
 2. **Stored expressions** (calculated, validation, default) are AbiData expressions (ADR 0013 §5) and are rendered for the target: no translation. The only exception is an expression already marked "needs attention" on SQLite because it uses syntax outside the grammar:
    - such a calculated field or default arrives as plain data, flagged in the import report and the table designer;
    - such a validation rule arrives disabled and flagged.
