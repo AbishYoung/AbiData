@@ -7,6 +7,7 @@ import (
 	"github.com/ncruces/go-sqlite3"
 
 	"abidata/internal/fault"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 )
 
@@ -104,19 +105,14 @@ func lexCheckOpt(expr string, allowNamed bool) error {
 	return nil
 }
 
-// deterministicFuncs are builtins allowed in stored expressions. SQLite itself
-// rejects non-deterministic use (e.g. date('now')) inside CHECK and generated
-// columns; this list additionally keeps out anything not portable to stock sqlite3.
+// deterministicFuncs are builtins allowed in stored expressions: the
+// deterministic entries of the sqlgen function catalog (ADR 0013 §4). SQLite
+// itself rejects non-deterministic use (e.g. date('now')) inside CHECK and
+// generated columns; the catalog additionally keeps out anything not portable
+// to stock sqlite3.
 var deterministicFuncs = func() map[string]bool {
 	m := map[string]bool{}
-	for _, f := range strings.Fields(`abs char coalesce concat concat_ws format glob hex ifnull iif if instr length
-	like likelihood likely lower ltrim max min nullif octet_length printf quote replace round rtrim sign substr
-	substring trim typeof unhex unicode unlikely upper date time datetime julianday strftime unixepoch timediff
-	json json_array json_array_length json_extract json_insert json_object json_patch json_quote json_remove
-	json_replace json_set json_type json_valid json_error_position
-	acos acosh asin asinh atan atan2 atanh ceil ceiling cos cosh degrees exp floor ln log log10 log2 mod pi pow power
-	radians sin sinh sqrt tan tanh trunc
-	geo_point geo_lat geo_lon geo_distance_m geo_within geo_area_m2 geo_centroid geo_bbox`) {
+	for _, f := range sqlgen.DeterministicFuncs() {
 		m[f] = true
 	}
 	return m
