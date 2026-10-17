@@ -3,7 +3,7 @@
 //   make screenshots            (or: node scripts/screenshots.mjs [--only=name,name] [--keep])
 //
 // It builds the web app and the server binary, starts the server on a free port with a fresh temp
-// data directory and the Northwind Traders sample workspace, completes first-run setup through the
+// data directory and the two sample workspaces, completes first-run setup through the
 // API with a password generated at run time (nothing secret is written to the repo), generates some
 // activity, drives headless Chromium through the main screens and writes the images. The server and
 // the temp directory are removed at the end. Playwright comes from tests/e2e/node_modules (run

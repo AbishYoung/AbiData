@@ -18,37 +18,53 @@ import (
 	"abidata/internal/workspace"
 )
 
-// createDemoAfterSetup builds the sample workspace for the first administrator.
-// It never fails setup: problems (including panics) are logged and swallowed.
+// createDemoAfterSetup builds both sample workspaces for the first
+// administrator. It never fails setup: problems (including panics) are logged
+// and swallowed.
 func createDemoAfterSetup(ctx context.Context, b *demo.Builder, u admin.User, log *slog.Logger) {
+	for _, kind := range demo.Kinds {
+		createDemo(ctx, b, kind, u, log)
+	}
+}
+
+func createDemo(ctx context.Context, b *demo.Builder, kind demo.Kind, u admin.User, log *slog.Logger) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("demo workspace panicked", "panic", r)
+			log.Error("demo workspace panicked", "demo", kind, "panic", r)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	start := time.Now()
-	res, err := b.Create(ctx, u.ID)
+	res, err := b.Create(ctx, kind, u.ID)
 	switch {
 	case err != nil:
-		log.Error("could not create the demo workspace; setup is unaffected", "err", err)
+		log.Error("could not create a demo workspace; setup is unaffected", "name", kind.Name(), "err", err)
 	case res.Created:
-		log.Info("created demo workspace", "workspace_id", res.WorkspaceID, "name", demo.WorkspaceName, "owner", u.Email, "took", time.Since(start).Round(time.Millisecond))
+		log.Info("created demo workspace", "workspace_id", res.WorkspaceID, "name", kind.Name(), "owner", u.Email, "took", time.Since(start).Round(time.Millisecond))
 	}
 }
 
-// demoCmd implements `abidata demo --owner EMAIL`: create the Northwind Traders
-// sample workspace on an existing install. Like the other admin commands it
-// needs the data directory to itself, so stop the server first.
+// demoCmd implements `abidata demo --owner EMAIL [--kind traders|invasives|all]`:
+// create the sample workspaces on an existing install. Like the other admin
+// commands it needs the data directory to itself, so stop the server first.
 func demoCmd(args []string) error {
 	fs := flag.NewFlagSet("demo", flag.ContinueOnError)
 	owner := fs.String("owner", "", "email of the user who will own the workspace (required)")
+	which := fs.String("kind", "all", "which sample to create: traders (Northwind Traders), invasives (Northwind Invasives) or all")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *owner == "" {
-		return errors.New("usage: abidata demo --owner EMAIL")
+		return errors.New("usage: abidata demo --owner EMAIL [--kind traders|invasives|all]")
+	}
+	kinds := demo.Kinds
+	if *which != "all" {
+		k, err := demo.ParseKind(*which)
+		if err != nil {
+			return err
+		}
+		kinds = []demo.Kind{k}
 	}
 	cfg, err := config.FromEnv()
 	if err != nil {
@@ -85,14 +101,17 @@ func demoCmd(args []string) error {
 	}
 	defer func() { _ = wm.Shutdown(ctx) }()
 
-	res, err := demo.NewBuilder(adm, wm, nil, &files.Service{DataDir: cfg.DataDir}, slog.Default()).Create(ctx, u.ID)
-	if err != nil {
-		return err
+	b := demo.NewBuilder(adm, wm, nil, &files.Service{DataDir: cfg.DataDir}, slog.Default())
+	for _, kind := range kinds {
+		res, err := b.Create(ctx, kind, u.ID)
+		if err != nil {
+			return fmt.Errorf("%s: %w", kind.Name(), err)
+		}
+		if !res.Created {
+			fmt.Printf("workspace %q already exists (%s); nothing to do\n", kind.Name(), res.WorkspaceID)
+			continue
+		}
+		fmt.Printf("created workspace %q (%s) owned by %s\n", kind.Name(), res.WorkspaceID, u.Email)
 	}
-	if !res.Created {
-		fmt.Printf("workspace %q already exists (%s); nothing to do\n", demo.WorkspaceName, res.WorkspaceID)
-		return nil
-	}
-	fmt.Printf("created workspace %q (%s) owned by %s\n", demo.WorkspaceName, res.WorkspaceID, u.Email)
 	return nil
 }

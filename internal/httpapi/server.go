@@ -98,7 +98,7 @@ type Server struct {
 
 // DemoProvisioner gives every active user their own demo workspace.
 type DemoProvisioner interface {
-	ProvisionAll(ctx context.Context) (demo.Provisioned, error)
+	ProvisionAll(ctx context.Context, kind demo.Kind) (demo.Provisioned, error)
 }
 
 // New builds the server and registers every route.

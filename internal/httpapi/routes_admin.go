@@ -14,6 +14,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
+	"abidata/internal/demo"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 )
@@ -123,10 +124,14 @@ func (s *Server) registerAdmin(api huma.API) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "adminProvisionDemos", Method: http.MethodPost, Path: "/api/v1/admin/demo-workspaces", Tags: tags, Metadata: adminOnly,
-		Summary:     "Give every active user their own Northwind Traders demo workspace",
-		Description: "Creates a personal demo workspace, owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own a demo are skipped.",
-		Errors:      []int{401, 403, 404, 503},
-	}, func(ctx context.Context, _ *struct{}) (*struct{ Body DemoProvisionDTO }, error) {
+		Summary:     "Give every active user their own copy of a demo workspace",
+		Description: "Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.",
+		Errors:      []int{400, 401, 403, 404, 503},
+	}, func(ctx context.Context, in *struct {
+		Body struct {
+			Kind string `json:"kind" enum:"traders,invasives" doc:"Which sample: traders (Northwind Traders) or invasives (Northwind Invasives)."`
+		}
+	}) (*struct{ Body DemoProvisionDTO }, error) {
 		if s.deps.Demo == nil {
 			return nil, fault.New(fault.NotFound, "Demo workspaces are not available on this server.")
 		}
@@ -134,7 +139,11 @@ func (s *Server) registerAdmin(api huma.API) {
 			return nil, fault.New(fault.WorkspaceBusy, "Demo workspaces are already being created. Try again when that finishes.")
 		}
 		defer s.demoRun.Unlock()
-		res, err := s.deps.Demo.ProvisionAll(detached(ctx))
+		kind, err := demo.ParseKind(in.Body.Kind)
+		if err != nil {
+			return nil, fault.New(fault.BadRequest, "Choose which demo to create: traders or invasives.")
+		}
+		res, err := s.deps.Demo.ProvisionAll(detached(ctx), kind)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +158,7 @@ func (s *Server) registerAdmin(api huma.API) {
 			s.log.Error("demo workspace for user failed", "email", f.Email, "err", f.Err)
 			out.Failed = append(out.Failed, DemoProvisionFailure{Email: f.Email, Message: "The demo workspace could not be built; see the server log."})
 		}
-		s.audit(ctx, "demo.provision_all", "platform", "", map[string]any{"created": len(out.Created), "skipped": len(out.Skipped), "failed": len(out.Failed)})
+		s.audit(ctx, "demo.provision_all", "platform", "", map[string]any{"demo": string(kind), "created": len(out.Created), "skipped": len(out.Skipped), "failed": len(out.Failed)})
 		return &struct{ Body DemoProvisionDTO }{Body: out}, nil
 	})
 

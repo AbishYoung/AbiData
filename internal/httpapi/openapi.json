@@ -412,6 +412,23 @@
         ],
         "type": "object"
       },
+      "AdminProvisionDemosRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "description": "Which sample: traders (Northwind Traders) or invasives (Northwind Invasives).",
+            "enum": [
+              "traders",
+              "invasives"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
       "AdminResetUserPasswordRequest": {
         "additionalProperties": false,
         "properties": {
@@ -5863,8 +5880,18 @@
     },
     "/api/v1/admin/demo-workspaces": {
       "post": {
-        "description": "Creates a personal demo workspace, owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own a demo are skipped.",
+        "description": "Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.",
         "operationId": "adminProvisionDemos",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminProvisionDemosRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -5875,6 +5902,16 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
           },
           "401": {
             "content": {
@@ -5906,6 +5943,16 @@
             },
             "description": "Not Found"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -5927,7 +5974,7 @@
             "description": "Service Unavailable"
           }
         },
-        "summary": "Give every active user their own Northwind Traders demo workspace",
+        "summary": "Give every active user their own copy of a demo workspace",
         "tags": [
           "admin"
         ]

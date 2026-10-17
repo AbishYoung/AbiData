@@ -108,8 +108,8 @@ export async function shoot(ctx) {
     }
     return page;
   };
-  const openWorkspace = async (page) => {
-    await page.getByText("Northwind Traders").first().click();
+  const openWorkspace = async (page, name = "Northwind Traders") => {
+    await page.getByText(name, { exact: true }).first().click();
     await page.getByRole("navigation", { name: "Navigation pane" }).waitFor();
   };
   const nav = (page) => page.getByRole("navigation", { name: "Navigation pane" });
@@ -197,8 +197,11 @@ export async function shoot(ctx) {
       await save(page, "report-viewer");
     }
 
-    // The biosecurity scenario of the sample workspace (maps, zones and photos).
-    if (want("sighting-form") || want("zone-editor") || want("biosecurity-report")) {
+    // The Northwind Invasives sample workspace (maps, zones and photos).
+    const bio = want("sighting-form") || want("zone-editor") || want("biosecurity-report");
+    if (bio) {
+      await page.goto(`${base}/`);
+      await openWorkspace(page, "Northwind Invasives");
       // A tall window so the whole form (map, photos, notes) is in one capture.
       await page.setViewportSize({ width: 1440, height: 1440 });
     }
@@ -242,7 +245,11 @@ export async function shoot(ctx) {
       await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="report-image"] img')].every((i) => i.complete && i.naturalWidth > 0));
       await save(page, "biosecurity-report");
     }
-    if (want("sighting-form") || want("zone-editor") || want("biosecurity-report")) await page.setViewportSize(DESKTOP);
+    if (bio) {
+      await page.setViewportSize(DESKTOP);
+      await page.goto(`${base}/`);
+      await openWorkspace(page);
+    }
 
     if (want("script-editor")) {
       await page.getByRole("region", { name: "Scripts" }).getByRole("button", { name: "Refresh low-stock flags", exact: true }).click();

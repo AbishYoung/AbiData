@@ -12,7 +12,7 @@ const root = resolve(here, "../..");
 const bin = join(here, ".bin", "abidata");
 
 // A second instance (E2E_WITH_DEMO=1, started after the first by playwright.config.ts) shares the
-// binary the first one built and has the Northwind Traders sample workspace, created by
+// binary the first one built and has the Northwind Traders and Northwind Invasives sample workspaces, created by
 // `abidata demo` before it starts. Only the sample-workspace specs use it.
 const WITH_DEMO = process.env.E2E_WITH_DEMO === "1";
 const ADDR = `127.0.0.1:${process.env.E2E_SERVER_PORT ?? process.env.ABIDATA_E2E_PORT ?? "18080"}`;
