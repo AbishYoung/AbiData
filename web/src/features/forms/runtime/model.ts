@@ -123,7 +123,8 @@ export function saveFields(r: RecState): Fields {
  */
 export function afterSave(now: RecState | null, sent: Fields, saved: RowLike, eq: Equal = strictEqual): RecState {
   let next = recFromRow(saved);
-  if (!now) return next;
+  // Only edits to the record that was saved carry over (a new record has no id until it is saved).
+  if (!now || (now.id !== null && now.id !== saved.id)) return next;
   for (const [k, v] of Object.entries(now.changes)) {
     if (k in sent && eq(k, v, sent[k])) continue;
     next = setField(next, k, v, eq, now.display[k]);

@@ -75,6 +75,9 @@ describe("record buffer", () => {
     expect(bufferOf(after)).toEqual({ a: "SENT", b: 2 });
     expect(afterSave(setField(rec, "a", "retyped"), sent, saved).changes).toEqual({ a: "retyped" });
     expect(afterSave(null, sent, saved)).toEqual(recFromRow(saved));
+    // Edits to another record never land on the saved one.
+    const other = setField(recFromRow({ ...row, id: 8 }), "b", 5);
+    expect(afterSave(other, sent, saved)).toEqual(recFromRow(saved));
   });
   it("merges handler-assigned fields as changes and hides the synthetic id from the server", () => {
     const r = mergeAssigned(recFromRow(row), { b: 9, a: "x" });
