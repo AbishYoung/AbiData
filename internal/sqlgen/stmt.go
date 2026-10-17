@@ -91,7 +91,9 @@ type Assign struct {
 
 // OnConflict turns an INSERT into an upsert. With no Set it does nothing.
 type OnConflict struct {
-	Target []string // conflict columns
+	// Target names the conflict columns. A CI column matches a case-insensitive
+	// unique index, so it renders with the dialect's case-insensitive collation.
+	Target []Col
 	Set    []Assign
 	Where  Expr // optional, on the DO UPDATE
 }

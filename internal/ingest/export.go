@@ -18,6 +18,7 @@ import (
 	"abidata/internal/ops"
 	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -330,14 +331,14 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 	var cols []catalog.Column
 	names := []string{"ID"}
 	textual := []bool{false}
-	sel := []string{`"id"`}
+	sel := []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}}
 	for _, c := range t.Columns {
 		if c.Type == catalog.Autonumber {
 			continue
 		}
 		cols = append(cols, c)
 		names = append(names, c.DisplayName)
-		sel = append(sel, catalog.Quote(c.PhysicalName))
+		sel = append(sel, sqlgen.Column{Expr: sqlgen.Col{Name: c.PhysicalName}})
 		textual = append(textual, c.Type == catalog.ShortText || c.Type == catalog.LongText || c.Type == catalog.Hyperlink)
 	}
 	if err := sk.header(names); err != nil {
@@ -346,10 +347,21 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 	if view != nil {
 		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view)
 	}
-	sql := fmt.Sprintf(`SELECT %s FROM %s WHERE "id" > ? ORDER BY "id" LIMIT ?`, strings.Join(sel, ", "), catalog.Quote(t.PhysicalName))
+	// Keyset paging: one placeholder for the last id seen, one for the page size.
+	page, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: sel, From: sqlgen.Table{Name: t.PhysicalName},
+		Where:   sqlgen.Binary{Op: sqlgen.OpGt, L: sqlgen.Col{Name: "id"}, R: sqlgen.Arg{}},
+		OrderBy: []sqlgen.Order{{Expr: sqlgen.Col{Name: "id"}}}, Limit: sqlgen.Arg{}})
+	if err != nil {
+		return 0, fmt.Errorf("ingest: %w", err)
+	}
+	count, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}}, From: sqlgen.Table{Name: t.PhysicalName}})
+	if err != nil {
+		return 0, fmt.Errorf("ingest: %w", err)
+	}
+	sql := page.SQL
 	var total, last int64
 	if err := l.Read(ctx, func(q sqlitex.Querier) error {
-		return q.QueryRow(ctx, fmt.Sprintf(`SELECT count(*) FROM %s`, catalog.Quote(t.PhysicalName))).Scan(&total)
+		return q.QueryRow(ctx, count.SQL).Scan(&total)
 	}); err != nil {
 		return 0, err
 	}

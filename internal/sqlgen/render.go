@@ -295,7 +295,12 @@ func (r *renderer) insert(s *Insert) {
 		r.w(" ON CONFLICT")
 		if len(oc.Target) > 0 {
 			r.w(" (")
-			r.list(len(oc.Target), ", ", func(i int) { r.w(Quote(oc.Target[i])) })
+			r.list(len(oc.Target), ", ", func(i int) {
+				r.w(Quote(oc.Target[i].Name))
+				if oc.Target[i].CI {
+					r.w(" COLLATE NOCASE")
+				}
+			})
 			r.w(")")
 		}
 		if len(oc.Set) == 0 {

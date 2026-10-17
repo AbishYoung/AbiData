@@ -8,6 +8,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
 	"abidata/internal/records"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -42,31 +43,36 @@ func rowFault(err error) bool {
 	return false
 }
 
-// mergeSQL renders the explicit-column write statement for plan p.
-func mergeSQL(p *plan) string {
+// mergeSQL renders the explicit-column write statement for plan p. It has one
+// positional placeholder per plan column, in plan order, so the applier runs
+// it once per row with that row's values.
+func mergeSQL(p *plan) (string, error) {
 	t := p.Table
-	names := make([]string, len(p.Cols))
-	marks := make([]string, len(p.Cols))
+	ins := &sqlgen.Insert{Table: t.PhysicalName, Rows: [][]sqlgen.Expr{make([]sqlgen.Expr, len(p.Cols))}}
 	for i, mc := range p.Cols {
-		names[i], marks[i] = catalog.Quote(mc.Col.PhysicalName), "?"
+		ins.Columns = append(ins.Columns, mc.Col.PhysicalName)
+		ins.Rows[0][i] = sqlgen.Arg{}
 	}
-	ins := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, catalog.Quote(t.PhysicalName), strings.Join(names, ", "), strings.Join(marks, ", "))
-	if p.Mode != ModeUpsert {
-		return ins
-	}
-	target := catalog.Quote(p.Key.PhysicalName)
-	switch p.Key.Type {
-	case catalog.ShortText, catalog.LongText, catalog.Hyperlink:
-		target += " COLLATE NOCASE" // text indexes are case-insensitive
-	}
-	sets := []string{`"_version" = "_version" + 1`}
-	for _, mc := range p.Cols {
-		if mc.Col.ID != p.Key.ID {
-			q := catalog.Quote(mc.Col.PhysicalName)
-			sets = append(sets, q+" = excluded."+q)
+	if p.Mode == ModeUpsert {
+		textKey := false
+		switch p.Key.Type {
+		case catalog.ShortText, catalog.LongText, catalog.Hyperlink:
+			textKey = true // text indexes are case-insensitive
 		}
+		set := []sqlgen.Assign{{Column: "_version", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "_version"}, R: sqlgen.Lit{Value: 1}}}}
+		for _, mc := range p.Cols {
+			if mc.Col.ID != p.Key.ID {
+				set = append(set, sqlgen.Assign{Column: mc.Col.PhysicalName, Value: sqlgen.Excluded(mc.Col.PhysicalName)})
+			}
+		}
+		ins.OnConflict = &sqlgen.OnConflict{Target: []sqlgen.Col{{Name: p.Key.PhysicalName, CI: textKey}}, Set: set}
+		ins.Returning = []sqlgen.Column{{Expr: sqlgen.Col{Name: "_version"}}}
 	}
-	return ins + fmt.Sprintf(` ON CONFLICT(%s) DO UPDATE SET %s RETURNING "_version"`, target, strings.Join(sets, ", "))
+	r, err := sqlgen.Render(sqlgen.SQLite, ins)
+	if err != nil {
+		return "", fmt.Errorf("ingest: %w", err)
+	}
+	return r.SQL, nil
 }
 
 // applier writes converted rows inside one transaction.
@@ -77,14 +83,18 @@ type applier struct {
 	keyIdx int
 }
 
-func newApplier(p *plan, strict bool) *applier {
-	a := &applier{p: p, sql: mergeSQL(p), strict: strict, keyIdx: -1}
+func newApplier(p *plan, strict bool) (*applier, error) {
+	sql, err := mergeSQL(p)
+	if err != nil {
+		return nil, err
+	}
+	a := &applier{p: p, sql: sql, strict: strict, keyIdx: -1}
 	for i, mc := range p.Cols {
 		if p.Key != nil && mc.Col.ID == p.Key.ID {
 			a.keyIdx = i
 		}
 	}
-	return a
+	return a, nil
 }
 
 func (a *applier) apply(ctx context.Context, tx *sqlitex.Tx, res *MergeResult, n int64, vals []any) error {
@@ -167,8 +177,15 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 	if strict && total > AllOrNothingWarnRows {
 		res.Warnings = append(res.Warnings, "All-or-nothing held the workspace writer for the whole import.")
 	}
-	del := fmt.Sprintf(`DELETE FROM %s`, catalog.Quote(p.Table.PhysicalName))
-	a := newApplier(p, strict)
+	delStmt, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Delete{Table: p.Table.PhysicalName})
+	if err != nil {
+		return res, fmt.Errorf("ingest: %w", err)
+	}
+	del := delStmt.SQL
+	a, err := newApplier(p, strict)
+	if err != nil {
+		return res, err
+	}
 
 	if strict {
 		// Conversion errors are found before the writer is taken.
@@ -228,7 +245,7 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 	}
 
 	first := true
-	err := readChunks(ctx, src, p, chunk, func(rows []stagedRow) error {
+	err = readChunks(ctx, src, p, chunk, func(rows []stagedRow) error {
 		type ok struct {
 			n    int64
 			vals []any
