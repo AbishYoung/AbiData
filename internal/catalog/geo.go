@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"fmt"
 	"strings"
 
 	"abidata/internal/geo"
@@ -11,17 +10,6 @@ import (
 // This file holds everything type-specific so other field types merge cleanly.
 
 func isGeo(t FieldType) bool { return t == GeoPoint || t == GeoArea }
-
-// geoTypeCheck is the type-intrinsic CHECK for a geo column: valid JSON of the
-// right geometry type. It uses only SQLite builtins so workspace files stay
-// readable by stock sqlite3; full validation happens in the records codec.
-func geoTypeCheck(q string, t FieldType) string {
-	types := "'Point'"
-	if t == GeoArea {
-		types = "'Polygon','MultiPolygon'"
-	}
-	return fmt.Sprintf("%s IS NULL OR (json_valid(%s) AND json_extract(%s, '$.type') IN (%s))", q, q, q, types)
-}
 
 // convertGeo converts into or out of a geo field. Geo fields convert only to
 // and from short and long text: a point is written as "lat, lon" and an area

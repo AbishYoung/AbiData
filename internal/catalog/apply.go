@@ -13,6 +13,7 @@ import (
 
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -197,6 +198,15 @@ func (p *planner) exec(sql string, args ...any) error {
 	return err
 }
 
+// execStmt renders a generated statement and runs it.
+func (p *planner) execStmt(s sqlgen.Stmt) error {
+	sql, err := render(s)
+	if err != nil {
+		return err
+	}
+	return p.exec(sql)
+}
+
 func (p *planner) newID(proposed string) (string, error) {
 	if proposed == "" {
 		return ids.New(), nil
@@ -340,7 +350,7 @@ func (p *planner) createTable(op Op) error {
 	if err := p.exec(ddl); err != nil {
 		return ddlError(err)
 	}
-	if err := p.exec(occTriggerSQL(tp)); err != nil {
+	if err := p.execStmt(occTrigger(tp)); err != nil {
 		return err
 	}
 	if err := p.syncAttachTriggers(tp); err != nil {
@@ -402,7 +412,7 @@ func (p *planner) renameTable(op Op) error {
 				return badf("The name %q is already used by another object.", op.PhysicalName)
 			}
 		}
-		if err := p.exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", Quote(t.PhysicalName), Quote(op.PhysicalName))); err != nil {
+		if err := p.execStmt(&sqlgen.RenameTable{From: t.PhysicalName, To: op.PhysicalName}); err != nil {
 			return ddlError(err)
 		}
 		t.PhysicalName = op.PhysicalName
@@ -434,7 +444,7 @@ func (p *planner) dropTable(op Op) error {
 		p.report.Warnings = append(p.report.Warnings, Issue{Kind: "data_loss", Object: "table", ID: t.ID,
 			Message: fmt.Sprintf("Table %q and its %d rows will be deleted. A restore point is taken first.", t.DisplayName, rows)})
 	}
-	if err := p.exec("DROP TABLE " + Quote(t.PhysicalName)); err != nil {
+	if err := p.execStmt(&sqlgen.DropTable{Name: t.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
 	if err := p.exec(`DELETE FROM _sys_file_refs WHERE table_id = ?`, t.ID); err != nil {
@@ -699,7 +709,7 @@ func (p *planner) addColumn(op Op) error {
 	t, _ = p.s.Table(t.ID)
 	native := c.ValidationSQL == "" && (!c.Required || c.DefaultSQL != "") && (c.Type != Lookup || rel == nil || !rel.Enforce)
 	if native {
-		if err := p.exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", Quote(t.PhysicalName), columnDef(c))); err != nil {
+		if err := p.execStmt(&sqlgen.AddColumn{Table: t.PhysicalName, Column: columnDef(c)}); err != nil {
 			return ddlError(err)
 		}
 	} else if err := p.rebuild(before, t, nil); err != nil {
@@ -774,7 +784,7 @@ func (p *planner) renameColumn(op Op) error {
 			return badf("The field name %q is already used in this table.", op.PhysicalName)
 		}
 		old := c.PhysicalName
-		if err := p.exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", Quote(t.PhysicalName), Quote(old), Quote(op.PhysicalName))); err != nil {
+		if err := p.execStmt(&sqlgen.RenameColumn{Table: t.PhysicalName, From: old, To: op.PhysicalName}); err != nil {
 			return ddlError(err)
 		}
 		c.PhysicalName = op.PhysicalName
@@ -1075,7 +1085,7 @@ func (p *planner) dropIndex(op Op) error {
 			if x.ID != op.IndexID {
 				continue
 			}
-			if err := p.exec("DROP INDEX " + Quote(x.PhysicalName)); err != nil {
+			if err := p.execStmt(&sqlgen.DropIndex{Name: x.PhysicalName}); err != nil {
 				return ddlError(err)
 			}
 			t.Indexes = append(t.Indexes[:i:i], t.Indexes[i+1:]...)
@@ -1210,8 +1220,9 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	if err := p.exec(ddl); err != nil {
 		return ddlError(err)
 	}
-	dst := []string{`"id"`, `"_version"`}
-	src := []string{`"id"`, `"_version"`}
+	id := sqlgen.Col{Name: "id"}
+	dst := []string{"id", "_version"}
+	src := []sqlgen.Column{{Expr: id}, {Expr: sqlgen.Col{Name: "_version"}}}
 	for _, c := range after.Columns {
 		if c.Type == Autonumber || c.Type == Calculated {
 			continue
@@ -1220,19 +1231,29 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 		if !ok || old.Type == Calculated {
 			continue // new column: DEFAULT applies
 		}
-		dst = append(dst, Quote(c.PhysicalName))
+		dst = append(dst, c.PhysicalName)
+		var e sqlgen.Expr = sqlgen.Col{Name: old.PhysicalName}
 		if cv, ok := conv[c.ID]; ok {
-			src = append(src, fmt.Sprintf("abidata_convert('%s', '%s', %s)", cv.from, cv.to, Quote(old.PhysicalName)))
-		} else {
-			src = append(src, Quote(old.PhysicalName))
+			// abidata_convert is SQLite-only and internal to the rebuild, so it
+			// is not in the builder-facing function catalog.
+			e = sqlgen.Raw{SQL: fmt.Sprintf("abidata_convert('%s', '%s', %s)", cv.from, cv.to, Quote(old.PhysicalName))}
 		}
+		src = append(src, sqlgen.Column{Expr: e})
 	}
-	var total int64
-	if err := p.tx.QueryRow(p.ctx, "SELECT count(*) FROM "+Quote(before.PhysicalName)).Scan(&total); err != nil {
+	from := sqlgen.Table{Name: before.PhysicalName}
+	countSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}}, From: from})
+	if err != nil {
 		return err
 	}
-	res, err := p.tx.Exec(p.ctx, fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s",
-		Quote(rebuildName), strings.Join(dst, ", "), strings.Join(src, ", "), Quote(before.PhysicalName)))
+	var total int64
+	if err := p.tx.QueryRow(p.ctx, countSQL).Scan(&total); err != nil {
+		return err
+	}
+	copySQL, err := render(&sqlgen.Insert{Table: rebuildName, OrIgnore: true, Columns: dst, From: &sqlgen.Select{Columns: src, From: from}})
+	if err != nil {
+		return err
+	}
+	res, err := p.tx.Exec(p.ctx, copySQL)
 	if err != nil {
 		return ddlError(err)
 	}
@@ -1240,8 +1261,13 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	if res.Changes < total {
 		p.violations = true
 		var samples []Sample
-		rows, err := p.tx.Query(p.ctx, fmt.Sprintf(`SELECT "id" FROM %s WHERE "id" NOT IN (SELECT "id" FROM %s) ORDER BY "id" LIMIT 20`,
-			Quote(before.PhysicalName), Quote(rebuildName)))
+		lostSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: from,
+			Where:   sqlgen.Not{X: sqlgen.In{X: id, Select: &sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: sqlgen.Table{Name: rebuildName}}}},
+			OrderBy: []sqlgen.Order{{Expr: id}}, Limit: sqlgen.Lit{Value: 20}})
+		if err != nil {
+			return err
+		}
+		rows, err := p.tx.Query(p.ctx, lostSQL)
 		if err != nil {
 			return err
 		}
@@ -1268,10 +1294,10 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	if err := p.tx.QueryRow(p.ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, before.PhysicalName).Scan(&seq); err != nil && !sqlitex.IsNoRows(err) {
 		return err
 	}
-	if err := p.exec("DROP TABLE " + Quote(before.PhysicalName)); err != nil {
+	if err := p.execStmt(&sqlgen.DropTable{Name: before.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
-	if err := p.exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", Quote(rebuildName), Quote(after.PhysicalName))); err != nil {
+	if err := p.execStmt(&sqlgen.RenameTable{From: rebuildName, To: after.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
 	if seq != nil {
@@ -1300,7 +1326,7 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 			return ddlError(err)
 		}
 	}
-	if err := p.exec(occTriggerSQL(after)); err != nil {
+	if err := p.execStmt(occTrigger(after)); err != nil {
 		return err
 	}
 	return p.syncAttachTriggers(after)

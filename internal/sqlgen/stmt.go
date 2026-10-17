@@ -103,7 +103,10 @@ func Excluded(column string) Expr { return Col{Table: "excluded", Name: column} 
 
 // Insert is an INSERT. Exactly one of Rows and From is set.
 type Insert struct {
-	Table      string
+	Table string
+	// OrIgnore skips rows that break a constraint (SQLite only; it is how
+	// the table rebuild counts rejected rows).
+	OrIgnore   bool
 	Columns    []string
 	Rows       [][]Expr
 	From       *Select

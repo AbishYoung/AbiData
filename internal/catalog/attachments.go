@@ -1,8 +1,9 @@
 package catalog
 
 import (
-	"fmt"
 	"strings"
+
+	"abidata/internal/sqlgen"
 )
 
 // ADR 0011: the `attachments` field type. A cell holds a JSON array of file
@@ -53,47 +54,36 @@ func attachTriggerNames(t *Table) []string {
 // HasAttachTriggers reports whether t should carry reference triggers.
 func HasAttachTriggers(t *Table) bool { return len(attachmentColumns(t)) > 0 }
 
-// attachTriggersSQL renders the statements that (re)create t's reference
+// attachTriggers returns the statements that (re)create t's reference
 // triggers: a DROP IF EXISTS for each, then the CREATEs when t has attachments
 // columns. They refer to the columns by physical name, so they are rebuilt
 // whenever the table is rebuilt or a column is added or renamed.
-func attachTriggersSQL(t *Table) []string {
-	var out []string
+func attachTriggers(t *Table) []sqlgen.Stmt {
+	var out []sqlgen.Stmt
 	for _, n := range attachTriggerNames(t) {
-		out = append(out, "DROP TRIGGER IF EXISTS "+Quote(n))
+		out = append(out, &sqlgen.DropTrigger{Name: n, IfExists: true})
 	}
-	cols := attachmentColumns(t)
+	var cols []sqlgen.AttachmentColumn
+	for _, c := range attachmentColumns(t) {
+		cols = append(cols, sqlgen.AttachmentColumn{ID: c.ID, Name: c.PhysicalName})
+	}
 	if len(cols) == 0 {
 		return out
 	}
-	tq := Quote(t.PhysicalName)
-	insertRefs := func(c Column) string {
-		return fmt.Sprintf(`INSERT OR IGNORE INTO _sys_file_refs(file_id, table_id, row_id, column_id) `+
-			`SELECT value, '%s', NEW."id", '%s' FROM json_each(NEW.%s) WHERE type = 'text';`, t.ID, c.ID, Quote(c.PhysicalName))
+	for _, ev := range []struct {
+		suffix string
+		event  sqlgen.TriggerEvent
+	}{{"i", sqlgen.OnInsert}, {"u", sqlgen.OnUpdate}, {"d", sqlgen.OnDelete}} {
+		out = append(out, &sqlgen.AttachmentRefs{Name: attachTriggerName(t, ev.suffix), Event: ev.event,
+			Table: t.PhysicalName, TableID: t.ID, Columns: cols})
 	}
-	var ins, upd strings.Builder
-	var names []string
-	for _, c := range cols {
-		ins.WriteString(insertRefs(c) + " ")
-		fmt.Fprintf(&upd, `DELETE FROM _sys_file_refs WHERE table_id = '%s' AND row_id = OLD."id" AND column_id = '%s' `+
-			`AND file_id NOT IN (SELECT value FROM json_each(NEW.%s) WHERE type = 'text'); `, t.ID, c.ID, Quote(c.PhysicalName))
-		upd.WriteString(insertRefs(c) + " ")
-		names = append(names, Quote(c.PhysicalName))
-	}
-	out = append(out,
-		fmt.Sprintf(`CREATE TRIGGER %s AFTER INSERT ON %s FOR EACH ROW BEGIN %s END`, Quote(attachTriggerName(t, "i")), tq, ins.String()),
-		fmt.Sprintf(`CREATE TRIGGER %s AFTER UPDATE OF %s ON %s FOR EACH ROW BEGIN %s END`,
-			Quote(attachTriggerName(t, "u")), strings.Join(names, ", "), tq, upd.String()),
-		fmt.Sprintf(`CREATE TRIGGER %s AFTER DELETE ON %s FOR EACH ROW BEGIN `+
-			`DELETE FROM _sys_file_refs WHERE table_id = '%s' AND row_id = OLD."id"; END`, Quote(attachTriggerName(t, "d")), tq, t.ID),
-	)
 	return out
 }
 
 // syncAttachTriggers recreates t's reference triggers to match its columns.
 func (p *planner) syncAttachTriggers(t *Table) error {
-	for _, q := range attachTriggersSQL(t) {
-		if err := p.exec(q); err != nil {
+	for _, s := range attachTriggers(t) {
+		if err := p.execStmt(s); err != nil {
 			return err
 		}
 	}

@@ -3,6 +3,8 @@ package catalog
 import (
 	"fmt"
 	"strings"
+
+	"abidata/internal/sqlgen"
 )
 
 // Constraint names: "ty_<colid>" for type-intrinsic CHECKs, "ck_<colid>" for
@@ -23,92 +25,105 @@ func ConstraintColumn(name string) (colID string, validation bool, ok bool) {
 	return "", false, false
 }
 
-// calcSQLType maps a calculated column's result_type to a STRICT column type.
-func calcSQLType(rt string) string {
+// calcType maps a calculated column's result_type to the logical type its
+// generated column is declared with. Text and dates stay untyped (ANY), as
+// the expression's result is not type-checked yet (ADR 0013 Phase D).
+func calcType(rt string) sqlgen.Type {
 	switch rt {
-	case "integer", "currency", "yes_no":
-		return "INTEGER"
+	case "integer":
+		return sqlgen.Integer
+	case "currency":
+		return sqlgen.Currency
+	case "yes_no":
+		return sqlgen.Boolean
 	case "number":
-		return "REAL"
-	case "text", "date", "datetime", "":
-		return "ANY"
+		return sqlgen.Number
 	}
-	return "ANY"
+	return sqlgen.Unknown
 }
 
-// columnDef renders one column definition (without foreign keys, which are
-// table-level constraints generated from relationships).
-func columnDef(c Column) string {
-	q := Quote(c.PhysicalName)
-	var b strings.Builder
-	b.WriteString(q)
-	b.WriteByte(' ')
-	if c.Type == Autonumber {
-		b.WriteString("INTEGER PRIMARY KEY AUTOINCREMENT")
-		return b.String()
+// fieldType is the logical type a catalog field type is stored as.
+func fieldType(t FieldType) sqlgen.Type {
+	switch t {
+	case ShortText, LongText, Hyperlink:
+		return sqlgen.Text
+	case Integer, Lookup:
+		return sqlgen.Integer
+	case Currency:
+		return sqlgen.Currency
+	case Number:
+		return sqlgen.Number
+	case YesNo:
+		return sqlgen.Boolean
+	case Date:
+		return sqlgen.Date
+	case DateTime:
+		return sqlgen.DateTime
+	case Attachments:
+		return sqlgen.Attachments
+	case GeoPoint:
+		return sqlgen.GeoPoint
+	case GeoArea:
+		return sqlgen.GeoArea
 	}
-	if c.Type == Calculated {
-		fmt.Fprintf(&b, "%s GENERATED ALWAYS AS (%s) VIRTUAL", calcSQLType(c.Options.ResultType), c.Options.Expression)
-		return b.String()
+	return sqlgen.Unknown
+}
+
+// columnDef declares one column (without foreign keys, which are table-level
+// constraints generated from relationships). Builder expressions are still
+// SQLite SQL, vetted when the column is defined, so they are embedded as Raw.
+func columnDef(c Column) sqlgen.ColumnDef {
+	d := sqlgen.ColumnDef{Name: c.PhysicalName}
+	switch c.Type {
+	case Autonumber:
+		d.AutoIncrement = true
+		return d
+	case Calculated:
+		d.Type = calcType(c.Options.ResultType)
+		d.Generated = sqlgen.Raw{SQL: c.Options.Expression}
+		return d
 	}
-	tyCheck := ""
+	d.Type = fieldType(c.Type)
+	d.TypeCheck = typeConstraintName(c.ID)
 	switch c.Type {
 	case ShortText:
-		b.WriteString("TEXT")
-		tyCheck = fmt.Sprintf("length(%s) <= %d", q, c.MaxLen())
-	case LongText:
-		b.WriteString("TEXT")
-	case Integer, Currency, Lookup:
-		b.WriteString("INTEGER")
-	case Number:
-		b.WriteString("REAL")
-	case YesNo:
-		b.WriteString("INTEGER")
-		tyCheck = fmt.Sprintf("%s IN (0,1)", q)
-	case Date:
-		b.WriteString("TEXT")
-		tyCheck = fmt.Sprintf("%s IS NULL OR date(%s) IS %s", q, q, q)
-	case DateTime:
-		b.WriteString("TEXT")
-		tyCheck = fmt.Sprintf("%s IS NULL OR strftime('%%Y-%%m-%%dT%%H:%%M:%%fZ', %s) IS %s", q, q, q)
+		d.MaxLen = c.MaxLen()
 	case Hyperlink:
-		b.WriteString("TEXT")
-		tyCheck = fmt.Sprintf("%s IS NULL OR %s GLOB 'http*://*'", q, q)
-	case Attachments:
-		b.WriteString("TEXT")
-		tyCheck = fmt.Sprintf("%s IS NULL OR (json_valid(%s) AND json_type(%s) = 'array')", q, q, q)
-	case GeoPoint, GeoArea:
-		b.WriteString("TEXT")
-		tyCheck = geoTypeCheck(q, c.Type)
-	default:
-		b.WriteString("ANY")
+		d.URL = true
 	}
-	if c.Required || c.Type == YesNo {
-		b.WriteString(" NOT NULL")
-	}
+	d.NotNull = c.Required || c.Type == YesNo
 	switch {
 	case c.DefaultSQL != "":
-		fmt.Fprintf(&b, " DEFAULT (%s)", c.DefaultSQL)
+		d.Default = sqlgen.Raw{SQL: c.DefaultSQL}
 	case c.Type == YesNo:
-		b.WriteString(" DEFAULT 0")
-	}
-	if tyCheck != "" {
-		fmt.Fprintf(&b, " CONSTRAINT %s CHECK (%s)", Quote(typeConstraintName(c.ID)), tyCheck)
+		d.Default = sqlgen.Lit{Value: 0}
 	}
 	if c.ValidationSQL != "" {
-		fmt.Fprintf(&b, " CONSTRAINT %s CHECK (%s)", Quote(validationConstraintName(c.ID)), c.ValidationSQL)
+		d.Checks = []sqlgen.Check{{Name: validationConstraintName(c.ID), Expr: sqlgen.Raw{SQL: c.ValidationSQL}}}
 	}
-	return b.String()
+	return d
+}
+
+// versionColumn is the optimistic-concurrency row version every table has.
+var versionColumn = sqlgen.ColumnDef{Name: "_version", Type: sqlgen.Integer, NotNull: true, Default: sqlgen.Lit{Value: 1}}
+
+// render renders a schema statement for the workspace's dialect.
+func render(s sqlgen.Stmt) (string, error) {
+	r, err := sqlgen.Render(sqlgen.SQLite, s)
+	if err != nil {
+		return "", fmt.Errorf("catalog: %w", err)
+	}
+	return r.SQL, nil
 }
 
 // createTableSQL renders CREATE TABLE for t under physical name `as`, with
 // foreign keys for every enforced relationship whose child is t.
 func createTableSQL(s *Schema, t *Table, as string) (string, error) {
-	var parts []string
+	ct := &sqlgen.CreateTable{Name: as, Strict: true}
 	for _, c := range t.Columns {
-		parts = append(parts, columnDef(c))
+		ct.Columns = append(ct.Columns, columnDef(c))
 		if c.Type == Autonumber {
-			parts = append(parts, `"_version" INTEGER NOT NULL DEFAULT 1`)
+			ct.Columns = append(ct.Columns, versionColumn)
 		}
 	}
 	for _, r := range s.Relationships {
@@ -127,14 +142,14 @@ func createTableSQL(s *Schema, t *Table, as string) (string, error) {
 		if parent.ID == t.ID {
 			parentName = as // self-reference follows the new name during rebuild
 		}
-		parts = append(parts, fmt.Sprintf("CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(\"id\") ON DELETE %s",
-			Quote("fk_"+strings.ToLower(r.ID)), Quote(col.PhysicalName), Quote(parentName), r.OnDelete))
+		ct.ForeignKeys = append(ct.ForeignKeys, sqlgen.ForeignKey{Name: "fk_" + strings.ToLower(r.ID),
+			Column: col.PhysicalName, RefTable: parentName, OnDelete: sqlgen.RefAction(r.OnDelete)})
 	}
-	return fmt.Sprintf("CREATE TABLE %s (\n  %s\n) STRICT", Quote(as), strings.Join(parts, ",\n  ")), nil
+	return render(ct)
 }
 
 func createIndexSQL(t *Table, x Index) (string, error) {
-	cols := make([]string, 0, len(x.ColumnIDs))
+	ci := &sqlgen.CreateIndex{Name: x.PhysicalName, Table: t.PhysicalName, Unique: x.Unique}
 	for _, id := range x.ColumnIDs {
 		c, ok := t.Column(id)
 		if !ok {
@@ -143,28 +158,17 @@ func createIndexSQL(t *Table, x Index) (string, error) {
 		// Text keys use NOCASE: the datasheet sorts text case-insensitively (as
 		// Access does), and only an index with the same collation can serve it.
 		// Unique text indexes are therefore case-insensitive too.
-		if isTextType(c) {
-			cols = append(cols, Quote(c.PhysicalName)+" COLLATE NOCASE")
-		} else {
-			cols = append(cols, Quote(c.PhysicalName))
-		}
+		ci.Columns = append(ci.Columns, sqlgen.Col{Name: c.PhysicalName, CI: isTextType(c)})
 	}
-	u := ""
-	if x.Unique {
-		u = "UNIQUE "
-	}
-	return fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)", u, Quote(x.PhysicalName), Quote(t.PhysicalName), strings.Join(cols, ", ")), nil
+	return render(ci)
 }
 
 func occTriggerName(t *Table) string { return "_occ_" + strings.ToLower(t.ID) }
 
 // occTriggerSQL is the safety-net trigger: any UPDATE that left _version
 // unchanged bumps it (recursive_triggers stays OFF, so it does not re-fire).
-func occTriggerSQL(t *Table) string {
-	q := Quote(t.PhysicalName)
-	return fmt.Sprintf(`CREATE TRIGGER %s AFTER UPDATE ON %s FOR EACH ROW WHEN NEW."_version" = OLD."_version" `+
-		`BEGIN UPDATE %s SET "_version" = OLD."_version" + 1 WHERE "id" = NEW."id"; END`,
-		Quote(occTriggerName(t)), q, q)
+func occTrigger(t *Table) sqlgen.Stmt {
+	return &sqlgen.OCCBump{Name: occTriggerName(t), Table: t.PhysicalName}
 }
 
 // isTextType reports whether c holds text that sorts case-insensitively.
