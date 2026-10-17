@@ -116,7 +116,7 @@ Every function that generated SQL or a stored expression may call is a **catalog
 ### 5. A portable expression language for stored expressions
 
 Calculated fields, validation rules and defaults stop being SQLite SQL. They become **AbiData expressions**:
-- **Syntax:** a SQL-flavoured expression grammar, kept close to what builders write today so most existing expressions parse unchanged. Columns are referenced by name. It has literals, operators, `CASE`, and calls to catalog functions. It has no subqueries, no statements and no parameters.
+- **Syntax:** a SQL-flavoured expression grammar (decided; see Decisions taken), kept close to what builders write today so most existing expressions parse unchanged. There are no Access-style aliases. Columns are referenced by name. It has literals, operators, `CASE`, and calls to catalog functions. It has no subqueries, no statements and no parameters.
 - **Parsing and storage:** expressions are parsed in Go into the §2 expression model and type-checked against the table's columns and the function catalog. The source text and a parsed-form version are stored in `_sys_columns`.
 - **Errors** point at the token and are friendly, for example "`ifnul` is not a function; did you mean `ifnull`?". The UI's expression editor gains completion from the catalog and the table's columns.
 - **Rendering:** each expression is rendered per dialect into the DDL: generated columns, CHECK constraints and defaults. Determinism comes from the catalog flags, and each backend still enforces it itself.
@@ -138,7 +138,8 @@ Calculated fields, validation rules and defaults stop being SQLite SQL. They bec
 | Stored expressions | **Neutral** (§5). |
 | Imports and exports | **Neutral.** Staging stays SQLite (ADR 0012 §8); the commit into the workspace is generated. |
 | System tables | **Neutral by registry** (§7). |
-| Saved SQL queries, SQL console | **Dialect-specific.** A person typed them; each records its dialect (ADR 0012 §4). |
+| Saved SQL queries, SQL console | **Dialect-specific, by decision.** A person typed them; each records its dialect (ADR 0012 §4). There is no portable-SQL mode, so crossing backends uses ADR 0012 §8's best-effort translation and "needs attention" flow. |
+| Expression columns in visual queries | **Neutral.** They become AbiData expressions (§5) in Phase D, replacing raw SQL. Raw SQL stays available through the SQL view and SQL queries. |
 | Lua `db.query` / `db.exec` with SQL strings | **Dialect-specific.** A new **neutral** alternative is offered (§8). |
 
 As a result, ADR 0012 §8's translation step shrinks to **saved SQL queries and Lua SQL strings**. Everything else moves between SQLite and PostgreSQL with no translation at all.
@@ -193,7 +194,7 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 | A. Model and SQLite renderer | `sqlgen` nodes, logical types, function catalog seeded from `deterministicFuncs`, SQLite renderer, golden tests on rendered SQL plus execution tests. | Renderer covers what `visual.go`, `filter.go` and `selectList` need. |
 | B. Generated dynamic SQL | Port `query.Compile`, `records` filters, sort, CRUD and lookups, row history, and ingest commit to the model; typed result columns replace `originType`/sampling for generated SQL. | Full Go suite and e2e unchanged; `column_types` identical on the demo workspace's queries. |
 | C. Generated DDL | Port `catalog/ddl.go`, including the rebuild recipe and trigger intents. | Catalog, convert and upgrade tests unchanged; a byte-level schema comparison on the demo workspace shows no drift. |
-| D. Expression language | Parser, type checker, editor completion, the catalog upgrade that parses existing expressions, "needs attention" marking. | Every expression in the demo and the test fixtures parses; the authorizer path is used only for user-typed SQL. |
+| D. Expression language | Parser, type checker, editor completion, the catalog upgrade that parses existing expressions, "needs attention" marking. The visual designer's expression columns switch to AbiData expressions; saved visual queries' expressions are upgraded the same way. | Every expression in the demo and the test fixtures parses; the authorizer path is used only for user-typed SQL. |
 | E. Statement registry | Move system-table SQL to `sqlgen.Static`, conformance test (SQLite now, PostgreSQL once ADR 0012 Phase 1 lands), lint rule. | No inline SQL outside `sqlgen` and the drivers. |
 | F. PostgreSQL renderer and codecs | Second renderer, `<prefix>_lib` functions, codecs, and differential testing. This is the hand-off point into ADR 0012 Phase 3. | Differential tests green on PostgreSQL 17 and 18. |
 | G. Lua builder | `db.select` / `insert` / `update` / `delete` on the model. | Lua API manifest updated; scripts using it pass on both backends. |
@@ -223,8 +224,10 @@ Phases A–E are worth doing even if PostgreSQL is never built:
 
 **Risk.** The main risk is semantic drift between the renderers, where the same model gives different answers. Differential testing (§9) exists to catch it, and it must run on every change to `sqlgen`.
 
-## Open questions
+## Decisions taken
 
-1. Expression syntax: stay SQL-flavoured (closest to what exists), or adopt Access-style names (`IIf`, `Nz`, `DateAdd`, `[Field]`) for the audience the brief describes? The parser could accept both spellings, mapping them to the same catalog entries.
-2. Should saved SQL queries get an opt-in "portable SQL" mode that parses a SQL subset into the model, so they too can move between backends without translation? That would extend §5's grammar to `SELECT` statements. It is a larger language to own.
-3. Should the visual designer's expression fields (computed columns in queries) also switch from raw SQL to AbiData expressions? This plan says yes, in Phase D, because they are stored and portable artefacts. Confirm with the query designer's users that losing raw SQL there is acceptable; the SQL view and SQL queries remain for that.
+Recorded 2026-10-17, from the questions this plan first left open:
+
+1. **Expression syntax is SQL-flavoured.** No Access-style names (`IIf`, `Nz`, `DateAdd`, `[Field]`) and no second spelling. The function catalog's names are the SQL names already in today's allowlist.
+2. **No portable mode for saved SQL queries.** They stay in the backend's dialect, and moving them between backends relies on ADR 0012 §8. The grammar AbiData owns stays an expression grammar, never a statement language.
+3. **Expression columns in the visual query designer use AbiData expressions** (Phase D). Builders who need raw SQL use the SQL view and SQL queries.

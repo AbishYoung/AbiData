@@ -298,5 +298,5 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 
 1. Is catalog hardening (revoking PUBLIC SELECT on `pg_class` and similar in the app's database) acceptable to the operators who'd use this? If not, a database per workspace becomes the default (§2), at the connection-count cost.
 2. Should the PostgreSQL dialect offer a PostGIS-backed fast path for spatial joins when the extension exists, or stay pure SQL for identical results everywhere?
-3. ~~A dialect-neutral expression language for stored expressions?~~ Answered by ADR 0013 §5: yes. Whether saved SQL queries get an opt-in portable mode is ADR 0013's open question 2.
+3. ~~A dialect-neutral expression language for stored expressions?~~ Answered by ADR 0013 §5: yes. Saved SQL queries get no portable mode (ADR 0013, Decisions taken), so §8's translation of saved SQL stays.
 4. What is the target scale for one PostgreSQL install (workspaces × tables)? It decides when per-schema catalog growth needs attention, typically past tens of thousands of tables.
