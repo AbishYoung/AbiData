@@ -144,6 +144,7 @@ It is an ordinary workspace: change it, back it up, or suspend it from the admin
 - Set `ABIDATA_DEMO_WORKSPACE=false` before first start to skip it. See [Configuration](/docs/operations/configuration).
 - Setup never fails because of the sample workspace; if it could not be built the reason is in the server log (look for `subsystem":"demo"`).
 - Setup through `user create-admin` does not create it. To add it later to any install, stop the server and run `abidata demo --owner you@example.com` (in Docker: `docker compose run --rm --no-deps --entrypoint /abidata abidata demo --owner you@example.com`). It does nothing if a workspace named Northwind Traders already exists.
+- To give everyone a demo of their own, open the admin console's **Workspaces** tab and choose **Demo for everyone…**. Each active user, administrators included, who does not already own a Northwind demo gets a copy named **Northwind Traders (their name)** that they own, so changes in one copy never affect another. Running it again only adds copies for people who joined since. It runs while the server is up and builds the demo as it is today, maps and photos included.
 
 After you sign in, create workspaces and user accounts as the administrator. People do not register themselves: an administrator creates each account and an owner adds it to a workspace. See [Members and roles](/docs/guide/members-and-roles).
 

@@ -37,6 +37,28 @@ export async function listWorkspaces(): Promise<AdminWorkspace[]> {
   return res.items ?? [];
 }
 
+export type DemoProvisionResult = components["schemas"]["DemoProvisionDTO"];
+
+/** Gives every active user (administrators included) their own demo workspace. */
+export async function provisionDemos(): Promise<DemoProvisionResult> {
+  return api.requestData((c, init) => c.POST("/api/v1/admin/demo-workspaces", init), { label: "Creating demo workspaces" });
+}
+
+/** One sentence describing a provisioning run, for the status line. */
+export function demoSummary(r: DemoProvisionResult): string {
+  const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
+  const created = r.created ?? [];
+  const skipped = r.skipped ?? [];
+  const failed = r.failed ?? [];
+  const parts: string[] = [];
+  if (created.length > 0) parts.push(`Created a demo workspace for ${people(created.length)}`);
+  else parts.push("No new demo workspaces were needed");
+  if (skipped.length > 0) parts.push(`${people(skipped.length)} already had one`);
+  let text = parts.join("; ") + ".";
+  if (failed.length > 0) text += ` Could not create one for ${failed.map((f) => f.email).join(", ")}: see the server log.`;
+  return text;
+}
+
 export async function createWorkspace(body: { name: string; owner_email?: string; quota?: Quota }): Promise<AdminWorkspace> {
   return api.requestData((c, init) => c.POST("/api/v1/admin/workspaces", { ...init, body }), { label: "Creating workspace" });
 }
