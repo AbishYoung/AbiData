@@ -89,6 +89,29 @@ export function applyChange(
   return { ...base, changes, display: shown, base: was, baseDisplay: wasShown, errors, status: base.status === "saving" ? "editing" : base.status };
 }
 
+/**
+ * After a successful save: the edits the user made to the record while the save was on the wire,
+ * as a buffer against the saved row (keyed by its id), or undefined when there were none. `now` is
+ * the buffer as it is when the save returns, `sent` the one that was saved. Fields whose value
+ * was part of the save are not carried over, so a value the server changed on save stands.
+ */
+export function editsDuringSave(
+  now: RowBuffer | undefined,
+  sent: RowBuffer,
+  saved: Row,
+  columns: readonly Column[],
+): RowBuffer | undefined {
+  if (!now || now.status === "saving") return undefined;
+  let next: RowBuffer | undefined;
+  for (const col of columns) {
+    if (!(col.id in now.changes)) continue;
+    const value = now.changes[col.id];
+    if (col.id in sent.changes && valuesEqual(col, value, sent.changes[col.id])) continue;
+    next = applyChange(next, saved.id, saved, col, value, now.display[col.id]);
+  }
+  return next;
+}
+
 /** The PATCH a buffer turns into: only changed fields plus the If-Match version. */
 export function patchRequest(buf: RowBuffer): { version: number; fields: Record<string, unknown> } | null {
   if (buf.baseVersion === null) return null;
