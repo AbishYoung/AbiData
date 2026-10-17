@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { QueryResultsGrid, formatCell } from "./QueryResultsGrid";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryResultsGrid, formatCell, toTsv } from "./QueryResultsGrid";
 
 afterEach(cleanup);
 
@@ -56,5 +57,31 @@ describe("QueryResultsGrid", () => {
     expect(nulls[0]).toHaveTextContent("—");
     expect(nulls[0]?.className).toContain("text-fg-muted");
     expect(screen.queryByText("0")).toBeNull();
+  });
+});
+
+describe("QueryResultsGrid copying", () => {
+  it("writes tab-separated text with spreadsheet-safe cells", () => {
+    expect(toTsv(["Name", "Note"], [["Ann", "a\tb"], ["Bob", "line\r\nnext"]])).toBe("Name\tNote\nAnn\ta b\nBob\tline next");
+    expect(toTsv(null, [["x", "y"]])).toBe("x\ty");
+  });
+
+  it("offers copying the cell, its row and every row from a right-click on a cell", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<QueryResultsGrid label="Results" result={{ columns: ["Name", "Qty"], rows: [["Ann", 3], ["Bob", null]], truncated: false }} />);
+    const cell = screen.getByRole("gridcell", { name: "Bob" });
+    fireEvent.contextMenu(cell, { clientX: 5, clientY: 5 });
+    const menu = await screen.findByRole("menu", { name: "Results actions" });
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]'), (m) => m.textContent)).toEqual([
+      expect.stringContaining("Copy"),
+      "Copy row",
+      "Copy all 2 rows with headings",
+    ]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy row" }));
+    expect(writeText).toHaveBeenLastCalledWith("Bob\t");
+    fireEvent.contextMenu(cell, { clientX: 5, clientY: 5 });
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Copy all 2 rows with headings" }));
+    expect(writeText).toHaveBeenLastCalledWith("Name\tQty\nAnn\t3\nBob\t");
   });
 });

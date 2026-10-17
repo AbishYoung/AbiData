@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { handleCanvasKey } from "@/components/designer/canvasKeys";
+import { canvasMenu, controlAt } from "@/components/designer/canvasMenu";
+import { ContextArea, type MenuEntry } from "@/components/ContextArea";
 import { ToolbarButton, useSaveShortcut } from "@/components/designer/toolbar";
 import { Tip } from "@/components/Tip";
 import { alertBox, badgeSuccess, badgeWarning, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
@@ -48,6 +50,9 @@ import {
   moveControls,
   moveToBand,
   newState,
+  applyStarter,
+  STARTER_LABEL,
+  type StarterLayout,
   resizeControls,
   setBandProps,
   setRect,
@@ -84,6 +89,7 @@ function SetupStep({ ws, tabKey }: { ws: string; tabKey: string }) {
   const paperId = useId();
   const orientId = useId();
   const marginId = useId();
+  const layoutId = useId();
   const schema = useSchema(ws);
   const queries = useSavedQueries(ws);
   const [name, setName] = useState("");
@@ -92,6 +98,7 @@ function SetupStep({ ws, tabKey }: { ws: string; tabKey: string }) {
   const [paper, setPaper] = useState<Paper>("letter");
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [margin, setMargin] = useState("48");
+  const [starter, setStarter] = useState<StarterLayout>("blank");
   const options =
     kind === "table"
       ? (schema.data?.tables ?? []).map((t) => ({ id: t.id, name: t.display_name }))
@@ -104,7 +111,11 @@ function SetupStep({ ws, tabKey }: { ws: string; tabKey: string }) {
     e.preventDefault();
     if (!valid) return;
     useReportDrafts.getState().put(draftKey(ws, tabKey), {
-      state: newState({ name, sourceKind: kind, sourceId: source, paper, orientation, margin: marginN }),
+      state: applyStarter(
+        newState({ name, sourceKind: kind, sourceId: source, paper, orientation, margin: marginN }),
+        starter,
+        columnsOfSource(schema.data, queries.data, kind, source),
+      ),
       base: "",
       saved: null,
       panel: "layout",
@@ -148,6 +159,29 @@ function SetupStep({ ws, tabKey }: { ws: string; tabKey: string }) {
             </option>
           ))}
         </select>
+        <label className={labelClass} htmlFor={layoutId}>
+          Layout
+        </label>
+        <select
+          id={layoutId}
+          className={`${input} mb-1`}
+          value={starter}
+          onChange={(e) => setStarter(e.target.value as StarterLayout)}
+          aria-describedby={`${layoutId}-hint`}
+        >
+          {(Object.keys(STARTER_LABEL) as StarterLayout[]).map((l) => (
+            <option key={l} value={l}>
+              {STARTER_LABEL[l]}
+            </option>
+          ))}
+        </select>
+        <p id={`${layoutId}-hint`} className="m-0 mb-3 text-xs text-fg-muted">
+          {starter === "blank"
+            ? "Start with empty bands and add fields yourself."
+            : starter === "tabular"
+              ? "Every field of the source, with headings across the top of each page and one row per record."
+              : "Every field of the source, one block per record, with each field's name beside its value."}
+        </p>
         <label className={labelClass} htmlFor={paperId}>
           Paper
         </label>
@@ -229,6 +263,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
   const [announce, setAnnounce] = useState("");
   const [notice, setNotice] = useState("");
   const nodes = useRef(new Map<string, HTMLElement>());
+  const menuIds = useRef<string[]>([]);
   const state = draft?.state;
   const info = useSourceInfo(ws, state?.sourceKind ?? "table", state?.sourceId ?? "");
 
@@ -343,6 +378,35 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
     update(() => r.state);
     setSelected(r.ids);
     say(`Duplicated ${r.ids.length} control${r.ids.length === 1 ? "" : "s"}`);
+  }
+
+  // Right-click on the canvas: the arrange actions. A control outside the selection becomes the
+  // selection first; the ids are kept here because the menu is built before React re-renders.
+  function onCanvasMenu(e: React.MouseEvent): void {
+    const id = controlAt(e.target, nodes.current);
+    menuIds.current = id && !selected.includes(id) ? [id] : selected;
+    if (id && !selected.includes(id)) select([id]);
+  }
+  function canvasEntries(): MenuEntry[] {
+    const st = state as ReportState;
+    const ids = new Set(menuIds.current);
+    return canvasMenu({
+      selected: ids.size,
+      total: st.controls.length,
+      duplicate: () => {
+        const r = duplicateControls(st, ids);
+        update(() => r.state);
+        select(r.ids);
+        say(`Duplicated ${r.ids.length} control${r.ids.length === 1 ? "" : "s"}`);
+      },
+      remove: () => {
+        update((x) => deleteControls(x, ids));
+        select([]);
+        say(`Deleted ${ids.size} control${ids.size === 1 ? "" : "s"}`);
+      },
+      align: (mode) => update((x) => alignControls(x, ids, mode)),
+      selectAll: () => select(st.controls.map((c) => c.id)),
+    });
   }
 
   function onCanvasKey(e: KeyboardEvent<HTMLElement>): void {
@@ -526,7 +590,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
               setOverlay(null);
             }}
           >
-            <div className="grid min-h-0 flex-1 grid-cols-[14rem_minmax(0,1fr)_22rem]">
+            <div className="grid min-h-0 flex-1 grid-cols-[12rem_minmax(0,1fr)_17rem] 2xl:grid-cols-[14rem_minmax(0,1fr)_22rem]">
               <div className="flex min-h-0 flex-col border-r border-border bg-surface">
                 <Toolbox activeBand={band} onAdd={(t) => addType(t)} />
                 <FieldList columns={info.columns} activeBand={band} onAdd={(c) => addColumn(c)} />
@@ -560,6 +624,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                   Select a band with its header button; the toolbox and field list add to the selected band. Arrow keys move the selected controls 8 px; Shift+Arrow resizes; Tab selects the next control; Space adds or removes
                   the focused control from the selection; Mod+Arrow moves focus only; Delete removes. The dashed line is the page content width ({width} px).
                 </p>
+                <ContextArea label="Arrange controls" onOpen={onCanvasMenu} entries={canvasEntries}>
                 <div className="min-h-0 flex-1 overflow-auto bg-bg p-4 pr-6">
                   <BandCanvas
                     state={state}
@@ -580,6 +645,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                     onKeyDown={onCanvasKey}
                   />
                 </div>
+                </ContextArea>
               </div>
               <aside aria-label="Properties" className="min-h-0 overflow-y-auto border-l border-border bg-surface p-3">
                 {issues.length > 0 && (

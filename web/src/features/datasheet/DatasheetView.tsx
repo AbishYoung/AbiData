@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ApiError } from "@/lib/api";
@@ -55,6 +55,24 @@ import {
 } from "./layout";
 import type { MergeField } from "./merge";
 import { toast } from "@/components/AppToasts";
+import { ContextArea, type MenuEntry } from "@/components/ContextArea";
+import { copyText, readClipboardText } from "@/lib/clipboard";
+import { detectPlatform, formatKeys } from "@/lib/shortcuts";
+import {
+  ArrowDownWideNarrow,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
+  ArrowUpNarrowWide,
+  ClipboardPaste,
+  Copy,
+  Filter,
+  FilterX,
+  History,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { NAV_KEYS, clampCell, moveActive, tabTarget, type Cell, type NavDims } from "./nav";
 import {
   PAGE_SIZE,
@@ -420,24 +438,67 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     });
   }
 
-  function startEdit(starter: string | null) {
-    const col = columns[activeCell.col];
+  function startEdit(starter: string | null, cell: Cell = activeCell) {
+    const col = columns[cell.col];
     // Attachments open their dialog on Enter, F2 or a double click (not on typing); viewers see the files.
     if (col && kindOf(col) === "attachments") {
-      const row = rowAt(activeCell.row);
-      if (starter !== null || (activeCell.row < total && !row)) return;
-      setEditing({ cell: activeCell, starter, row });
+      const row = rowAt(cell.row);
+      if (starter !== null || (cell.row < total && !row)) return;
+      setEditing({ cell, starter, row });
       return;
     }
     if (!canEdit) return;
     if (!col || isReadOnlyColumn(col)) return;
     if (kindOf(col) === "boolean") {
-      toggleBoolean(activeCell);
+      toggleBoolean(cell);
       return;
     }
-    const row = rowAt(activeCell.row);
-    if (activeCell.row < total && !row) return;
-    setEditing({ cell: activeCell, starter, row });
+    const row = rowAt(cell.row);
+    if (cell.row < total && !row) return;
+    setEditing({ cell, starter, row });
+  }
+
+  /** Whether typing or pasting into the cell would start an edit. */
+  function canType(cell: Cell): boolean {
+    const col = columns[cell.col];
+    if (!canEdit || !col || isReadOnlyColumn(col)) return false;
+    const kind = kindOf(col);
+    return kind !== "attachments" && kind !== "boolean" && (cell.row >= total || rowAt(cell.row) !== undefined);
+  }
+
+  /** The cell's text as the datasheet shows it. */
+  function cellText(cell: Cell): string {
+    const col = columns[cell.col];
+    const cur = effectiveValue(cell);
+    return col && cur ? formatValue(col, cur.value, cur.display) : "";
+  }
+
+  async function copyCell(cell: Cell) {
+    if (cell.row >= total || !columns[cell.col]) return;
+    if (!(await copyText(cellText(cell)))) toast("error", "The cell could not be copied. Select the text and copy it instead.");
+  }
+
+  /** Pastes text into a cell: the cell opens for editing with the text, ready to save with Enter. */
+  function pasteInto(cell: Cell, text: string) {
+    if (!canType(cell)) return;
+    // One cell takes one value: a copied row or block keeps its first cell (Access pastes blocks; this does not yet).
+    const first = text.replace(/\r\n?/g, "\n").split("\n")[0]?.split("\t")[0] ?? "";
+    const col = columns[cell.col];
+    startEdit(col && kindOf(col) === "longtext" ? text.replace(/\r\n?/g, "\n") : first, cell);
+  }
+
+  async function pasteFromMenu(cell: Cell) {
+    const text = await readClipboardText();
+    if (text === null) toast("info", `The browser did not allow reading the clipboard. Press ${formatKeys("Mod+V", detectPlatform())} in the cell instead.`);
+    else pasteInto(cell, text);
+  }
+
+  function onGridPaste(e: ClipboardEvent<HTMLDivElement>) {
+    if (editing) return;
+    const text = e.clipboardData.getData("text/plain");
+    if (!text) return;
+    e.preventDefault();
+    pasteInto(activeCell, text);
   }
 
   function commitEdit(value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) {
@@ -511,6 +572,11 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       e.preventDefault();
       filterRef.current?.focus();
       filterRef.current?.select();
+      return;
+    }
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c" && window.getSelection()?.isCollapsed !== false) {
+      e.preventDefault();
+      void copyCell(activeCell);
       return;
     }
     if (mod && e.shiftKey && e.key.toLowerCase() === "n") {
@@ -621,10 +687,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     resetView();
   }
 
-  function filterBySelection() {
-    const col = columns[activeCell.col];
-    const cur = effectiveValue(activeCell);
-    if (!col || !cur || activeCell.row >= total) return;
+  function filterBySelection(cell: Cell = activeCell) {
+    const col = columns[cell.col];
+    const cur = effectiveValue(cell);
+    if (!col || !cur || cell.row >= total) return;
     if (!canSelectFilter(col, cur.value)) return;
     const cond = selectionCondition(col, cur.value, formatValue(col, cur.value, cur.display));
     setConditions((prev) => [...prev.filter((c) => c.col !== cond.col), cond]);
@@ -679,6 +745,99 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     } finally {
       refreshData();
     }
+  }
+
+  // ---- context menu ------------------------------------------------------------------------
+  // What the right-click was on, worked out when the menu opens (before React re-renders), so the
+  // entries describe that cell even though the active cell has not caught up yet.
+  const menuTarget = useRef<{ kind: "cell"; cell: Cell } | { kind: "column"; col: number } | null>(null);
+
+  function onGridContextMenu(e: MouseEvent) {
+    menuTarget.current = null;
+    if (editing && editorRef.current && !editorRef.current.commit("stay")) return;
+    const t = e.target as Element;
+    const header = t.closest('[role="columnheader"]');
+    if (header) {
+      const col = Number(header.getAttribute("aria-colindex")) - 2;
+      if (col >= 0 && col < columns.length) menuTarget.current = { kind: "column", col };
+      return;
+    }
+    const rowEl = t.closest('[role="row"]');
+    const cellEl = t.closest('[role="gridcell"], [role="rowheader"]');
+    if (!rowEl || !cellEl) {
+      // The context-menu key or Shift+F10 on the focused grid: the menu is for the active cell.
+      if (t === scrollRef.current && activeCell.row < rowCount) menuTarget.current = { kind: "cell", cell: activeCell };
+      return;
+    }
+    const row = Number(rowEl.getAttribute("aria-rowindex")) - 1;
+    if (!Number.isInteger(row) || row < 0) return;
+    const onHeader = cellEl.getAttribute("role") === "rowheader";
+    const cell = { row, col: onHeader ? activeCell.col : Number(cellEl.getAttribute("aria-colindex")) - 2 };
+    // A right-click inside the record selection keeps it (to delete them together); elsewhere it
+    // moves to the clicked cell, and on a record selector it selects that record.
+    const r = rowAt(row);
+    if (!(r && selected.has(r.id))) {
+      setSelected(onHeader && r ? new Set([r.id]) : new Set());
+      anchorRef.current = onHeader ? row : null;
+    }
+    moveTo(cell);
+    menuTarget.current = { kind: "cell", cell };
+  }
+
+  function gridMenu(): MenuEntry[] {
+    const target = menuTarget.current;
+    if (!target) return [];
+    if (target.kind === "column") {
+      const col = columns[target.col];
+      if (!col) return [];
+      const sorted = sort?.col === col.id;
+      return [
+        { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => onSort(col.id, "asc") },
+        { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => onSort(col.id, "desc") },
+        { id: "unsort", label: "Clear sort", icon: ArrowUpDown, disabled: !sorted, run: () => onSort(col.id, "none") },
+        { id: "s1", separator: true },
+        { id: "left", label: "Move column left", icon: ArrowLeft, disabled: target.col === 0, run: () => onMoveColumn(col.id, -1) },
+        { id: "right", label: "Move column right", icon: ArrowRight, disabled: target.col === columns.length - 1, run: () => onMoveColumn(col.id, 1) },
+      ];
+    }
+    const { cell } = target;
+    const col = columns[cell.col];
+    const row = rowAt(cell.row);
+    const isNew = cell.row >= total;
+    const ids = row ? (selected.has(row.id) ? [...selected] : [row.id]) : [];
+    const cur = effectiveValue(cell);
+    const filterable = !isNew && row !== undefined && col !== undefined && canSelectFilter(col, cur?.value);
+    const sorted = col !== undefined && sort?.col === col.id;
+    return [
+      { id: "copy", label: "Copy", icon: Copy, shortcut: "Mod+C", disabled: isNew || !col, run: () => void copyCell(cell) },
+      { id: "paste", label: "Paste", icon: ClipboardPaste, shortcut: "Mod+V", disabled: !canType(cell), run: () => void pasteFromMenu(cell) },
+      { id: "edit", label: "Edit cell", icon: Pencil, shortcut: "F2", disabled: !canType(cell), run: () => startEdit(null, cell) },
+      { id: "s1", separator: true },
+      ...(col
+        ? ([
+            { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => onSort(col.id, "asc") },
+            { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => onSort(col.id, "desc") },
+            ...(sorted ? [{ id: "unsort", label: "Clear sort", icon: ArrowUpDown, run: () => onSort(col.id, "none") }] : []),
+          ] satisfies MenuEntry[])
+        : []),
+      { id: "filter", label: "Filter by selection", icon: Filter, disabled: !filterable, run: () => filterBySelection(cell) },
+      ...(filterActive ? [{ id: "unfilter", label: "Clear filter", icon: FilterX, run: clearFilter }] : []),
+      { id: "s2", separator: true },
+      { id: "history", label: "Record history", icon: History, disabled: !row, run: () => row && setHistoryRow(row.id) },
+      ...(canEdit
+        ? ([
+            { id: "new", label: "New record", icon: Plus, shortcut: "Mod+Shift+N", run: () => moveTo({ row: total, col: cell.col }) },
+            {
+              id: "delete",
+              label: ids.length > 1 ? `Delete ${formatCount(ids.length)} records` : "Delete record",
+              icon: Trash2,
+              danger: true,
+              disabled: ids.length === 0,
+              run: () => setDel({ ids, busy: false, error: null }),
+            },
+          ] satisfies MenuEntry[])
+        : []),
+    ];
   }
 
   // ---- effects --------------------------------------------------------------------------
@@ -738,9 +897,21 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     };
   }, [ws, tableId, qc]);
 
+  // Bring the active cell into view when it moves (keyboard, click, new record). A move to a row
+  // that is not rendered yet waits for the rows to render; after that, scrolling is the user's: the
+  // grid must not pull the active cell back into view each time the rendered rows change, or the
+  // wheel could never scroll further than about a screen away from it.
   const firstIndex = items[0]?.index ?? 0;
+  const revealRef = useRef(true);
   useEffect(() => {
-    document.getElementById(cellId(gridId, activeCell.row, activeCell.col))?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    revealRef.current = true;
+  }, [gridId, activeCell.row, activeCell.col]);
+  useEffect(() => {
+    if (!revealRef.current) return;
+    const el = document.getElementById(cellId(gridId, activeCell.row, activeCell.col));
+    if (!el) return;
+    revealRef.current = false;
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [gridId, activeCell.row, activeCell.col, firstIndex, items.length]);
 
   const activeCol = columns[activeCell.col];
@@ -842,6 +1013,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         />
       )}
       {mode === "grid" && (
+      <ContextArea label={`${table.display_name} actions`} onOpen={onGridContextMenu} entries={gridMenu}>
       <Grid
         gridId={gridId}
         label={`${table.display_name} datasheet`}
@@ -875,7 +1047,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onDropColumn={onDropColumn}
         onCommit={commitEdit}
         onCancel={cancelEdit}
+        onPaste={onGridPaste}
       />
+      </ContextArea>
       )}
       <div className={docFooter}>
         <span className="tabular-nums">

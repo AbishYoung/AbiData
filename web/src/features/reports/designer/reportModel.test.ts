@@ -3,6 +3,7 @@ import type { Report } from "../reportsApi";
 import {
   addControl,
   addField,
+  applyStarter,
   addGroup,
   alignControls,
   bandLabel,
@@ -331,5 +332,61 @@ describe("validation", () => {
     });
     expect(validateState(agg("sum")).map((i) => i.message)).toContain("Textbox: choose the field to sum.");
     expect(validateState(agg("count"))).toEqual([]);
+  });
+});
+
+describe("starting layouts", () => {
+  const cols = [
+    { id: "id", name: "ID", fieldType: "autonumber" },
+    { id: "c1", name: "Name", fieldType: "short_text" },
+    { id: "c2", name: "Notes", fieldType: "long_text" },
+    { id: "c3", name: "Price", fieldType: "currency" },
+    { id: "c4", name: "Where", fieldType: "geo_point" },
+    { id: "c5", name: "Photos", fieldType: "attachments" },
+  ];
+  const start = () => newState({ name: "Stock", sourceKind: "table", sourceId: "T1", paper: "letter", orientation: "portrait", margin: 48 });
+  const bound = (s: ReturnType<typeof start>, id: string) => s.controls.find((c) => c.bind?.column_id === id);
+
+  it("blank adds nothing", () => {
+    expect(applyStarter(start(), "blank", cols)).toEqual(start());
+  });
+
+  it("columnar puts each field's name beside its value, one block per record, and lets the block grow", () => {
+    const s = applyStarter(start(), "columnar", cols);
+    expect(validateState(s)).toEqual([]);
+    expect(s.controls.filter((c) => c.band === "detail" && c.bind).map((c) => c.bind?.column_id)).toEqual(["c1", "c2", "c3", "c4", "c5"]);
+    for (const col of cols.slice(1)) {
+      const value = bound(s, col.id);
+      const label = s.controls.find((c) => c.band === "detail" && c.type === "label" && c.caption === col.name);
+      expect(value && label && label.y === value.y && label.x + label.w <= value.x).toBe(true);
+    }
+    expect(bound(s, "c4")?.type).toBe("map");
+    expect(bound(s, "c5")?.type).toBe("image");
+    expect(bound(s, "c3")?.style?.align).toBeUndefined(); // stays beside its label
+    const values = s.controls.filter((c) => c.band === "detail" && c.bind);
+    values.slice(1).forEach((v, i) => {
+      const prev = values[i];
+      expect(prev && v.y >= prev.y + prev.h).toBe(true);
+    });
+    expect(s.bands.detail).toMatchObject({ can_grow: true, keep_together: true });
+    expect(s.controls.every((c) => !pastWidth(c, contentWidth(s.page)))).toBe(true);
+    expect(s.controls.find((c) => c.band === "report_header")?.caption).toBe("Stock");
+  });
+
+  it("tabular puts a heading over each value, wraps onto another row when the fields do not fit, and lets rows grow", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ id: `f${i}`, name: `Field ${i}`, fieldType: "short_text" }));
+    const s = applyStarter(start(), "tabular", many);
+    expect(validateState(s)).toEqual([]);
+    for (const col of many) {
+      const value = bound(s, col.id);
+      const heading = s.controls.find((c) => c.band === "page_header" && c.caption === col.name);
+      expect(value && heading && heading.x === value.x && heading.w === value.w).toBe(true);
+    }
+    const rows = new Set(s.controls.filter((c) => c.band === "detail").map((c) => c.y));
+    expect(rows.size).toBeGreaterThan(1); // nine 96 px columns do not fit a letter page
+    expect(s.controls.every((c) => !pastWidth(c, contentWidth(s.page)))).toBe(true);
+    expect(s.bands.detail?.can_grow).toBe(true);
+    expect(bound(applyStarter(start(), "tabular", cols), "c3")?.style?.align).toBe("right");
+    expect(s.controls.some((c) => c.band === "page_footer" && c.type === "page_number")).toBe(true);
   });
 });

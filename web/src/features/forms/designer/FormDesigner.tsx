@@ -21,6 +21,8 @@ import { alertBox, badgeSuccess, badgeWarning, btn, btnPrimary, input, label as 
 import { ToolbarButton, useSaveShortcut } from "@/components/designer/toolbar";
 import { Tip } from "@/components/Tip";
 import { handleCanvasKey } from "@/components/designer/canvasKeys";
+import { canvasMenu, controlAt } from "@/components/designer/canvasMenu";
+import { ContextArea, type MenuEntry } from "@/components/ContextArea";
 import { ApiError } from "@/lib/api";
 import { LuaEditor } from "@/features/scripts/LuaEditor";
 import { createForm, formKeys, getForm, listForms, updateForm } from "../formsApi";
@@ -203,6 +205,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
   const [announce, setAnnounce] = useState("");
   const [notice, setNotice] = useState("");
   const nodes = useRef(new Map<string, HTMLElement>());
+  const menuIds = useRef<string[]>([]);
   const state = draft?.state;
   const info = useSourceInfo(ws, state?.sourceKind ?? "none", state?.sourceId ?? "");
   const formsQ = useQuery({ queryKey: formKeys.list(ws), queryFn: () => listForms(ws) });
@@ -320,6 +323,35 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
     update(() => r.state);
     select(r.ids);
     say(`Duplicated ${r.ids.length} control${r.ids.length === 1 ? "" : "s"}`);
+  }
+
+  // Right-click on the canvas: the arrange actions. A control outside the selection becomes the
+  // selection first; the ids are kept here because the menu is built before React re-renders.
+  function onCanvasMenu(e: React.MouseEvent): void {
+    const id = controlAt(e.target, nodes.current);
+    menuIds.current = id && !selected.includes(id) ? [id] : selected;
+    if (id && !selected.includes(id)) select([id]);
+  }
+  function canvasEntries(): MenuEntry[] {
+    const st = state as DesignState;
+    const ids = new Set(menuIds.current);
+    return canvasMenu({
+      selected: ids.size,
+      total: st.controls.length,
+      duplicate: () => {
+        const r = duplicateControls(st, ids);
+        update(() => r.state);
+        select(r.ids);
+        say(`Duplicated ${r.ids.length} control${r.ids.length === 1 ? "" : "s"}`);
+      },
+      remove: () => {
+        update((x) => deleteControls(x, ids));
+        select([]);
+        say(`Deleted ${ids.size} control${ids.size === 1 ? "" : "s"}`);
+      },
+      align: (mode) => update((x) => alignControls(x, ids, mode)),
+      selectAll: () => select(st.controls.map((c) => c.id)),
+    });
   }
 
   function onCanvasKey(e: KeyboardEvent<HTMLElement>): void {
@@ -489,7 +521,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
         {panel === "preview" && <Preview ws={ws} state={state} queries={info.queries} columns={info.columns} />}
         {panel === "layout" && (
           <DndContext sensors={sensors} onDragStart={onDragStart} onDragMove={onDragMove} onDragEnd={onDragEnd} onDragCancel={() => { setDrag(null); setOverlay(null); }}>
-            <div className="grid min-h-0 flex-1 grid-cols-[14rem_minmax(0,1fr)_21rem]">
+            <div className="grid min-h-0 flex-1 grid-cols-[12rem_minmax(0,1fr)_17rem] 2xl:grid-cols-[14rem_minmax(0,1fr)_21rem]">
               <div className="flex min-h-0 flex-col border-r border-border bg-surface">
                 <Toolbox onAdd={(t) => addType(t)} />
                 <FieldList columns={info.columns} hasSource={state.sourceKind !== "none"} onAdd={(c) => addColumn(c)} />
@@ -522,6 +554,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                 <p className="m-0 border-b border-border bg-surface-2/50 px-3 py-1 text-xs text-fg-muted">
                   Arrow keys move the selected controls 8 px; Shift+Arrow resizes; Tab selects the next control; Space adds or removes the focused control from the selection; Mod+Arrow moves focus only; Delete removes.
                 </p>
+                <ContextArea label="Arrange controls" onOpen={onCanvasMenu} entries={canvasEntries}>
                 <div className="min-h-0 flex-1 overflow-auto bg-bg p-4 pr-6">
                   <Canvas
                     state={state}
@@ -541,6 +574,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
                     onKeyDown={onCanvasKey}
                   />
                 </div>
+                </ContextArea>
               </div>
               <aside aria-label="Properties" className="min-h-0 overflow-y-auto border-l border-border bg-surface p-3">
                 {issues.length > 0 && (

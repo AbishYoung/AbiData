@@ -57,6 +57,21 @@ export function controlCss(c: ReportControl, grow: boolean): CSSProperties {
   return css;
 }
 
+/** Line height of report text, as a multiple of the font size (reportViewer.css .rv-ctl). */
+export const LINE_HEIGHT = 1.25;
+const BASE_FONT = 12;
+
+/**
+ * Keeps text that does not fit a fixed-height control to whole lines ending in an ellipsis, rather
+ * than cutting a line through the middle. A band that can grow never clips, so this applies only
+ * to controls in bands of fixed height.
+ */
+export function clampCss(css: CSSProperties, height: number): CSSProperties {
+  const size = typeof css.fontSize === "number" ? css.fontSize : BASE_FONT;
+  const lines = Math.max(1, Math.floor((height + 0.5) / (size * LINE_HEIGHT)));
+  return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, lineClamp: lines };
+}
+
 /** The page (1-based) a scroll position shows, for pages of equal pitch. */
 export function pageAtScroll(scrollTop: number, clientHeight: number, scrollHeight: number, pitch: number, count: number): number {
   if (count <= 1 || pitch <= 0) return 1;
