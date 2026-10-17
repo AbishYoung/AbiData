@@ -1316,6 +1316,62 @@
         ],
         "type": "object"
       },
+      "DemoProvisionDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "description": "Emails of users who received a new demo workspace.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/DemoProvisionFailure"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "skipped": {
+            "description": "Emails of users who already own one.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "created",
+          "skipped",
+          "failed"
+        ],
+        "type": "object"
+      },
+      "DemoProvisionFailure": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "message"
+        ],
+        "type": "object"
+      },
       "Deps": {
         "additionalProperties": false,
         "properties": {
@@ -5800,6 +5856,78 @@
           }
         },
         "summary": "Revoke any workspace's API key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/demo-workspaces": {
+      "post": {
+        "description": "Creates a personal demo workspace, owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own a demo are skipped.",
+        "operationId": "adminProvisionDemos",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoProvisionDTO"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Give every active user their own Northwind Traders demo workspace",
         "tags": [
           "admin"
         ]

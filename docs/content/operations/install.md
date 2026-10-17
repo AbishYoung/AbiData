@@ -89,9 +89,9 @@ The two secret files are passed as `ABIDATA_SESSION_KEY_FILE` and `ABIDATA_MANIF
 | Script | Binds | Serves |
 |---|---|---|
 | `scripts/docker-prod.sh` | 80 and 443 on all interfaces (Caddy) | `https://$ABIDATA_SITE`; the app's own port 8080 is not published |
-| `scripts/docker-dev.sh` | `127.0.0.1:8080` only (set `ABIDATA_DEV_PORT` for another port) | `http://localhost:8080`, the app alone without Caddy, debug logging |
+| `scripts/docker-dev.sh` | `127.0.0.1:8080` only (set `ABIDATA_DEV_PORT` for another port; `up --lan` also listens on this network) | `http://localhost:8080` or `http://127.0.0.1:8080`, the app alone without Caddy, debug logging |
 
-The development stack uses its own Compose project (`abidata-dev`) and volumes, so it can run next to a production stack on the same machine without sharing data. Stop it with `scripts/docker-dev.sh down`; `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes its data. Never expose the development port beyond the machine: it serves plain http.
+The development stack uses its own Compose project (`abidata-dev`) and volumes, so it can run next to a production stack on the same machine without sharing data. Stop it with `scripts/docker-dev.sh down`; `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes its data. Never expose the development port beyond a network you trust: it serves plain http. To try the app from a phone on the same Wi-Fi, run `scripts/docker-dev.sh up --lan`: it listens on all interfaces, allows this machine's LAN address as an origin and prints it. Installing the app as a PWA needs https, so use the production stack for that.
 
 ### Tell AbiData about the proxy {#proxy}
 
@@ -144,6 +144,7 @@ It is an ordinary workspace: change it, back it up, or suspend it from the admin
 - Set `ABIDATA_DEMO_WORKSPACE=false` before first start to skip it. See [Configuration](/docs/operations/configuration).
 - Setup never fails because of the sample workspace; if it could not be built the reason is in the server log (look for `subsystem":"demo"`).
 - Setup through `user create-admin` does not create it. To add it later to any install, stop the server and run `abidata demo --owner you@example.com` (in Docker: `docker compose run --rm --no-deps --entrypoint /abidata abidata demo --owner you@example.com`). It does nothing if a workspace named Northwind Traders already exists.
+- To give everyone a demo of their own, open the admin console's **Workspaces** tab and choose **Demo for everyone…**. Each active user, administrators included, who does not already own a Northwind demo gets a copy named **Northwind Traders (their name)** that they own, so changes in one copy never affect another. Running it again only adds copies for people who joined since. It runs while the server is up and builds the demo as it is today, maps and photos included.
 
 After you sign in, create workspaces and user accounts as the administrator. People do not register themselves: an administrator creates each account and an owner adds it to a workspace. See [Members and roles](/docs/guide/members-and-roles).
 

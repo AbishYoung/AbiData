@@ -215,7 +215,7 @@ func (s *Server) authenticate(hctx huma.Context, next func(huma.Context)) {
 	unsafe := isUnsafe(hctx.Method())
 
 	// Origin check for every unsafe request, authenticated or not (login CSRF).
-	if unsafe && hctx.Header("Origin") != s.deps.Config.PublicURL {
+	if unsafe && !s.deps.Config.OriginAllowed(hctx.Header("Origin")) {
 		writeHumaError(hctx, s.log, fault.New(fault.Forbidden, "The request origin is not allowed."))
 		return
 	}

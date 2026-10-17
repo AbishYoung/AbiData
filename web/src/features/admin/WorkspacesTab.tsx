@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pause, Pencil, Play, Plus } from "lucide-react";
+import { Pause, Pencil, Play, Plus, Sparkles } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { ME_KEY } from "@/lib/session";
 import { Modal } from "@/features/queries/Modal";
 import { absoluteTime } from "@/features/backups/backupLogic";
 import { alertBox, btn, btnPrimary, input } from "@/components/styles";
-import { adminKeys, createWorkspace, listWorkspaces, updateWorkspace, type AdminWorkspace } from "./adminApi";
+import { Tip } from "@/components/Tip";
+import { adminKeys, createWorkspace, demoSummary, listWorkspaces, provisionDemos, updateWorkspace, type AdminWorkspace } from "./adminApi";
 import { QUOTA_FIELDS, emptyQuotaForm, parseQuotaForm, quotaSummary, quotaToForm, type QuotaForm } from "./quota";
 import { ErrorBox, Field, td, th } from "./ui";
 
@@ -157,10 +158,43 @@ function SuspendDialog({ ws, onClose, onDone }: { ws: AdminWorkspace; onClose: (
   );
 }
 
+function DemoDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
+  const qc = useQueryClient();
+  const run = useMutation({
+    mutationFn: provisionDemos,
+    onSuccess: async (r) => {
+      await Promise.all([qc.invalidateQueries({ queryKey: adminKeys.workspaces }), qc.invalidateQueries({ queryKey: ME_KEY })]);
+      onDone(demoSummary(r));
+    },
+  });
+  return (
+    <Modal
+      title="Give everyone the Northwind demo?"
+      description="Each active user, administrators included, who does not already own a Northwind Traders demo gets their own copy that they own, named after them. Their changes do not affect anyone else's copy."
+      onClose={onClose}
+    >
+      <p className="mt-0 text-sm text-fg-muted">This can take a few seconds per person. Running it again only adds copies for people who joined since.</p>
+      {run.isError && (
+        <div role="alert" className={`${alertBox} mb-3`}>
+          {run.error instanceof ApiError ? run.error.message : "The demo workspaces could not be created."}
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        <button type="button" className={btn} onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className={btnPrimary} disabled={run.isPending} onClick={() => run.mutate()}>
+          {run.isPending ? "Creating demo workspaces…" : "Create demo workspaces"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export function WorkspacesTab() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: adminKeys.workspaces, queryFn: listWorkspaces });
-  const [dialog, setDialog] = useState<{ kind: "new" } | { kind: "edit" | "suspend"; ws: AdminWorkspace } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: "new" | "demo" } | { kind: "edit" | "suspend"; ws: AdminWorkspace } | null>(null);
   const [status, setStatus] = useState("");
   const activate = useMutation({
     mutationFn: (w: AdminWorkspace) => updateWorkspace(w.id, { status: "active" }),
@@ -181,6 +215,12 @@ export function WorkspacesTab() {
           <Plus size={14} aria-hidden="true" />
           New workspace
         </button>
+        <Tip label="Give every user, administrators included, their own copy of the Northwind Traders sample workspace">
+          <button type="button" className={btn} onClick={() => setDialog({ kind: "demo" })}>
+            <Sparkles size={14} aria-hidden="true" />
+            Demo for everyone…
+          </button>
+        </Tip>
         <span role="status" aria-live="polite" className="text-sm text-fg-muted">
           {status}
         </span>
@@ -247,6 +287,7 @@ export function WorkspacesTab() {
         </table></div>
       )}
       {dialog?.kind === "new" && <WorkspaceDialog onClose={() => setDialog(null)} onSaved={done} />}
+      {dialog?.kind === "demo" && <DemoDialog onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.kind === "edit" && <WorkspaceDialog existing={dialog.ws} onClose={() => setDialog(null)} onSaved={done} />}
       {dialog?.kind === "suspend" && <SuspendDialog ws={dialog.ws} onClose={() => setDialog(null)} onDone={done} />}
     </section>

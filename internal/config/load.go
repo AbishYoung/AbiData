@@ -86,6 +86,9 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.TrustedProxies, err = l.proxies("ABIDATA_TRUSTED_PROXIES"); err != nil {
 		return Config{}, err
 	}
+	if c.AllowedOrigins, err = l.origins("ABIDATA_ALLOWED_ORIGINS"); err != nil {
+		return Config{}, err
+	}
 	return c, nil
 }
 
@@ -290,6 +293,30 @@ func (l loader) proxies(name string) ([]netip.Prefix, error) {
 			return nil, fmt.Errorf("config: %s has invalid IP %q", name, part)
 		}
 		out = append(out, netip.PrefixFrom(a, a.BitLen()))
+	}
+	if len(out) == 0 {
+		return nil, errors.New("config: " + name + " contains no entries")
+	}
+	return out, nil
+}
+
+func (l loader) origins(name string) ([]string, error) {
+	v, ok, err := l.lookup(name)
+	if err != nil || !ok {
+		return nil, err
+	}
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		u, perr := url.Parse(part)
+		if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil ||
+			(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(part, "#") || strings.Contains(part, "*") {
+			return nil, fmt.Errorf("config: %s has invalid origin %q (use scheme://host[:port])", name, part)
+		}
+		out = append(out, u.Scheme+"://"+u.Host)
 	}
 	if len(out) == 0 {
 		return nil, errors.New("config: " + name + " contains no entries")

@@ -122,6 +122,38 @@ func (s *Server) registerAdmin(api huma.API) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "adminProvisionDemos", Method: http.MethodPost, Path: "/api/v1/admin/demo-workspaces", Tags: tags, Metadata: adminOnly,
+		Summary:     "Give every active user their own Northwind Traders demo workspace",
+		Description: "Creates a personal demo workspace, owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own a demo are skipped.",
+		Errors:      []int{401, 403, 404, 503},
+	}, func(ctx context.Context, _ *struct{}) (*struct{ Body DemoProvisionDTO }, error) {
+		if s.deps.Demo == nil {
+			return nil, fault.New(fault.NotFound, "Demo workspaces are not available on this server.")
+		}
+		if !s.demoRun.TryLock() {
+			return nil, fault.New(fault.WorkspaceBusy, "Demo workspaces are already being created. Try again when that finishes.")
+		}
+		defer s.demoRun.Unlock()
+		res, err := s.deps.Demo.ProvisionAll(detached(ctx))
+		if err != nil {
+			return nil, err
+		}
+		out := DemoProvisionDTO{Created: res.Created, Skipped: res.Skipped, Failed: []DemoProvisionFailure{}}
+		if out.Created == nil {
+			out.Created = []string{}
+		}
+		if out.Skipped == nil {
+			out.Skipped = []string{}
+		}
+		for _, f := range res.Failed {
+			s.log.Error("demo workspace for user failed", "email", f.Email, "err", f.Err)
+			out.Failed = append(out.Failed, DemoProvisionFailure{Email: f.Email, Message: "The demo workspace could not be built; see the server log."})
+		}
+		s.audit(ctx, "demo.provision_all", "platform", "", map[string]any{"created": len(out.Created), "skipped": len(out.Skipped), "failed": len(out.Failed)})
+		return &struct{ Body DemoProvisionDTO }{Body: out}, nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "adminUpdateWorkspace", Method: http.MethodPatch, Path: "/api/v1/admin/workspaces/{id}", Tags: tags, Metadata: adminOnly,
 		Summary: "Rename, suspend/activate, or change quota", Errors: []int{400, 401, 403, 404, 409},
 	}, func(ctx context.Context, in *struct {
@@ -364,4 +396,17 @@ func (s *Server) collectStats(ctx context.Context) (AdminStats, error) {
 		}
 	}
 	return out, nil
+}
+
+// DemoProvisionDTO reports which users received a demo workspace.
+type DemoProvisionDTO struct {
+	Created []string               `json:"created" doc:"Emails of users who received a new demo workspace."`
+	Skipped []string               `json:"skipped" doc:"Emails of users who already own one."`
+	Failed  []DemoProvisionFailure `json:"failed"`
+}
+
+// DemoProvisionFailure is one user whose demo could not be built.
+type DemoProvisionFailure struct {
+	Email   string `json:"email"`
+	Message string `json:"message"`
 }

@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"abidata/internal/backup"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/demo"
 	"abidata/internal/docsrv"
 	"abidata/internal/egress"
 	"abidata/internal/events"
@@ -71,6 +73,9 @@ type Deps struct {
 	// OnSetup runs after the first administrator is created through the setup
 	// endpoint (nil: nothing). It must not fail setup: log and return.
 	OnSetup func(ctx context.Context, firstAdmin admin.User)
+	// Demo builds sample workspaces for the admin "give everyone the demo"
+	// action; nil: that route answers NOT_FOUND.
+	Demo    DemoProvisioner
 	Version string
 	SPA     fs.FS // contents of web/dist; nil serves nothing
 }
@@ -87,6 +92,13 @@ type Server struct {
 	keyRecheck time.Duration
 	// cspValue caches the Content-Security-Policy; the maps setting changes it.
 	cspValue atomic.Pointer[string]
+	// demoRun is held while a demo provisioning run is in progress.
+	demoRun sync.Mutex
+}
+
+// DemoProvisioner gives every active user their own demo workspace.
+type DemoProvisioner interface {
+	ProvisionAll(ctx context.Context) (demo.Provisioned, error)
 }
 
 // New builds the server and registers every route.

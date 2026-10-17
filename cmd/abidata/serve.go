@@ -296,7 +296,7 @@ func serve() error {
 		}
 	}
 
-	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Config: cfg, Log: log, Metrics: metrics, Series: sampler, Admin: adm, Auth: authSvc,
+	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Demo: demoBuilder, Config: cfg, Log: log, Metrics: metrics, Series: sampler, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Files: fileSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},

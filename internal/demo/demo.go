@@ -108,12 +108,17 @@ func (b *Builder) Create(ctx context.Context, ownerID string) (Result, error) {
 			return Result{WorkspaceID: w.ID}, nil
 		}
 	}
+	return b.createNamed(ctx, ownerID, WorkspaceName)
+}
+
+// createNamed builds a demo workspace called name, owned by ownerID.
+func (b *Builder) createNamed(ctx context.Context, ownerID, name string) (Result, error) {
 	now := time.Now()
 	if b.Now != nil {
 		now = b.Now()
 	}
 	ctx = context.WithoutCancel(ctx)
-	w := admin.Workspace{ID: ids.NewWorkspaceID(), Name: WorkspaceName, Status: admin.StatusActive, CreatedAt: now, CreatedBy: ownerID}
+	w := admin.Workspace{ID: ids.NewWorkspaceID(), Name: name, Status: admin.StatusActive, CreatedAt: now, CreatedBy: ownerID}
 	if err := b.Workspaces.Create(ctx, w.ID); err != nil {
 		return Result{}, err
 	}
@@ -124,25 +129,25 @@ func (b *Builder) Create(ctx context.Context, ownerID string) (Result, error) {
 		return Result{}, err
 	}
 	if err := b.build(ctx, w.ID, ownerID, now); err != nil {
-		b.retire(ctx, w.ID)
+		b.retire(ctx, w.ID, name)
 		return Result{}, fmt.Errorf("build demo workspace: %w", err)
 	}
 	if err := b.Admin.Audit(ctx, admin.AuditEntry{At: time.Now(), UserID: ownerID, Action: "workspace.create",
-		ObjectKind: "workspace", ObjectID: string(w.ID), Details: map[string]any{"name": WorkspaceName, "owner": ownerID, "demo": true}}); err != nil && b.Log != nil {
+		ObjectKind: "workspace", ObjectID: string(w.ID), Details: map[string]any{"name": name, "owner": ownerID, "demo": true}}); err != nil && b.Log != nil {
 		b.Log.Warn("audit write failed", "err", err)
 	}
 	return Result{WorkspaceID: w.ID, Created: true}, nil
 }
 
 // retire hides a half-built workspace and frees its name.
-func (b *Builder) retire(ctx context.Context, id ids.WorkspaceID) {
+func (b *Builder) retire(ctx context.Context, id ids.WorkspaceID, wsName string) {
 	if b.Files != nil {
 		if err := b.Files.RemoveBucket(id); err != nil && b.Log != nil {
 			b.Log.Warn("remove sample photos of failed demo workspace", "workspace_id", id, "err", err)
 		}
 	}
 	st := admin.StatusDeleted
-	name := fmt.Sprintf("%s (failed %s)", WorkspaceName, id)
+	name := fmt.Sprintf("%s (failed %s)", wsName, id)
 	if err := b.Admin.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st, Name: &name}); err != nil && b.Log != nil {
 		b.Log.Error("retire failed demo workspace", "workspace_id", id, "err", err)
 	}

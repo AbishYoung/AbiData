@@ -7,10 +7,14 @@ services:
     # production stack can run on one machine at the same time.
     networks: !reset
       - default
+    # Loopback only unless ABIDATA_DEV_BIND says otherwise (scripts/docker-dev.sh
+    # --lan sets it, to try the app from a phone on the same network).
     ports:
-      - "127.0.0.1:${ABIDATA_DEV_PORT:-8080}:8080"
+      - "${ABIDATA_DEV_BIND:-127.0.0.1}:${ABIDATA_DEV_PORT:-8080}:8080"
     environment:
+      # Loopback: http://127.0.0.1 and http://[::1] on this port are accepted too.
       ABIDATA_PUBLIC_URL: http://localhost:${ABIDATA_DEV_PORT:-8080}
+      ABIDATA_ALLOWED_ORIGINS: ${ABIDATA_ALLOWED_ORIGINS:-}
       ABIDATA_BOOTSTRAP_ADMIN_EMAIL: ${ABIDATA_BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
       ABIDATA_TRUSTED_PROXIES: ""
       ABIDATA_LOG_LEVEL: ${ABIDATA_LOG_LEVEL:-debug}
