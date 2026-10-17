@@ -64,9 +64,14 @@ test("Record a sighting shows the zones on the map and the photos of a record", 
   // Walk back from the newest sighting to one with photos: the gallery shows real thumbnails.
   await form.getByRole("button", { name: "Last record" }).click();
   const tiles = form.getByTestId("attachment-tile");
-  for (let i = 0; i < 12 && (await tiles.count()) === 0; i++) {
+  const position = form.getByText(/^Record [\d,]+ of [\d,]+$/);
+  const fileCount = form.getByTestId("attachment-count");
+  await expect(position).toHaveText(/^Record ([\d,]+) of \1$/);
+  // The count follows the record's value at once; each step waits for the record to change.
+  for (let i = 0; i < 12 && (await fileCount.innerText()).startsWith("0 "); i++) {
+    const at = await position.innerText();
     await form.getByRole("button", { name: "Previous record" }).click();
-    await page.waitForTimeout(150);
+    await expect(position).not.toHaveText(at);
   }
   await expect(tiles.first()).toBeVisible();
   const thumb = tiles.first().locator("img");
