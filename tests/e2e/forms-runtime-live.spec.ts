@@ -315,6 +315,36 @@ test("a save that hits a concurrent change in another field retries on its own",
   await other.close();
 });
 
+test("a field changed while the record is saving stays as an unsaved edit", async ({ page }) => {
+  await open(page, false);
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => (release = r));
+  let saves = 0;
+  await page.route(`**/api/v1/w/*/forms/${live.form.id}/save`, async (route) => {
+    if (saves++ === 0) await held;
+    await route.continue();
+  });
+  try {
+    await title(page).fill("Alpha saved");
+    await title(page).blur();
+    await bar(page).getByRole("button", { name: "Save", exact: true }).click();
+    await expect.poll(() => saves).toBe(1);
+    await body(page).fill("typed while saving");
+    await body(page).blur();
+    release();
+    await expect.poll(async () => (await listRows(page)).find((r) => r.id === live.ids[0])?.fields[col(live.notes, "Title")]).toBe("Alpha saved");
+    await expect(body(page)).toHaveValue("typed while saving");
+    await expect(bar(page).getByText("Unsaved changes")).toBeVisible();
+    await bar(page).getByRole("button", { name: "Save", exact: true }).click();
+    await expect(bar(page).getByText("Unsaved changes")).toBeHidden();
+    const row = (await listRows(page)).find((r) => r.id === live.ids[0]);
+    expect(row?.fields).toMatchObject({ [col(live.notes, "Title")]: "Alpha saved", [col(live.notes, "Body")]: "typed while saving" });
+  } finally {
+    release();
+    await page.unroute(`**/api/v1/w/*/forms/${live.form.id}/save`);
+  }
+});
+
 test("the record counter follows inserts and deletes of other records", async ({ page, browser, baseURL }) => {
   await open(page, false);
   await next(page).click();

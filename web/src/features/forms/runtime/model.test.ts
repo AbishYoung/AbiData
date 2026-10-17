@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FormControl, FormEventResponse } from "../formsApi";
 import { formatCalcValue } from "./format";
 import {
+  afterSave,
   applyCalc,
   applyPatches,
   bufferForServer,
@@ -60,6 +61,20 @@ describe("record buffer", () => {
     const r = setField(recFromRow({ ...row, display: {} }), "a", "x", undefined, "Shown");
     expect(r.changes).toEqual({});
     expect(r.display).toEqual({});
+  });
+  it("keeps edits made while a save was running, and nothing else, after the save", () => {
+    const rec = setField(recFromRow(row), "a", "sent");
+    const sent = saveFields(rec);
+    const saved = { id: 7, _version: 4, fields: { a: "SENT", b: 1 } }; // the server normalised a
+    expect(afterSave(rec, sent, saved)).toEqual(recFromRow(saved));
+    const typed = setField(rec, "b", 2, undefined, "Two");
+    const after = afterSave(typed, sent, saved);
+    expect(after.version).toBe(4);
+    expect(after.changes).toEqual({ b: 2 });
+    expect(after.display).toEqual({ b: "Two" });
+    expect(bufferOf(after)).toEqual({ a: "SENT", b: 2 });
+    expect(afterSave(setField(rec, "a", "retyped"), sent, saved).changes).toEqual({ a: "retyped" });
+    expect(afterSave(null, sent, saved)).toEqual(recFromRow(saved));
   });
   it("merges handler-assigned fields as changes and hides the synthetic id from the server", () => {
     const r = mergeAssigned(recFromRow(row), { b: 9, a: "x" });
