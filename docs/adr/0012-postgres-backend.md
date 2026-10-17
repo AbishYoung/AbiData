@@ -1,6 +1,6 @@
 # ADR 0012: PostgreSQL as an alternative storage backend
 
-Status: Proposed (plan for future implementation) · 2026-10-17
+Status: Proposed (plan for future implementation) · 2026-10-17 · Depends on [ADR 0013](0013-backend-agnostic-sql-layer.md)
 
 ## Context
 
@@ -17,6 +17,8 @@ AbiData stores each workspace in its own SQLite file and platform data (users, s
 2. **One backend per install.** An install can run entirely on PostgreSQL: admin data, every workspace, and the system tables.
 3. **SQLite in PostgreSQL mode** survives only as an **interchange format**: export and import of workspaces (and of a whole install). It is never a live store next to PostgreSQL.
 4. **RLS and sparse tables** may be used, but are not required.
+
+[ADR 0013](0013-backend-agnostic-sql-layer.md) is a prerequisite. It introduces a backend-agnostic SQL layer (`internal/sqlgen`): a statement and expression model with logical types and a function catalog, rendered per dialect. Visual queries, records SQL, DDL and stored expressions then become dialect-neutral. This ADR covers the PostgreSQL backend itself: its layout, sandbox, concurrency, backups and migration. Where the two overlap, ADR 0013 owns the generation side and this ADR owns the backend side.
 
 **What the code looks like today.** Measured on `main` at 1cdf69e.
 
@@ -105,7 +107,7 @@ Instead, the plan uses `EXPLAIN (VERBOSE, FORMAT JSON)` / `PREPARE` metadata as 
 
 ### 4. Dialect
 
-A `Dialect` interface (in a new `internal/dbx`, §6) owns everything that differs.
+Generated SQL comes from ADR 0013's renderers, and values pass through its per-dialect codecs. This section records the PostgreSQL-side choices those renderers and codecs implement.
 
 **Storage types for user tables:**
 
@@ -144,6 +146,8 @@ A `Dialect` interface (in a new `internal/dbx`, §6) owns everything that differ
 
 **Records filters** (`internal/records/filter.go`): `COLLATE NOCASE` is replaced by the column collation or `ILIKE`; `?` placeholders are rewritten to `$n`, centrally (§6).
 
+**Stored expressions** (calculated fields, validation, defaults) are AbiData expressions (ADR 0013 §5) rendered per dialect. They need no translation, and they are vetted by construction against the function catalog rather than by §3's parse-level checks. Those checks therefore only matter for user-typed SQL.
+
 **User SQL is in the backend's dialect.** A PostgreSQL install's saved SQL queries and Lua `db.*` strings are PostgreSQL SQL. Each saved query records the dialect it was written in (`_sys_queries.dialect`). The UI's SQL editor, its error messages and the docs say which dialect is active.
 
 ### 5. Concurrency, quotas and process model
@@ -165,7 +169,7 @@ A `Dialect` interface (in a new `internal/dbx`, §6) owns everything that differ
 
 ### 6. Code structure
 
-Put a small abstraction between services and drivers. It must not be an ORM, and it must not use `database/sql`.
+The layering is ADR 0013 §1: services build models in `internal/sqlgen`, which renders them for `internal/dbx`, which drives SQLite or PostgreSQL. The driver side is specified here. It must not be an ORM, and it must not use `database/sql`.
 
 - **New package `internal/dbx`:**
   - `Querier` (`Exec`, `Query`, `QueryRow`), `Tx` (with `Savepoint`), `Rows` and `Row`, shaped like today's `sqlitex` so call sites barely change;
@@ -180,7 +184,7 @@ Put a small abstraction between services and drivers. It must not be an ORM, and
   - migrations (`internal/catalog/migrations/{sqlite,postgres}/`, `internal/admin/migrations/{sqlite,postgres}/`, with the same numbering and a test that both sets produce equivalent schemas);
   - backups (§7);
   - the user-SQL sandbox (`query/authz_sqlite.go`, `query/sandbox_postgres.go`, behind one `query.Sandbox` interface).
-- **Converge first.** Before any PostgreSQL code exists (Phase 0), rewrite the SQLite SQL to the subset both engines share:
+- **Converge first.** This is ADR 0013 Phases A–E. Dynamic SQL and DDL are generated from models; system-table SQL moves into the checked statement registry (ADR 0013 §7). The remaining hand-written SQL is first rewritten to the subset both engines share:
   - `INSERT OR IGNORE/REPLACE` becomes `ON CONFLICT … DO NOTHING/UPDATE` (SQLite ≥3.24 supports this, and 14 sites already use it);
   - `rowid` becomes `id`;
   - `json_*` / `strftime` in system queries move behind dialect helpers or out to Go.
@@ -214,9 +218,11 @@ Stored expressions and saved SQL are written **verbatim with their dialect tag**
 
 **Import across dialects (SQLite archive to PostgreSQL).**
 1. **Structural objects** (tables, columns, relationships, indexes, forms, reports, scripts, jobs, visual queries) carry over losslessly. Visual queries are recompiled for the target dialect.
-2. **Stored expressions** (calculated, validation, default) are translated by a deterministic rewriter. The allowlisted function set is small and fixed, so most cases are mechanical, and the `<prefix>_lib` compatibility functions make many translations the identity. Each expression is then validated as in §3.
-   - If translation fails, a calculated field or default becomes a **"needs attention"** column: kept as plain data, flagged in the import report and the table designer.
-   - A validation rule that fails translation is disabled and flagged; it is never silently dropped.
+2. **Stored expressions** (calculated, validation, default) are AbiData expressions (ADR 0013 §5) and are rendered for the target: no translation. The only exception is an expression already marked "needs attention" on SQLite because it uses syntax outside the grammar:
+   - such a calculated field or default arrives as plain data, flagged in the import report and the table designer;
+   - such a validation rule arrives disabled and flagged.
+
+   Nothing is ever silently dropped.
 3. **Saved SQL queries** are translated best-effort for the common subset. Each is then test-prepared as the `_read` role. If it fails, it is kept with dialect `sqlite`, marked "needs attention", and shown with the error and a side-by-side editor.
 4. **Lua scripts** are imported unchanged; their API is identical. A static scan lists scripts that call `db.query`/`db.exec`/`db.lookup` with SQL strings, and the import report asks the owner to review them. The compatibility functions reduce how many actually break.
 5. **The import report** (an operation result, D17) lists every translated, flagged and disabled object. The owner sees it before the workspace is opened to members.
@@ -258,7 +264,7 @@ Each phase merges on its own, keeps SQLite green, and has an exit criterion.
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| 0. Converge | Portable SQL rewrite (§6); introduce `dbx` with SQLite as the only implementation; dialect-tag saved queries; split migrations into per-backend folders (SQLite only). | SQLite suite, e2e and benchmarks unchanged; tagged count of dialect-specific statements. |
+| 0. Converge | ADR 0013 Phases A–E (generated SQL and DDL, the expression language, the statement registry); introduce `dbx` with SQLite as the only implementation; dialect-tag saved queries; split migrations into per-backend folders (SQLite only). | ADR 0013's exit criteria; SQLite suite, e2e and benchmarks unchanged. |
 | 1. Spike | Prove the riskiest parts in isolation: §3's privilege sandbox and catalog hardening on PostgreSQL 17 and 18, and the plan-based function allowlist. | Capability tests pass on both versions, or the fallback tokenizer is chosen; findings appended to this ADR. |
 | 2. Admin store on PostgreSQL | `<prefix>_admin` migrations and repositories; configuration, the backend lock and startup checks. | Admin, auth and API-key tests pass on both backends. |
 | 3. Workspaces on PostgreSQL | Schema-per-workspace lifecycle, roles, DDL, triggers, `<prefix>_lib`, records, catalog apply/preview, visual compiler, sandboxed user SQL, Lua `db`, soft quotas. | Full Go suite green on PostgreSQL except backup, restore and import. |
@@ -292,5 +298,5 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 
 1. Is catalog hardening (revoking PUBLIC SELECT on `pg_class` and similar in the app's database) acceptable to the operators who'd use this? If not, a database per workspace becomes the default (§2), at the connection-count cost.
 2. Should the PostgreSQL dialect offer a PostGIS-backed fast path for spatial joins when the extension exists, or stay pure SQL for identical results everywhere?
-3. Do we want a "dialect-neutral" mode for stored expressions, a small expression language compiled to either backend, to remove translation from imports entirely? It would also make D12's split (Lua for controls, SQL for fields) worth revisiting.
+3. ~~A dialect-neutral expression language for stored expressions?~~ Answered by ADR 0013 §5: yes. Whether saved SQL queries get an opt-in portable mode is ADR 0013's open question 2.
 4. What is the target scale for one PostgreSQL install (workspaces × tables)? It decides when per-schema catalog growth needs attention, typically past tens of thousands of tables.
