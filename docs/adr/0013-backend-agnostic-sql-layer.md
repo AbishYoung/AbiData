@@ -132,14 +132,14 @@ Calculated fields, validation rules and defaults stop being SQLite SQL. They bec
 
 | Artefact | After this ADR |
 |---|---|
-| Visual queries | **Neutral**, apart from their expression columns (next row). `query.Compile` builds a `sqlgen.Select`; the stored model is already neutral and SQL is rendered at run time. `RefreshCompiled` / `CompilerVersion` become per dialect. |
+| Visual queries | **Neutral.** `query.Compile` builds a `sqlgen.Select`; the stored model is already neutral and SQL is rendered at run time. `RefreshCompiled` / `CompilerVersion` become per dialect. |
 | Records CRUD, filters, sort, lookups and row history | **Neutral.** Built as models from the catalog. |
 | DDL, schema preview/apply, OCC and attachment triggers | **Neutral.** Each renderer also produces the preview's "what will happen" facts, such as "rebuilds the table" on SQLite or "rewrites the table" for a stored generated column on PostgreSQL 17. |
 | Stored expressions | **Neutral** (§5). |
 | Imports and exports | **Neutral.** Staging stays SQLite (ADR 0012 §8); the commit into the workspace is generated. |
 | System tables | **Neutral by registry** (§7). |
 | Saved SQL queries, SQL console | **Dialect-specific, by decision.** A person typed them; each records its dialect (ADR 0012 §4). There is no portable-SQL mode, so crossing backends uses ADR 0012 §8's best-effort translation and "needs attention" flow. |
-| Expression columns in visual queries | **Dialect-specific, by decision.** They stay raw SQL expressions, as today, and are embedded into the generated `Select` as an opaque, builder-only fragment (`sqlgen.RawExpr`, tagged with its dialect). A visual query records its dialect only if it has such a column. Crossing backends treats them like saved SQL (ADR 0012 §8): best-effort translation, otherwise "needs attention". |
+| Expression columns in visual queries | **Neutral.** They become AbiData expressions (§5) in Phase D, replacing raw SQL. Raw SQL stays available through the SQL view and SQL queries. |
 | Lua `db.query` / `db.exec` with SQL strings | **Dialect-specific.** A new **neutral** alternative is offered (§8). |
 
 As a result, ADR 0012 §8's translation step shrinks to **saved SQL queries and Lua SQL strings**. Everything else moves between SQLite and PostgreSQL with no translation at all.
@@ -194,7 +194,7 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 | A. Model and SQLite renderer | `sqlgen` nodes, logical types, function catalog seeded from `deterministicFuncs`, SQLite renderer, golden tests on rendered SQL plus execution tests. | Renderer covers what `visual.go`, `filter.go` and `selectList` need. |
 | B. Generated dynamic SQL | Port `query.Compile`, `records` filters, sort, CRUD and lookups, row history, and ingest commit to the model; typed result columns replace `originType`/sampling for generated SQL. | Full Go suite and e2e unchanged; `column_types` identical on the demo workspace's queries. |
 | C. Generated DDL | Port `catalog/ddl.go`, including the rebuild recipe and trigger intents. | Catalog, convert and upgrade tests unchanged; a byte-level schema comparison on the demo workspace shows no drift. |
-| D. Expression language | Parser, type checker, editor completion, the catalog upgrade that parses existing expressions, "needs attention" marking. | Every expression in the demo and the test fixtures parses; the authorizer path is used only for user-typed SQL. |
+| D. Expression language | Parser, type checker, editor completion, the catalog upgrade that parses existing expressions, "needs attention" marking. The visual designer's expression columns switch to AbiData expressions; saved visual queries' expressions are upgraded the same way. | Every expression in the demo and the test fixtures parses; the authorizer path is used only for user-typed SQL. |
 | E. Statement registry | Move system-table SQL to `sqlgen.Static`, conformance test (SQLite now, PostgreSQL once ADR 0012 Phase 1 lands), lint rule. | No inline SQL outside `sqlgen` and the drivers. |
 | F. PostgreSQL renderer and codecs | Second renderer, `<prefix>_lib` functions, codecs, and differential testing. This is the hand-off point into ADR 0012 Phase 3. | Differential tests green on PostgreSQL 17 and 18. |
 | G. Lua builder | `db.select` / `insert` / `update` / `delete` on the model. | Lua API manifest updated; scripts using it pass on both backends. |
@@ -230,4 +230,4 @@ Recorded 2026-10-17, from the questions this plan first left open:
 
 1. **Expression syntax is SQL-flavoured.** No Access-style names (`IIf`, `Nz`, `DateAdd`, `[Field]`) and no second spelling. The function catalog's names are the SQL names already in today's allowlist.
 2. **No portable mode for saved SQL queries.** They stay in the backend's dialect, and moving them between backends relies on ADR 0012 §8. The grammar AbiData owns stays an expression grammar, never a statement language.
-3. **Expression columns in the visual query designer stay raw SQL expressions**, as they are today. They are not converted to AbiData expressions. AbiData expressions cover only stored column expressions: calculated fields, validation and defaults. (Revised the same day: an earlier answer had switched these columns too.)
+3. **Expression columns in the visual query designer use AbiData expressions** (Phase D). Builders who need raw SQL use the SQL view and SQL queries.
