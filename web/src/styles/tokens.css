@@ -5,8 +5,14 @@
    on <html>. Text pairs meet WCAG AA; input borders meet 3:1 non-text contrast. */
 @import "tailwindcss";
 
-/* Phones and narrow touch screens (see lib/useMediaQuery.ts). `compact:` utilities apply only there. */
-@custom-variant compact (@media (max-width: 767px), (pointer: coarse) and (max-width: 1023px));
+/* Phones and narrow touch screens (see lib/useMediaQuery.ts). `compact:` utilities apply only there.
+   The block form is required: in the shorthand `@custom-variant compact (@media A, B)` Tailwind splits
+   the comma as a selector list and drops the touch-tablet branch (review R1). */
+@custom-variant compact {
+  @media (max-width: 767px), (pointer: coarse) and (max-width: 1023px) {
+    @slot;
+  }
+}
 
 @theme {
   --font-sans: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
