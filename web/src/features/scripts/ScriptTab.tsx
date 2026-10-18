@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, Search, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, badge, badgeSuccess, badgeWarning, btn, btnGhost, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { alertBox, badge, badgeSuccess, badgeWarning, btn, btnGhost, btnPrimary, input, label as labelClass, warningBox } from "@/components/styles";
+import { useSchema } from "@/lib/schema";
 import { ApiError } from "@/lib/api";
 import { DeleteScriptDialog } from "./DeleteScriptDialog";
 import { LuaEditor } from "./LuaEditor";
@@ -19,6 +20,8 @@ import {
   type Script,
 } from "./scriptsApi";
 import type { ScriptKind } from "./luaApi";
+import { findTemplate } from "./templates";
+import { generate, NO_TEMPLATE, TemplatePicker, type Generated, type TemplateChoice } from "./TemplatePicker";
 import { matchesShortcut } from "@/lib/shortcuts";
 
 export const KIND_LABEL: Readonly<Record<ScriptKind, string>> = {
@@ -78,6 +81,11 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"module" | "job">("module");
   const [source, setSource] = useState("");
+  const [choice, setChoice] = useState<TemplateChoice>(NO_TEMPLATE);
+  // The name and source the last template filled in, to tell whether the user has changed them since.
+  const [applied, setApplied] = useState({ name: "", source: "" });
+  const [pending, setPending] = useState<Generated | null>(null);
+  const schema = useSchema(ws, findTemplate(choice.templateId)?.table !== undefined);
   const trimmed = name.trim();
   const nameValid = kind === "module" ? MODULE_NAME.test(trimmed) : trimmed !== "" && trimmed.length <= 100;
   const dirty = trimmed !== "" || source !== "";
@@ -97,6 +105,22 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
     if (nameValid && !create.isPending) create.mutate();
   }
 
+  function apply(g: Generated): void {
+    setKind(g.template.kind);
+    setSource(g.source);
+    if (trimmed === "" || name === applied.name) setName(g.name);
+    setApplied({ name: g.name, source: g.source });
+    setPending(null);
+  }
+
+  function choose(c: TemplateChoice): void {
+    setChoice(c);
+    const g = generate(c, schema.data);
+    if (!g) setPending(null);
+    else if (source === "" || source === applied.source) apply(g);
+    else setPending(g);
+  }
+
   return (
     <div
       data-testid="script-tab"
@@ -109,6 +133,7 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
       }}
     >
       <div className="flex flex-wrap items-end gap-3 border-b border-border bg-surface px-3 py-2 shadow-xs">
+        <TemplatePicker ws={ws} kinds={["job", "module"]} blankLabel="Blank script" value={choice} onChange={choose} />
         <div className="w-64">
           <label className={labelClass} htmlFor={nameId}>
             Script name
@@ -150,6 +175,19 @@ function NewScript({ ws, tabKey }: { ws: string; tabKey: string }) {
           ? "Start with a letter; letters, digits, underscore and dot. Other scripts load it with require(\"name\")."
           : "Job scripts run on a schedule or on demand and can use fetch and staging."}
       </p>
+      {pending && (
+        <div role="alert" className={`${warningBox} mx-3 my-2`}>
+          <p className="m-0">You have changed the script. Replace it with the “{pending.template.title}” template?</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className={btn} onClick={() => apply(pending)}>
+              Replace with template
+            </button>
+            <button type="button" className={btnGhost} onClick={() => setPending(null)}>
+              Keep my script
+            </button>
+          </div>
+        </div>
+      )}
       <ErrorBox error={create.error} />
       <LuaEditor value={source} onChange={setSource} kind={kind} ws={ws} label={`Lua source of new ${kind} script`} />
     </div>

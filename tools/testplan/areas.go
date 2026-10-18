@@ -14,7 +14,7 @@ var areas = []area{
 	{"queries", []string{"queries", "import-export"}},
 	{"forms", []string{"forms-designer", "forms-runtime", "forms-runtime-live"}},
 	{"reports", []string{"reports", "reports-designer"}},
-	{"automation", []string{"scripts", "jobs"}},
+	{"automation", []string{"scripts", "jobs", "script-templates"}},
 	{"apps", []string{"public-apps", "invasive-species"}},
 }
 
