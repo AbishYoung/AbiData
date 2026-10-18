@@ -243,7 +243,7 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 - **Differential tests** (`internal/pgdb/dialect_test.go`) run about 200 expressions, dates included, and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
   - The recorded differences:
     - `lower`/`upper` on non-ASCII letters: SQLite changes ASCII only.
-    - The area of a 1 cm² polygon, which differs by a relative 2e-8 because the spherical-excess sum cancels.
+    - The area of a 1 cm² polygon, which can differ by a relative 2e-8 depending on the C library's `sin`, because the spherical-excess sum cancels; it is compared with a looser tolerance.
   - Number-to-text formatting also differs (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). The test data avoids that case, and part 2's codecs address it.
 
 Phases A–E are worth doing even if PostgreSQL is never built:

@@ -139,7 +139,10 @@ func collect(r dbx.Rows) ([][]any, error) {
 // the codecs know (no numeric, which would mean a SUM or literal escaped
 // double precision); booleans compare as SQLite's 0 and 1, numbers within a
 // rounding error.
-func same(lite, pg any) (bool, string) {
+func same(lite, pg any) (bool, string) { return sameWithin(lite, pg, 1e-9) }
+
+// sameWithin is same with a relative tolerance for numbers.
+func sameWithin(lite, pg any, tol float64) (bool, string) {
 	switch pg.(type) {
 	case nil, bool, int64, int32, int16, float64, float32, string, time.Time:
 	default:
@@ -173,7 +176,7 @@ func same(lite, pg any) (bool, string) {
 	a, b := norm(lite), norm(pg)
 	if fa, ok := a.(float64); ok {
 		if fb, ok := b.(float64); ok {
-			if fa == fb || math.Abs(fa-fb) <= 1e-9*math.Max(math.Abs(fa), math.Abs(fb)) {
+			if fa == fb || math.Abs(fa-fb) <= tol*math.Max(math.Abs(fa), math.Abs(fb)) {
 				return true, ""
 			}
 		}
@@ -274,9 +277,13 @@ var knownDifferences = map[string][]int{
 	// follow Unicode.
 	"lower(name)": {6},
 	"upper(note)": {6},
-	// A 1 cm² area: the spherical-excess sum cancels almost completely, so
-	// the last bits of Go's and C's sin show (a relative 2e-8).
-	"geo_area_m2(zone)": {6},
+}
+
+// tolerances loosen the comparison of numbers for an expression. A 1 cm²
+// area's spherical-excess sum cancels almost completely, so the last bits of
+// the platform's sin show: a relative 2e-8 on some C libraries, none on others.
+var tolerances = map[string]float64{
+	"geo_area_m2(zone)": 1e-6,
 }
 
 // TestStatementsAgree covers what is not a per-row expression: grouping and
@@ -362,7 +369,11 @@ func (e *diffEnv) agree(t *testing.T, name string, s sqlgen.Stmt, allowed ...int
 			continue
 		}
 		for j := range lite[i] {
-			if ok, why := same(lite[i][j], pg[i][j]); !ok {
+			tol, ok := tolerances[name]
+			if !ok {
+				tol = 1e-9
+			}
+			if ok, why := sameWithin(lite[i][j], pg[i][j], tol); !ok {
 				diffs = append(diffs, fmt.Sprintf("row %d col %d: SQLite %#v, PostgreSQL %#v %s", i+1, j+1, lite[i][j], pg[i][j], why))
 			}
 		}
