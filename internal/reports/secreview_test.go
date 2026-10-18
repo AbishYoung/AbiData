@@ -17,6 +17,9 @@ import (
 // run's rows alive (no write timeout on the stream), so a few requests exhaust
 // the node's memory for every tenant.
 func TestSecReviewReportRunHeap(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs a report over 190 000 rows; runs without -short")
+	}
 	f := setup(t)
 	if err := f.l.Write(f.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 190000)

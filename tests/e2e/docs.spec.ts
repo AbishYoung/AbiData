@@ -198,10 +198,16 @@ test("hovering a host function in Script Studio links to its API reference entry
 
   // Let the live check finish first, so the editor does not re-render under the pointer.
   await expect(page.getByRole("region", { name: "Problems", exact: true }).getByRole("status")).toHaveText(/problem/i, { timeout: 5000 });
-  await page.locator(".view-line span").filter({ hasText: /^query_one$/ }).first().hover();
   // Monaco renders command links as anchors with an empty href, so match them by text.
   const link = page.locator(".monaco-hover a", { hasText: "Open in the docs" });
-  await expect(link).toBeVisible();
+  // The hover opens after a delay and can be dismissed by a late re-render on a slow
+  // machine, so move away and hover again until it shows.
+  const word = page.locator(".view-line span").filter({ hasText: /^query_one$/ }).first();
+  await expect(async () => {
+    await page.mouse.move(0, 0);
+    await word.hover();
+    await expect(link).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15000 });
   await link.click();
 
   await expect(panel(page)).toBeVisible();

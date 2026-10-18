@@ -88,6 +88,9 @@ func readEvents(t *testing.T, srv *httptest.Server, lastID uint64, want int) []s
 }
 
 func TestStreamResumeNoGapsNoDuplicates(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streams for several seconds; runs without -short")
+	}
 	b := NewBus(1000)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		Stream(w, r, b, StreamOptions{})

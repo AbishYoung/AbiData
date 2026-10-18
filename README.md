@@ -279,16 +279,44 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 | `make lint` | `golangci-lint`, then the web typecheck and ESLint |
 | `make test` | `go test -race ./...` and the web unit tests (Vitest) |
 | `make test-postgres` | The PostgreSQL backend tests (ADR 0012) against throwaway servers in Docker (`postgres:17` and `postgres:18` by default) |
+| `make test-changed` / `make test-plan` | Only the tests your changes since `origin/main` can affect / print that selection (see Tests) |
+| `make test-go-unit` / `make test-go-integration` / `make test-web` / `make test-e2e AREA=…` | One test layer |
 | `make e2e` | The Playwright suite in `tests/e2e` |
 | `make screenshots` | Regenerate `docs/images/` |
 | `make docker-local` / `make docker` | Build the image for this machine / for amd64 and arm64 |
 
 ### Tests
 
-- **Go**: `go test -race ./...` covers the server packages, including the sample workspaces.
+Tests come in layers ([ADR 0016](docs/adr/0016-layered-testing.md)). While you work, `make test-changed` runs only what your changes can affect. It compares against the merge base with `origin/main` and counts committed, staged, unstaged and untracked files. `make test-plan` prints that selection and why.
+- **Go** goes through the import graph: a changed package and everything that imports it.
+- **Web** goes through `vitest related`.
+- **End to end** goes through the area table in `tools/testplan/areas.go`.
+- Shared code and build files widen the selection, up to everything.
+
+Options:
+- `BASE=<ref>` compares against another ref.
+- `LAYERS=go,web` limits the layers (from `static,go,web,e2e`).
+- `GO_TEST_FLAGS=-race` changes the Go flags (default `-short`).
+
+| Layer | Command |
+|---|---|
+| Lint and generated files | `make lint`, `make gen` |
+| Go unit: every package but the HTTP API and the binary, `-short` | `make test-go-unit` |
+| Go integration: `internal/httpapi` and `cmd/abidata`, with race | `make test-go-integration` |
+| Go, everything with race, heavy tests included (what CI runs) | `make test-go` |
+| Web: `*.test.ts` is `unit`, `*.test.tsx` is `component` | `make test-web`, `make test-web PROJECT=unit` |
+| End to end, by area (`go run ./tools/testplan areas` lists them) | `make test-e2e AREA=forms`; `make e2e` for all |
+| PostgreSQL backend (Docker) | `make test-postgres` |
+
+- **Go**: a test that takes seconds or moves a lot of data starts with `if testing.Short() { t.Skip(...) }`, so the fast layer skips it. CI never passes `-short`.
+- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`.
+  - The suite builds the web app and the server once. Then it gives every Playwright worker its own pair of servers with fresh data directories: an empty install on port `18080 + 2i`, and one with the two sample workspaces on the next port. Set `ABIDATA_E2E_PORT` to move the base port.
+  - Spec files run in parallel and tests inside a file run in order. `E2E_WORKERS` (or `-j`) sets the worker count; the default is half the cores, at most 6.
+  - `E2E_SKIP_BUILD=1` reuses `tests/e2e/.bin/abidata`. Server logs are in `tests/e2e/.servers/`.
+  - The desktop suite runs on Chromium; the phone suite runs on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
+  - Add a new spec to an area in `tools/testplan/areas.go`; a test fails until you do.
 - **PostgreSQL**: `make test-postgres` needs Docker. It starts a throwaway server per image on 127.0.0.1 with a random password and runs the `internal/pgdb` tests against it. Set `ABIDATA_TEST_POSTGRES_IMAGES` to choose the images.
-- **Web**: Vitest unit and component tests in `web/`.
-- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`. `make e2e` builds the web app and the server, starts the server on port 18080 (set `ABIDATA_E2E_PORT` to change it) with a fresh data directory, plus a second one on the next port that has the two sample workspaces for `invasive-species.spec.ts` and `demo-provision.spec.ts`, and runs the desktop suite on Chromium plus the phone suite on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
+- **CI** runs the same selection on pull requests, with one e2e job per area. Pushes to `main` and the nightly run test everything.
 
 ### Screenshots
 
@@ -296,7 +324,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 
 ### Contributing
 
-Keep changes focused, add or update tests, run `make lint` and `make test`, and run `make gen` when you change the API or the shortcut table. User-facing changes should update the matching page in `docs/content/`. Follow the conventions in [web/src/components/DESIGN.md](web/src/components/DESIGN.md) for interface work. Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) proposes weekly updates for Go, npm, GitHub Actions and Docker, taking a release only once it is two weeks old. Security updates come straight away.
+Keep changes focused, add or update tests, run `make lint` and `make test-changed` (or `make test`), and run `make gen` when you change the API or the shortcut table. User-facing changes should update the matching page in `docs/content/`. Follow the conventions in [web/src/components/DESIGN.md](web/src/components/DESIGN.md) for interface work. Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) proposes weekly updates for Go, npm, GitHub Actions and Docker, taking a release only once it is two weeks old. Security updates come straight away.
 
 ## Documentation
 

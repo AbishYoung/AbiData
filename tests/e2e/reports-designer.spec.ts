@@ -108,6 +108,9 @@ test("builder designs a grouped report, saves it with Mod+S, reopens it and runs
   await selectBand(page, "Page footer");
   await addTool(page, "Page number");
   await expect(canvasControl(page, "Page number", "PageNumber")).toBeVisible();
+  // The designer focuses a new control on the next animation frame; wait for it, or that
+  // focus can land after the keyboard step below and select the page footer again.
+  await expect(canvasControl(page, "Page number", "PageNumber")).toBeFocused();
 
   // Keyboard only: choose a band, add a control with Enter, nudge it with the arrow keys.
   await root.getByRole("button", { name: "Select Report header band" }).focus();
