@@ -147,11 +147,11 @@ Serial test time per area, as a guide for CI shard length: a11y 79 s, automation
   - `mobile.spec.ts` › drawer navigation failed once in about eight full local runs under heavy load and passed on rerun. It is left as is, since the ADR 0015 UI work owns that spec.
 - The first CI runs of e2e (GitHub's Linux runners) showed differences the macOS runs never had:
   - Vitest's worker threads share the process's time zone, so `vi.stubEnv("TZ", …)` no longer took effect. `web/vitest.global.ts` now fixes the zone before the workers start.
-  - Three tests fail only on Linux and are marked `test.fixme` there:
+  - Some tests failed only on Linux and are marked `test.fixme` there:
     - the PDF snapshots in `reports.spec.ts`, whose first page lacks the footer with Linux font metrics;
     - focus after opening a form with Enter in `forms-runtime.spec.ts`;
-    - a truncated import step label in `mobile.spec.ts`.
+    - a truncated import step label in `mobile.spec.ts` (fixed by ADR 0015: the current step's label now wraps).
 - Follow-ups:
-  - Fix the three Linux-only e2e failures above and remove their `test.fixme`.
+  - Fix the remaining Linux-only e2e failures above and remove their `test.fixme`.
   - `t.Parallel()` in `internal/httpapi`. Its 61 tests run one after another and take about 23 s under race, which makes it the longest package in the fast layer.
   - Moving `httpapi` tests into the per-feature areas once the package is split.
