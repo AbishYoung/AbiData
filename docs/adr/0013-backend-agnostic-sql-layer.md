@@ -213,6 +213,39 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 | F. PostgreSQL renderer and codecs | Second renderer, `<prefix>_lib` functions, codecs, and differential testing. This is the hand-off point into ADR 0012 Phase 3. | Differential tests green on PostgreSQL 17 and 18. |
 | G. Lua builder | `db.select` / `insert` / `update` / `delete` on the model. | Lua API manifest updated; scripts using it pass on both backends. |
 
+**Phase F, part 1 (as built).**
+
+- **What renders.** `sqlgen.Render(sqlgen.Postgres, …)` renders expressions and DML.
+  - Placeholders stay `?`/`:name` for `dbx.Rebind`.
+  - DDL returns `ErrDialect` until part 2.
+- **SQLite's answers, pinned explicitly:**
+  - `IS [NOT] DISTINCT FROM`;
+  - NULL for division or `%` by zero;
+  - `%` on integer parts;
+  - yes/no counted as 0/1 next to numbers;
+  - `CAST` to integer truncates;
+  - SUM of integers stays `bigint` and AVG is `double precision`;
+  - MIN/MAX of yes/no is `bool_and`/`bool_or`;
+  - scalar `max`/`min` are NULL if any argument is;
+  - float literals are `float8`.
+- **Matching.** LIKE, GLOB, `instr` and `replace` work on the text under `COLLATE "default"`, since text columns use the nondeterministic `<prefix>_ci` collation. `Match.CI` renders as `ILIKE`.
+- **Functions.** Each catalog function maps to a builtin, a rewrite, or an `abi_*` function in `<prefix>_lib` (`internal/pgdb/lib`, installed by `pgdb.InstallLib`).
+  - The library has SQLite's `substr`, `round` (of the double's exact value), the math functions that are NULL on domain errors, `mod`, `glob` and a 64-bit `random`.
+  - It also ports SQLite's date.c: `date`, `time`, `datetime`, `julianday`, `unixepoch` and `strftime` with SQLite's modifiers and conversions. They work on text, numbers and native `date`/`timestamptz` columns, and 'now' is passed as `statement_timestamp()`.
+  - Text compared with a native date column is read as a date, or as a UTC timestamp. A native date-and-time column used as text is written in `dbx.TimeLayout`, as SQLite stores it.
+  - It ports `internal/geo` for the `geo_*` functions (ADR 0010).
+    - They accept the same point and area inputs and validation, and work on text or native `jsonb` columns.
+    - Their output is canonical GeoJSON, byte for byte. A native geometry column used as text is written in that same canonical form.
+    - One gap: SQLite parses a constant area once per statement, but PostgreSQL parses it again for every row.
+  - The JSON functions, `timediff`, `printf`/`format`, `quote`, `typeof` and `unhex` are listed as pending.
+    - The JSON ones wait on a model change, not on library code. SQLite's `json_extract` returns an integer, a real, text or 0/1 depending on the document, but a PostgreSQL function has one result type.
+    - A portable form needs typed extraction in the catalog (for example a text, number or yes/no extraction), chosen by the expression's context. They fail to render rather than render wrongly, and a test keeps that list exact.
+- **Differential tests** (`internal/pgdb/dialect_test.go`) run about 200 expressions, dates included, and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
+  - The recorded differences:
+    - `lower`/`upper` on non-ASCII letters: SQLite changes ASCII only.
+    - The area of a 1 cm² polygon, which can differ by a relative 2e-8 depending on the C library's `sin`, because the spherical-excess sum cancels; it is compared with a looser tolerance.
+  - Number-to-text formatting also differs (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). The test data avoids that case, and part 2's codecs address it.
+
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;
 - stored expressions get real parsing and good error messages instead of an authorizer probe;

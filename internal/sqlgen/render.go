@@ -49,6 +49,12 @@ func Render(d Dialect, s Stmt) (Rendered, error) {
 		r.delete(s)
 		cols = s.Returning
 	default:
+		if r.d == Postgres {
+			// ADR 0013 Phase F, part 2: PostgreSQL DDL follows ADR 0012 §4's
+			// storage types and triggers.
+			r.err = fmt.Errorf("%w: %T on %s", ErrDialect, s, r.d)
+			break
+		}
 		if !r.ddl(s) {
 			r.fail("unsupported statement %T", s)
 		}
@@ -93,7 +99,7 @@ type renderer struct {
 }
 
 func newRenderer(d Dialect) (*renderer, error) {
-	if d != SQLite {
+	if d != SQLite && d != Postgres {
 		return nil, fmt.Errorf("%w: %s", ErrDialect, d)
 	}
 	return &renderer{d: d, seen: map[string]bool{}}, nil
@@ -207,7 +213,8 @@ func (r *renderer) columns(cols []Column) {
 
 func (r *renderer) order(o Order) {
 	r.expr(o.Expr)
-	if c, ok := o.Expr.(Col); ok && c.CI {
+	if c, ok := o.Expr.(Col); ok && c.CI && r.d == SQLite {
+		// On PostgreSQL the column's own collation (ADR 0012 §4) sorts it.
 		r.w(" COLLATE NOCASE")
 	}
 	if o.Desc {
@@ -267,6 +274,11 @@ func (r *renderer) insert(s *Insert) {
 	}
 	r.w("INSERT ")
 	if s.OrIgnore {
+		if r.d != SQLite {
+			// PostgreSQL's ON CONFLICT DO NOTHING skips unique violations
+			// only, not the CHECK failures the table rebuild counts.
+			r.fail("OR IGNORE is SQLite only")
+		}
 		if s.OnConflict != nil {
 			r.fail("an INSERT takes OR IGNORE or ON CONFLICT, not both")
 		}
@@ -306,7 +318,7 @@ func (r *renderer) insert(s *Insert) {
 			r.w(" (")
 			r.list(len(oc.Target), ", ", func(i int) {
 				r.w(Quote(oc.Target[i].Name))
-				if oc.Target[i].CI {
+				if oc.Target[i].CI && r.d == SQLite {
 					r.w(" COLLATE NOCASE")
 				}
 			})
@@ -425,7 +437,7 @@ func (r *renderer) expr(e Expr) {
 		}
 		r.w(":" + e.Name)
 	case Lit:
-		s, err := literal(e.Value)
+		s, err := r.literal(e)
 		if err != nil {
 			r.fail("%v", err)
 			return
@@ -438,6 +450,10 @@ func (r *renderer) expr(e Expr) {
 		}
 		r.w("(" + e.SQL + ")")
 	case Binary:
+		if r.d == Postgres {
+			r.pgBinary(e)
+			return
+		}
 		r.operand(e.L)
 		r.w(" " + binOp(e.Op, r) + " ")
 		r.operand(e.R)
@@ -486,12 +502,20 @@ func (r *renderer) expr(e Expr) {
 			r.fail("unknown function %q", e.Name)
 			return
 		}
+		if r.d == Postgres {
+			r.pgFunc(def, e.Args)
+			return
+		}
 		r.w(def.Name + "(")
 		r.list(len(e.Args), ", ", func(i int) { r.expr(e.Args[i]) })
 		r.w(")")
 	case Agg:
 		r.agg(e)
 	case Cast:
+		if r.d == Postgres {
+			r.pgCast(e)
+			return
+		}
 		r.w("CAST(")
 		r.expr(e.X)
 		r.w(" AS " + sqliteType(e.Type) + ")")
@@ -588,6 +612,10 @@ func (r *renderer) agg(a Agg) {
 		r.w("COUNT(*)")
 		return
 	}
+	if r.d == Postgres {
+		r.pgAgg(name, a)
+		return
+	}
 	r.w(name + "(")
 	if a.Distinct {
 		r.w("DISTINCT ")
@@ -610,8 +638,17 @@ func (r *renderer) match(m Match) {
 		}
 		return s
 	}
-	r.operand(m.X)
-	r.w(" LIKE ")
+	if r.d == Postgres {
+		r.pgMatchSubject(m.X)
+		if m.CI {
+			r.w(" ILIKE ")
+		} else {
+			r.w(" LIKE ")
+		}
+	} else {
+		r.operand(m.X)
+		r.w(" LIKE ")
+	}
 	switch m.Kind {
 	case MatchLike:
 		r.operand(m.Pattern)
@@ -657,6 +694,38 @@ func EscapeLike(s string) string {
 // for ESCAPE '\', escaping the text's own % and _.
 func AccessWildcards(s string) string {
 	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`, "*", "%", "?", "_").Replace(s)
+}
+
+// literal encodes a Lit for the dialect: booleans are TRUE and FALSE on
+// PostgreSQL (a yes/no 0 or 1 too), 1 and 0 on SQLite; a real number is
+// double precision on PostgreSQL rather than numeric.
+func (r *renderer) literal(l Lit) (string, error) {
+	if r.d == Postgres {
+		switch x := l.Value.(type) {
+		case bool:
+			if x {
+				return "TRUE", nil
+			}
+			return "FALSE", nil
+		case int, int64:
+			if l.Type == Boolean {
+				if x == 0 || x == int64(0) {
+					return "FALSE", nil
+				}
+				return "TRUE", nil
+			}
+		case float64:
+			s, err := literal(x)
+			return s + "::float8", err
+		case json.Number:
+			s, err := literal(x)
+			if err == nil && strings.ContainsAny(s, ".eE") {
+				s += "::float8"
+			}
+			return s, err
+		}
+	}
+	return literal(l.Value)
 }
 
 // literal encodes a value as a SQLite literal.
