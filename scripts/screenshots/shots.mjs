@@ -39,7 +39,7 @@ export async function shoot(ctx) {
   const setup = await admin.request.post(`${base}/api/v1/auth/setup`, { data: { token, display_name: displayName, password }, headers: origin });
   if (!setup.ok()) throw new Error(`setup failed: ${setup.status()} ${await setup.text()}`);
   const me = await setup.json();
-  const ws = me.memberships[0].workspace_id;
+  const ws = (me.memberships.find((m) => m.workspace_name === "Northwind Traders") ?? me.memberships[0]).workspace_id;
   const csrf = { ...origin, "X-CSRF-Token": me.csrf_token };
   const call = async (method, path, data, headers = {}) => {
     const res = await admin.request.fetch(`${base}${path}`, { method, data, headers: { ...csrf, ...headers } });
@@ -235,6 +235,25 @@ export async function shoot(ctx) {
       await form.getByRole("button", { name: "Next record" }).click();
       await form.getByTestId("map-value").getByText(/Area/).waitFor();
       await page.waitForFunction(() => [...document.querySelectorAll("path.abd-overlay-point")].some((p) => p.getAttribute("d") !== "M0 0"));
+      // The map can stay on the previous record's area: step away and back until this record's
+      // fence is drawn inside the map.
+      const fenceInView = () =>
+        page.evaluate(() => {
+          const map = document.querySelector(".abd-map")?.getBoundingClientRect();
+          return !!map && [...document.querySelectorAll("path.abd-area")].some((p) => {
+            const r = p.getBoundingClientRect();
+            return r.width > 20 && r.left >= map.left - 1 && r.right <= map.right + 1 && r.top >= map.top - 1 && r.bottom <= map.bottom + 1;
+          });
+        });
+      for (let i = 0; i < 8 && !(await fenceInView()); i++) {
+        await page.waitForTimeout(500);
+        if (await fenceInView()) break;
+        await form.getByRole("button", { name: "Previous record" }).click();
+        await page.waitForTimeout(500);
+        await form.getByRole("button", { name: "Next record" }).click();
+        await form.getByTestId("map-value").getByText(/Area/).waitFor();
+      }
+      if (!(await fenceInView())) console.warn("  zone-editor: the zone's fence is not in view");
       await save(page, "zone-editor");
     }
 
@@ -365,6 +384,87 @@ export async function shoot(ctx) {
   async function openWorkspaceMobile(page) {
     await page.getByText("Northwind Traders").first().tap();
     await page.getByRole("button", { name: "Open navigation" }).waitFor();
+  }
+
+  // ---- public apps, context menus and report layouts ----
+  for (const n of ["datasheet-context-menu", "report-columnar"]) JPEG.add(n);
+  const appShots = ["app-public-form", "apps-panel"];
+  if (appShots.some(want)) {
+    // An app with the sample's form and report, published through the API. Its link (from this
+    // throwaway server) is used only to open the public page.
+    const formId = (await call("GET", `/api/v1/w/${ws}/forms`)).items.find((f) => f.name === "Customer details").id;
+    const reportId = (await call("GET", `/api/v1/w/${ws}/reports`)).items.find((r) => r.name === "Product catalogue").id;
+    const app = await call("POST", `/api/v1/w/${ws}/apps`, {
+      name: "Northwind customer corner",
+      items: [
+        { kind: "form", object_id: formId, title: "Open an account" },
+        { kind: "report", object_id: reportId, title: "Price list" },
+      ],
+    });
+    if (want("app-public-form")) {
+      // Signed out: a fresh context with no session.
+      const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, timezoneId: "UTC", locale: "en-US" });
+      const p = await c.newPage();
+      await p.goto(app.link);
+      await p.getByTestId("public-app").waitFor();
+      await p.getByRole("button", { name: "Submit" }).waitFor();
+      for (const [field, value] of [["Company", "Harbour Lights Café"], ["Contact", "Maeve Doyle"], ["City", "Cork"], ["Country", "Ireland"]]) {
+        await p.getByLabel(new RegExp(`^${field}`)).first().fill(value).catch(() => {});
+      }
+      await p.evaluate(() => document.activeElement?.blur());
+      // The form ends well above the bottom of the window: leave out the empty space.
+      const card = await p.locator("main form").first().boundingBox();
+      await save(p, "app-public-form", card ? { clip: { x: 0, y: 0, width: DESKTOP.width, height: Math.min(DESKTOP.height, Math.ceil(card.y + card.height + 48)) } } : {});
+      await c.close();
+    }
+    if (want("apps-panel")) {
+      const { c, page } = await desktop("light");
+      await openWorkspace(page);
+      await page.getByRole("button", { name: new RegExp(displayName) }).click();
+      await page.getByRole("menuitem", { name: "Workspace settings" }).click();
+      const panel = page.getByTestId("apps-panel");
+      await panel.getByRole("heading", { name: "Northwind customer corner" }).waitFor();
+      // Tall enough that the panel ends above the status bar.
+      await page.setViewportSize({ width: 1440, height: 2600 });
+      await panel.scrollIntoViewIfNeeded();
+      await settle(page);
+      const box = await panel.boundingBox();
+      const pad = 16;
+      await save(page, "apps-panel", { clip: { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad), width: box.width + 2 * pad, height: box.height + 2 * pad } });
+      await c.close();
+    }
+  }
+
+  if (want("datasheet-context-menu") || want("report-columnar")) {
+    const { c, page } = await desktop("light");
+    await openWorkspace(page);
+    if (want("datasheet-context-menu")) {
+      await openObject(page, "Orders");
+      await gridReady(page);
+      const cell = page.getByRole("gridcell", { name: /SO-1003/ }).first();
+      await cell.click();
+      await cell.click({ button: "right" });
+      await page.getByRole("menu").getByRole("menuitem").first().waitFor();
+      await save(page, "datasheet-context-menu");
+      await page.keyboard.press("Escape");
+    }
+    if (want("report-columnar")) {
+      // A new report from the Columnar starter layout, made in the designer and saved.
+      const name = "Customer directory";
+      await nav(page).getByRole("button", { name: "New report" }).click();
+      const setup = page.getByRole("form", { name: "New report setup" });
+      await setup.getByLabel("Report name").fill(name);
+      await setup.getByLabel("Record source", { exact: true }).selectOption({ label: "Customers" });
+      await setup.getByLabel("Layout").selectOption("columnar");
+      await setup.getByRole("button", { name: "Start designing" }).click();
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await nav(page).getByRole("button", { name, exact: true }).waitFor();
+      await openObject(page, name);
+      await page.getByText("Page 1 of").first().waitFor();
+      await page.waitForTimeout(1500);
+      await save(page, "report-columnar");
+    }
+    await c.close();
   }
 
   await admin.close();
