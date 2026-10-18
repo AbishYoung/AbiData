@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// typeof, quote, unhex and timediff on PostgreSQL (ADR 0013 Phase F). SQLite
-// answers typeof and quote from a value's storage class; on PostgreSQL that
-// class follows from the logical type, except for json_extract's value, which
-// <prefix>_lib reads from the jsonb.
+// typeof, quote, unhex, timediff and printf on PostgreSQL (ADR 0013 Phase F).
+// SQLite answers typeof and quote from a value's storage class; on PostgreSQL
+// that class follows from the logical type, except for json_extract's value,
+// which <prefix>_lib reads from the jsonb.
 
 // pgBlob reports whether e is bytes: unhex's result.
 func pgBlob(e Expr) bool {
@@ -91,11 +91,14 @@ func (r *renderer) pgQuote(args []Expr) {
 	}
 }
 
-// addPGValueFuncs adds typeof, quote, unhex and timediff to pgFuncs.
+// addPGValueFuncs adds typeof, quote, unhex, timediff, printf and format to
+// pgFuncs.
 func addPGValueFuncs() {
 	pgFuncs["typeof"] = func(r *renderer, args []Expr) { r.pgTypeof(args) }
 	pgFuncs["quote"] = func(r *renderer, args []Expr) { r.pgQuote(args) }
 	pgFuncs["unhex"] = pgCall("abi_unhex", asText)
+	pgFuncs["printf"] = pgPrintf
+	pgFuncs["format"] = pgPrintf
 	pgFuncs["timediff"] = func(r *renderer, args []Expr) {
 		r.w("abi_timediff(")
 		r.list(2, ", ", func(i int) {
@@ -109,4 +112,16 @@ func addPGValueFuncs() {
 		})
 		r.w(")")
 	}
+}
+
+// pgPrintf renders printf and format: each argument as SQLite's text of it,
+// which <prefix>_lib reads back as each conversion needs.
+func pgPrintf(r *renderer, args []Expr) {
+	r.w("abi_printf(")
+	r.list(len(args), ", ", func(i int) {
+		r.w("CAST(")
+		r.pgText(args[i])
+		r.w(" AS text)")
+	})
+	r.w(")")
 }

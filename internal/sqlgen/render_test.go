@@ -199,7 +199,7 @@ func TestRenderRefusesMalformedInput(t *testing.T) {
 	}
 	// The functions <prefix>_lib does not have yet are not rendered.
 	for name, s := range map[string]Stmt{
-		"function": &Select{Columns: []Column{{Expr: Func{Name: "printf", Args: []Expr{Lit{Value: "%d"}, Lit{Value: 1}}}}}},
+		"function": &Select{Columns: []Column{{Expr: Func{Name: "json_error_position", Args: []Expr{Lit{Value: "{"}}}}}},
 	} {
 		if _, err := Render(Postgres, s); !errors.Is(err, ErrDialect) {
 			t.Errorf("Postgres %s: err = %v, want ErrDialect", name, err)
