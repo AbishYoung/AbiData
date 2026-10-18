@@ -1,0 +1,150 @@
+{
+ "generated": "2026-10-18T10:04:26.630Z",
+ "screens": {
+  "not-found-desktop-light": {
+   "file": "not-found-desktop-light.png",
+   "violations": []
+  },
+  "shell-desktop-light": {
+   "file": "shell-desktop-light.png",
+   "violations": []
+  },
+  "datasheet-desktop-light": {
+   "file": "datasheet-desktop-light.png",
+   "violations": []
+  },
+  "table-design-desktop-light": {
+   "file": "table-design-desktop-light.png",
+   "violations": []
+  },
+  "query-designer-desktop-light": {
+   "file": "query-designer-desktop-light.png",
+   "violations": []
+  },
+  "query-results-desktop-light": {
+   "file": "query-results-desktop-light.png",
+   "violations": []
+  },
+  "report-viewer-desktop-light": {
+   "file": "report-viewer-desktop-light.png",
+   "violations": []
+  },
+  "report-designer-desktop-light": {
+   "file": "report-designer-desktop-light.png",
+   "violations": []
+  },
+  "import-wizard-desktop-light": {
+   "file": "import-wizard-desktop-light.png",
+   "violations": []
+  },
+  "admin-overview-desktop-light": {
+   "file": "admin-overview-desktop-light.png",
+   "violations": []
+  },
+  "admin-users-desktop-light": {
+   "file": "admin-users-desktop-light.png",
+   "violations": []
+  },
+  "not-found-desktop-dark": {
+   "file": "not-found-desktop-dark.png",
+   "violations": []
+  },
+  "shell-desktop-dark": {
+   "file": "shell-desktop-dark.png",
+   "violations": []
+  },
+  "datasheet-desktop-dark": {
+   "file": "datasheet-desktop-dark.png",
+   "violations": []
+  },
+  "table-design-desktop-dark": {
+   "file": "table-design-desktop-dark.png",
+   "violations": []
+  },
+  "query-designer-desktop-dark": {
+   "file": "query-designer-desktop-dark.png",
+   "violations": []
+  },
+  "query-results-desktop-dark": {
+   "file": "query-results-desktop-dark.png",
+   "violations": []
+  },
+  "report-viewer-desktop-dark": {
+   "file": "report-viewer-desktop-dark.png",
+   "violations": []
+  },
+  "report-designer-desktop-dark": {
+   "file": "report-designer-desktop-dark.png",
+   "violations": []
+  },
+  "import-wizard-desktop-dark": {
+   "file": "import-wizard-desktop-dark.png",
+   "violations": []
+  },
+  "admin-overview-desktop-dark": {
+   "file": "admin-overview-desktop-dark.png",
+   "violations": []
+  },
+  "admin-users-desktop-dark": {
+   "file": "admin-users-desktop-dark.png",
+   "violations": []
+  },
+  "not-found-compact-light": {
+   "file": "not-found-compact-light.png",
+   "violations": []
+  },
+  "shell-compact-light": {
+   "file": "shell-compact-light.png",
+   "violations": []
+  },
+  "datasheet-compact-light": {
+   "file": "datasheet-compact-light.png",
+   "violations": []
+  },
+  "query-results-compact-light": {
+   "file": "query-results-compact-light.png",
+   "violations": []
+  },
+  "report-viewer-compact-light": {
+   "file": "report-viewer-compact-light.png",
+   "violations": []
+  },
+  "admin-overview-compact-light": {
+   "file": "admin-overview-compact-light.png",
+   "violations": []
+  },
+  "admin-users-compact-light": {
+   "file": "admin-users-compact-light.png",
+   "violations": []
+  },
+  "not-found-compact-dark": {
+   "file": "not-found-compact-dark.png",
+   "violations": []
+  },
+  "shell-compact-dark": {
+   "file": "shell-compact-dark.png",
+   "violations": []
+  },
+  "datasheet-compact-dark": {
+   "file": "datasheet-compact-dark.png",
+   "violations": []
+  },
+  "query-results-compact-dark": {
+   "file": "query-results-compact-dark.png",
+   "violations": []
+  },
+  "report-viewer-compact-dark": {
+   "file": "report-viewer-compact-dark.png",
+   "violations": []
+  },
+  "admin-overview-compact-dark": {
+   "file": "admin-overview-compact-dark.png",
+   "violations": []
+  },
+  "admin-users-compact-dark": {
+   "file": "admin-users-compact-dark.png",
+   "violations": []
+  }
+ },
+ "errors": []
+}
