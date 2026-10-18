@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/ncruces/go-sqlite3"
 
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -79,7 +81,15 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 	}
 	var report ImpactReport
 	var final *Schema
-	err := l.WriteWith(ctx, workspace.Interactive, workspace.WriteOptions{ForeignKeysOff: true, Setup: registerConvertFuncs},
+	d := l.Dialect()
+	// SQLite rebuilds tables with foreign keys off and Go conversion helpers;
+	// PostgreSQL keeps its constraints on and converts in SQL.
+	opts := workspace.WriteOptions{ForeignKeysOff: true, Setup: registerConvertFuncs}
+	var pg *pgdb.Names
+	if n, ok := l.Postgres(); ok {
+		opts, pg = workspace.WriteOptions{}, &n
+	}
+	err := l.WriteWith(ctx, workspace.Interactive, opts,
 		func(tx dbx.Tx) error {
 			report = ImpactReport{RestorePointRequired: destructive}
 			s, err := Load(ctx, tx)
@@ -96,7 +106,7 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 			if err != nil {
 				return err
 			}
-			p := &planner{ctx: ctx, tx: tx, s: s, report: &report, now: e.clock(), user: opt.UserID,
+			p := &planner{ctx: ctx, tx: tx, d: d, pg: pg, s: s, report: &report, now: e.clock(), user: opt.UserID,
 				touched: map[string]bool{}, created: map[string]string{}}
 			for i, op := range ops {
 				if err := p.apply(op); err != nil {
@@ -183,6 +193,8 @@ func opError(i int, op Op, err error) error {
 type planner struct {
 	ctx        context.Context
 	tx         dbx.Tx
+	d          sqlgen.Dialect
+	pg         *pgdb.Names // the workspace's names on PostgreSQL; nil on SQLite
 	s          *Schema
 	report     *ImpactReport
 	now        func() time.Time
@@ -201,7 +213,7 @@ func (p *planner) exec(sql string, args ...any) error {
 
 // execStmt renders a generated statement and runs it.
 func (p *planner) execStmt(s sqlgen.Stmt) error {
-	sql, err := render(s)
+	sql, err := render(p.d, s)
 	if err != nil {
 		return err
 	}
@@ -210,7 +222,7 @@ func (p *planner) execStmt(s sqlgen.Stmt) error {
 
 // countRows counts the rows of table that match where (all rows when nil).
 func (p *planner) countRows(table string, where sqlgen.Expr) (int64, error) {
-	r, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
+	r, err := sqlgen.Render(p.d, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
 		From: sqlgen.Table{Name: table}, Where: where})
 	if err != nil {
 		return 0, fmt.Errorf("catalog: %w", err)
@@ -263,7 +275,7 @@ func (p *planner) table(id string) (*Table, error) {
 
 func (p *planner) physicalNameTaken(name string) (bool, error) {
 	var n int
-	err := p.tx.QueryRow(p.ctx, sqlPlannerPhysicalNameTaken.SQL, name).Scan(&n)
+	err := p.tx.QueryRow(p.ctx, sqlPlannerPhysicalNameTaken.For(p.d), name).Scan(&n)
 	return n > 0, err
 }
 
@@ -363,12 +375,15 @@ func (p *planner) createTable(op Op) error {
 		p.s.index()
 		tp, _ = p.s.Table(id)
 	}
-	ddl, err := createTableSQL(p.s, tp, phys)
+	ddl, err := createTableSQL(p.d, p.s, tp, phys)
 	if err != nil {
 		return err
 	}
 	if err := p.exec(ddl); err != nil {
 		return ddlError(err)
+	}
+	if err := p.grant(phys); err != nil {
+		return err
 	}
 	if err := p.execStmt(occTrigger(tp)); err != nil {
 		return err
@@ -1073,13 +1088,12 @@ func (p *planner) createIndex(op Op) error {
 		return badf("The name %q is already used by another object.", phys)
 	}
 	x := Index{ID: id, TableID: t.ID, PhysicalName: phys, Unique: spec.Unique, ColumnIDs: spec.ColumnIDs}
-	ddl, err := createIndexSQL(t, x)
+	ddl, err := createIndexSQL(p.d, t, x)
 	if err != nil {
 		return err
 	}
-	if err := p.exec(ddl); err != nil {
-		var se *sqlite3.Error
-		if errors.As(err, &se) && se.Code() == sqlite3.CONSTRAINT {
+	if err := p.execChecked(ddl); err != nil {
+		if isConstraint(err) {
 			p.violations = true
 			p.report.Breaking = append(p.report.Breaking, Issue{Kind: "constraint_violation", Object: "table", ID: t.ID,
 				Message: fmt.Sprintf("Table %q has duplicate values in %s, so a unique index cannot be created.", t.DisplayName, strings.Join(names, ", "))})
@@ -1230,7 +1244,10 @@ const rebuildName = "_abidata_rebuild"
 // shape `before`, copying data column-by-ID with optional type conversions.
 // Rows the new constraints reject are counted as violations (blocking).
 func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error {
-	ddl, err := createTableSQL(p.s, after, rebuildName)
+	if p.pg != nil {
+		return p.pgRebuild(before, after, conv)
+	}
+	ddl, err := createTableSQL(p.d, p.s, after, rebuildName)
 	if err != nil {
 		return err
 	}
@@ -1238,29 +1255,13 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 		return ddlError(err)
 	}
 	id := sqlgen.Col{Name: "id"}
-	dst := []string{"id", "_version"}
-	src := []sqlgen.Column{{Expr: id}, {Expr: sqlgen.Col{Name: "_version"}}}
-	for _, c := range after.Columns {
-		if c.Type == Autonumber || c.Type == Calculated {
-			continue
-		}
-		old, ok := before.Column(c.ID)
-		if !ok || old.Type == Calculated {
-			continue // new column: DEFAULT applies
-		}
-		dst = append(dst, c.PhysicalName)
-		var e sqlgen.Expr = sqlgen.Col{Name: old.PhysicalName}
-		if cv, ok := conv[c.ID]; ok {
-			e = convertCall("abidata_convert", cv.from, cv.to, old.PhysicalName)
-		}
-		src = append(src, sqlgen.Column{Expr: e})
-	}
+	dst, src := copyColumns(before, after, conv)
 	from := sqlgen.Table{Name: before.PhysicalName}
 	total, err := p.countRows(before.PhysicalName, nil)
 	if err != nil {
 		return err
 	}
-	copySQL, err := render(&sqlgen.Insert{Table: rebuildName, OrIgnore: true, Columns: dst, From: &sqlgen.Select{Columns: src, From: from}})
+	copySQL, err := render(p.d, &sqlgen.Insert{Table: rebuildName, OrIgnore: true, Columns: dst, From: &sqlgen.Select{Columns: src, From: from}})
 	if err != nil {
 		return err
 	}
@@ -1272,7 +1273,7 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	if res.Changes < total {
 		p.violations = true
 		var samples []Sample
-		lostSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: from,
+		lostSQL, err := render(p.d, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: from,
 			Where:   sqlgen.Not{X: sqlgen.In{X: id, Select: &sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: sqlgen.Table{Name: rebuildName}}}},
 			OrderBy: []sqlgen.Order{{Expr: id}}, Limit: sqlgen.Lit{Value: 20}})
 		if err != nil {
@@ -1293,13 +1294,11 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 		if err := rows.Err(); err != nil {
 			return err
 		}
-		ids := make([]string, 0, len(samples))
+		rowIDs := make([]int64, 0, len(samples))
 		for _, s := range samples {
-			ids = append(ids, strconv.FormatInt(s.RowID, 10))
+			rowIDs = append(rowIDs, s.RowID)
 		}
-		p.report.Breaking = append(p.report.Breaking, Issue{Kind: "constraint_violation", Object: "table", ID: after.ID,
-			Message: fmt.Sprintf("%d rows in %q break a required, size, validation or uniqueness rule (row IDs: %s).",
-				total-res.Changes, after.DisplayName, strings.Join(ids, ", "))})
+		p.lostRows(after, total-res.Changes, rowIDs)
 	}
 	var seq *int64
 	if err := p.tx.QueryRow(p.ctx, sqlPlannerRebuild.SQL, before.PhysicalName).Scan(&seq); err != nil && !dbx.IsNoRows(err) {
@@ -1322,13 +1321,12 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 		}
 	}
 	for _, x := range after.Indexes {
-		ddl, err := createIndexSQL(after, x)
+		ddl, err := createIndexSQL(p.d, after, x)
 		if err != nil {
 			return err
 		}
-		if err := p.exec(ddl); err != nil {
-			var se *sqlite3.Error
-			if errors.As(err, &se) && se.Code() == sqlite3.CONSTRAINT {
+		if err := p.execChecked(ddl); err != nil {
+			if isConstraint(err) {
 				p.violations = true
 				p.report.Breaking = append(p.report.Breaking, Issue{Kind: "constraint_violation", Object: "table", ID: after.ID,
 					Message: fmt.Sprintf("Unique index %q no longer holds after this change.", x.PhysicalName)})
@@ -1345,6 +1343,9 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 
 // conversionFailures reports rows whose values cannot convert from old to nc.
 func (p *planner) conversionFailures(t *Table, old, nc Column) error {
+	if p.pg != nil {
+		return errPGConvert
+	}
 	col := sqlgen.Col{Name: old.PhysicalName}
 	where := sqlgen.And{sqlgen.IsNull{X: col, Negate: true}, sqlgen.Not{X: convertCall("abidata_convert_ok", old.Type, nc.Type, old.PhysicalName)}}
 	n, err := p.countRows(t.PhysicalName, where)
@@ -1356,7 +1357,7 @@ func (p *planner) conversionFailures(t *Table, old, nc Column) error {
 	}
 	cf := ConversionFailure{ColumnID: nc.ID, Column: nc.DisplayName, From: string(old.Type), To: string(nc.Type), Count: n}
 	id := sqlgen.Col{Name: "id"}
-	samplesSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}, {Expr: col}}, From: sqlgen.Table{Name: t.PhysicalName},
+	samplesSQL, err := render(p.d, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}, {Expr: col}}, From: sqlgen.Table{Name: t.PhysicalName},
 		Where: where, OrderBy: []sqlgen.Order{{Expr: id}}, Limit: sqlgen.Lit{Value: 20}})
 	if err != nil {
 		return err
@@ -1453,6 +1454,12 @@ func registerConvertFuncs(c *sqlitex.Conn) (func(), error) {
 // ---- impact & finish -------------------------------------------------------
 
 func (p *planner) impact(validators []Validator) error {
+	if p.pg != nil {
+		if err := p.pgCheckForeignKeys(); err != nil {
+			return err
+		}
+		return p.checkObjects(validators)
+	}
 	rows, err := p.tx.Query(p.ctx, sqlPlannerImpact.SQL)
 	if err != nil {
 		return err
@@ -1631,9 +1638,16 @@ func cloneTable(t *Table) *Table {
 	return &c
 }
 
-// ddlError converts SQLite errors from DDL on builder input into BAD_REQUEST
-// with SQLite's message (builders see technical detail).
+// ddlError converts database errors from DDL on builder input into
+// BAD_REQUEST with the database's message (builders see technical detail).
 func ddlError(err error) error {
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) {
+		switch pe.Code[:2] {
+		case "23", "42", "22": // integrity, syntax or access, data
+			return &fault.Error{Code: fault.BadRequest, Message: "The database rejected this design: " + pe.Message, Cause: err}
+		}
+	}
 	var se *sqlite3.Error
 	if errors.As(err, &se) {
 		switch se.Code() {
@@ -1642,4 +1656,69 @@ func ddlError(err error) error {
 		}
 	}
 	return err
+}
+
+// isConstraint reports a constraint violation, such as duplicate values for a
+// unique index.
+func isConstraint(err error) bool {
+	var se *sqlite3.Error
+	if errors.As(err, &se) {
+		return se.Code() == sqlite3.CONSTRAINT
+	}
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && strings.HasPrefix(pe.Code, "23")
+}
+
+// execChecked runs a statement that may fail on the data, as creating a
+// unique index does. On PostgreSQL it runs in a savepoint, so the failure is
+// reported without aborting the transaction.
+func (p *planner) execChecked(sql string) error {
+	if p.pg == nil {
+		return p.exec(sql)
+	}
+	return p.tx.Savepoint(p.ctx, func() error { return p.exec(sql) })
+}
+
+// grant opens a new user table to the workspace's sandbox roles on
+// PostgreSQL. SQLite needs nothing: its authorizer allows user tables.
+func (p *planner) grant(table string) error {
+	if p.pg == nil {
+		return nil
+	}
+	return pgdb.GrantUserTable(p.ctx, p.tx, *p.pg, table)
+}
+
+// copyColumns lists what a rebuild copies: the destination columns and, for
+// each, the expression over the old table that fills it.
+func copyColumns(before, after *Table, conv map[string]convSpec) ([]string, []sqlgen.Column) {
+	dst := []string{"id", "_version"}
+	src := []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}, {Expr: sqlgen.Col{Name: "_version"}}}
+	for _, c := range after.Columns {
+		if c.Type == Autonumber || c.Type == Calculated {
+			continue
+		}
+		old, ok := before.Column(c.ID)
+		if !ok || old.Type == Calculated {
+			continue // new column: DEFAULT applies
+		}
+		dst = append(dst, c.PhysicalName)
+		var e sqlgen.Expr = sqlgen.Col{Name: old.PhysicalName}
+		if cv, ok := conv[c.ID]; ok {
+			e = convertCall("abidata_convert", cv.from, cv.to, old.PhysicalName)
+		}
+		src = append(src, sqlgen.Column{Expr: e})
+	}
+	return dst, src
+}
+
+// lostRows reports the rows of t a rebuild could not copy.
+func (p *planner) lostRows(t *Table, n int64, sample []int64) {
+	p.violations = true
+	ids := make([]string, 0, len(sample))
+	for _, id := range sample {
+		ids = append(ids, strconv.FormatInt(id, 10))
+	}
+	p.report.Breaking = append(p.report.Breaking, Issue{Kind: "constraint_violation", Object: "table", ID: t.ID,
+		Message: fmt.Sprintf("%d rows in %q break a required, size, validation or uniqueness rule (row IDs: %s).",
+			n, t.DisplayName, strings.Join(ids, ", "))})
 }

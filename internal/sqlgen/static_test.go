@@ -38,6 +38,12 @@ func TestRegisterRefusesMistakes(t *testing.T) {
 	if pg := RegisterPostgresOnly("sqlgen.test.pg", `SELECT 1 FOR UPDATE`); !pg.PostgresOnly() || pg.SQLiteOnly() {
 		t.Error("PostgreSQL-only statement")
 	}
+	v := RegisterSQLiteOnly("sqlgen.test.variant", `PRAGMA user_version`).WithPostgres(`SELECT version FROM _sys_schema`)
+	if v.SQLiteOnly() || !v.Variant() || v.For(SQLite) != `PRAGMA user_version` || v.For(Postgres) != `SELECT version FROM _sys_schema` {
+		t.Error("variant statement")
+	}
+	mustPanic("portable variant", "WithPostgres", func() { s.WithPostgres(`SELECT 1`) })
+	mustPanic("second variant", "WithPostgres", func() { v.WithPostgres(`SELECT 1`) })
 	// Words that merely contain a SQLite-only name are portable.
 	Register("sqlgen.test.words", `SELECT updated_at, rowid_hint, dates FROM t`)
 }

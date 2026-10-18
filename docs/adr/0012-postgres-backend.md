@@ -332,6 +332,22 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **Search path.** Each transaction sets `SET LOCAL search_path` to the workspace's schema, then `<prefix>_lib`, so nothing reaches the connection's next borrower.
 - **Not yet on PostgreSQL** (`ErrSQLiteOnly`): `ReadConn`, `Maintenance`, `Exclusive`, `Adopt`, and `WriteWith`'s SQLite options. User SQL, catalog apply, backup and restore replace them in later parts.
 
+**Phase 3, part 3 (as built): schema changes.**
+
+- **Dialect.** A lease reports its workspace's dialect (`Lease.Dialect`, from `pgdb.Dialect` at start-up) and PostgreSQL names (`Lease.Postgres`). The catalog engine renders its DDL and queries for it, and on PostgreSQL runs without SQLite's write options (foreign keys stay on).
+- **Statements written per dialect.** `sqlgen.Static.WithPostgres` gives a SQLite-only statement its PostgreSQL form, and `For(dialect)` picks one. The catalog's name check, two listings ordered `COLLATE NOCASE` (now `abi_ci`), and `Reconcile`'s four catalog queries have one. `Load` and `Reconcile` choose by the connection they are given. `sqlgen.RegisterPostgresOnly` declares what only PostgreSQL runs.
+- **Native changes on PostgreSQL:** create, rename and drop table, add a column that needs no rebuild, rename a column, create and drop an index, table properties.
+  - A new table is granted to the workspace's `_read` and `_write` roles.
+  - A unique index over duplicate values runs in a savepoint, so it is reported as a violation without aborting the transaction.
+  - Foreign keys are checked by PostgreSQL as each statement runs, so `pragma_foreign_key_check`'s step is skipped.
+  - Errors from DDL become `BAD_REQUEST` with the server's message, as SQLite's do.
+- **Saved queries.** `pgdb.Tx.Prepare` compiles a statement in a savepoint, so a saved query that no longer compiles is reported without aborting the change.
+- **Rebuilds** (`internal/catalog/rebuild_pg.go`) follow SQLite's steps: a new table in the new shape, the rows copied, the old table dropped, the new one renamed. Two steps differ.
+  - Foreign keys stay on. Children's keys to the table would keep it from being dropped, so they are dropped first. They, and the table's own keys, are added back `NOT VALID`. Before the change commits, the rows are checked against each such key, as `pragma_foreign_key_check` does on SQLite: orphans are reported as `fk_violation`, and keys that hold are validated.
+  - There is no `INSERT OR IGNORE`. The copy runs as one statement in a savepoint. When a row breaks a rule, `<prefix>_lib`'s `abi_copy_rows` copies row by row in subtransactions and reports the rows it left out, as SQLite's copy does. Only the app's role may call it.
+  - The identity continues past the old table's last value and its largest id, as AUTOINCREMENT does. A failed insert still uses up an id on PostgreSQL, since sequences are not rolled back, so IDs can have gaps. They are never reused.
+- **Not yet:** changing a field's type, which needs the conversions SQLite runs in Go, is refused on PostgreSQL with a message saying so.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

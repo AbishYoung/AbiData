@@ -25,10 +25,35 @@ type Static struct {
 	// postgresOnly marks a statement for what only the PostgreSQL backend
 	// has (its catalogs, row locks).
 	postgresOnly bool
+	// postgres is the PostgreSQL form of a statement whose SQLite text uses
+	// SQLite-only SQL, with the same placeholders and result columns.
+	postgres string
 }
 
 // SQLiteOnly reports whether the statement has no PostgreSQL form yet.
-func (s *Static) SQLiteOnly() bool { return s.sqliteOnly }
+func (s *Static) SQLiteOnly() bool { return s.sqliteOnly && s.postgres == "" }
+
+// Variant reports whether the statement is written once per dialect.
+func (s *Static) Variant() bool { return s.postgres != "" }
+
+// For returns the statement's SQL for dialect d. For a statement with no
+// PostgreSQL form, that is the SQLite text, which fails there.
+func (s *Static) For(d Dialect) string {
+	if d != SQLite && s.postgres != "" {
+		return s.postgres
+	}
+	return s.SQL
+}
+
+// WithPostgres gives a SQLite-only statement its PostgreSQL form, and
+// returns the statement.
+func (s *Static) WithPostgres(sql string) *Static {
+	if !s.sqliteOnly || s.postgres != "" || sql == "" {
+		panic("sqlgen: " + s.Name + ": WithPostgres needs a SQLite-only statement without a PostgreSQL form")
+	}
+	s.postgres = sql
+	return s
+}
 
 // PostgresOnly reports whether the statement is for the PostgreSQL backend only.
 func (s *Static) PostgresOnly() bool { return s.postgresOnly }

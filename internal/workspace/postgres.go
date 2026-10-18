@@ -23,6 +23,7 @@ import (
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/pgdb"
+	"abidata/internal/sqlgen"
 )
 
 // ErrSQLiteOnly is returned by the lease methods that hand out a SQLite
@@ -33,7 +34,8 @@ var ErrSQLiteOnly = errors.New("workspace: not available on PostgreSQL yet")
 type PostgresConfig struct {
 	Pool     *pgxpool.Pool // the app's pool; its role owns the database
 	Database string
-	Prefix   string // ABIDATA_POSTGRES_SCHEMA_PREFIX
+	Prefix   string         // ABIDATA_POSTGRES_SCHEMA_PREFIX
+	Dialect  sqlgen.Dialect // the server's (pgdb.Dialect): Postgres or Postgres17
 	// Migrate creates or migrates a workspace's system tables (catalog.MigratePostgres).
 	Migrate func(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names) error
 }
@@ -43,6 +45,22 @@ func (m *Manager) pg() *PostgresConfig { return m.cfg.Postgres }
 // Names returns a workspace's PostgreSQL object names.
 func (m *Manager) Names(id ids.WorkspaceID) pgdb.Names {
 	return pgdb.Names{Prefix: m.pg().Prefix, Workspace: string(id)}
+}
+
+// Dialect is the SQL dialect of the workspace's backend.
+func (l *Lease) Dialect() sqlgen.Dialect {
+	if pc := l.m.pg(); pc != nil {
+		return pc.Dialect
+	}
+	return sqlgen.SQLite
+}
+
+// Postgres returns the workspace's PostgreSQL object names, or false on SQLite.
+func (l *Lease) Postgres() (pgdb.Names, bool) {
+	if l.m.pg() == nil {
+		return pgdb.Names{}, false
+	}
+	return l.m.Names(l.h.id), true
 }
 
 // pgCreate provisions and migrates a workspace in one transaction, so a

@@ -19,7 +19,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 	}
 	s.Version, _ = strconv.ParseInt(ver, 10, 64)
 
-	rows, err := q.Query(ctx, sqlLoad.SQL)
+	rows, err := q.Query(ctx, sqlLoad.For(dialectOf(q)))
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 		return nil, err
 	}
 
-	rows, err = q.Query(ctx, sqlLoad4.SQL)
+	rows, err = q.Query(ctx, sqlLoad4.For(dialectOf(q)))
 	if err != nil {
 		return nil, err
 	}

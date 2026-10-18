@@ -107,9 +107,9 @@ func columnDef(cols []Column, c Column) sqlgen.ColumnDef {
 // versionColumn is the optimistic-concurrency row version every table has.
 var versionColumn = sqlgen.ColumnDef{Name: "_version", Type: sqlgen.Integer, NotNull: true, Default: sqlgen.Lit{Value: 1}}
 
-// render renders a schema statement for the workspace's dialect.
-func render(s sqlgen.Stmt) (string, error) {
-	r, err := sqlgen.Render(sqlgen.SQLite, s)
+// render renders a schema statement for dialect d.
+func render(d sqlgen.Dialect, s sqlgen.Stmt) (string, error) {
+	r, err := sqlgen.Render(d, s)
 	if err != nil {
 		return "", fmt.Errorf("catalog: %w", err)
 	}
@@ -118,7 +118,16 @@ func render(s sqlgen.Stmt) (string, error) {
 
 // createTableSQL renders CREATE TABLE for t under physical name `as`, with
 // foreign keys for every enforced relationship whose child is t.
-func createTableSQL(s *Schema, t *Table, as string) (string, error) {
+func createTableSQL(d sqlgen.Dialect, s *Schema, t *Table, as string) (string, error) {
+	ct, err := createTableStmt(s, t, as)
+	if err != nil {
+		return "", err
+	}
+	return render(d, ct)
+}
+
+// createTableStmt is createTableSQL's statement.
+func createTableStmt(s *Schema, t *Table, as string) (*sqlgen.CreateTable, error) {
 	ct := &sqlgen.CreateTable{Name: as, Strict: true}
 	for _, c := range t.Columns {
 		ct.Columns = append(ct.Columns, columnDef(t.Columns, c))
@@ -132,23 +141,26 @@ func createTableSQL(s *Schema, t *Table, as string) (string, error) {
 		}
 		col, ok := t.Column(r.ChildColumnID)
 		if !ok {
-			return "", fmt.Errorf("catalog: relationship %s child column %s missing", r.ID, r.ChildColumnID)
+			return nil, fmt.Errorf("catalog: relationship %s child column %s missing", r.ID, r.ChildColumnID)
 		}
 		parent, ok := s.Table(r.ParentTableID)
 		if !ok {
-			return "", fmt.Errorf("catalog: relationship %s parent table %s missing", r.ID, r.ParentTableID)
+			return nil, fmt.Errorf("catalog: relationship %s parent table %s missing", r.ID, r.ParentTableID)
 		}
 		parentName := parent.PhysicalName
 		if parent.ID == t.ID {
 			parentName = as // self-reference follows the new name during rebuild
 		}
-		ct.ForeignKeys = append(ct.ForeignKeys, sqlgen.ForeignKey{Name: "fk_" + strings.ToLower(r.ID),
+		ct.ForeignKeys = append(ct.ForeignKeys, sqlgen.ForeignKey{Name: fkName(r.ID),
 			Column: col.PhysicalName, RefTable: parentName, OnDelete: sqlgen.RefAction(r.OnDelete)})
 	}
-	return render(ct)
+	return ct, nil
 }
 
-func createIndexSQL(t *Table, x Index) (string, error) {
+// fkName is the constraint name of relationship id's foreign key.
+func fkName(id string) string { return "fk_" + strings.ToLower(id) }
+
+func createIndexSQL(d sqlgen.Dialect, t *Table, x Index) (string, error) {
 	ci := &sqlgen.CreateIndex{Name: x.PhysicalName, Table: t.PhysicalName, Unique: x.Unique}
 	for _, id := range x.ColumnIDs {
 		c, ok := t.Column(id)
@@ -160,7 +172,7 @@ func createIndexSQL(t *Table, x Index) (string, error) {
 		// Unique text indexes are therefore case-insensitive too.
 		ci.Columns = append(ci.Columns, sqlgen.Col{Name: c.PhysicalName, CI: isTextType(c)})
 	}
-	return render(ci)
+	return render(d, ci)
 }
 
 func occTriggerName(t *Table) string { return "_occ_" + strings.ToLower(t.ID) }
