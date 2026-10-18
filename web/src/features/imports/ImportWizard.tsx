@@ -3,7 +3,7 @@ import { Dialog } from "radix-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, FileUp } from "lucide-react";
 import { useTabs } from "@/app/tabs";
-import { alertBox, btn, btnPrimary, input } from "@/components/styles";
+import { alertBox, btn, btnPrimary, input, dialogOverlay } from "@/components/styles";
 import { selectClass } from "@/features/queries/Modal";
 import { ApiError } from "@/lib/api";
 import { cancelOperation, invalidateImportData } from "@/lib/operations";
@@ -539,14 +539,14 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : close())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+        <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             headingRef.current?.focus();
           }}
           onInteractOutside={(e) => e.preventDefault()}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-surface text-fg shadow-lg"
+          className="ui-dialog fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-surface text-fg shadow-lg"
         >
           <div className="border-b border-border px-5 pb-4 pt-5">
             <div className="flex items-center gap-2.5">

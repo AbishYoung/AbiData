@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Dialog } from "radix-ui";
 import { GitMerge } from "lucide-react";
 import type { Column } from "@/lib/schema";
-import { btn, btnPrimary } from "@/components/styles";
+import { btn, btnPrimary, dialogOverlay, dialogPanel, dialogTitle } from "@/components/styles";
 import type { Row } from "./rowsApi";
 import { mergedRequest, type Choice, type MergeField } from "./merge";
 import { formatValue } from "./values";
@@ -39,13 +39,13 @@ export function MergeDialog({ columns, fields, current, auto, busy, onSave, onDi
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onDiscard())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+        <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content
           onEscapeKeyDown={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
-          className="fixed left-1/2 top-1/2 max-h-[90vh] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface p-5 text-fg shadow-xl">
-          <Dialog.Title className="flex items-center gap-2 text-base font-semibold">
+          className={`${dialogPanel} w-[min(40rem,calc(100vw-2rem))] p-5`}>
+          <Dialog.Title className={`${dialogTitle} flex items-center gap-2`}>
             <GitMerge size={18} aria-hidden="true" />
             Someone else changed this record
           </Dialog.Title>

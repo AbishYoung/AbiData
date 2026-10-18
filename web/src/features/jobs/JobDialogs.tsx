@@ -2,13 +2,12 @@ import { useId, useState } from "react";
 import { Dialog } from "radix-ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTabs } from "@/app/tabs";
-import { alertBox, btn, btnDanger, btnPrimary, label as labelClass, textarea } from "@/components/styles";
+import { alertBox, btn, btnDanger, btnPrimary, label as labelClass, textarea, dialogOverlay, dialogPanel } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { parseArgs } from "./jobForm";
 import { deleteJob, jobKeys, runJob, type Job, type Run } from "./jobsApi";
 
-const contentClass =
-  "fixed left-1/2 top-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl border border-border bg-surface p-5 text-fg shadow-lg";
+const contentClass = `${dialogPanel} w-[min(28rem,calc(100vw-2rem))] p-5`;
 
 function ErrorBox({ error }: { error: unknown }) {
   if (!(error instanceof ApiError)) return null;
@@ -40,7 +39,7 @@ export function DeleteJobDialog({ ws, job, onClose }: { ws: string; job: Pick<Jo
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+        <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content className={contentClass}>
           <Dialog.Title className="m-0 text-base font-semibold">Delete job “{job.name}”</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">
@@ -88,7 +87,7 @@ export function RunWithArgsDialog({
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+        <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content className={contentClass}>
           <Dialog.Title className="m-0 text-base font-semibold">Run “{job.name}” with arguments</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useSchema } from "@/lib/schema";
 import { useTabs } from "@/app/tabs";
 import { ToastRegion, useToasts } from "@/components/Toasts";
-import { alertBox, btnPrimary } from "@/components/styles";
+import { alertBox, btnPrimary, dialogOverlay, dialogPanel } from "@/components/styles";
 import { formKeys, getForm, listForms } from "../formsApi";
 import { FormEnvContext, type FormEnv } from "./env";
 import { FormInstance } from "./FormInstance";
@@ -64,8 +64,8 @@ export function FormRuntime({ ws, formId, tabKey }: { ws: string; formId: string
       <ToastRegion toasts={toasts} onDismiss={dismiss} />
       <AlertDialog.Root open={alert !== undefined}>
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 text-fg shadow-lg">
+          <AlertDialog.Overlay className={dialogOverlay} />
+          <AlertDialog.Content className={`${dialogPanel} w-[min(28rem,calc(100vw-2rem))] p-5`}>
             <AlertDialog.Title className="text-base font-semibold">{alert?.title ?? (alert?.level === "error" ? "Error" : "Notice")}</AlertDialog.Title>
             <AlertDialog.Description className="mt-2 text-sm">{alert?.text}</AlertDialog.Description>
             <div className="mt-4 flex justify-end">

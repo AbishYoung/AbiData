@@ -106,7 +106,7 @@ test("right-clicking a datasheet cell selects it and offers actions for it", asy
   // Delete record asks first, like the Delete key.
   await grid.getByRole("gridcell", { name: "Item00005" }).click({ button: "right" });
   await menu.getByRole("menuitem", { name: "Delete record" }).click();
-  const dialog = page.getByRole("dialog", { name: /Delete 1 record/ });
+  const dialog = page.getByRole("alertdialog", { name: /Delete 1 record/ });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Delete record" }).click();
   await expect(dialog).toBeHidden();

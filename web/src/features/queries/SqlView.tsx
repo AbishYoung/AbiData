@@ -157,7 +157,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
         <p className="m-0 text-sm text-fg-muted">One read-only SELECT, WITH or VALUES statement. Use :name for parameters.</p>
       </div>
       {showRun && (
-        <Modal title="Query results" wide onClose={() => setShowRun(false)}>
+        <Modal title="Query results" wide ownClose onClose={() => setShowRun(false)}>
           <div className="flex h-[60vh] min-h-0 flex-col">
             <ResultsPanel ws={ws} runner={runner} label="Query results" onClose={() => setShowRun(false)} />
           </div>

@@ -6,7 +6,7 @@ import { AlertDialog } from "radix-ui";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, History, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, badgeWarning, btn, btnGhost, btnPrimary, infoBox } from "@/components/styles";
+import { alertBox, badgeWarning, btn, btnGhost, btnPrimary, infoBox, dialogOverlay, dialogPanel } from "@/components/styles";
 import { useStatusBar } from "@/lib/statusbar";
 import { findTable, type Column } from "@/lib/schema";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
@@ -573,8 +573,8 @@ function ConfirmDialog({ open, title, message, yes, no, onAnswer }: { open: bool
   return (
     <AlertDialog.Root open={open} onOpenChange={(o) => (o ? undefined : onAnswer(false))}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
-        <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 text-fg shadow-lg">
+        <AlertDialog.Overlay className={dialogOverlay} />
+        <AlertDialog.Content className={`${dialogPanel} w-[min(28rem,calc(100vw-2rem))] p-5`}>
           <AlertDialog.Title className="text-base font-semibold">{title}</AlertDialog.Title>
           <AlertDialog.Description className="mt-2 text-sm">{message}</AlertDialog.Description>
           <div className="mt-4 flex justify-end gap-2">

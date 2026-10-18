@@ -350,7 +350,7 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
         />
       )}
       {showRun && (
-        <Modal title="Query results" wide onClose={() => setShowRun(false)}>
+        <Modal title="Query results" wide ownClose onClose={() => setShowRun(false)}>
           <div className="flex h-[60vh] min-h-0 flex-col">
             <ResultsPanel
               ws={ws}

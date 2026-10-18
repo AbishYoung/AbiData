@@ -5,7 +5,7 @@ import { Dialog } from "radix-ui";
 import { History, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { findTable, useSchema, type Column } from "@/lib/schema";
-import { alertBox, badgeAccent, badgeDanger, badgeSuccess, btn, iconBtn } from "@/components/styles";
+import { alertBox, badgeAccent, badgeDanger, badgeSuccess, btn, iconBtn, dialogOverlay, sheetPanel } from "@/components/styles";
 import { absoluteTime, relativeTime } from "@/features/backups/backupLogic";
 import { FileNames } from "@/features/files/FileParts";
 import { useRowHistory } from "./historyApi";
@@ -90,7 +90,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
   return (
     <Dialog.Root open onOpenChange={(o) => (o ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+        <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content
           aria-describedby={undefined}
           data-presentation="side"
@@ -100,7 +100,7 @@ export function RowHistoryPanel({ ws, tableId, rowId, onClose }: Props) {
               opener.current.focus();
             }
           }}
-          className="fixed inset-y-0 right-0 z-50 flex w-[min(92vw,28rem)] flex-col border-l border-border bg-surface text-fg shadow-lg"
+          className={sheetPanel}
         >
           <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
             <span aria-hidden="true" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">

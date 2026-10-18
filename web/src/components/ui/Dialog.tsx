@@ -4,7 +4,7 @@ import { TriangleAlert, X } from "lucide-react";
 import { dialogDescription, dialogFooter, dialogOverlay, dialogPanel, dialogTitle, iconBtn, iconChip, sheetPanel } from "@/components/styles";
 import { Button } from "./Button";
 
-const WIDTHS = { sm: "w-[min(26rem,calc(100vw-2rem))]", md: "w-[min(32rem,calc(100vw-2rem))]", lg: "w-[min(44rem,calc(100vw-2rem))]", xl: "w-[min(60rem,calc(100vw-2rem))]" } as const;
+const WIDTHS = { sm: "w-[min(28rem,calc(100vw-2rem))]", md: "w-[min(32rem,calc(100vw-2rem))]", lg: "w-[min(44rem,calc(100vw-2rem))]", xl: "w-[min(60rem,calc(100vw-2rem))]" } as const;
 export type DialogWidth = keyof typeof WIDTHS;
 
 /**
@@ -185,9 +185,11 @@ export function Sheet({
 /**
  * Gives focus back to the element that had it when the dialog opened. Radix does this only for a
  * `Dialog.Trigger`; the app opens most dialogs from state, and without this focus fell to <body>
- * when they closed (review R2). An opener that has left the page is skipped.
+ * when they closed (review R2). An opener that has left the page is skipped. With `onlyIfLost`
+ * the opener is focused only when nothing else took the focus by the next frame (the command
+ * palette, whose commands may open a tab that focuses itself).
  */
-function useReturnFocus(onOpen?: (e: Event) => void) {
+export function useReturnFocus(onOpen?: (e: Event) => void, onlyIfLost = false) {
   const opener = useRef<HTMLElement | null>(null);
   return {
     onOpenAutoFocus: (e: Event) => {
@@ -198,7 +200,8 @@ function useReturnFocus(onOpen?: (e: Event) => void) {
       const el = opener.current;
       if (!el?.isConnected) return;
       e.preventDefault();
-      el.focus();
+      if (!onlyIfLost) el.focus();
+      else requestAnimationFrame(() => (document.activeElement === document.body || !document.activeElement) && el.isConnected && el.focus());
     },
   };
 }

@@ -98,6 +98,7 @@ export function SchemaChangeFlow({
       concurrent={state.concurrent}
       onReload={onReload}
       applyLabel={applyLabel}
+      danger={ops.some((o) => o.op.startsWith("drop_"))}
       onApply={apply}
       onCancel={onCancel}
     />

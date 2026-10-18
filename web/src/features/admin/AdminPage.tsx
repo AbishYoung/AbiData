@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Tabs } from "radix-ui";
-import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, ShieldOff, Users, type LucideIcon } from "lucide-react";
+import { buttonClass, StatusPage } from "@/components/ui";
 import { LogoMark } from "@/components/brand/Logo";
 import { pageTitle } from "@/components/styles";
 import type { Me } from "@/lib/session";
@@ -35,15 +36,19 @@ export function parseAdminTab(v: unknown): AdminTab {
 
 function Forbidden() {
   return (
-    <main className="mx-auto max-w-lg p-6">
-      <h1 className="text-xl font-semibold">403 Forbidden</h1>
-      <p role="alert" className="mt-2">
+    <StatusPage
+      icon={ShieldOff}
+      title="403 Forbidden"
+      actions={
+        <Link to="/" className={buttonClass("primary")}>
+          Back to your workspaces
+        </Link>
+      }
+    >
+      <p role="alert" className="m-0">
         Only platform administrators can open the admin console.
       </p>
-      <Link to="/" className="mt-2 inline-block text-accent underline">
-        Back to your workspaces
-      </Link>
-    </main>
+    </StatusPage>
   );
 }
 

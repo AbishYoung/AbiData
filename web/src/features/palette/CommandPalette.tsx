@@ -3,6 +3,7 @@ import { Dialog } from "radix-ui";
 import { ChevronDown, CornerDownLeft, Search } from "lucide-react";
 import { dialogOverlay, dialogPanel, kbd } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
+import { useReturnFocus } from "@/components/ui";
 import { ImportWizard } from "@/features/imports/ImportWizard";
 import { useImportRequest, usePalette } from "./commands";
 import { buildRows, moreLabel, moveActive, type GroupId, type PaletteItem, type Row } from "./match";
@@ -14,6 +15,7 @@ export function CommandPalette() {
   const setOpen = usePalette((s) => s.setOpen);
   const importWs = useImportRequest((s) => s.ws);
   const requestImport = useImportRequest((s) => s.request);
+  const returnFocus = useReturnFocus(undefined, true);
   return (
     <>
       <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -22,6 +24,7 @@ export function CommandPalette() {
           <Dialog.Content
             aria-describedby={undefined}
             data-presentation="top"
+            {...returnFocus}
             className={`${dialogPanel} !top-[14vh] compact:!top-0 !-translate-y-0 w-[min(36rem,calc(100vw-2rem))] overflow-hidden`}
           >
             <Palette onDone={() => setOpen(false)} />

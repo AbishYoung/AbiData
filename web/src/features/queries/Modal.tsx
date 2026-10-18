@@ -1,37 +1,30 @@
 import type { ReactNode } from "react";
-import { Dialog } from "radix-ui";
+import { Dialog } from "@/components/ui";
 
-/** A modal dialog with the app's standard chrome. Mount it only while it is open. */
+/**
+ * A modal dialog with the app's standard chrome. Mount it only while it is open. Kept for its many
+ * callers; it is the `Dialog` primitive (components/ui) with the two widths these dialogs use.
+ */
 export function Modal({
   title,
   description,
   onClose,
   wide,
+  ownClose = false,
   children,
 }: {
   title: string;
   description?: string;
   onClose: () => void;
   wide?: boolean;
+  /** The content has its own Close button, so the title row shows none. */
+  ownClose?: boolean;
   children: ReactNode;
 }) {
   return (
-    <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
-        <Dialog.Content
-          className={`fixed left-1/2 top-1/2 z-50 max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface p-5 text-fg shadow-lg ${wide ? "w-[min(60rem,calc(100vw-2rem))]" : "w-[min(28rem,calc(100vw-2rem))]"}`}
-        >
-          <Dialog.Title className="m-0 text-base font-semibold tracking-tight">{title}</Dialog.Title>
-          {description ? (
-            <Dialog.Description className="mt-1 text-sm text-fg-muted">{description}</Dialog.Description>
-          ) : (
-            <Dialog.Description className="sr-only">{title}</Dialog.Description>
-          )}
-          <div className="mt-3">{children}</div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Dialog title={title} description={description} onClose={onClose} width={wide ? "xl" : "sm"} hideClose={ownClose}>
+      {children}
+    </Dialog>
   );
 }
 

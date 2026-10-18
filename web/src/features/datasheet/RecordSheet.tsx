@@ -16,6 +16,7 @@ import type { LookupInfo } from "./Editors";
 import type { RowBuffer } from "./buffer";
 import { searchParent, type Row } from "./rowsApi";
 import { draftOf, formatValue, isEmpty, isReadOnlyColumn, kindOf, parseDraft, valuesEqual, type ValueKind } from "./values";
+import { askToConfirm } from "@/components/ui";
 
 export interface FieldChange {
   col: Column;
@@ -162,8 +163,8 @@ export function RecordSheet(props: Props) {
     }
   }
 
-  function close() {
-    if (dirty && !window.confirm("Discard your changes to this record?")) return;
+  async function close() {
+    if (dirty && !(await askToConfirm({ title: "Discard your changes?", message: "Your changes to this record are not saved.", confirmLabel: "Discard changes", danger: true }))) return;
     onClose();
   }
 
@@ -175,7 +176,7 @@ export function RecordSheet(props: Props) {
   const position = isNew ? "New record" : `Record ${(index + 1).toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`;
 
   return (
-    <Dialog.Root open onOpenChange={(o) => (o ? undefined : close())}>
+    <Dialog.Root open onOpenChange={(o) => (o ? undefined : void close())}>
       <Dialog.Portal>
         <Dialog.Content
           aria-describedby={undefined}
@@ -183,7 +184,7 @@ export function RecordSheet(props: Props) {
           onEscapeKeyDown={(e) => {
             if (dirty) {
               e.preventDefault();
-              close();
+              void close();
             }
           }}
           className="fixed inset-0 z-50 flex flex-col bg-bg text-fg"
