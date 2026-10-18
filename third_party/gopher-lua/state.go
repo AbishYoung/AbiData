@@ -1669,7 +1669,7 @@ func (ls *LState) ToInt(n int) int {
 	}
 	if lv, ok := ls.Get(n).(LString); ok {
 		if num, err := parseNumber(string(lv)); err == nil {
-			return int(num)
+			return lnumberToInt(num) // [AbiData patch]
 		}
 	}
 	return 0

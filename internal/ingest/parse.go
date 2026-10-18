@@ -392,11 +392,43 @@ func checkXLSXArchive(path string) error {
 	return nil
 }
 
-func openXLSX(path string, opt ParseOptions) (*source, error) {
+// openWorkbook opens an XLSX file; it is a variable so tests can inject a parser panic.
+var openWorkbook = excelize.OpenFile
+
+// errXLSXPanic is the error a workbook that crashes the XLSX parser is reported as.
+func errXLSXPanic() error {
+	return badFile("The file could not be read as an XLSX workbook. It may be damaged; save it again from your spreadsheet app and upload it again.")
+}
+
+// recoverXLSX turns a panic inside excelize (malformed workbooks have triggered
+// index-out-of-range, nil-dereference and stack-overflow panics upstream) into
+// an import error, so one bad upload cannot take the request or job down.
+func recoverXLSX(err *error) {
+	if r := recover(); r != nil {
+		*err = errXLSXPanic()
+	}
+}
+
+func openXLSX(path string, opt ParseOptions) (_ *source, err error) {
 	if err := checkXLSXArchive(path); err != nil {
 		return nil, err
 	}
-	f, err := excelize.OpenFile(path, excelize.Options{UnzipSizeLimit: xlsxMaxUnzipped, UnzipXMLSizeLimit: xlsxMaxPartInMemory})
+	var (
+		f    *excelize.File
+		rows *excelize.Rows
+	)
+	defer func() {
+		if r := recover(); r != nil {
+			if rows != nil {
+				_ = rows.Close()
+			}
+			if f != nil {
+				_ = f.Close()
+			}
+			err = errXLSXPanic()
+		}
+	}()
+	f, err = openWorkbook(path, excelize.Options{UnzipSizeLimit: xlsxMaxUnzipped, UnzipXMLSizeLimit: xlsxMaxPartInMemory})
 	if err != nil {
 		if strings.Contains(err.Error(), "unzip size") || strings.Contains(err.Error(), "exceeds the limit") {
 			return nil, badFile("The workbook expands to more than %d MiB when unpacked, which is not allowed.", xlsxMaxUnzipped>>20)
@@ -426,15 +458,20 @@ func openXLSX(path string, opt ParseOptions) (*source, error) {
 		_ = f.Close()
 		return nil, fault.Newf(fault.BadRequest, "The workbook has no sheet named %q.", sheet)
 	}
-	rows, err := f.Rows(sheet)
+	rows, err = f.Rows(sheet)
 	if err != nil {
 		_ = f.Close()
 		return nil, badFile("The sheet could not be read.")
 	}
 	src := &source{opts: opt}
 	src.opts.Sheet, src.opts.Sheets = sheet, sheets
-	src.close = func() { _ = rows.Close(); _ = f.Close() }
-	readRow := func() ([]string, error) {
+	src.close = func() {
+		defer func() { _ = recover() }()
+		_ = rows.Close()
+		_ = f.Close()
+	}
+	readRow := func() (_ []string, err error) {
+		defer recoverXLSX(&err)
 		for rows.Next() {
 			cols, err := rows.Columns()
 			if err != nil {

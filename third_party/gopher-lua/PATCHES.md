@@ -14,3 +14,10 @@ Changes (search for "[AbiData patch]"):
    coroutines) atomic estimate of bytes allocated, fed by `..` results and
    `OP_NEWTABLE`, plus host functions that build strings. The sandbox's heap
    watchdog uses it to stop the run that is actually growing the heap.
+3. Integer-conversion hardening (CodeQL go/incorrect-integer-conversion):
+   `lnumberToInt` (utils.go) saturates a parsed number to the int range (NaN -> 0)
+   and is used by `LState.ToInt` and `os.time`'s `getIntField` for string
+   arguments, instead of Go's implementation-defined float-to-int conversion.
+   The lexer rejects a decimal string escape above 255 (`"\999"`) with
+   "decimal escape too large", as reference Lua does, instead of truncating it
+   to a byte.
