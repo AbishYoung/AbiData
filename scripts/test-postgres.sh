@@ -8,7 +8,7 @@ set -euo pipefail
 images=${ABIDATA_TEST_POSTGRES_IMAGES:-postgres:17 postgres:18}
 # The packages with PostgreSQL tests; tools/testplan's postgresPackages lists
 # the same ones.
-packages=${ABIDATA_TEST_POSTGRES_PACKAGES:-./internal/pgdb/... ./internal/admin/... ./internal/auth/... ./cmd/abidata/}
+packages=${ABIDATA_TEST_POSTGRES_PACKAGES:-./internal/pgdb/... ./internal/admin/... ./internal/auth/... ./internal/catalog/... ./cmd/abidata/}
 
 for image in $images; do
 	name="abidata-test-pg-$$-${RANDOM}"
