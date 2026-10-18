@@ -14,7 +14,7 @@ import (
 	"abidata/internal/sqlitex"
 )
 
-//go:embed migrations/*.sql
+//go:embed migrations/sqlite/*.sql
 var migrationFS embed.FS
 
 // ApplicationID marks workspace files ("ABID").
@@ -22,7 +22,7 @@ const ApplicationID = 0x41424944
 
 // Version returns the catalog migration version this server writes.
 func Version() int {
-	names, _ := fs.Glob(migrationFS, "migrations/*.sql")
+	names, _ := fs.Glob(migrationFS, "migrations/sqlite/*.sql")
 	return len(names)
 }
 
@@ -39,7 +39,7 @@ func Migrate(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
 	if appID != 0 && appID != ApplicationID {
 		return fmt.Errorf("catalog: %s is not an AbiData workspace", c.Path())
 	}
-	names, err := fs.Glob(migrationFS, "migrations/*.sql")
+	names, err := fs.Glob(migrationFS, "migrations/sqlite/*.sql")
 	if err != nil {
 		return err
 	}
@@ -55,13 +55,13 @@ func Migrate(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
 		script := fmt.Sprintf("BEGIN IMMEDIATE;\n%s\nPRAGMA application_id=%d;\nPRAGMA user_version=%d;\nCOMMIT;", body, ApplicationID, i+1)
 		if err := c.ExecScript(ctx, script); err != nil {
 			_ = c.ExecScript(context.Background(), "ROLLBACK")
-			return fmt.Errorf("catalog: migration %s: %w", strings.TrimPrefix(names[i], "migrations/"), err)
+			return fmt.Errorf("catalog: migration %s: %w", strings.TrimPrefix(names[i], "migrations/sqlite/"), err)
 		}
 	}
 	return c.Immediate(ctx, func(tx *sqlitex.Tx) error {
 		for k, v := range map[string]string{"workspace_id": string(id), "timezone": "UTC", "locale": "en-US",
 			"created_at": sqlitex.Now(), "schema_version": "0"} {
-			if _, err := tx.Exec(ctx, `INSERT OR IGNORE INTO _sys_meta(key, value) VALUES (?, ?)`, k, v); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO _sys_meta(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING`, k, v); err != nil {
 				return err
 			}
 		}

@@ -5,7 +5,7 @@ import { useTabs } from "@/app/tabs";
 import type { Saved } from "@/features/queries/savedQueries";
 
 function saved(id: string, name: string): Saved {
-  return { id, name, kind: "visual", sql_text: "", parameters: [], description: "", version: 1, updated_at: "", updated_by: "", columns: [], editable: false };
+  return { id, name, kind: "visual", sql_text: "", dialect: "sqlite", parameters: [], description: "", version: 1, updated_at: "", updated_by: "", columns: [], editable: false };
 }
 
 vi.mock("@/lib/schema", () => ({

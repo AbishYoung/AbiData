@@ -4885,6 +4885,14 @@
           "description": {
             "type": "string"
           },
+          "dialect": {
+            "description": "The SQL dialect sql_text is in (ADR 0012).",
+            "enum": [
+              "sqlite",
+              "postgres"
+            ],
+            "type": "string"
+          },
           "editable": {
             "type": "boolean"
           },
@@ -4936,6 +4944,7 @@
           "name",
           "kind",
           "sql_text",
+          "dialect",
           "parameters",
           "description",
           "version",

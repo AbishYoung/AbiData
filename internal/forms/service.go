@@ -271,7 +271,7 @@ func writeDeps(ctx context.Context, tx *sqlitex.Tx, f Form) error {
 		return err
 	}
 	add := func(kind, target string) error {
-		_, err := tx.Exec(ctx, `INSERT OR IGNORE INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('form', ?, ?, ?, 'exact')`, f.ID, kind, target)
+		_, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('form', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, f.ID, kind, target)
 		return err
 	}
 	if f.SourceID != "" {

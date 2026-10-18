@@ -15,7 +15,7 @@ import (
 	"abidata/internal/sqlitex"
 )
 
-//go:embed migrations/*.sql
+//go:embed migrations/sqlite/*.sql
 var migrationFS embed.FS
 
 // ApplicationID marks admin DB files ("ABAD").
@@ -65,7 +65,7 @@ func (s *Store) migrate(ctx context.Context) error {
 	if appID != 0 && appID != ApplicationID {
 		return fmt.Errorf("admin: %s is not an AbiData admin database", s.path)
 	}
-	names, err := fs.Glob(migrationFS, "migrations/*.sql")
+	names, err := fs.Glob(migrationFS, "migrations/sqlite/*.sql")
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		script := fmt.Sprintf("BEGIN IMMEDIATE;\n%s\nPRAGMA application_id=%d;\nPRAGMA user_version=%d;\nCOMMIT;", body, ApplicationID, i+1)
 		if err := s.writer.ExecScript(ctx, script); err != nil {
 			_ = s.writer.ExecScript(context.Background(), "ROLLBACK")
-			return fmt.Errorf("admin: migration %s: %w", strings.TrimPrefix(names[i], "migrations/"), err)
+			return fmt.Errorf("admin: migration %s: %w", strings.TrimPrefix(names[i], "migrations/sqlite/"), err)
 		}
 	}
 	return nil

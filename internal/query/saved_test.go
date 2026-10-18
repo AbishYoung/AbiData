@@ -20,7 +20,7 @@ func TestSavedQueriesLifecycle(t *testing.T) {
 	base, err := svc.Put(ctx, f.l, "", 0, SavedInput{Name: "Customer names", Kind: "visual", Visual: &Model{
 		Sources: []Source{{Alias: "c", TableID: cust}},
 		Fields:  []Field{{Alias: "c", ColumnID: "id"}, {Alias: "c", ColumnID: "_version"}, {Alias: "c", ColumnID: name, Sort: "asc"}}}}, "u1")
-	if err != nil || !base.Editable || base.Version != 1 {
+	if err != nil || !base.Editable || base.Version != 1 || base.Dialect != "sqlite" {
 		t.Fatalf("%+v %v", base, err)
 	}
 	// A query using the first query as a source.

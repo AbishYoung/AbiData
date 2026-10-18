@@ -11,6 +11,7 @@ import (
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -22,6 +23,7 @@ type Saved struct {
 	Kind        string    `json:"kind" enum:"visual,sql"`
 	Visual      *Model    `json:"visual_model,omitempty"`
 	SQL         string    `json:"sql_text"`
+	Dialect     string    `json:"dialect" enum:"sqlite,postgres" doc:"The SQL dialect sql_text is in (ADR 0012)."`
 	Parameters  []Param   `json:"parameters"`
 	Description string    `json:"description"`
 	Version     int64     `json:"version"`
@@ -57,7 +59,7 @@ const maxNesting = 4
 
 // loadAll reads every saved query (inside a read or write transaction).
 func loadAll(ctx context.Context, q sqlitex.Querier) (map[string]*Saved, error) {
-	rows, err := q.Query(ctx, `SELECT id, name, kind, visual_model, sql_text, parameters, description, version, updated_at, updated_by FROM _sys_queries`)
+	rows, err := q.Query(ctx, `SELECT id, name, kind, visual_model, sql_text, dialect, parameters, description, version, updated_at, updated_by FROM _sys_queries`)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +69,7 @@ func loadAll(ctx context.Context, q sqlitex.Querier) (map[string]*Saved, error) 
 		var s Saved
 		var vis *string
 		var params, at string
-		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &vis, &s.SQL, &params, &s.Description, &s.Version, &at, &s.UpdatedBy); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &vis, &s.SQL, &s.Dialect, &params, &s.Description, &s.Version, &at, &s.UpdatedBy); err != nil {
 			return nil, err
 		}
 		if vis != nil {
@@ -179,8 +181,8 @@ func writeDeps(ctx context.Context, tx *sqlitex.Tx, id string, d Deps) error {
 	}
 	for kind, list := range map[string][]string{"table": d.Tables, "column": d.Columns, "query": d.Queries} {
 		for _, target := range list {
-			if _, err := tx.Exec(ctx, `INSERT OR IGNORE INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence)
-				VALUES ('query', ?, ?, ?, 'exact')`, id, kind, target); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence)
+				VALUES ('query', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, id, kind, target); err != nil {
 				return err
 			}
 		}
@@ -189,6 +191,9 @@ func writeDeps(ctx context.Context, tx *sqlitex.Tx, id string, d Deps) error {
 }
 
 func save(ctx context.Context, tx *sqlitex.Tx, s *Saved) error {
+	// Visual queries are compiled for, and SQL queries are checked against,
+	// the backend this workspace runs on.
+	s.Dialect = sqlgen.SQLite.String()
 	var vis any
 	if s.Visual != nil {
 		b, err := json.Marshal(s.Visual)
@@ -201,11 +206,11 @@ func save(ctx context.Context, tx *sqlitex.Tx, s *Saved) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO _sys_queries(id, name, kind, visual_model, sql_text, parameters, description, version, updated_at, updated_by)
-		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind,
-		visual_model = excluded.visual_model, sql_text = excluded.sql_text, parameters = excluded.parameters,
+	_, err = tx.Exec(ctx, `INSERT INTO _sys_queries(id, name, kind, visual_model, sql_text, dialect, parameters, description, version, updated_at, updated_by)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind,
+		visual_model = excluded.visual_model, sql_text = excluded.sql_text, dialect = excluded.dialect, parameters = excluded.parameters,
 		description = excluded.description, version = excluded.version, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-		s.ID, s.Name, s.Kind, vis, s.SQL, string(params), s.Description, s.Version, sqlitex.FormatTime(s.UpdatedAt), s.UpdatedBy)
+		s.ID, s.Name, s.Kind, vis, s.SQL, s.Dialect, string(params), s.Description, s.Version, sqlitex.FormatTime(s.UpdatedAt), s.UpdatedBy)
 	if err != nil && fault.Classify(err).Code == fault.DuplicateValue {
 		return fault.Newf(fault.DuplicateValue, "A query named %q already exists.", s.Name)
 	}

@@ -2718,6 +2718,11 @@ export interface components {
         Saved: {
             columns: string[] | null;
             description: string;
+            /**
+             * @description The SQL dialect sql_text is in (ADR 0012).
+             * @enum {string}
+             */
+            dialect: "sqlite" | "postgres";
             editable: boolean;
             id: string;
             /** @enum {string} */

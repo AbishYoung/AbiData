@@ -228,7 +228,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 			if pre, _, ok := strings.Cut(k, ":"); ok {
 				kind = pre
 			}
-			if _, err := tx.Exec(ctx, `INSERT OR IGNORE INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('report', ?, ?, ?, 'exact')`, r.ID, kind, v); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('report', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, r.ID, kind, v); err != nil {
 				return err
 			}
 		}
