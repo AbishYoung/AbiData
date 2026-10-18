@@ -134,6 +134,8 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 	s.active[op.ID] = r
 	s.mu.Unlock()
 	s.publish(own.ID(), op)
+	// The goroutine updates op as it runs; the caller gets the state at start.
+	started := op
 
 	s.wg.Add(1)
 	go func() {
@@ -157,7 +159,7 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 		}()
 		s.finish(own, &op, r, res, err, octx)
 	}()
-	return op, nil
+	return started, nil
 }
 
 func (s *Service) log() *slog.Logger {
