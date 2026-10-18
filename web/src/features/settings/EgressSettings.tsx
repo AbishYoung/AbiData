@@ -5,6 +5,7 @@ import { alertBox, btn, card, pageTitle } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { BackupsPanel } from "@/features/backups/BackupsPanel";
 import { ApiKeysPanel } from "@/features/apikeys/ApiKeysPanel";
+import { AppsPanel } from "@/features/apps/AppsPanel";
 import { MembersPanel } from "@/features/members/MembersPanel";
 import { getEgressHosts, settingsKeys } from "./settingsApi";
 
@@ -71,7 +72,7 @@ export function EgressSettings({ ws }: { ws: string }) {
         <KindIcon kind="settings" size="lg" />
         <div>
           <h2 className={`${pageTitle} m-0`}>Workspace settings</h2>
-          <p className="m-0 text-sm text-fg-muted">Outbound access, backups and API keys for this workspace.</p>
+          <p className="m-0 text-sm text-fg-muted">Outbound access, members, backups, API keys and public apps for this workspace.</p>
         </div>
       </div>
       <AllowedHosts ws={ws} />
@@ -80,6 +81,7 @@ export function EgressSettings({ ws }: { ws: string }) {
       </div>
       <BackupsPanel ws={ws} />
       <ApiKeysPanel ws={ws} />
+      <AppsPanel ws={ws} />
       </div>
     </div>
   );
