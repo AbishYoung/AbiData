@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Background,
   ConnectionMode,
@@ -111,6 +112,10 @@ export interface QueryCanvasProps {
 /** The table/query boxes and join lines of a visual query. */
 export function QueryCanvas(props: QueryCanvasProps) {
   const { model, infos } = props;
+  // The sizes React Flow measured, handed back with every node. Without them each re-render (a
+  // compile result arriving, say) makes React Flow drop the boxes' handle positions and hide the
+  // boxes until it measures them again, and a join dragged in that frame is lost.
+  const [measured, setMeasured] = useState<Record<string, { width: number; height: number }>>({});
   const nodes: SourceNodeType[] = [];
   for (const s of model.sources) {
     const info = infos.get(s.alias);
@@ -119,6 +124,7 @@ export function QueryCanvas(props: QueryCanvasProps) {
       id: s.alias,
       type: "source",
       position: { x: s.x, y: s.y },
+      measured: measured[s.alias],
       data: { info, onRemove: props.onRemoveSource, onAddField: props.onAddField },
       draggable: true,
     });
@@ -136,9 +142,12 @@ export function QueryCanvas(props: QueryCanvasProps) {
   }));
 
   function onNodesChange(changes: NodeChange[]): void {
+    const sizes: Record<string, { width: number; height: number }> = {};
     for (const ch of changes) {
       if (ch.type === "position" && ch.position) props.onMoveSource(ch.id, Math.round(ch.position.x), Math.round(ch.position.y));
+      if (ch.type === "dimensions" && ch.dimensions) sizes[ch.id] = ch.dimensions;
     }
+    if (Object.keys(sizes).length > 0) setMeasured((m) => ({ ...m, ...sizes }));
   }
 
   return (
