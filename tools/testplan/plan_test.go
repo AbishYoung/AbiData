@@ -309,7 +309,7 @@ func TestEverySpecHasOneArea(t *testing.T) {
 }
 
 // pendingPrefixes are mapped ahead of branches that add them; drop an entry once it exists.
-var pendingPrefixes = map[string]bool{"internal/exprlang/": true}
+var pendingPrefixes = map[string]bool{}
 
 func TestSourceAreasPointAtRealPathsAndAreas(t *testing.T) {
 	names := areaNames()
