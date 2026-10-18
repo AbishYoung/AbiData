@@ -22,7 +22,6 @@ import { ariaSort, type SortState } from "./filter";
 import { clampWidth, widthOf, type Layout } from "./layout";
 import { formatValue, isNumericKind, isReadOnlyColumn, kindOf } from "./values";
 
-export const ROW_HEIGHT = 32;
 export const HEADER_HEIGHT = 32;
 export const ROW_HEADER_WIDTH = 76;
 const RESIZE_STEP = 16;
@@ -345,7 +344,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
         }}
         onDoubleClick={() => props.onCellDoubleClick({ row: rowIndex, col: colIndex })}
         style={{ width: widths[colIndex] }}
-        className={`relative flex h-8 shrink-0 items-center gap-1 border-b border-r border-border px-3 text-sm scroll-ml-20 scroll-mt-8 ${align} ${
+        className={`relative flex h-full shrink-0 items-center gap-1 border-b border-r border-border px-3 text-sm scroll-ml-20 scroll-mt-8 ${align} ${
           isActive ? "outline-2 -outline-offset-2 outline-accent" : ""
         } ${changed ? "bg-accent-soft" : isSelected ? "bg-accent-soft/60" : "bg-transparent"} ${error ? "border-b-2 border-b-danger" : ""}`}
       >
@@ -436,7 +435,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                 className={`group/r absolute left-0 top-0 flex ${v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"} hover:bg-surface-2/60`}
                 style={{
                   width: totalWidth,
-                  height: ROW_HEIGHT,
+                  height: v.size,
                   transform: `translateY(${v.start - margin}px)`,
                   zIndex: active.row === v.index ? 5 : undefined,
                 }}

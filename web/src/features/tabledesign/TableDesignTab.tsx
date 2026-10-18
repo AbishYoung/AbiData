@@ -4,7 +4,7 @@ import { ListTree, TriangleAlert } from "lucide-react";
 import { KindIcon } from "@/components/objectKinds";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { alertBox, btn, btnPrimary, input, label as labelClass, textarea } from "@/components/styles";
 import { keys } from "@/lib/events";
 import { findTable, useSchema, type Schema } from "@/lib/schema";
 import {
@@ -328,7 +328,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
                 <textarea
                   id={descId}
                   rows={3}
-                  className={input}
+                  className={textarea}
                   value={draft.description}
                   onChange={(e) => edit((d) => ({ ...d, description: e.target.value }))}
                 />

@@ -11,7 +11,7 @@ import { alertBox, badge, badgeWarning, btn } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
 import { FilesWorkspaceProvider } from "@/features/files/FileParts";
 import { docFooter } from "@/components/EditorParts";
-import { Grid, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
+import { Grid, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
 import { CardList } from "./CardList";
 import { RecordSheet, type FieldChange, type SheetSave } from "./RecordSheet";
@@ -151,7 +151,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const filterActive = appliedQuick.trim() !== "" || conditions.length > 0;
 
   // ---- data -------------------------------------------------------------------
-  const { countQuery, total, capped, rowCount, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData } =
+  const { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData } =
     useRowPages({ ws, tableId, filterStr, sortStr, canEdit, mode, sheetIndex, scrollRef, cardScrollRef });
 
   // ---- buffers ------------------------------------------------------------------
@@ -174,7 +174,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   /** Navigation dimensions with the page size measured from the viewport (event handlers only). */
   function navDims(): NavDims {
     const height = scrollRef.current?.clientHeight ?? 400;
-    return { ...dims, pageSize: Math.max(1, Math.floor(height / ROW_HEIGHT) - 2) };
+    return { ...dims, pageSize: Math.max(1, Math.floor(height / rowHeight) - 2) };
   }
 
   function focusGrid() {

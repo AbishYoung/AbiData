@@ -30,6 +30,7 @@ The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/compo
    - Loading uses skeleton bars (`animate-pulse rounded bg-surface-3`) rather than bare "Loading…" text wherever the layout is known. Keep an `aria-live`/`role="status"` text for screen readers.
 8. **Motion.** Keep it subtle: `transition-colors`/`transition-shadow` at 150 ms, and a small fade/scale for dialogs and menus. Nothing moves when `prefers-reduced-motion` is set; the tokens handle that.
 9. **Dark and light are equal citizens.** Check both. Never hard-code colours; use the tokens (`bg-surface`, `text-fg-muted` …). Colours that are the same in both themes are tokens too: `--scrim` (`bg-scrim/40` behind dialogs), `--avatar-1…7`, and the `--paper*` colours of report pages and their maps (paper is white with black ink in either theme). The documented exceptions are white text or marks on a solid brand, kind, accent or avatar fill (logo, sign-in panel, avatar initials), the photo viewer's dark overlay, and the hex fallbacks Monaco needs; each carries an `eslint-disable` comment with the reason.
+   - Tokens are written in OKLCH (`oklch(L% C H)`, `0 0` chroma for neutrals) so lightness steps are even across hues; keep new tokens in that form. `styles/tokens.test.ts` parses `tokens.css` (`lib/color.ts`) and fails when a text pair drops below AA (4.5:1) or a strong border, focus ring or kind colour below 3:1 in either theme, or when the dark media block and the `data-theme="dark"` block differ.
 10. **Accessibility is non-negotiable.**
     - Use visible focus (the global `:focus-visible` ring, or `focus:ring-3 focus:ring-accent/20` on inputs).
     - Meet AA contrast for text, and 3:1 for input borders and icons that carry meaning.
@@ -51,14 +52,14 @@ The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/compo
   - It sits on `bg`, in a content column of `max-w-5xl mx-auto px-6 py-8`.
 - **Document toolbar** (the top of each tab):
   - `h-11 border-b border-border bg-surface px-3 flex items-center gap-1.5`.
-  - Primary actions go left.
+  - Primary actions go left. Only the main action of a toolbar is a filled `btnPrimary`; the other text buttons are `btnGhost` (or `btn` when they open a menu), so the hierarchy reads at a glance.
   - Filters and search go in the middle, with a search input that has a leading icon.
   - Export and more actions go right.
 - **Cards and lists**: use `card` with `cardHeader` and `cardBody`. Lists inside cards use divided rows (`divide-y divide-border`) with hover `bg-surface-2/60`.
 - **Data tables** (non-datasheet): use `table`, `th`, `td` and `trHover`, with a sticky header. Right-align numbers, use badges for status, and put row actions as `iconBtnSm` on the right that appear on hover and on focus.
 - **Datasheet**:
   - The header row is `surface-2`, 12px semibold `fg-muted`, with sticky header and selector columns.
-  - Rows are 32px. Zebra striping is very subtle (`even:bg-surface-2/30`), and hover is `bg-surface-2/60`.
+  - Rows are 32px by default, or 40px when the user picks **Comfortable rows** under Density in the user menu (`lib/density.ts`, `useRowHeight()`, stored per browser). The query results grid follows the same setting; headers stay 32px. Cells fill the row height rather than fixing their own. Zebra striping is very subtle (`even:bg-surface-2/30`), and hover is `bg-surface-2/60`.
   - The selected row is `bg-accent-soft/60`. The active cell gets a 2px accent outline.
   - Yes/no cells show a check glyph. Lookup cells show their display text, left-aligned.
 - **Attachments** (`features/files`): one `AttachmentManager` serves every place that edits files (datasheet dialog, phone record sheet, form control) and `AttachmentThumbs` shows the count and up to three thumbnails in cells.

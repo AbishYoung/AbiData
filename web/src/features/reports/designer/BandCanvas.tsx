@@ -167,7 +167,7 @@ export function BandCanvas(p: CanvasProps) {
                   p.onClear();
                 }}
                 className={`flex h-6 w-full cursor-pointer items-center gap-2 border-b border-border px-2 text-left text-xs font-semibold ${
-                  active ? "bg-accent text-accent-fg" : "bg-surface-3 text-fg-muted hover:bg-surface-2"
+                  active ? "bg-accent-soft text-accent shadow-[inset_3px_0_0_var(--accent)]" : "bg-surface-3 text-fg-muted hover:bg-surface-2"
                 }`}
               >
                 <span>

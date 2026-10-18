@@ -8,6 +8,8 @@ import {
   LogOut,
   Monitor,
   Moon,
+  Rows3,
+  Rows4,
   Settings,
   Shield,
   Sun,
@@ -15,6 +17,7 @@ import {
 import { queryClient } from "@/app/queryClient";
 import { useLogout, type Me } from "@/lib/session";
 import { isThemePref, useThemeStore } from "@/lib/theme";
+import { useDensityStore } from "@/lib/density";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { openDocs } from "@/features/docs/docsStore";
 import { openChangePassword } from "@/features/account/ChangePasswordDialog";
@@ -22,6 +25,10 @@ import { btn, menu, menuItem, menuSeparator } from "@/components/styles";
 
 const item = menuItem;
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
+const DENSITIES = [
+  { value: "compact", label: "Compact rows", Icon: Rows4 },
+  { value: "comfortable", label: "Comfortable rows", Icon: Rows3 },
+] as const;
 
 function initialsOf(name: string): string {
   const parts = name.split(/[\s@.]+/).filter(Boolean);
@@ -43,6 +50,8 @@ export function UserMenu({
   const navigate = useNavigate();
   const pref = useThemeStore((s) => s.pref);
   const setPref = useThemeStore((s) => s.setPref);
+  const density = useDensityStore((s) => s.density);
+  const setDensity = useDensityStore((s) => s.setDensity);
   const logout = useLogout(queryClient, () => void navigate({ to: "/login" }));
 
   const compact = useIsCompact();
@@ -133,6 +142,28 @@ export function UserMenu({
                 <span className="flex-1">
                   {t === "system" ? "System" : t === "light" ? "Light" : "Dark"}
                 </span>
+                <DropdownMenu.ItemIndicator>
+                  <Check size={14} aria-hidden="true" className="text-accent" />
+                </DropdownMenu.ItemIndicator>
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+          <DropdownMenu.Separator className={menuSeparator} />
+          <DropdownMenu.Label className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+            Density
+          </DropdownMenu.Label>
+          <DropdownMenu.RadioGroup
+            aria-label="Row density"
+            value={density}
+            onValueChange={(v) => {
+              const d = DENSITIES.find((o) => o.value === v);
+              if (d) setDensity(d.value);
+            }}
+          >
+            {DENSITIES.map(({ value, label, Icon }) => (
+              <DropdownMenu.RadioItem key={value} value={value} className={item}>
+                <Icon size={16} aria-hidden="true" className="text-fg-muted" />
+                <span className="flex-1">{label}</span>
                 <DropdownMenu.ItemIndicator>
                   <Check size={14} aria-hidden="true" className="text-accent" />
                 </DropdownMenu.ItemIndicator>

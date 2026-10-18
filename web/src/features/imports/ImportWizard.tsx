@@ -509,7 +509,8 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
                     >
                       {done ? <Check size={12} strokeWidth={3} /> : i + 1}
                     </span>
-                    <span className={`truncate ${current ? "font-semibold text-fg" : "text-fg-muted max-sm:sr-only"}`}>
+                    {/* On a phone the current label wraps rather than truncating, whatever the font metrics. */}
+                    <span className={`truncate max-sm:whitespace-normal max-sm:leading-tight ${current ? "font-semibold text-fg" : "text-fg-muted max-sm:sr-only"}`}>
                       <span className="sr-only">{i + 1}. </span>
                       {s}
                       {done && <span className="sr-only"> (done)</span>}

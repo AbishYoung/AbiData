@@ -1,8 +1,9 @@
-import type { RefObject } from "react";
+import { useEffect, type RefObject } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { keys } from "@/lib/events";
-import { HEADER_HEIGHT, ROW_HEIGHT } from "./Grid";
+import { useRowHeight } from "@/lib/density";
+import { HEADER_HEIGHT } from "./Grid";
 import { CARD_SLOT } from "./CardList";
 import type { RowKey } from "./buffer";
 import { PAGE_SIZE, fetchCount, fetchRows, type Row, type RowPage } from "./rowsApi";
@@ -46,14 +47,17 @@ export function useRowPages({
   const pageKey = (page: number) =>
     [...keys.rows(ws, tableId), { sort: sortStr ?? null, filter: filterStr ?? null, page }] as const;
 
+  const rowHeight = useRowHeight();
   const virtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 10,
     scrollMargin: HEADER_HEIGHT,
     scrollPaddingStart: HEADER_HEIGHT,
   });
+  // A density change resizes every row: drop the measured sizes so the new estimate applies.
+  useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);
   const cardVirtualizer = useVirtualizer({
     count: total,
     getScrollElement: () => cardScrollRef.current,
@@ -121,5 +125,5 @@ export function useRowPages({
   }
 
 
-  return { countQuery, total, capped, rowCount, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData };
+  return { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData };
 }

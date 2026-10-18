@@ -74,7 +74,7 @@ export function AdminPage({ me, tab, onTabChange }: { me: Me; tab: AdminTab; onT
           <p className="m-0 mt-1 text-sm text-fg-muted">Monitor the server and manage workspaces, users, API keys and platform settings.</p>
         </div>
         <Tabs.Root value={tab} onValueChange={(v) => onTabChange(parseAdminTab(v))} className="flex min-h-0 flex-1 flex-col">
-          <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
+          <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 compact:pr-10 compact:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:mx-0 sm:px-0">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <Tabs.Trigger
                 key={id}
