@@ -86,6 +86,10 @@ The entry chunk holds what opening a workspace needs: the shell, the navigation 
 ## Lint guards
 `eslint.config.js` enforces the rules above (ADR 0015): no `title=` on intrinsic elements, no `confirm`/`alert`/`prompt` (use `askToConfirm` or `ConfirmDialog`), and no Tailwind palette classes (`bg-gray-…`, `text-white` …) or hex colours outside `tokens.css`. Tests are exempt.
 
+## Reviewing the UI
+- `make screenshots-review` (`node scripts/screenshots.mjs --review`) starts a throwaway server like `make screenshots`, then captures every main screen at desktop (1440×900) and compact (390×844 touch) sizes in light and dark, as `<screen>-<desktop|compact>-<light|dark>.png`, and runs axe on each capture into `axe.json`. It writes to `docs/reviews/web-ui-2026-10/` unless given `--out=dir`; `--only=screen,screen` and `--variants=desktop-light,…` limit a run and merge their axe results into the existing file. Use it to compare before and after a visual change, and keep the images out of commits unless they belong to a review.
+- The e2e suite is the gate: `a11y.spec.ts` runs axe (WCAG 2 A and AA, no rule exclusions) on every route and main view in both themes, and `mobile.spec.ts` does the same for the compact layouts. Any violation fails, not only serious and critical ones. An open menu is scanned on its own (`expectNoAxeViolations(page, '[role="menu"]')`): a modal Radix menu aria-hides the page while trapping focus, and axe only treats dialogs as modal.
+
 ## Mobile
 "Compact" means a viewport up to 767px wide, or a touch device (`pointer: coarse`) up to 1023px. It is defined once in `lib/useMediaQuery.ts` (`useIsCompact`) and mirrored by the Tailwind `compact:` variant (tokens.css) and the media query in `styles/mobile.css`. Desktop layouts are never changed by it.
 - **Shell**: the navigation pane is an off-canvas drawer (`NavDrawer`, a Radix dialog opened by the "Open navigation" button). The header shows the menu button, logo, workspace name, search and the user menu. Open tabs live in one "Open objects" button that opens a sheet.

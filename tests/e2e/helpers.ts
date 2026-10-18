@@ -18,9 +18,12 @@ export async function signOut(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/login$/);
 }
 
-export async function expectNoAxeViolations(page: Page): Promise<void> {
+/** Runs axe (WCAG 2 A and AA) on the page, or only on the elements matching `include`. */
+export async function expectNoAxeViolations(page: Page, include?: string): Promise<void> {
   await settleAnimations(page);
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  let builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]);
+  if (include) builder = builder.include(include);
+  const results = await builder.analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }
 

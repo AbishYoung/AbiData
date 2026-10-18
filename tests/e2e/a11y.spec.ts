@@ -23,9 +23,9 @@ const SCHEMES = ["light", "dark"] as const;
 type Scheme = (typeof SCHEMES)[number];
 
 /** Runs axe and names the view and scheme in the failure message. */
-async function scan(page: Page, view: string, scheme: Scheme): Promise<void> {
+async function scan(page: Page, view: string, scheme: Scheme, include?: string): Promise<void> {
   try {
-    await expectNoAxeViolations(page);
+    await expectNoAxeViolations(page, include);
   } catch (e) {
     throw new Error(`axe violations in "${view}" (${scheme}): ${String(e)}`);
   }
@@ -237,7 +237,11 @@ for (const scheme of SCHEMES) {
     await scan(page, "job editor", scheme);
 
     // Workspace settings with the backups panel.
+    // The user menu first (theme and density); only the menu, as a modal menu aria-hides the page
+    // while trapping focus, which axe reports because it treats only dialogs as modal.
     await page.getByRole("button", { name: /Admin/ }).first().click();
+    await expect(page.getByRole("menuitemradio", { name: "Compact rows" })).toBeVisible();
+    await scan(page, "user menu", scheme, '[role="menu"]');
     await page.getByRole("menuitem", { name: "Workspace settings" }).click();
     await expect(page.getByTestId("backups-panel").getByRole("button", { name: "Back up now" })).toBeVisible();
     await scan(page, "workspace settings and backups", scheme);

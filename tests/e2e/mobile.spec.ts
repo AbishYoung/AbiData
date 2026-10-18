@@ -612,6 +612,25 @@ test("axe is clean on phones in light and dark", async ({ page }) => {
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
 
+    // The user menu (theme and density choices) and the documentation sheet (ADR 0015, O6).
+    await page.getByRole("button", { name: /Admin/ }).tap();
+    await expect(page.getByRole("menuitemradio", { name: "Comfortable rows" })).toBeVisible();
+    // Only the menu: a modal Radix menu aria-hides the page behind it while trapping focus, and axe
+    // (which treats only dialogs as modal) would report the hidden controls (review, R19).
+    await expectNoAxeViolations(page, '[role="menu"]');
+    await page.getByRole("menuitem", { name: "Documentation" }).tap();
+    await expect(page.getByRole("dialog", { name: "Documentation" })).toBeVisible();
+    await expectNoAxeViolations(page);
+    await page.keyboard.press("Escape");
+
+    // The admin console's overview and users on a phone.
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { name: "Admin console" })).toBeVisible();
+    await expectNoAxeViolations(page);
+    await page.getByRole("tab", { name: /Users/ }).tap();
+    await expect(page.getByRole("tab", { name: /Users/, selected: true })).toBeVisible();
+    await expectNoAxeViolations(page);
+
     await page.context().clearCookies();
   }
 });
