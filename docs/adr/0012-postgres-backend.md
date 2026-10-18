@@ -290,6 +290,20 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
   - every portable admin statement prepares on PostgreSQL with SQLite's result columns.
 - **Test setup.** `internal/pgtest` gives tests a throwaway database owned by a non-superuser app role. `make test-postgres` runs the `pgdb` and `admin` packages.
 
+**Phase 2, part 2 (as built): the admin store.**
+
+- **The store.** `admin.OpenPostgres` runs the same repositories on a pgx pool, with `<prefix>_admin` and `<prefix>_lib` on its search path.
+  - Writes stay serialised, as `BEGIN IMMEDIATE` serialises them on SQLite, because the repositories read and then write in one transaction.
+  - `pgdb.Tx` is the `dbx.Tx`, and `Savepoint` is a pgx nested transaction.
+- **Values** (`internal/pgdb/codec.go`).
+  - A Go `bool` or `time.Time` argument is encoded as whatever its parameter's type is: the system tables' 0/1 `bigint` and text timestamps, or a user table's native `boolean`, `timestamptz` and `date`.
+  - A `*bool` scans a 0/1 integer or a boolean.
+- **Errors.** `pgdb.IsUniqueViolation` maps SQLSTATE 23505 to the admin store's `ErrConflict`, as SQLite's unique and primary-key errors already were.
+- **Collations.** Three listings ordered `COLLATE NOCASE` explicitly. They now rely on the column's own collation, `NOCASE` or `abi_ci`.
+- **Tests.**
+  - With `ABIDATA_TEST_DB=postgres`, which `make test-postgres` sets, the admin and auth suites run on PostgreSQL.
+  - `internal/admin/admintest` opens the selected backend's store for other packages' tests.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

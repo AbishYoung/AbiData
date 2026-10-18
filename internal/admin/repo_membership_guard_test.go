@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -14,11 +13,7 @@ import (
 // Regression (Phase 0 review #9): concurrent owner demotions keep one owner.
 func TestChangeMembershipKeepsLastOwner(t *testing.T) {
 	ctx := context.Background()
-	s, err := Open(ctx, filepath.Join(t.TempDir(), "a.db"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = s.Close() }()
+	s := newStore(t)
 	for _, id := range []string{"u1", "u2"} {
 		if err := s.CreateUser(ctx, User{ID: id, Email: id + "@x.test", DisplayName: id, PasswordHash: "h", CreatedAt: time.Now()}); err != nil {
 			t.Fatal(err)

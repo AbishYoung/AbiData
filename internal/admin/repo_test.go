@@ -3,19 +3,36 @@ package admin
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
+	"abidata/internal/pgtest"
 )
 
 var t0 = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
+// storeOpener returns a function that opens the same store again each time:
+// on SQLite a file, on PostgreSQL (ABIDATA_TEST_DB=postgres, ADR 0012 §10) a
+// throwaway database's admin schema.
+func storeOpener(t *testing.T) func() (*Store, error) {
+	t.Helper()
+	if os.Getenv("ABIDATA_TEST_DB") == "postgres" {
+		e := pgtest.New(t)
+		n := pgdb.Names{Prefix: e.Prefix}
+		return func() (*Store, error) { return OpenPostgres(context.Background(), e.App.Config(), n) }
+	}
+	path := filepath.Join(t.TempDir(), "admin.db")
+	return func() (*Store, error) { return Open(context.Background(), path, "NORMAL") }
+}
+
 func newStore(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "admin.db"), "NORMAL")
+	s, err := storeOpener(t)()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,8 +472,8 @@ func TestAudit(t *testing.T) {
 
 func TestReopenKeepsData(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "admin.db")
-	s, err := Open(ctx, path, "NORMAL")
+	open := storeOpener(t)
+	s, err := open()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -469,7 +486,7 @@ func TestReopenKeepsData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, err = Open(ctx, path, "NORMAL")
+	s, err = open()
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}

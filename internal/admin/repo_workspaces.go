@@ -73,7 +73,7 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 	var out []Workspace
 	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT `+wsCols+` FROM _adm_workspaces w WHERE w.status <> 'deleted'
-			ORDER BY w.name COLLATE NOCASE, w.id`)
+			ORDER BY w.name, w.id`)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (s *Store) ListWorkspacesForUser(ctx context.Context, userID string) ([]Wor
 		rows, err := c.Query(ctx, `SELECT `+wsCols+`, m.role FROM _adm_workspaces w
 			JOIN _adm_memberships m ON m.workspace_id = w.id
 			WHERE m.user_id = ? AND w.status <> 'deleted'
-			ORDER BY w.name COLLATE NOCASE, w.id`, userID)
+			ORDER BY w.name, w.id`, userID)
 		if err != nil {
 			return err
 		}

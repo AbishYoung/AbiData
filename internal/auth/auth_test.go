@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"abidata/internal/admin"
+	"abidata/internal/admin/admintest"
 	"abidata/internal/fault"
 )
 
@@ -23,11 +24,7 @@ func (c *clock) now() time.Time { return c.t }
 
 func newSvc(t *testing.T) (*Service, *admin.Store, *clock) {
 	t.Helper()
-	st, err := admin.Open(context.Background(), filepath.Join(t.TempDir(), "admin.db"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
+	st := admintest.Open(t)
 	c := &clock{t: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}
 	return NewService(st, Keys{Session: make([]byte, 32)}, fastParams, c.now, nil), st, c
 }

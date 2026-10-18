@@ -9,6 +9,7 @@ import (
 	"github.com/ncruces/go-sqlite3"
 
 	"abidata/internal/dbx"
+	"abidata/internal/pgdb"
 )
 
 var _ Repository = (*Store)(nil)
@@ -19,7 +20,7 @@ func isUnique(err error) bool {
 		c := se.ExtendedCode()
 		return c == sqlite3.CONSTRAINT_UNIQUE || c == sqlite3.CONSTRAINT_PRIMARYKEY
 	}
-	return false
+	return pgdb.IsUniqueViolation(err)
 }
 
 func wrapWrite(err error, what string) error {
@@ -118,7 +119,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, error) 
 func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	var out []User
 	err := s.Read(ctx, func(c dbx.Querier) error {
-		rows, err := c.Query(ctx, `SELECT `+userCols+` FROM _adm_users ORDER BY email COLLATE NOCASE, id`)
+		rows, err := c.Query(ctx, `SELECT `+userCols+` FROM _adm_users ORDER BY email, id`)
 		if err != nil {
 			return err
 		}

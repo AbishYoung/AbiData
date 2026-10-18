@@ -1,6 +1,6 @@
-// Package admin owns the admin database (system/admin.db): users, sessions,
-// workspaces, memberships, settings, the derived job index, backup records and
-// the platform audit log.
+// Package admin owns the admin database (system/admin.db, or <prefix>_admin
+// on PostgreSQL): users, sessions, workspaces, memberships, settings, the
+// derived job index, backup records and the platform audit log.
 package admin
 
 import (
@@ -12,7 +12,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"abidata/internal/dbx"
+	"abidata/internal/pgdb"
 	"abidata/internal/sqlitex"
 )
 
@@ -23,12 +27,15 @@ var migrationFS embed.FS
 const ApplicationID = 0x41424144
 
 // Store is the admin DB. Writes are serialised on one writer connection; reads
-// use a small pool of query_only connections.
+// use a small pool of query_only connections. On PostgreSQL both go through
+// a pool, and writes are still serialised, as BEGIN IMMEDIATE serialises them
+// on SQLite: the repositories read and then write in one transaction.
 type Store struct {
 	path    string
 	wmu     sync.Mutex
 	writer  *sqlitex.Conn
 	readers chan *sqlitex.Conn
+	pg      *pgxpool.Pool
 }
 
 const readerCount = 2
@@ -53,6 +60,22 @@ func Open(ctx context.Context, path string, synchronous string) (*Store, error) 
 		s.readers <- r
 	}
 	return s, nil
+}
+
+// OpenPostgres opens the admin store in <prefix>_admin of the database cfg
+// connects to, creating or migrating it (and <prefix>_lib) first.
+func OpenPostgres(ctx context.Context, cfg *pgxpool.Config, n pgdb.Names) (*Store, error) {
+	cfg = cfg.Copy()
+	cfg.ConnConfig.RuntimeParams["search_path"] = pgdb.Ident(n.Admin()) + ", " + pgdb.Ident(n.Lib())
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("admin: %w", err)
+	}
+	if err := MigratePostgres(ctx, pgdb.Pool(pool), n); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return &Store{path: n.Admin(), pg: pool}, nil
 }
 
 func (s *Store) migrate(ctx context.Context) error {
@@ -90,6 +113,9 @@ func (s *Store) migrate(ctx context.Context) error {
 
 // Read runs fn on a reader connection.
 func (s *Store) Read(ctx context.Context, fn func(q dbx.Querier) error) error {
+	if s.pg != nil {
+		return fn(pgdb.Pool(s.pg))
+	}
 	select {
 	case c := <-s.readers:
 		defer func() {
@@ -111,6 +137,9 @@ func (s *Store) Read(ctx context.Context, fn func(q dbx.Querier) error) error {
 func (s *Store) Write(ctx context.Context, fn func(tx dbx.Tx) error) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
+	if s.pg != nil {
+		return pgx.BeginFunc(ctx, s.pg, func(tx pgx.Tx) error { return fn(pgdb.WrapTx(tx)) })
+	}
 	return s.writer.Immediate(ctx, func(tx *sqlitex.Tx) error { return fn(tx) })
 }
 
@@ -126,6 +155,10 @@ func (s *Store) Ping(ctx context.Context) error {
 func (s *Store) Close() error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
+	if s.pg != nil {
+		s.pg.Close()
+		return nil
+	}
 	close(s.readers)
 	for r := range s.readers {
 		_ = r.Close()
