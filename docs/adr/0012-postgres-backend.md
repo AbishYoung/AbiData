@@ -315,6 +315,14 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
   - `ABIDATA_DB=postgres` with a data directory that holds a SQLite install is refused, with the migration command named.
   - Otherwise the server and role are checked (`pgdb.CheckServer`): PostgreSQL 17 or later, the database's owner, `CREATEROLE`, and not a superuser. Then the server stops: until Phase 3 an install cannot be half on PostgreSQL, so `postgres` is checked but not run.
 
+**Phase 3, part 1 (as built): the workspace system tables.**
+
+- **Migrations.** `internal/catalog/migrations/postgres` keeps SQLite's numbering and creates the same `_sys_*` tables in the workspace's schema, with the rules of the admin tables (text timestamps, 0/1 flags, `abi_ci`, `abi_json_valid`, identity columns for rowids, `double precision` for REAL).
+  - 0002 swaps the field-type CHECK, which SQLite does by rebuilding the table.
+  - The attachment triggers (0003) are plpgsql functions in the workspace's schema, with its search path fixed when they are created.
+- **Running them.** `catalog.MigratePostgres` runs each migration as one transaction with its version step, keeps the version in `_sys_schema`, and seeds `_sys_meta` as `Migrate` does. The schema (`pgdb.ProvisionWorkspace`) and `<prefix>_lib` must exist.
+- **Tests** (`internal/catalog/postgres_test.go`): the same columns, order, nullability, storage class and indexes as SQLite; the same migration names; the triggers; and every portable catalog statement prepares with SQLite's result columns. `make test-postgres` runs the catalog package.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):
