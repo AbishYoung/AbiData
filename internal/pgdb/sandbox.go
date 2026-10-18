@@ -136,13 +136,28 @@ func GrantUserTable(ctx context.Context, c dbx.Execer, n Names, table string) er
 
 // DropWorkspace removes a workspace's schema and roles.
 func DropWorkspace(ctx context.Context, c dbx.Execer, n Names) error {
-	for _, q := range []string{
-		`DROP SCHEMA IF EXISTS ` + ident(n.Schema()) + ` CASCADE`,
-		`DROP ROLE IF EXISTS ` + ident(n.ReadLogin()),
-		`DROP ROLE IF EXISTS ` + ident(n.WriteLogin()),
-		`DROP ROLE IF EXISTS ` + ident(n.WriteRole()),
-		`DROP ROLE IF EXISTS ` + ident(n.ReadRole()),
-	} {
+	var database string
+	if err := c.QueryRow(ctx, `SELECT current_database()`).Scan(&database); err != nil {
+		return fmt.Errorf("pgdb: drop %s: %w", n.Workspace, err)
+	}
+	// CONNECT on the database would keep a login from being dropped.
+	var qs []string
+	for _, login := range []string{n.ReadLogin(), n.WriteLogin()} {
+		var exists bool
+		if err := c.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ?)`, login).Scan(&exists); err != nil {
+			return fmt.Errorf("pgdb: drop %s: %w", n.Workspace, err)
+		}
+		if exists {
+			qs = append(qs, `REVOKE CONNECT ON DATABASE `+ident(database)+` FROM `+ident(login))
+		}
+	}
+	for _, q := range append(qs,
+		`DROP SCHEMA IF EXISTS `+ident(n.Schema())+` CASCADE`,
+		`DROP ROLE IF EXISTS `+ident(n.ReadLogin()),
+		`DROP ROLE IF EXISTS `+ident(n.WriteLogin()),
+		`DROP ROLE IF EXISTS `+ident(n.WriteRole()),
+		`DROP ROLE IF EXISTS `+ident(n.ReadRole()),
+	) {
 		if _, err := c.Exec(ctx, q); err != nil {
 			return fmt.Errorf("pgdb: drop %s: %w", n.Workspace, err)
 		}

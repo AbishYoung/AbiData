@@ -67,6 +67,10 @@ func TestStatementsPrepare(t *testing.T) {
 	for _, s := range sqlgen.Statics() {
 		// A statement runs against one of the databases; which one is
 		// recorded in the golden file, so a move between them shows too.
+		if s.PostgresOnly() { // prepared by the PostgreSQL tests of its package
+			fmt.Fprintf(&golden, "%s\t-\tpostgres\t-\n", s.Name)
+			continue
+		}
 		var db string
 		var cols []string
 		var err error

@@ -323,6 +323,15 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **Running them.** `catalog.MigratePostgres` runs each migration as one transaction with its version step, keeps the version in `_sys_schema`, and seeds `_sys_meta` as `Migrate` does. The schema (`pgdb.ProvisionWorkspace`) and `<prefix>_lib` must exist.
 - **Tests** (`internal/catalog/postgres_test.go`): the same columns, order, nullability, storage class and indexes as SQLite; the same migration names; the triggers; and every portable catalog statement prepares with SQLite's result columns. `make test-postgres` runs the catalog package.
 
+**Phase 3, part 2 (as built): the workspace manager.**
+
+- **Mode.** With `workspace.Config.Postgres` set, the manager keeps workspaces as schemas in the install's database, on the app's one pool. Leases, the LRU and the gate are unchanged; a lease means the schema exists and is migrated.
+- **Create** runs `pgdb.ProvisionWorkspace` and the migration in one transaction, so a failure leaves neither schema nor roles. An existing schema is `fs.ErrExist`, as an existing file is. **Drop** removes the schema and roles (`pgdb.DropWorkspace` now revokes the logins' `CONNECT` first, which would otherwise keep them from being dropped).
+- **Reads** run in `READ ONLY`, `REPEATABLE READ` transactions, at most `MaxReaders` at once per workspace.
+- **Writes** keep the gate, and each transaction also takes `SELECT … FOR UPDATE` on the workspace's `_sys_schema` row, bounded by `lock_timeout` for interactive writes (→ `WORKSPACE_BUSY`). This is §5's writer row lock, kept in the workspace's own schema rather than in `<prefix>_admin`: the sandbox roles have no grant on it, and the admin schema stays table-for-table the same as SQLite's.
+- **Search path.** Each transaction sets `SET LOCAL search_path` to the workspace's schema, then `<prefix>_lib`, so nothing reaches the connection's next borrower.
+- **Not yet on PostgreSQL** (`ErrSQLiteOnly`): `ReadConn`, `Maintenance`, `Exclusive`, `Adopt`, and `WriteWith`'s SQLite options. User SQL, catalog apply, backup and restore replace them in later parts.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

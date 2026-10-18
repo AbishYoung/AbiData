@@ -63,11 +63,20 @@ func (l *Lease) Bind(ctx context.Context) (context.Context, context.CancelFunc) 
 
 // Read runs fn on a pooled query_only connection.
 func (l *Lease) Read(ctx context.Context, fn func(q dbx.Querier) error) error {
+	if l.m.pg() != nil {
+		if err := l.check(); err != nil {
+			return err
+		}
+		return l.pgRead(ctx, fn)
+	}
 	return l.ReadConn(ctx, func(c *sqlitex.Conn) error { return fn(c) })
 }
 
 // ReadConn is Read with the concrete connection (for authorizer-guarded user SQL).
 func (l *Lease) ReadConn(ctx context.Context, fn func(c *sqlitex.Conn) error) error {
+	if l.m.pg() != nil {
+		return ErrSQLiteOnly
+	}
 	if err := l.check(); err != nil {
 		return err
 	}
@@ -110,6 +119,9 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 	if err := l.check(); err != nil {
 		return err
 	}
+	if l.m.pg() != nil && (opts.ForeignKeysOff || opts.Setup != nil) {
+		return ErrSQLiteOnly
+	}
 	wctx := ctx
 	if p == Interactive {
 		var cancel context.CancelFunc
@@ -136,6 +148,9 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 	// Re-check after the wait: a drain may have closed the writer.
 	if err := l.check(); err != nil {
 		return err
+	}
+	if l.m.pg() != nil {
+		return l.pgWrite(context.WithValue(ctx, writeKey{l.h.id}, true), p, fn)
 	}
 	w := l.h.writer
 	if opts.ForeignKeysOff {
@@ -176,6 +191,9 @@ func (l *Lease) WriterContext(ctx context.Context) bool { return ctx.Value(write
 // Maintenance runs fn on a fresh read-write connection (VACUUM INTO, integrity
 // checks). Maintenance calls on one workspace are serialised.
 func (l *Lease) Maintenance(ctx context.Context, fn func(c *sqlitex.Conn) error) error {
+	if l.m.pg() != nil {
+		return ErrSQLiteOnly
+	}
 	if err := l.check(); err != nil {
 		return err
 	}
@@ -194,6 +212,9 @@ func (l *Lease) Maintenance(ctx context.Context, fn func(c *sqlitex.Conn) error)
 // connections, runs fn with the file paths, then reopens (running migrations).
 // If other leases do not drain within drain, it gives up with WORKSPACE_BUSY.
 func (l *Lease) Exclusive(ctx context.Context, drain time.Duration, fn func(paths Paths) error) error {
+	if l.m.pg() != nil {
+		return ErrSQLiteOnly
+	}
 	if l.writing.Load() || ctx.Value(writeKey{l.h.id}) != nil {
 		return ErrNestedWrite
 	}

@@ -35,6 +35,9 @@ func TestRegisterRefusesMistakes(t *testing.T) {
 			t.Errorf("%s not marked SQLite-only", sql)
 		}
 	}
+	if pg := RegisterPostgresOnly("sqlgen.test.pg", `SELECT 1 FOR UPDATE`); !pg.PostgresOnly() || pg.SQLiteOnly() {
+		t.Error("PostgreSQL-only statement")
+	}
 	// Words that merely contain a SQLite-only name are portable.
 	Register("sqlgen.test.words", `SELECT updated_at, rowid_hint, dates FROM t`)
 }

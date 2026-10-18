@@ -56,6 +56,9 @@ type Config struct {
 	MaxPageCount func(ctx context.Context, id ids.WorkspaceID) (int64, error)
 	// Observe receives timing samples; nil means none.
 	Observe Observer
+	// Postgres, when set, keeps workspaces in PostgreSQL schemas instead of
+	// files; Migrate and MaxPageCount are then unused.
+	Postgres *PostgresConfig
 }
 
 // Observer receives metrics samples.
@@ -93,6 +96,7 @@ type handle struct {
 	writer     *sqlitex.Conn
 	gate       gate
 	readers    *readerPool
+	pgReaders  chan struct{} // PostgreSQL: one slot per concurrent reader
 	maintMu    sync.Mutex
 	scriptCtx  context.Context // cancelled when the workspace drains
 	scriptStop context.CancelFunc
@@ -146,6 +150,9 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 	if err != nil {
 		return err
 	}
+	if m.pg() != nil {
+		return m.pgCreate(ctx, id)
+	}
 	if _, err := os.Stat(p.DB); err == nil {
 		return fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
 	}
@@ -164,6 +171,9 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 // (same filesystem), and opens it once to run migrations. On failure the file
 // is removed.
 func (m *Manager) Adopt(ctx context.Context, id ids.WorkspaceID, src string) error {
+	if m.pg() != nil {
+		return ErrSQLiteOnly
+	}
 	p, err := m.PathsFor(id)
 	if err != nil {
 		return err
@@ -188,6 +198,13 @@ func (m *Manager) Adopt(ctx context.Context, id ids.WorkspaceID, src string) err
 		return err
 	}
 	return w.Close()
+}
+
+func removeIfExists(f string) error {
+	if err := os.Remove(f); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // syncDir fsyncs a directory so renames in it are durable.
@@ -301,6 +318,11 @@ func (m *Manager) Acquire(ctx context.Context, id ids.WorkspaceID) (*Lease, erro
 // open opens the writer for h. Uses a detached context so one caller's
 // cancellation does not fail other waiters mid-open.
 func (m *Manager) open(ctx context.Context, h *handle) error {
+	if m.pg() != nil {
+		octx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		return m.pgOpen(octx, h)
+	}
 	if _, err := os.Stat(h.paths.DB); errors.Is(err, fs.ErrNotExist) {
 		return ErrNotExist
 	}
@@ -467,7 +489,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 // ReapplyQuota pushes a changed DB-size quota to an open workspace's writer.
 // Closed workspaces pick it up on their next open.
 func (m *Manager) ReapplyQuota(ctx context.Context, id ids.WorkspaceID) error {
-	if m.cfg.MaxPageCount == nil {
+	if m.cfg.MaxPageCount == nil || m.pg() != nil {
 		return nil
 	}
 	m.mu.Lock()
