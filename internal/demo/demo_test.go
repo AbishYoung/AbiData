@@ -343,7 +343,7 @@ func TestInvasivesIsItsOwnWorkspace(t *testing.T) {
 	}
 	defer l.Release()
 	var tables []string
-	if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(r.ctx, `SELECT display_name FROM _sys_tables ORDER BY display_name`)
 		if err != nil {
 			return err
