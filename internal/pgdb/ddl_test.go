@@ -64,7 +64,7 @@ func TestStoredExpressionsAgree(t *testing.T) {
 			t.Logf("%s: SQLite cannot store it as %s (%v); skipped", src, typ, err)
 			continue
 		}
-		pg, err := sqlgen.Render(sqlgen.Postgres, ct)
+		pg, err := sqlgen.Render(e.d, ct)
 		if err != nil {
 			t.Errorf("%s: PostgreSQL render: %v", src, err)
 			continue
@@ -99,7 +99,7 @@ func TestDDLTriggersAndIndexes(t *testing.T) {
 	d := Wrap(e.pg)
 	exec := func(s sqlgen.Stmt) {
 		t.Helper()
-		r, err := sqlgen.Render(sqlgen.Postgres, s)
+		r, err := sqlgen.Render(e.d, s)
 		if err != nil {
 			t.Fatal(err)
 		}

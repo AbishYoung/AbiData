@@ -50,6 +50,7 @@ var items = []struct {
 type diffEnv struct {
 	lite *sqlitex.Conn
 	pg   *pgxpool.Conn
+	d    sqlgen.Dialect // the server's
 }
 
 func diffSetup(t *testing.T) *diffEnv {
@@ -98,7 +99,11 @@ func diffSetup(t *testing.T) *diffEnv {
 	if _, err := pg.Exec(ctx, `SET search_path = `+s+`, `+ident(e.a.Lib())); err != nil {
 		t.Fatal(err)
 	}
-	return &diffEnv{lite: lite, pg: pg}
+	dialect, err := Dialect(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &diffEnv{lite: lite, pg: pg, d: dialect}
 }
 
 // rows runs a rendered model on both engines.
@@ -109,7 +114,7 @@ func (e *diffEnv) rows(t *testing.T, s sqlgen.Stmt) (lite, pg [][]any, pgSQL str
 	if err != nil {
 		t.Fatalf("SQLite render: %v", err)
 	}
-	pr, err := sqlgen.Render(sqlgen.Postgres, s)
+	pr, err := sqlgen.Render(e.d, s)
 	if err != nil {
 		return nil, nil, "", err
 	}
