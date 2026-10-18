@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 ABIDATA_BOOTSTRAP_ADMIN_EMAIL ?= admin@example.com
 
-.PHONY: dev dev-web test lint gen build docker docker-local e2e screenshots web-deps web-build clean
+.PHONY: dev dev-web test test-postgres lint gen build docker docker-local e2e screenshots web-deps web-build clean
 
 web/node_modules: web/package-lock.json
 	npm --prefix web ci
@@ -31,6 +31,11 @@ dev-web: web/node_modules
 test: web/node_modules
 	go test -race ./...
 	npm --prefix web test
+
+# PostgreSQL backend tests (ADR 0012) against throwaway servers in Docker.
+# ABIDATA_TEST_POSTGRES_IMAGES picks the images (default postgres:17 postgres:18).
+test-postgres:
+	scripts/test-postgres.sh
 
 lint: web/node_modules
 	golangci-lint run ./...
