@@ -40,6 +40,11 @@ func (r *renderer) ddl(s Stmt) bool {
 	default:
 		return false
 	}
+	// A schema object outlives the statement that created it, so its defaults
+	// and checks are literals: there is nothing to bind a value to.
+	if len(r.args) > 0 || len(r.params) > 0 {
+		r.fail("a schema statement cannot bind values; use literals")
+	}
 	return true
 }
 
