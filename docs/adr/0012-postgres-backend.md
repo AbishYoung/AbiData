@@ -114,7 +114,7 @@ Generated SQL comes from ADR 0013's renderers, and values pass through its per-d
 | Field type | SQLite | PostgreSQL |
 |---|---|---|
 | autonumber `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | `bigint GENERATED ALWAYS AS IDENTITY` |
-| short/long text, hyperlink | `TEXT` + length CHECK | `text` with collation `<prefix>_ci` (ICU nondeterministic, `und-u-ks-level2`) + length CHECK |
+| short/long text, hyperlink | `TEXT` + length CHECK | `text COLLATE "C"` + length CHECK. Text is binary, as on SQLite; the nondeterministic `<prefix>_lib.abi_ci` collation (ICU `und-u-ks-level2`) applies only where SQLite uses NOCASE: sorting, text indexes and upsert targets (ADR 0013 Phase F) |
 | integer, lookup | `INTEGER` | `bigint` (lookup keeps its FK) |
 | number | `REAL` | `double precision` |
 | currency | `INTEGER` ×10⁴ (D13) | `bigint` ×10⁴, unchanged, so the API, Lua `decimal` and exports are identical |
