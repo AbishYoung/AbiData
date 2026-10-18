@@ -18,7 +18,8 @@ commands:
   user reset-password --email E
                             set a new password for a user and sign them out everywhere
                             (password read from stdin or ABIDATA_PASSWORD; server stopped)
-  demo --owner EMAIL        create the "Northwind Traders" sample workspace for an
+  demo --owner EMAIL [--kind traders|invasives|all]
+                            create the sample workspaces (default: both) for an
                             existing user (the server must be stopped)
   version                   print the version
 `
