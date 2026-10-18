@@ -50,7 +50,7 @@ func (r *renderer) pgCast(c Cast) {
 		r.w("CAST(trunc(CAST(")
 		r.pgNumberExpr(c.X)
 		r.w(" AS double precision)) AS bigint)")
-	case c.Type == Text && from == Boolean:
+	case c.Type == Text && (from == Boolean || from == Number):
 		r.pgText(c.X)
 	case (c.Type == Integer || c.Type == Number) && from == Boolean:
 		r.w("CAST(")
@@ -63,24 +63,29 @@ func (r *renderer) pgCast(c Cast) {
 	}
 }
 
-// pgNumber renders e as an operand of arithmetic: a yes/no counts as 0 or 1,
-// as it does on SQLite.
+// pgNumber renders e as an operand of arithmetic, as SQLite reads it: a
+// yes/no counts as 0 or 1, and text (a date, JSON) as its leading number.
 func (r *renderer) pgNumber(e Expr) {
 	if r.pgAs(e, Number) {
 		return
 	}
-	if typeOf(e) == Boolean {
+	switch typeOf(e) {
+	case Boolean:
 		r.w("CAST(")
 		r.expr(e)
 		r.w(" AS integer)")
-		return
+	case Text, Date, DateTime, JSON, GeoPoint, GeoArea, Attachments:
+		r.w("abi_text_num(")
+		r.pgText(e)
+		r.w(")")
+	default:
+		r.operand(e)
 	}
-	r.operand(e)
 }
 
-// pgText renders e where text is required. A yes/no is its SQLite text, 0 or
-// 1; numbers use PostgreSQL's formatting (a whole number of type number shows
-// as 2, not SQLite's 2.0).
+// pgText renders e where text is required, as SQLite writes the value as
+// text: a yes/no is 0 or 1, and a number of type number is written as SQLite
+// writes a double (2.0, 1.0e+20).
 func (r *renderer) pgText(e Expr) {
 	if r.pgAs(e, Text) {
 		return
@@ -101,6 +106,10 @@ func (r *renderer) pgText(e Expr) {
 		r.w("CAST(CAST(")
 		r.expr(e)
 		r.w(" AS integer) AS text)")
+	case Number:
+		r.w("abi_real_text(")
+		r.expr(e)
+		r.w(")")
 	case DateTime:
 		if !pgNativeTime(e) {
 			r.operand(e)
@@ -474,6 +483,7 @@ func init() {
 		},
 	}
 	addPGJSONFuncs()
+	addPGValueFuncs()
 }
 
 // pgDateFunc renders SQLite's date and time functions as the <prefix>_lib
@@ -635,7 +645,7 @@ func pgExtreme(fn string, agg AggFn) pgFn {
 
 // pgPending names the catalog functions that do not render on PostgreSQL yet.
 // Phase F part 2 adds them to <prefix>_lib with SQLite's semantics.
-var pgPending = strings.Fields(`timediff json_error_position format printf quote typeof unhex`)
+var pgPending = strings.Fields(`json_error_position format printf`)
 
 func (r *renderer) pgFunc(def FuncDef, args []Expr) {
 	if def.MaxArgs >= 0 && len(args) > def.MaxArgs || len(args) < def.MinArgs {

@@ -157,7 +157,7 @@ CREATE OR REPLACE FUNCTION @lib.abi_json_text(v jsonb) RETURNS text
 LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 RETURN CASE jsonb_typeof(v)
 	WHEN 'string' THEN v #>> '{}'
-	WHEN 'number' THEN CASE WHEN v::text ~ '[.eE]' THEN ((v #>> '{}')::double precision)::text ELSE v::text END
+	WHEN 'number' THEN CASE WHEN v::text ~ '[.eE]' THEN @lib.abi_real_text((v #>> '{}')::double precision) ELSE v::text END
 	WHEN 'boolean' THEN CASE WHEN v = 'true' THEN '1' ELSE '0' END
 	WHEN 'null' THEN NULL
 	ELSE @lib.abi_json_min(v) END;

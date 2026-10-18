@@ -180,3 +180,50 @@ END $$;
 CREATE OR REPLACE FUNCTION @lib.abi_random() RETURNS bigint
 LANGUAGE sql VOLATILE PARALLEL SAFE
 RETURN (floor(random() * 18446744073709551616::numeric) - 9223372036854775808::numeric)::bigint;
+
+-- abi_real_fmt writes a decimal as SQLite writes a double: always with a
+-- decimal point, and in exponent form below 1e-4 or from 1e17.
+CREATE OR REPLACE FUNCTION @lib.abi_real_fmt(n numeric) RETURNS text
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+DECLARE
+	e integer;
+	m text;
+BEGIN
+	IF n = 0 THEN
+		RETURN '0.0';
+	END IF;
+	e := floor(log(abs(n)))::integer;
+	IF e < -4 OR e > 16 THEN
+		m := trim_scale(n / power(10::numeric, e))::text;
+		IF strpos(m, '.') = 0 THEN
+			m := m || '.0';
+		END IF;
+		RETURN m || 'e' || CASE WHEN e < 0 THEN '-' ELSE '+' END || lpad(abs(e)::text, 2, '0');
+	END IF;
+	m := trim_scale(n)::text;
+	IF strpos(m, '.') = 0 THEN
+		m := m || '.0';
+	END IF;
+	RETURN m;
+END $$;
+
+-- abi_real_digits is a double's exact value rounded to p significant digits.
+CREATE OR REPLACE FUNCTION @lib.abi_real_digits(f double precision, p integer) RETURNS numeric
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+DECLARE
+	n numeric := @lib.abi_exact(f);
+BEGIN
+	IF n = 0 THEN
+		RETURN 0;
+	END IF;
+	RETURN round(n, p - 1 - floor(log(abs(n)))::integer);
+END $$;
+
+-- abi_real_text is a double as SQLite writes it as text: 15 significant
+-- digits when they read back as the same double, otherwise 17. NaN is NULL,
+-- as SQLite stores it.
+CREATE OR REPLACE FUNCTION @lib.abi_real_text(f double precision) RETURNS text
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+RETURN CASE WHEN f = 'NaN' THEN NULL WHEN f = 'Infinity' THEN 'Inf' WHEN f = '-Infinity' THEN '-Inf'
+	WHEN @lib.abi_real_digits(f, 15)::double precision = f THEN @lib.abi_real_fmt(@lib.abi_real_digits(f, 15))
+	ELSE @lib.abi_real_fmt(@lib.abi_real_digits(f, 17)) END;
