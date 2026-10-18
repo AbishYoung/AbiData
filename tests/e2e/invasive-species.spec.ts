@@ -118,6 +118,34 @@ test("the zone editor draws a boundary on a map that shows the sightings", async
   await dialog.getByRole("button", { name: "Cancel" }).click();
 });
 
+test("moving between zones refits the map to each record's boundary", async ({ page }) => {
+  // Regression: a refit asked for while Leaflet was still animating the previous one was dropped,
+  // so after Next the map could stay on the previous zone with the new boundary out of view.
+  await openInvasives(page);
+  const form = await openForm(page, "Quarantine zone");
+  const map = form.getByRole("application", { name: /map/ });
+  await expect(form.getByTestId("map-value")).toContainText("Area");
+  /** True when the record's boundary is drawn and lies inside the visible map. */
+  const boundaryInView = () =>
+    map.evaluate((el) => {
+      const area = el.querySelector("path.abd-area");
+      if (!area || area.getAttribute("d") === "M0 0") return false;
+      const a = area.getBoundingClientRect();
+      const m = el.getBoundingClientRect();
+      return a.width > 4 && a.height > 4 && a.left >= m.left - 1 && a.right <= m.right + 1 && a.top >= m.top - 1 && a.bottom <= m.bottom + 1;
+    });
+  const position = form.getByText(/Record \d+ of \d+/).first();
+  const total = Number((/of (\d+)/.exec((await position.textContent()) ?? "") ?? [])[1] ?? 1);
+  expect(total).toBeGreaterThan(1);
+  for (const dir of ["Next record", "Previous record"]) {
+    for (let i = 1; i < total; i++) {
+      // Quickly, as a user clicking through: the next step starts before the map settles.
+      await form.getByRole("button", { name: dir }).click();
+      await expect.poll(boundaryInView, { timeout: 5_000, message: `${dir} ${i}: boundary in view` }).toBe(true);
+    }
+  }
+});
+
 test("the spatial query lists the sightings inside quarantine zones", async ({ page }) => {
   await openInvasives(page);
   const ws = workspaceId(page);

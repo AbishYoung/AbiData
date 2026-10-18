@@ -117,14 +117,24 @@ export function boundsOf(b: BBox): L.LatLngBoundsExpression {
   ];
 }
 
-/** Moves the view to a bounding box (a point gets a street-level zoom). */
+/**
+ * Moves the view to a bounding box (a point gets a street-level zoom), without animation.
+ * Leaflet silently ignores a setView or fitBounds asked for while a zoom animation is running
+ * (`_tryAnimatedZoom` returns early), so an animated fit followed quickly by another, as when
+ * stepping through records, left the map on the previous record. A fit that arrives during a zoom
+ * the user started waits for its end.
+ */
 export function fitMap(map: L.Map, b: BBox | null): void {
-  if (!b) {
-    map.setView([20, 0], 2);
+  if ((map as L.Map & { _animatingZoom?: boolean })._animatingZoom) {
+    map.once("zoomend", () => fitMap(map, b));
     return;
   }
-  if (b[0] === b[2] && b[1] === b[3]) map.setView([b[1], b[0]], 15);
-  else map.fitBounds(boundsOf(b), { padding: [24, 24], maxZoom: 16 });
+  if (!b) {
+    map.setView([20, 0], 2, { animate: false });
+    return;
+  }
+  if (b[0] === b[2] && b[1] === b[3]) map.setView([b[1], b[0]], 15, { animate: false });
+  else map.fitBounds(boundsOf(b), { padding: [24, 24], maxZoom: 16, animate: false });
 }
 
 export interface LeafletMapProps {
