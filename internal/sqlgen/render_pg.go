@@ -84,6 +84,15 @@ func (r *renderer) pgText(e Expr) {
 		r.w("to_char(")
 		r.expr(e)
 		r.w(` AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`)
+	case GeoPoint, GeoArea:
+		if c, ok := e.(Col); ok {
+			// The canonical GeoJSON SQLite stores: jsonb's text has spaces.
+			r.w("abi_geo_text(")
+			r.expr(c)
+			r.w(")")
+			return
+		}
+		r.operand(e)
 	case Date:
 		if !pgNativeTime(e) {
 			r.operand(e)
@@ -261,6 +270,23 @@ func pgCall(name string, each func(r *renderer, e Expr)) pgFn {
 
 func asText(r *renderer, e Expr) { r.pgText(e) }
 
+// asNumberCast passes a number as double precision.
+func asNumberCast(r *renderer, e Expr) {
+	r.w("CAST(")
+	r.pgNumberExpr(e)
+	r.w(" AS double precision)")
+}
+
+// asGeo passes a geometry: a location or area column as its jsonb (ADR 0012
+// §4), anything else as GeoJSON or location text.
+func asGeo(r *renderer, e Expr) {
+	if c, ok := e.(Col); ok && (c.Type == GeoPoint || c.Type == GeoArea) {
+		r.expr(e)
+		return
+	}
+	r.pgText(e)
+}
+
 // asBinaryText compares characters exactly, as SQLite's instr and replace do
 // whatever the column's collation.
 func asBinaryText(r *renderer, e Expr) { r.pgMatchSubject(e) }
@@ -396,12 +422,20 @@ func init() {
 			}
 			r.w(")")
 		},
-		"date":      pgDateFunc("abi_date", false),
-		"time":      pgDateFunc("abi_time", false),
-		"datetime":  pgDateFunc("abi_datetime", false),
-		"julianday": pgDateFunc("abi_julianday", false),
-		"unixepoch": pgDateFunc("abi_unixepoch", false),
-		"strftime":  pgDateFunc("abi_strftime", true),
+		"geo_point":      pgCall("geo_point", asNumberCast),
+		"geo_lat":        pgCall("geo_lat", asGeo),
+		"geo_lon":        pgCall("geo_lon", asGeo),
+		"geo_distance_m": pgCall("geo_distance_m", asGeo),
+		"geo_within":     pgCall("geo_within", asGeo),
+		"geo_area_m2":    pgCall("geo_area_m2", asGeo),
+		"geo_centroid":   pgCall("geo_centroid", asGeo),
+		"geo_bbox":       pgCall("geo_bbox", asGeo),
+		"date":           pgDateFunc("abi_date", false),
+		"time":           pgDateFunc("abi_time", false),
+		"datetime":       pgDateFunc("abi_datetime", false),
+		"julianday":      pgDateFunc("abi_julianday", false),
+		"unixepoch":      pgDateFunc("abi_unixepoch", false),
+		"strftime":       pgDateFunc("abi_strftime", true),
 		"total": func(r *renderer, args []Expr) {
 			r.w("coalesce(SUM(CAST(")
 			r.pgNumberExpr(args[0])
@@ -568,7 +602,6 @@ func pgExtreme(fn string, agg AggFn) pgFn {
 var pgPending = strings.Fields(`timediff
 	json json_array json_array_length json_error_position json_extract json_insert json_object json_patch
 	json_quote json_remove json_replace json_set json_type json_valid
-	geo_point geo_lat geo_lon geo_distance_m geo_within geo_area_m2 geo_centroid geo_bbox
 	format printf quote typeof unhex`)
 
 func (r *renderer) pgFunc(def FuncDef, args []Expr) {

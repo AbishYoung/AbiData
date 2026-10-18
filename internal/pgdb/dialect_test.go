@@ -32,15 +32,16 @@ var items = []struct {
 	price       any
 	active      any
 	due, at     any // a date and a date and time, as SQLite stores them
+	pt, zone    any // a location and an area, canonical GeoJSON
 	description string
 }{
-	{"Apple", "50% off", int64(3), 1.25, true, "2026-01-31", "2026-10-18T09:30:15.250Z", "plain"},
-	{"banana", "50 percent", nil, 0.5, false, "2024-02-29", "2024-02-29T23:59:59.999Z", "lower case, no quantity, leap day"},
-	{"Cherry", "a_b", int64(10), -2.5, true, "2025-12-31", "2026-01-01T00:00:00.000Z", "negative price, year end"},
-	{"apricot", "axb", int64(-7), 2.675, nil, nil, nil, "negative quantity, unknown flag, no dates"},
-	{nil, nil, int64(0), nil, false, "1970-01-01", "1969-12-31T12:00:00.000Z", "NULL text, epoch"},
-	{"Éclair", "crème brûlée", int64(1), 100.0, true, "2000-03-01", "2000-02-28T12:00:00.001Z", "non-ASCII, century leap year"},
-	{"date", "[x]*?", int64(2), 1e-3, false, "2026-07-05", "2026-07-05T00:00:00.000Z", "glob characters, a Sunday"},
+	{"Apple", "50% off", int64(3), 1.25, true, "2026-01-31", "2026-10-18T09:30:15.250Z", `{"type":"Point","coordinates":[-0.1278,51.5074]}`, `{"type":"Polygon","coordinates":[[[-1,51],[1,51],[1,52],[-1,52],[-1,51]]]}`, "plain"},
+	{"banana", "50 percent", nil, 0.5, false, "2024-02-29", "2024-02-29T23:59:59.999Z", `{"type":"Point","coordinates":[2.3522,48.8566]}`, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]],[[0.25,0.25],[0.25,0.75],[0.75,0.75],[0.75,0.25],[0.25,0.25]]]}`, "lower case, no quantity, leap day"},
+	{"Cherry", "a_b", int64(10), -2.5, true, "2025-12-31", "2026-01-01T00:00:00.000Z", `{"type":"Point","coordinates":[0.5,0.5]}`, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}`, "negative price, year end"},
+	{"apricot", "axb", int64(-7), 2.675, nil, nil, nil, nil, nil, "negative quantity, unknown flag, no dates"},
+	{nil, nil, int64(0), nil, false, "1970-01-01", "1969-12-31T12:00:00.000Z", `{"type":"Point","coordinates":[1,0.25,12.5]}`, `{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,0]]],[[[2,2],[3,2],[3,3],[2,3],[2,2]]]]}`, "NULL text, epoch"},
+	{"Éclair", "crème brûlée", int64(1), 100.0, true, "2000-03-01", "2000-02-28T12:00:00.001Z", `{"type":"Point","coordinates":[0,0]}`, `{"type":"Polygon","coordinates":[[[0,0],[0.0000001,0],[0.0000001,0.0000001],[0,0.0000001],[0,0]]]}`, "non-ASCII, century leap year"},
+	{"date", "[x]*?", int64(2), 1e-3, false, "2026-07-05", "2026-07-05T00:00:00.000Z", `{"type":"Point","coordinates":[-73.9857,40.7484]}`, `{"type":"Polygon","coordinates":[[[-74.1,40.6],[-73.8,40.6],[-73.8,40.9],[-74.1,40.9],[-74.1,40.6]]]}`, "glob characters, a Sunday"},
 }
 
 type diffEnv struct {
@@ -60,7 +61,7 @@ func diffSetup(t *testing.T) *diffEnv {
 	for _, q := range []string{
 		`CREATE COLLATION ` + s + `.ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)`,
 		`CREATE TABLE ` + s + `.items (id bigint PRIMARY KEY, name text COLLATE ` + s + `.ci, qty bigint,
-			price double precision, active boolean, note text COLLATE ` + s + `.ci, due date, at timestamptz)`,
+			price double precision, active boolean, note text COLLATE ` + s + `.ci, due date, at timestamptz, pt jsonb, zone jsonb)`,
 	} {
 		if _, err := d.Exec(ctx, q); err != nil {
 			t.Fatal(err)
@@ -72,7 +73,7 @@ func diffSetup(t *testing.T) *diffEnv {
 	}
 	t.Cleanup(func() { _ = lite.Close() })
 	if err := lite.ExecScript(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT COLLATE NOCASE, qty INTEGER,
-		price REAL, active INTEGER, note TEXT COLLATE NOCASE, due TEXT, at TEXT) STRICT`); err != nil {
+		price REAL, active INTEGER, note TEXT COLLATE NOCASE, due TEXT, at TEXT, pt TEXT, zone TEXT) STRICT`); err != nil {
 		t.Fatal(err)
 	}
 	for i, it := range items {
@@ -80,10 +81,10 @@ func diffSetup(t *testing.T) *diffEnv {
 		if b, ok := it.active.(bool); ok {
 			flag = map[bool]int64{false: 0, true: 1}[b]
 		}
-		if _, err := lite.Exec(ctx, `INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, flag, it.note, it.due, it.at); err != nil {
+		if _, err := lite.Exec(ctx, `INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, flag, it.note, it.due, it.at, it.pt, it.zone); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := d.Exec(ctx, `INSERT INTO `+s+`.items VALUES (?, ?, ?, ?, ?, ?, CAST(? AS date), CAST(? AS timestamptz))`, i+1, it.name, it.qty, it.price, it.active, it.note, it.due, it.at); err != nil {
+		if _, err := d.Exec(ctx, `INSERT INTO `+s+`.items VALUES (?, ?, ?, ?, ?, ?, CAST(? AS date), CAST(? AS timestamptz), CAST(? AS jsonb), CAST(? AS jsonb))`, i+1, it.name, it.qty, it.price, it.active, it.note, it.due, it.at, it.pt, it.zone); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -189,6 +190,8 @@ var itemColumns = []exprlang.Column{
 	{Name: "note", Type: sqlgen.Text, CI: true},
 	{Name: "due", Type: sqlgen.Date},
 	{Name: "at", Type: sqlgen.DateTime},
+	{Name: "pt", Type: sqlgen.GeoPoint},
+	{Name: "zone", Type: sqlgen.GeoArea},
 }
 
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
@@ -236,6 +239,17 @@ func TestExpressionsAgree(t *testing.T) {
 		"date(qty * 1000000, 'start of month')", "date(NULL, '+1 day')", "date(due, NULL)",
 		"due < '2026-06-01'", "due = '2024-02-29'", "at > '2026-01-01T00:00:00.000Z'", "due = date(at)",
 		"date(due) < date(at)", "julianday(at) > 2461000", "due || ''", "at || ''", "length(at)",
+		// locations and areas
+		"geo_lat(pt)", "geo_lon(pt)", "geo_point(price, qty)", "geo_point(51.5, -0.1278)", "geo_point(91, 0)",
+		"geo_distance_m(pt, geo_point(51.5, -0.12))", "geo_distance_m(pt, '48.85, 2.35')", "geo_within(pt, zone)",
+		"geo_within(geo_point(0.5, 0.5), zone)", "geo_within(geo_point(0.25, 0.5), zone)", "geo_within('0.5, 0', zone)",
+		"geo_area_m2(zone)", "geo_centroid(zone)", "geo_bbox(zone)", "pt || ''", "zone || ''", "length(zone)",
+		"geo_lat('51.5, -0.12')", "geo_lat('51.5, -0.12, 30')", "geo_lon('POINT(-0.12 51.5)')", "geo_lat('{\"lat\": \"1.5\", \"lng\": 2}')",
+		"geo_lat('{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[3,4]}}')",
+		"geo_lat('garbage')", "geo_lat('91, 0')", "geo_lat(name)", "geo_area_m2(note)",
+		"geo_area_m2('{\"type\":\"Polygon\",\"coordinates\":[[[170,0],[-170,0],[-170,1],[170,0]]]}')",
+		"geo_area_m2('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[1,1],[2,2],[0,0]]]}')",
+		"geo_centroid('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[3,0],[3,1],[0,1]]]}')",
 		"radians(qty)", "sin(qty)", "cos(price)", "tan(qty)", "atan(price)", "atan2(qty, price)", "acos(price)",
 		"asin(price)", "acosh(qty)", "asinh(price)", "atanh(price)", "sinh(price)", "cosh(price)", "tanh(qty)",
 	} {
@@ -260,6 +274,9 @@ var knownDifferences = map[string][]int{
 	// follow Unicode.
 	"lower(name)": {6},
 	"upper(note)": {6},
+	// A 1 cm² area: the spherical-excess sum cancels almost completely, so
+	// the last bits of Go's and C's sin show (a relative 2e-8).
+	"geo_area_m2(zone)": {6},
 }
 
 // TestStatementsAgree covers what is not a per-row expression: grouping and
