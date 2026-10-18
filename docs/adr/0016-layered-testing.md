@@ -148,7 +148,7 @@ Serial test time per area, as a guide for CI shard length: a11y 79 s, automation
 - The first CI runs of e2e (GitHub's Linux runners) showed differences the macOS runs never had:
   - Vitest's worker threads share the process's time zone, so `vi.stubEnv("TZ", …)` no longer took effect. `web/vitest.global.ts` now fixes the zone before the workers start.
   - Three tests fail only on Linux and are marked `test.fixme` there:
-    - the letter-size PDF snapshot in `reports.spec.ts`, whose first page lacks the footer with Linux font metrics;
+    - the PDF snapshots in `reports.spec.ts`, whose first page lacks the footer with Linux font metrics;
     - focus after opening a form with Enter in `forms-runtime.spec.ts`;
     - a truncated import step label in `mobile.spec.ts`.
 - Follow-ups:

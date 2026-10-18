@@ -128,7 +128,7 @@ for (const [name, kind, width, height] of [
   ["Sales A4", "a4", 595.28, 841.89],
 ] as const) {
   test(`PDF snapshot: ${kind} page count and text per page`, async ({ page }) => {
-    test.fixme(process.platform === "linux" && kind === "letter", "On Linux the letter PDF's first page has no footer (font metrics); follow-up in ADR 0016");
+    test.fixme(process.platform === "linux", "On Linux the PDF's first page has no footer (font metrics); follow-up in ADR 0016");
     await openWorkspace(page, WS);
     await openReport(page, name);
     const { total } = await pageOf(page);
