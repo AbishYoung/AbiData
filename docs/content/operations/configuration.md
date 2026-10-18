@@ -35,6 +35,7 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_MANIFEST_KEY` | Generated on first start | Key that signs backup manifests: same format. See [Backup strategy](/docs/operations/backup-strategy#manifest-key) |
 | `ABIDATA_BOOTSTRAP_ADMIN_EMAIL` | (none) | Email for the first platform administrator. While no user exists, the server prints a one-time setup token. See [Install](/docs/operations/install#first-run) |
 | `ABIDATA_DEMO_WORKSPACE` | `true` | When the first administrator is created through the setup page, also create the **Northwind Traders** and **Northwind Invasives** sample workspaces for them. `false` or `0` turns it off. See [Install](/docs/operations/install#demo) |
+| `ABIDATA_PUBLIC_APPS` | `true` | Whether workspace owners can publish [public apps](/docs/guide/apps). `false` or `0` turns them off for the whole install, and the administrator setting cannot turn them back on. |
 | `ABIDATA_DEBUG_ADDR` | (empty: off) | Address for the Go profiler (`/debug/pprof/`), such as `127.0.0.1:6060`. See below |
 | `ABIDATA_METRICS_ADDR` | (empty: off) | Extra listener serving `/metrics` without authentication, for Prometheus. Bind it to a private address. See [Monitoring](/docs/operations/monitoring#metrics) |
 | `ABIDATA_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |

@@ -13,6 +13,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"abidata/internal/admin"
+	"abidata/internal/apps"
 	"abidata/internal/auth"
 	"abidata/internal/catalog"
 	"abidata/internal/events"
@@ -304,6 +305,17 @@ func (s *Server) registerData(api huma.API) {
 				if ks, err := s.deps.Admin.ListAPIKeys(ctx, l.ID()); err == nil {
 					for _, k := range ks {
 						names[auth.ActorID(k.ID)] = auth.APIKeyDisplayName(k.Name)
+					}
+				}
+				break
+			}
+		}
+		// Submissions through a public app are attributed to "app:<id>" (ADR 0014).
+		for _, e := range entries {
+			if apps.IsActor(e.UserID) {
+				if as, err := s.deps.Admin.ListApps(ctx, l.ID()); err == nil {
+					for _, a := range as {
+						names[apps.ActorID(a.ID)] = apps.DisplayName(a.Name)
 					}
 				}
 				break

@@ -27,6 +27,7 @@ const (
 	keyPrincipal ctxKey = iota
 	keyClientIP
 	keyMembership
+	keyApp
 )
 
 // Membership is the caller's access to the workspace named in the path.
@@ -54,7 +55,7 @@ func clientIP(ctx context.Context) string {
 
 // Operation metadata keys.
 const (
-	metaAccess = "access" // "public" | "session" (default) | "platform_admin"
+	metaAccess = "access" // "public" | "session" (default) | "platform_admin" | "app"
 	metaRole   = "role"   // admin.Role minimum for /w/{ws} routes (default viewer)
 	// metaSessionOnly (bool) refuses API-key callers even if their role would pass.
 	metaSessionOnly = "session_only"
@@ -205,6 +206,12 @@ func metaString(op *huma.Operation, key string) string {
 // methods, then workspace membership and role for /w/{ws} routes.
 func (s *Server) authenticate(hctx huma.Context, next func(huma.Context)) {
 	op := hctx.Operation()
+	// Public apps answer to their link alone: neither cookies nor Authorization
+	// are read, so a member's session or an API key never mixes in (ADR 0014).
+	if metaString(op, metaAccess) == "app" {
+		s.authenticateApp(hctx, next)
+		return
+	}
 	// A bearer Authorization header means API-key auth and nothing else: cookies
 	// are never read, so a browser's ambient credentials cannot mix in.
 	if authz := hctx.Header("Authorization"); isBearer(authz) {

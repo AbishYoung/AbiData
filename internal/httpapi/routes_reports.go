@@ -10,7 +10,10 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 
 	"abidata/internal/admin"
+	"abidata/internal/catalog"
+	"abidata/internal/query"
 	"abidata/internal/reports"
+	"abidata/internal/workspace"
 )
 
 // reportWriteTimeout bounds how long a report stream waits on a slow client.
@@ -157,47 +160,52 @@ func (s *Server) registerReports(api huma.API) {
 			}
 			p, _ := PrincipalFrom(ctx)
 			m, _ := MembershipFrom(ctx)
-			tz := workspaceTZ(ctx, l)
-			return &huma.StreamResponse{Body: func(hctx huma.Context) {
-				defer l.Release()
-				hctx.SetHeader("Content-Type", "application/x-ndjson")
-				hctx.SetHeader("Cache-Control", "no-store")
-				hctx.SetHeader("X-Accel-Buffering", "no")
-				w := hctx.BodyWriter()
-				enc := json.NewEncoder(w)
-				flusher, _ := w.(http.Flusher)
-				// A client that stops reading must not pin the run's rows in
-				// memory: each write gets a deadline (ignored if unsupported).
-				_, rw := humachi.Unwrap(hctx)
-				rc := http.NewResponseController(rw)
-				n := 0
-				bctx, stop := l.Bind(hctx.Context())
-				defer stop()
-				err := s.deps.Reports.Run(bctx, reports.RunInput{Lease: l, Schema: sch, Report: rep, Params: params,
-					Caller: reports.Caller{UserID: p.UserID, Builder: m.Role.AtLeast(admin.RoleBuilder), TZ: tz},
-					Emit: func(inst reports.Instance) error {
-						if n%200 == 0 {
-							_ = rc.SetWriteDeadline(time.Now().Add(reportWriteTimeout))
-						}
-						if err := enc.Encode(inst); err != nil {
-							return err
-						}
-						n++
-						if n%200 == 0 && flusher != nil {
-							flusher.Flush()
-						}
-						return nil
-					}})
-				if err != nil {
-					ae := toAPIError(hctx.Context(), s.log, err)
-					if n == 0 {
-						hctx.SetStatus(ae.status)
-					}
-					_ = enc.Encode(ae)
+			caller := reports.Caller{UserID: p.UserID, Builder: m.Role.AtLeast(admin.RoleBuilder), TZ: workspaceTZ(ctx, l)}
+			return s.streamReport(l, sch, rep, params, caller), nil
+		})
+}
+
+// streamReport runs rep and streams its instances as NDJSON. It takes over
+// the lease and releases it when the stream ends.
+func (s *Server) streamReport(l *workspace.Lease, sch *catalog.Schema, rep reports.Report, params query.Params, caller reports.Caller) *huma.StreamResponse {
+	return &huma.StreamResponse{Body: func(hctx huma.Context) {
+		defer l.Release()
+		hctx.SetHeader("Content-Type", "application/x-ndjson")
+		hctx.SetHeader("Cache-Control", "no-store")
+		hctx.SetHeader("X-Accel-Buffering", "no")
+		w := hctx.BodyWriter()
+		enc := json.NewEncoder(w)
+		flusher, _ := w.(http.Flusher)
+		// A client that stops reading must not pin the run's rows in
+		// memory: each write gets a deadline (ignored if unsupported).
+		_, rw := humachi.Unwrap(hctx)
+		rc := http.NewResponseController(rw)
+		n := 0
+		bctx, stop := l.Bind(hctx.Context())
+		defer stop()
+		err := s.deps.Reports.Run(bctx, reports.RunInput{Lease: l, Schema: sch, Report: rep, Params: params, Caller: caller,
+			Emit: func(inst reports.Instance) error {
+				if n%200 == 0 {
+					_ = rc.SetWriteDeadline(time.Now().Add(reportWriteTimeout))
 				}
-				if flusher != nil {
+				if err := enc.Encode(inst); err != nil {
+					return err
+				}
+				n++
+				if n%200 == 0 && flusher != nil {
 					flusher.Flush()
 				}
-			}}, nil
-		})
+				return nil
+			}})
+		if err != nil {
+			ae := toAPIError(hctx.Context(), s.log, err)
+			if n == 0 {
+				hctx.SetStatus(ae.status)
+			}
+			_ = enc.Encode(ae)
+		}
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}}
 }

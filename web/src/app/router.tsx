@@ -14,6 +14,7 @@ import { SetupPage } from "@/features/auth/SetupPage";
 import { PickerPage } from "@/features/workspace/PickerPage";
 import { AdminPage, parseAdminTab } from "@/features/admin/AdminPage";
 import { WorkspaceShell } from "@/features/workspace/WorkspaceShell";
+import { PublicAppPage } from "@/features/apps/PublicAppPage";
 import { alertBox, btn } from "@/components/styles";
 
 interface RouterContext {
@@ -127,9 +128,34 @@ const adminRoute = createRoute({
   },
 });
 
+// Public apps (ADR 0014): reached by a secret link, no sign-in.
+function PublicApp({ token, item }: { token: string; item?: string }) {
+  return <PublicAppPage token={token} item={item} onNavigate={(next) => void router.navigate({ to: "/a/$token/$item", params: { token, item: next } })} />;
+}
+
+const publicAppRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/a/$token",
+  component: function PublicAppRoute() {
+    const { token } = publicAppRoute.useParams();
+    return <PublicApp token={token} />;
+  },
+});
+
+const publicAppItemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/a/$token/$item",
+  component: function PublicAppItemRoute() {
+    const { token, item } = publicAppItemRoute.useParams();
+    return <PublicApp token={token} item={item} />;
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   setupRoute,
+  publicAppRoute,
+  publicAppItemRoute,
   authRoute.addChildren([indexRoute, workspaceRoute, adminRoute]),
 ]);
 
