@@ -29,4 +29,4 @@ export function Modal({
 }
 
 export const selectClass =
-  "h-8 w-full rounded-md border border-border-strong/70 bg-surface px-2 text-sm text-fg shadow-xs hover:border-border-strong focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20";
+  "h-8 w-full rounded-md border border-border-strong/70 bg-surface px-2 text-sm text-fg shadow-xs hover:border-border-strong focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus";

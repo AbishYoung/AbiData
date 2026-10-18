@@ -26,8 +26,8 @@ export const iconBtnSm = `${base} h-6 w-6 p-0 rounded text-fg-muted hover:bg-sur
 export const input =
   "w-full h-8 rounded-md border border-border-strong/70 bg-surface px-3 text-sm text-fg shadow-xs placeholder:text-fg-subtle " +
   "transition-[border-color,box-shadow] duration-150 hover:border-border-strong " +
-  "focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20 focus-visible:outline-none " +
-  "disabled:bg-surface-2 disabled:text-fg-muted disabled:cursor-not-allowed aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/20";
+  "focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus focus-visible:outline-none " +
+  "disabled:bg-surface-2 disabled:text-fg-muted disabled:cursor-not-allowed aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
 /** Multi-line input: same look, natural height. */
 export const textarea = input.replace("h-8 ", "min-h-20 py-2 ");
 export const select = `${input} pr-8 appearance-auto`;
