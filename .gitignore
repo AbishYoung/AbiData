@@ -13,3 +13,4 @@ coverage.*
 /.claude/
 /web/tsconfig.tsbuildinfo
 /tests/e2e/.bin/
+/tests/e2e/.servers/
