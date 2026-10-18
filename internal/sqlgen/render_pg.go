@@ -16,6 +16,9 @@ import (
 // on the search path. A library function whose SQLite name is also a
 // PostgreSQL builtin is called abi_<name>, since pg_catalog is searched first.
 
+// pg reports whether the renderer targets PostgreSQL (any version).
+func (r *renderer) pg() bool { return r.d == Postgres || r.d == Postgres17 }
+
 // pgType is the PostgreSQL type a CAST to t produces: the storage types of
 // ADR 0012 §4 for the scalar logical types.
 func pgType(t Type) string {
@@ -80,10 +83,11 @@ func (r *renderer) pgText(e Expr) {
 			r.operand(e)
 			return
 		}
-		// The text SQLite stores (dbx.TimeLayout).
-		r.w("to_char(")
+		// The text SQLite stores (dbx.TimeLayout), through <prefix>_lib so it
+		// stays IMMUTABLE (to_char is not) for generated columns.
+		r.w("abi_strftime('%Y-%m-%dT%H:%M:%fZ', ")
 		r.expr(e)
-		r.w(` AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`)
+		r.w(")")
 	case GeoPoint, GeoArea:
 		if c, ok := e.(Col); ok {
 			// The canonical GeoJSON SQLite stores: jsonb's text has spaces.
@@ -98,9 +102,9 @@ func (r *renderer) pgText(e Expr) {
 			r.operand(e)
 			return
 		}
-		r.w("CAST(")
+		r.w("abi_date(") // date's text depends on DateStyle
 		r.expr(e)
-		r.w(" AS text)")
+		r.w(")")
 	default:
 		r.w("CAST(")
 		r.expr(e)
@@ -111,7 +115,7 @@ func (r *renderer) pgText(e Expr) {
 // ciCollation is the case-insensitive collation: SQLite's NOCASE, and on
 // PostgreSQL <prefix>_lib's abi_ci (found on the search path).
 func (r *renderer) ciCollation() string {
-	if r.d == Postgres {
+	if r.pg() {
 		return "abi_ci"
 	}
 	return "NOCASE"
@@ -188,16 +192,15 @@ func (r *renderer) pgComparand(e, other Expr) {
 	if pgNativeTime(other) && !pgNativeTime(e) {
 		switch t := typeOf(e); t {
 		case Text, Date, DateTime:
+			// SQLite's parser, IMMUTABLE and independent of DateStyle and
+			// TimeZone; text without a zone is UTC.
 			if typeOf(other) == Date {
-				r.w("CAST(")
-				r.expr(e)
-				r.w(" AS date)")
+				r.w("abi_to_date(")
 			} else {
-				// Text without a zone is UTC, whatever the session's TimeZone.
-				r.w("(CAST(")
-				r.expr(e)
-				r.w(" AS timestamp) AT TIME ZONE 'UTC')")
+				r.w("abi_to_timestamptz(")
 			}
+			r.pgText(e)
+			r.w(")")
 			return
 		}
 	}
@@ -317,8 +320,8 @@ func init() {
 		"replace":      pgCall("replace", asBinaryText),
 		"length":       pgCall("length", asText),
 		"octet_length": pgCall("octet_length", asText),
-		"concat":       pgCall("concat", asText),
-		"concat_ws":    pgCall("concat_ws", asText),
+		"concat":       pgCall("abi_concat", asText),
+		"concat_ws":    pgCall("abi_concat_ws", asText),
 		"substr":       pgCall("abi_substr", nil),
 		"substring":    pgCall("abi_substr", nil),
 		"instr":        pgCall("strpos", asBinaryText),
@@ -373,18 +376,13 @@ func init() {
 			r.pgText(args[0])
 			r.w("), 0)")
 		},
-		"hex": func(r *renderer, args []Expr) {
-			// The UTF-8 bytes of the value's text, in upper case; '' for NULL.
-			r.w("coalesce(upper(encode(convert_to(")
-			r.pgText(args[0])
-			r.w(", 'UTF8'), 'hex')), '')")
-		},
+		"hex": pgCall("abi_hex", asText), // the UTF-8 bytes of the text, upper case; '' for NULL
 		"char": func(r *renderer, args []Expr) {
 			if len(args) == 0 {
 				r.w("''")
 				return
 			}
-			r.w("concat(")
+			r.w("abi_concat(")
 			r.list(len(args), ", ", func(i int) {
 				r.w("chr(CAST(")
 				r.expr(args[i])

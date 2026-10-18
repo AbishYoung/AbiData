@@ -197,10 +197,8 @@ func TestRenderRefusesMalformedInput(t *testing.T) {
 			t.Errorf("%s: rendered %q, want an error", name, r.SQL)
 		}
 	}
-	// PostgreSQL DDL and the functions <prefix>_lib does not have yet are
-	// not rendered (Phase F part 2).
+	// The functions <prefix>_lib does not have yet are not rendered.
 	for name, s := range map[string]Stmt{
-		"ddl":      &DropTable{Name: "t"},
 		"function": &Select{Columns: []Column{{Expr: Func{Name: "json_extract", Args: []Expr{Lit{Value: "{}"}, Lit{Value: "$.a"}}}}}},
 	} {
 		if _, err := Render(Postgres, s); !errors.Is(err, ErrDialect) {

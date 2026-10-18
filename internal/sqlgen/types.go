@@ -10,7 +10,11 @@ type Dialect int
 
 const (
 	SQLite Dialect = iota + 1
+	// Postgres is PostgreSQL 18 or later.
 	Postgres
+	// Postgres17 is PostgreSQL 17, which has no virtual generated columns:
+	// calculated fields are STORED (ADR 0012 §4).
+	Postgres17
 )
 
 func (d Dialect) String() string {
@@ -19,6 +23,8 @@ func (d Dialect) String() string {
 		return "sqlite"
 	case Postgres:
 		return "postgres"
+	case Postgres17:
+		return "postgres17"
 	}
 	return "unknown"
 }

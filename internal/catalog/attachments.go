@@ -61,7 +61,7 @@ func HasAttachTriggers(t *Table) bool { return len(attachmentColumns(t)) > 0 }
 func attachTriggers(t *Table) []sqlgen.Stmt {
 	var out []sqlgen.Stmt
 	for _, n := range attachTriggerNames(t) {
-		out = append(out, &sqlgen.DropTrigger{Name: n, IfExists: true})
+		out = append(out, &sqlgen.DropTrigger{Name: n, Table: t.PhysicalName, IfExists: true})
 	}
 	var cols []sqlgen.AttachmentColumn
 	for _, c := range attachmentColumns(t) {

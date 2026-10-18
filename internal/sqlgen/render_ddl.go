@@ -30,8 +30,16 @@ func (r *renderer) ddl(s Stmt) bool {
 	case *DropTrigger:
 		r.need(s.Name)
 		r.w("DROP TRIGGER " + ifExists(s.IfExists) + Quote(s.Name))
+		if r.pg() {
+			r.need(s.Table)
+			r.w(" ON " + Quote(s.Table))
+		}
 	case *OCCBump:
 		r.need(s.Name, s.Table)
+		if r.pg() {
+			r.w(`CREATE TRIGGER ` + Quote(s.Name) + ` BEFORE UPDATE ON ` + Quote(s.Table) + ` FOR EACH ROW EXECUTE FUNCTION abi_occ_bump()`)
+			break
+		}
 		t := Quote(s.Table)
 		r.w(`CREATE TRIGGER ` + Quote(s.Name) + ` AFTER UPDATE ON ` + t + ` FOR EACH ROW WHEN NEW."_version" = OLD."_version" ` +
 			`BEGIN UPDATE ` + t + ` SET "_version" = OLD."_version" + 1 WHERE "id" = NEW."id"; END`)
@@ -83,7 +91,7 @@ func (r *renderer) createTable(s *CreateTable) {
 			Quote(fk.RefTable) + `("id") ON DELETE ` + string(fk.OnDelete))
 	}
 	r.w("\n)")
-	if s.Strict {
+	if s.Strict && !r.pg() { // PostgreSQL is always strict
 		r.w(" STRICT")
 	}
 }
@@ -95,6 +103,10 @@ func (r *renderer) columnDef(c ColumnDef) {
 	}
 	q := Quote(c.Name)
 	r.w(q + " ")
+	if r.pg() {
+		r.pgColumnDef(q, c)
+		return
+	}
 	if c.AutoIncrement {
 		r.w("INTEGER PRIMARY KEY AUTOINCREMENT")
 		return
@@ -194,6 +206,10 @@ func (r *renderer) attachmentRefs(s *AttachmentRefs) {
 		r.fail("attachment references need at least one column")
 		return
 	}
+	if r.pg() {
+		r.pgAttachmentRefs(s)
+		return
+	}
 	tid, err := literal(s.TableID)
 	if err != nil {
 		r.fail("%v", err)
@@ -256,7 +272,7 @@ func (r *renderer) createIndex(s *CreateIndex) {
 		}
 		r.w(Quote(c.Name))
 		if c.CI {
-			r.w(" COLLATE NOCASE")
+			r.w(" COLLATE " + r.ciCollation())
 		}
 	})
 	r.w(")")
