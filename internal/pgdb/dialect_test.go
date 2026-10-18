@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -30,15 +31,16 @@ var items = []struct {
 	qty         any
 	price       any
 	active      any
+	due, at     any // a date and a date and time, as SQLite stores them
 	description string
 }{
-	{"Apple", "50% off", int64(3), 1.25, true, "plain"},
-	{"banana", "50 percent", nil, 0.5, false, "lower case, no quantity"},
-	{"Cherry", "a_b", int64(10), -2.5, true, "negative price"},
-	{"apricot", "axb", int64(-7), 2.675, nil, "negative quantity, unknown flag"},
-	{nil, nil, int64(0), nil, false, "NULL text"},
-	{"Éclair", "crème brûlée", int64(1), 100.0, true, "non-ASCII"},
-	{"date", "[x]*?", int64(2), 1e-3, false, "glob characters"},
+	{"Apple", "50% off", int64(3), 1.25, true, "2026-01-31", "2026-10-18T09:30:15.250Z", "plain"},
+	{"banana", "50 percent", nil, 0.5, false, "2024-02-29", "2024-02-29T23:59:59.999Z", "lower case, no quantity, leap day"},
+	{"Cherry", "a_b", int64(10), -2.5, true, "2025-12-31", "2026-01-01T00:00:00.000Z", "negative price, year end"},
+	{"apricot", "axb", int64(-7), 2.675, nil, nil, nil, "negative quantity, unknown flag, no dates"},
+	{nil, nil, int64(0), nil, false, "1970-01-01", "1969-12-31T12:00:00.000Z", "NULL text, epoch"},
+	{"Éclair", "crème brûlée", int64(1), 100.0, true, "2000-03-01", "2000-02-28T12:00:00.001Z", "non-ASCII, century leap year"},
+	{"date", "[x]*?", int64(2), 1e-3, false, "2026-07-05", "2026-07-05T00:00:00.000Z", "glob characters, a Sunday"},
 }
 
 type diffEnv struct {
@@ -58,7 +60,7 @@ func diffSetup(t *testing.T) *diffEnv {
 	for _, q := range []string{
 		`CREATE COLLATION ` + s + `.ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)`,
 		`CREATE TABLE ` + s + `.items (id bigint PRIMARY KEY, name text COLLATE ` + s + `.ci, qty bigint,
-			price double precision, active boolean, note text COLLATE ` + s + `.ci)`,
+			price double precision, active boolean, note text COLLATE ` + s + `.ci, due date, at timestamptz)`,
 	} {
 		if _, err := d.Exec(ctx, q); err != nil {
 			t.Fatal(err)
@@ -70,7 +72,7 @@ func diffSetup(t *testing.T) *diffEnv {
 	}
 	t.Cleanup(func() { _ = lite.Close() })
 	if err := lite.ExecScript(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT COLLATE NOCASE, qty INTEGER,
-		price REAL, active INTEGER, note TEXT COLLATE NOCASE) STRICT`); err != nil {
+		price REAL, active INTEGER, note TEXT COLLATE NOCASE, due TEXT, at TEXT) STRICT`); err != nil {
 		t.Fatal(err)
 	}
 	for i, it := range items {
@@ -78,10 +80,10 @@ func diffSetup(t *testing.T) *diffEnv {
 		if b, ok := it.active.(bool); ok {
 			flag = map[bool]int64{false: 0, true: 1}[b]
 		}
-		if _, err := lite.Exec(ctx, `INSERT INTO items VALUES (?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, flag, it.note); err != nil {
+		if _, err := lite.Exec(ctx, `INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, flag, it.note, it.due, it.at); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := d.Exec(ctx, `INSERT INTO `+s+`.items VALUES (?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, it.active, it.note); err != nil {
+		if _, err := d.Exec(ctx, `INSERT INTO `+s+`.items VALUES (?, ?, ?, ?, ?, ?, CAST(? AS date), CAST(? AS timestamptz))`, i+1, it.name, it.qty, it.price, it.active, it.note, it.due, it.at); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -138,9 +140,16 @@ func collect(r dbx.Rows) ([][]any, error) {
 // rounding error.
 func same(lite, pg any) (bool, string) {
 	switch pg.(type) {
-	case nil, bool, int64, int32, int16, float64, float32, string:
+	case nil, bool, int64, int32, int16, float64, float32, string, time.Time:
 	default:
 		return false, fmt.Sprintf("PostgreSQL returned %T", pg)
+	}
+	if t, ok := pg.(time.Time); ok {
+		// A date or timestamptz column read back; SQLite holds the text.
+		if s, ok := lite.(string); ok && len(s) == 10 {
+			return t.Format(time.DateOnly) == s, ""
+		}
+		return dbx.FormatTime(t) == lite, ""
 	}
 	norm := func(v any) any {
 		switch x := v.(type) {
@@ -178,6 +187,8 @@ var itemColumns = []exprlang.Column{
 	{Name: "price", Type: sqlgen.Number},
 	{Name: "active", Type: sqlgen.Boolean},
 	{Name: "note", Type: sqlgen.Text, CI: true},
+	{Name: "due", Type: sqlgen.Date},
+	{Name: "at", Type: sqlgen.DateTime},
 }
 
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
@@ -209,6 +220,22 @@ func TestExpressionsAgree(t *testing.T) {
 		"floor(price)", "ceil(qty)", "trunc(price)", "sign(price)", "sign(qty)", "sqrt(qty)", "sqrt(price)",
 		"exp(qty)", "ln(qty)", "log(qty)", "log(2, qty)", "log10(price)", "log2(qty)", "pow(qty, 2)",
 		"power(price, 0.5)", "pow(0, -1)", "mod(qty, 4)", "mod(price, 1)", "mod(qty, 0)", "pi()", "degrees(price)",
+		// dates and times
+		"date(due)", "date(at)", "datetime(at)", "time(at)", "time(at, 'subsec')", "datetime(at, 'subsec')",
+		"date(due, '+1 month')", "date(due, '-1 month')", "date(due, '+1 year')", "date(due, '+1 year', '-1 day')",
+		"date(due, '+1.5 months')", "date(due, '-3 days')", "date(due, 'start of month')", "date(due, 'start of year')",
+		"date(due, 'weekday 0')", "date(due, 'weekday 3')", "datetime(at, '+90 minutes')", "datetime(at, '-30 seconds')",
+		"datetime(at, 'start of day', '+1 day', '-1 second')", "datetime(at, '+01:30')", "datetime(at, '-12:00:00.5')",
+		"julianday(due)", "julianday(at) - julianday(due)", "unixepoch(at)", "unixepoch(at, 'subsec')", "unixepoch(due)",
+		"strftime('%Y-%m', due)", "strftime('%d.%m.%Y', due)", "strftime('%j %W %U %w %u', due)", "strftime('%V %G %g', due)",
+		"strftime('%H:%M:%f %p %P %I %l %k', at)", "strftime('%s', at)", "strftime('%J', at)", "strftime('%e|%F|%T|%R|%%', at)",
+		"strftime('%Q', at)", "date(qty * 100000000, 'unixepoch')", "datetime(price * 1000000000, 'unixepoch')",
+		"date(2460000.5)", "date('2026-02-30')", "date('2026-13-01')", "date('garbage')", "date(due, 'nonsense')",
+		"datetime('2026-03-04 05:06')", "datetime('2026-03-04T05:06:07+02:00')", "time('12:34')", "date(due, 'auto')",
+		"date(price, 'auto')", "date(due, 'unixepoch')", "date(due, '+1 day', 'unixepoch')",
+		"date(qty * 1000000, 'start of month')", "date(NULL, '+1 day')", "date(due, NULL)",
+		"due < '2026-06-01'", "due = '2024-02-29'", "at > '2026-01-01T00:00:00.000Z'", "due = date(at)",
+		"date(due) < date(at)", "julianday(at) > 2461000", "due || ''", "at || ''", "length(at)",
 		"radians(qty)", "sin(qty)", "cos(price)", "tan(qty)", "atan(price)", "atan2(qty, price)", "acos(price)",
 		"asin(price)", "acosh(qty)", "asinh(price)", "atanh(price)", "sinh(price)", "cosh(price)", "tanh(qty)",
 	} {

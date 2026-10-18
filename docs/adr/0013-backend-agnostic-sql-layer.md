@@ -231,8 +231,10 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 - **Matching.** LIKE, GLOB, `instr` and `replace` work on the text under `COLLATE "default"`, since text columns use the nondeterministic `<prefix>_ci` collation. `Match.CI` renders as `ILIKE`.
 - **Functions.** Each catalog function maps to a builtin, a rewrite, or an `abi_*` function in `<prefix>_lib` (`internal/pgdb/lib`, installed by `pgdb.InstallLib`).
   - The library has SQLite's `substr`, `round` (of the double's exact value), the math functions that are NULL on domain errors, `mod`, `glob` and a 64-bit `random`.
-  - The date/time, JSON, geo, `printf`/`format`, `quote`, `typeof` and `unhex` functions are listed as pending. They fail to render rather than render wrongly, and a test keeps that list exact.
-- **Differential tests** (`internal/pgdb/dialect_test.go`) run about 130 expressions and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
+  - It also ports SQLite's date.c: `date`, `time`, `datetime`, `julianday`, `unixepoch` and `strftime` with SQLite's modifiers and conversions. They work on text, numbers and native `date`/`timestamptz` columns, and 'now' is passed as `statement_timestamp()`.
+  - Text compared with a native date column is read as a date, or as a UTC timestamp. A native date-and-time column used as text is written in `dbx.TimeLayout`, as SQLite stores it.
+  - The JSON and geo functions, `timediff`, `printf`/`format`, `quote`, `typeof` and `unhex` are listed as pending. They fail to render rather than render wrongly, and a test keeps that list exact.
+- **Differential tests** (`internal/pgdb/dialect_test.go`) run about 200 expressions, dates included, and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
   - The one recorded difference is `lower`/`upper` on non-ASCII letters: SQLite changes ASCII only.
   - Number-to-text formatting also differs (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). The test data avoids that case, and part 2's codecs address it.
 

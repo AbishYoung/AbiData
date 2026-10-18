@@ -75,6 +75,23 @@ func (r *renderer) pgText(e Expr) {
 		r.w("CAST(CAST(")
 		r.expr(e)
 		r.w(" AS integer) AS text)")
+	case DateTime:
+		if !pgNativeTime(e) {
+			r.operand(e)
+			return
+		}
+		// The text SQLite stores (dbx.TimeLayout).
+		r.w("to_char(")
+		r.expr(e)
+		r.w(` AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`)
+	case Date:
+		if !pgNativeTime(e) {
+			r.operand(e)
+			return
+		}
+		r.w("CAST(")
+		r.expr(e)
+		r.w(" AS text)")
 	default:
 		r.w("CAST(")
 		r.expr(e)
@@ -104,9 +121,9 @@ func (r *renderer) pgBinary(b Binary) {
 			r.pgNumber(b.R)
 			return
 		}
-		r.operand(b.L)
+		r.pgComparand(b.L, b.R)
 		r.w(" " + op + " ")
-		r.operand(b.R)
+		r.pgComparand(b.R, b.L)
 	case OpAdd, OpSub, OpMul:
 		r.pgNumber(b.L)
 		r.w(" " + binOp(b.Op, r) + " ")
@@ -144,6 +161,29 @@ func (r *renderer) pgBinary(b Binary) {
 	default:
 		r.fail("unknown operator %d", b.Op)
 	}
+}
+
+// pgComparand renders one side of a comparison. Text compared with a date
+// column is read as a date (or date and time), as SQLite's comparison of ISO
+// text means.
+func (r *renderer) pgComparand(e, other Expr) {
+	if pgNativeTime(other) && !pgNativeTime(e) {
+		switch t := typeOf(e); t {
+		case Text, Date, DateTime:
+			if typeOf(other) == Date {
+				r.w("CAST(")
+				r.expr(e)
+				r.w(" AS date)")
+			} else {
+				// Text without a zone is UTC, whatever the session's TimeZone.
+				r.w("(CAST(")
+				r.expr(e)
+				r.w(" AS timestamp) AT TIME ZONE 'UTC')")
+			}
+			return
+		}
+	}
+	r.operand(e)
 }
 
 // pgInteger renders e truncated to an integer, as SQLite's % sees it.
@@ -356,11 +396,102 @@ func init() {
 			}
 			r.w(")")
 		},
+		"date":      pgDateFunc("abi_date", false),
+		"time":      pgDateFunc("abi_time", false),
+		"datetime":  pgDateFunc("abi_datetime", false),
+		"julianday": pgDateFunc("abi_julianday", false),
+		"unixepoch": pgDateFunc("abi_unixepoch", false),
+		"strftime":  pgDateFunc("abi_strftime", true),
 		"total": func(r *renderer, args []Expr) {
 			r.w("coalesce(SUM(CAST(")
 			r.pgNumberExpr(args[0])
 			r.w(" AS double precision)), 0)")
 		},
+	}
+}
+
+// pgDateFunc renders SQLite's date and time functions as the <prefix>_lib
+// port of date.c. The time value keeps its PostgreSQL type where the library
+// has an overload for it (a date or timestamptz column, a number); 'now', or
+// no time value, is the statement's timestamp, as on SQLite. unixepoch is an
+// integer unless 'subsec' asks for fractions.
+func pgDateFunc(name string, format bool) pgFn {
+	return func(r *renderer, args []Expr) {
+		var pre []Expr
+		if format {
+			pre, args = args[:1], args[1:]
+		}
+		integer := name == "abi_unixepoch"
+		for _, m := range args[min(1, len(args)):] {
+			if isLitWord(m, "subsec", "subsecond") {
+				integer = false
+			}
+		}
+		if integer {
+			r.w("CAST(")
+		}
+		r.w(name + "(")
+		for _, p := range pre {
+			r.pgText(p)
+			r.w(", ")
+		}
+		if len(args) == 0 || isLitWord(args[0], "now") {
+			r.w("statement_timestamp()")
+		} else {
+			r.pgTimeValue(args[0])
+		}
+		for _, m := range args[min(1, len(args)):] {
+			r.w(", ")
+			r.pgText(m)
+		}
+		r.w(")")
+		if integer {
+			r.w(" AS bigint)")
+		}
+	}
+}
+
+// isLitWord reports whether e is a text literal equal to one of words,
+// ignoring case and surrounding space.
+func isLitWord(e Expr, words ...string) bool {
+	l, ok := e.(Lit)
+	if !ok {
+		return false
+	}
+	v, ok := l.Value.(string)
+	if !ok {
+		return false
+	}
+	for _, w := range words {
+		if strings.EqualFold(strings.TrimSpace(v), w) {
+			return true
+		}
+	}
+	return false
+}
+
+// pgNativeTime reports whether e is a date or date-and-time column, which
+// PostgreSQL stores as date or timestamptz (ADR 0012 §4). The date functions
+// return text, as on SQLite.
+func pgNativeTime(e Expr) bool {
+	c, ok := e.(Col)
+	return ok && (c.Type == Date || c.Type == DateTime)
+}
+
+// pgTimeValue renders a date function's time value: a column of a date type
+// is passed natively (date, timestamptz), a number as double precision, and
+// anything else as text.
+func (r *renderer) pgTimeValue(e Expr) {
+	t := typeOf(e)
+	switch {
+	case pgNativeTime(e):
+		r.expr(e)
+	case t.numeric():
+		r.w("CAST(")
+		r.expr(e)
+		r.w(" AS double precision)")
+	default:
+		r.pgText(e)
 	}
 }
 
@@ -434,7 +565,7 @@ func pgExtreme(fn string, agg AggFn) pgFn {
 
 // pgPending names the catalog functions that do not render on PostgreSQL yet.
 // Phase F part 2 adds them to <prefix>_lib with SQLite's semantics.
-var pgPending = strings.Fields(`date time datetime julianday unixepoch strftime timediff
+var pgPending = strings.Fields(`timediff
 	json json_array json_array_length json_error_position json_extract json_insert json_object json_patch
 	json_quote json_remove json_replace json_set json_type json_valid
 	geo_point geo_lat geo_lon geo_distance_m geo_within geo_area_m2 geo_centroid geo_bbox
