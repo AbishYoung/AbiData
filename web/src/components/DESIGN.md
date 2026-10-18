@@ -2,7 +2,7 @@
 
 AbiData is a professional data tool in the lineage of Microsoft Access: dense, keyboard-first, calm. The look is **clean and confident with a clear identity**. It is not bare and not decorative. Reference points include Linear, Airtable, Retool and the GitHub UI: layered surfaces, crisp type, purposeful colour, and generous but not wasteful spacing.
 
-The tokens live in `web/src/styles/tokens.css`, the shared class strings in `web/src/components/styles.ts`, and the object-kind icons and colours in `web/src/components/objectKinds.tsx`. The logo is in `web/src/components/brand/Logo.tsx`. The reference implementation of the style is the workspace shell (`features/workspace/WorkspaceShell.tsx`) and the navigation pane (`features/nav/NavPane.tsx`, `navStyles.ts`).
+The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/components/ui/` (see "Primitives" below), the shared class strings in `web/src/components/styles.ts`, and the object-kind icons and colours in `web/src/components/objectKinds.tsx`. The logo is in `web/src/components/brand/Logo.tsx`. The reference implementation of the style is the workspace shell (`features/workspace/WorkspaceShell.tsx`) and the navigation pane (`features/nav/NavPane.tsx`, `navStyles.ts`).
 
 ## Principles
 1. **Hierarchy through layering.** Use `bg` for the page, `surface` for panels and cards, `surface-2` for toolbars, headers and inputs at rest, and `surface-3` for hover and pressed states and badges. In light mode a card gets `shadow-sm`; dialogs and menus get `shadow-lg`. Borders use `border` (soft). Only interactive outlines (inputs) use `border-strong`.
@@ -35,6 +35,15 @@ The tokens live in `web/src/styles/tokens.css`, the shared class strings in `web
     - Meet AA contrast for text, and 3:1 for input borders and icons that carry meaning.
     - Give every icon-only button an `aria-label`. Hover-only affordances must also appear on `focus-visible`/`focus-within`.
     - Keep roles, names and labels stable, because the Playwright e2e suite selects by role and accessible name. If you must rename a visible label, update the specs.
+
+## Primitives
+`components/ui` (import from `@/components/ui`) turns the patterns below into components, so the rules hold by construction. Prefer them in new and touched code; the class strings in `styles.ts` stay exported for elements that cannot be a component (Radix `asChild`, links styled as buttons via `buttonClass()`).
+- `Button` (`variant`: primary, secondary, ghost, danger; `size`: md, sm). It is `type="button"` unless told otherwise.
+- `IconButton`: `label` is required and is both the `aria-label` and the `Tip` text; `shortcut` adds the key caps.
+- `Field` with `Input`, `Select` or `Textarea` inside: the label, hint and error, with the id, `aria-describedby` and `aria-invalid` wired automatically.
+- `Dialog` (title row with optional icon, body, `footer`, close button), `Sheet` (right side sheet) and `ConfirmDialog` (`role="alertdialog"`, focus starts on Cancel, `danger` for destructive actions). All of them give focus back to the element that opened them. The close button comes last in the tab order and has no tooltip (a tooltip opened by focus would take the first Escape).
+- `askToConfirm({ title, message, confirmLabel, danger })` returns a promise of the answer; it replaces `window.confirm` (ADR 0015). `ConfirmHost` is mounted once in `main.tsx`.
+- `Card` (optional header with title, description and actions; `flush` for edge-to-edge lists), `Badge` (`tone`), `EmptyState`, `Skeleton`, `Toolbar` (a named `role="toolbar"` when given a `label`), `ToolbarSeparator` and `ToolbarSpacer`.
 
 ## Patterns
 - **Page header** (full pages such as the picker and admin):

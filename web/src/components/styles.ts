@@ -93,3 +93,8 @@ export const sheetPanel =
   "ui-sheet fixed inset-y-0 right-0 z-50 flex w-[min(92vw,28rem)] flex-col border-l border-border bg-surface text-fg shadow-lg";
 /** Small tinted square for a semantic dialog icon. */
 export const iconChip = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg";
+
+/** The document toolbar at the top of an editor tab (DESIGN.md "Document toolbar"). */
+export const docToolbar = "flex min-h-11 flex-wrap items-center gap-1.5 border-b border-border bg-surface px-3 py-1.5";
+/** Slim footer bar under an editor (counts, status). */
+export const docFooter = "flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-surface-2 px-3 py-1 text-xs text-fg-muted";
