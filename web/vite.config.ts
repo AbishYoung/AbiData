@@ -83,6 +83,15 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    // vmThreads keeps each file in its own context but builds jsdom once per worker instead of
+    // once per file, which was two thirds of the run (ADR 0016). See vitest.setup.ts for the
+    // globals this pool does not carry over from Node.
+    pool: "vmThreads",
+    // Two layers (ADR 0016): `vitest --project unit` for logic, `--project component` for
+    // rendered React components. Both need the DOM (storage, events, layout helpers).
+    projects: [
+      { extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } },
+      { extends: true, test: { name: "component", include: ["src/**/*.test.tsx"] } },
+    ],
   },
 });
