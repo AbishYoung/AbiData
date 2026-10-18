@@ -83,6 +83,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    globalSetup: ["./vitest.global.ts"],
     // vmThreads keeps each file in its own context but builds jsdom once per worker instead of
     // once per file, which was two thirds of the run (ADR 0016). See vitest.setup.ts for the
     // globals this pool does not carry over from Node.

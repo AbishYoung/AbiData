@@ -44,9 +44,9 @@ export default defineConfig({
   fullyParallel: false,
   workers,
   forbidOnly: !!process.env.CI,
-  // One retry in CI, where the 2-core-per-worker runners are slower than a laptop; a test that
-  // passes only on retry is reported as flaky in the job output (ADR 0016).
-  retries: process.env.CI ? 1 : 0,
+  // No retries: spec files are serial and share their server's data, so a retry reruns the
+  // file's seeding test against data it already created and fails for that reason instead.
+  retries: 0,
   reporter: [["list"]],
   use: { baseURL, trace: "retain-on-failure" },
   // The desktop suite runs on chromium; mobile.spec.ts runs only on the two phone projects.
