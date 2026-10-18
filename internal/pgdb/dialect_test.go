@@ -9,9 +9,11 @@ package pgdb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -143,17 +145,42 @@ func same(lite, pg any) (bool, string) { return sameWithin(lite, pg, 1e-9) }
 
 // sameWithin is same with a relative tolerance for numbers.
 func sameWithin(lite, pg any, tol float64) (bool, string) {
+	if t, ok := pg.(time.Time); ok {
+		// A date or timestamptz column read back; SQLite holds the text,
+		// in any of the forms its date functions write.
+		s, ok := lite.(string)
+		if !ok {
+			return false, fmt.Sprintf("PostgreSQL returned a time, SQLite %T", lite)
+		}
+		for _, layout := range []string{time.DateOnly, dbx.TimeLayout, time.DateTime, "2006-01-02 15:04:05.000"} {
+			if lt, err := time.Parse(layout, s); err == nil {
+				if layout == time.DateOnly {
+					return t.Format(time.DateOnly) == s, ""
+				}
+				return t.Equal(lt), ""
+			}
+		}
+		if len(s) == 11 && s[0] == '-' && t.Year() < 0 {
+			// A date before year 1. Both SQLite and Go count years
+			// astronomically: -4713 is 4714 BC.
+			return fmt.Sprintf("-%04d-%s", -t.Year(), t.Format("01-02")) == s, ""
+		}
+		return false, "unreadable SQLite time " + s
+	}
 	switch pg.(type) {
-	case nil, bool, int64, int32, int16, float64, float32, string, time.Time:
+	case map[string]any, []any:
+		// A jsonb column read back, compared as JSON values.
+		var lv any
+		s, _ := lite.(string)
+		if err := json.Unmarshal([]byte(s), &lv); err != nil {
+			return false, "SQLite holds no JSON"
+		}
+		return reflect.DeepEqual(lv, pg), ""
+	}
+	switch pg.(type) {
+	case nil, bool, int64, int32, int16, float64, float32, string:
 	default:
 		return false, fmt.Sprintf("PostgreSQL returned %T", pg)
-	}
-	if t, ok := pg.(time.Time); ok {
-		// A date or timestamptz column read back; SQLite holds the text.
-		if s, ok := lite.(string); ok && len(s) == 10 {
-			return t.Format(time.DateOnly) == s, ""
-		}
-		return dbx.FormatTime(t) == lite, ""
 	}
 	norm := func(v any) any {
 		switch x := v.(type) {
@@ -197,65 +224,69 @@ var itemColumns = []exprlang.Column{
 	{Name: "zone", Type: sqlgen.GeoArea},
 }
 
+// expressionCases are AbiData expressions over the items columns, evaluated
+// per row by the differential tests.
+var expressionCases = []string{
+	// operators
+	"qty + 1", "qty - price", "qty * 2", "qty / 2", "qty / 0", "price / 0", "qty % 3", "price % 2", "qty % 0",
+	"-qty", "-price", "qty * price", "7 / 2", "7.0 / 2", "qty || '!'", "name || ' ' || note", "active + 1",
+	"qty = 3", "qty <> 3", "qty > 2 AND price < 2", "qty < 0 OR active", "NOT active", "active = 1", "active = 0",
+	"qty IS NULL", "qty IS NOT NULL", "qty IS 3", "qty IS NOT 3", "name IS NULL", "active IS NULL",
+	"qty BETWEEN 1 AND 5", "qty IN (1, 2, 3)", "qty NOT IN (1, 2, 3)", "name = 'APPLE'", "name < 'B'",
+	"name LIKE 'a%'", "name LIKE '%E%'", "note LIKE '50%'", "name GLOB 'a*'", "name GLOB '[A-C]*'", "note GLOB '*[[]x]*'",
+	"name NOT LIKE 'a%'",
+	"CASE WHEN qty > 2 THEN 'many' WHEN qty > 0 THEN 'some' ELSE 'none' END",
+	"CASE WHEN active THEN price END",
+	"CAST(price AS INTEGER)", "CAST(qty AS REAL) / 2", "CAST(qty AS TEXT)",
+	// text functions
+	"lower(name)", "upper(note)", "length(name)", "length(qty)", "trim('  x  ')", "ltrim('xxy', 'x')",
+	"rtrim(note, 'f')", "replace(note, '0', 'o')", "substr(name, 2)", "substr(name, 2, 3)", "substr(name, -3)",
+	"substr(name, -3, 2)", "substr(name, 0, 2)", "substr(name, 3, -2)", "substr(name, 1, 0)", "instr(name, 'a')",
+	"instr(note, '')", "concat(name, qty)", "concat_ws('-', name, note)", "unicode(name)", "hex(name)", "hex(qty)",
+	"char(72, 105)", "coalesce(qty, -1)", "ifnull(name, '?')", "nullif(qty, 0)",
+	"iif(qty > 2, 'big', 'small')", "iif(active, 1, 0)", "max(qty, 2)", "min(price, 1)", "max(qty, price)",
+	// numbers
+	"abs(qty)", "abs(price)", "round(price)", "round(price, 1)", "round(price, 2)", "round(qty)", "ceil(price)",
+	"floor(price)", "ceil(qty)", "trunc(price)", "sign(price)", "sign(qty)", "sqrt(qty)", "sqrt(price)",
+	"exp(qty)", "ln(qty)", "log(qty)", "log(2, qty)", "log10(price)", "log2(qty)", "pow(qty, 2)",
+	"power(price, 0.5)", "pow(0, -1)", "mod(qty, 4)", "mod(price, 1)", "mod(qty, 0)", "pi()", "degrees(price)",
+	// dates and times
+	"date(due)", "date(at)", "datetime(at)", "time(at)", "time(at, 'subsec')", "datetime(at, 'subsec')",
+	"date(due, '+1 month')", "date(due, '-1 month')", "date(due, '+1 year')", "date(due, '+1 year', '-1 day')",
+	"date(due, '+1.5 months')", "date(due, '-3 days')", "date(due, 'start of month')", "date(due, 'start of year')",
+	"date(due, 'weekday 0')", "date(due, 'weekday 3')", "datetime(at, '+90 minutes')", "datetime(at, '-30 seconds')",
+	"datetime(at, 'start of day', '+1 day', '-1 second')", "datetime(at, '+01:30')", "datetime(at, '-12:00:00.5')",
+	"julianday(due)", "julianday(at) - julianday(due)", "unixepoch(at)", "unixepoch(at, 'subsec')", "unixepoch(due)",
+	"strftime('%Y-%m', due)", "strftime('%d.%m.%Y', due)", "strftime('%j %W %U %w %u', due)", "strftime('%V %G %g', due)",
+	"strftime('%H:%M:%f %p %P %I %l %k', at)", "strftime('%s', at)", "strftime('%J', at)", "strftime('%e|%F|%T|%R|%%', at)",
+	"strftime('%Q', at)", "date(qty * 100000000, 'unixepoch')", "datetime(price * 1000000000, 'unixepoch')",
+	"date(2460000.5)", "date('2026-02-30')", "date('2026-13-01')", "date('garbage')", "date(due, 'nonsense')",
+	"datetime('2026-03-04 05:06')", "datetime('2026-03-04T05:06:07+02:00')", "time('12:34')", "date(due, 'auto')",
+	"date(price, 'auto')", "date(due, 'unixepoch')", "date(due, '+1 day', 'unixepoch')",
+	"date(qty * 1000000, 'start of month')", "date(NULL, '+1 day')", "date(due, NULL)",
+	"due < '2026-06-01'", "due = '2024-02-29'", "at > '2026-01-01T00:00:00.000Z'", "due = date(at)",
+	"date(due) < date(at)", "julianday(at) > 2461000", "due || ''", "at || ''", "length(at)",
+	// locations and areas
+	"geo_lat(pt)", "geo_lon(pt)", "geo_point(price, qty)", "geo_point(51.5, -0.1278)", "geo_point(91, 0)",
+	"geo_distance_m(pt, geo_point(51.5, -0.12))", "geo_distance_m(pt, '48.85, 2.35')", "geo_within(pt, zone)",
+	"geo_within(geo_point(0.5, 0.5), zone)", "geo_within(geo_point(0.25, 0.5), zone)", "geo_within('0.5, 0', zone)",
+	"geo_area_m2(zone)", "geo_centroid(zone)", "geo_bbox(zone)", "pt || ''", "zone || ''", "length(zone)",
+	"geo_lat('51.5, -0.12')", "geo_lat('51.5, -0.12, 30')", "geo_lon('POINT(-0.12 51.5)')", "geo_lat('{\"lat\": \"1.5\", \"lng\": 2}')",
+	"geo_lat('{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[3,4]}}')",
+	"geo_lat('garbage')", "geo_lat('91, 0')", "geo_lat(name)", "geo_area_m2(note)",
+	"geo_area_m2('{\"type\":\"Polygon\",\"coordinates\":[[[170,0],[-170,0],[-170,1],[170,0]]]}')",
+	"geo_area_m2('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[1,1],[2,2],[0,0]]]}')",
+	"geo_centroid('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[3,0],[3,1],[0,1]]]}')",
+	"radians(qty)", "sin(qty)", "cos(price)", "tan(qty)", "atan(price)", "atan2(qty, price)", "acos(price)",
+	"asin(price)", "acosh(qty)", "asinh(price)", "atanh(price)", "sinh(price)", "cosh(price)", "tanh(qty)",
+}
+
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
 // engines.
 func TestExpressionsAgree(t *testing.T) {
 	e := diffSetup(t)
 	scope := exprlang.Scope{Mode: exprlang.Query, Sources: []exprlang.Source{{Columns: itemColumns}}}
-	for _, src := range []string{
-		// operators
-		"qty + 1", "qty - price", "qty * 2", "qty / 2", "qty / 0", "price / 0", "qty % 3", "price % 2", "qty % 0",
-		"-qty", "-price", "qty * price", "7 / 2", "7.0 / 2", "qty || '!'", "name || ' ' || note", "active + 1",
-		"qty = 3", "qty <> 3", "qty > 2 AND price < 2", "qty < 0 OR active", "NOT active", "active = 1", "active = 0",
-		"qty IS NULL", "qty IS NOT NULL", "qty IS 3", "qty IS NOT 3", "name IS NULL", "active IS NULL",
-		"qty BETWEEN 1 AND 5", "qty IN (1, 2, 3)", "qty NOT IN (1, 2, 3)", "name = 'APPLE'", "name < 'B'",
-		"name LIKE 'a%'", "name LIKE '%E%'", "note LIKE '50%'", "name GLOB 'a*'", "name GLOB '[A-C]*'", "note GLOB '*[[]x]*'",
-		"name NOT LIKE 'a%'",
-		"CASE WHEN qty > 2 THEN 'many' WHEN qty > 0 THEN 'some' ELSE 'none' END",
-		"CASE WHEN active THEN price END",
-		"CAST(price AS INTEGER)", "CAST(qty AS REAL) / 2", "CAST(qty AS TEXT)",
-		// text functions
-		"lower(name)", "upper(note)", "length(name)", "length(qty)", "trim('  x  ')", "ltrim('xxy', 'x')",
-		"rtrim(note, 'f')", "replace(note, '0', 'o')", "substr(name, 2)", "substr(name, 2, 3)", "substr(name, -3)",
-		"substr(name, -3, 2)", "substr(name, 0, 2)", "substr(name, 3, -2)", "substr(name, 1, 0)", "instr(name, 'a')",
-		"instr(note, '')", "concat(name, qty)", "concat_ws('-', name, note)", "unicode(name)", "hex(name)", "hex(qty)",
-		"char(72, 105)", "coalesce(qty, -1)", "ifnull(name, '?')", "nullif(qty, 0)",
-		"iif(qty > 2, 'big', 'small')", "iif(active, 1, 0)", "max(qty, 2)", "min(price, 1)", "max(qty, price)",
-		// numbers
-		"abs(qty)", "abs(price)", "round(price)", "round(price, 1)", "round(price, 2)", "round(qty)", "ceil(price)",
-		"floor(price)", "ceil(qty)", "trunc(price)", "sign(price)", "sign(qty)", "sqrt(qty)", "sqrt(price)",
-		"exp(qty)", "ln(qty)", "log(qty)", "log(2, qty)", "log10(price)", "log2(qty)", "pow(qty, 2)",
-		"power(price, 0.5)", "pow(0, -1)", "mod(qty, 4)", "mod(price, 1)", "mod(qty, 0)", "pi()", "degrees(price)",
-		// dates and times
-		"date(due)", "date(at)", "datetime(at)", "time(at)", "time(at, 'subsec')", "datetime(at, 'subsec')",
-		"date(due, '+1 month')", "date(due, '-1 month')", "date(due, '+1 year')", "date(due, '+1 year', '-1 day')",
-		"date(due, '+1.5 months')", "date(due, '-3 days')", "date(due, 'start of month')", "date(due, 'start of year')",
-		"date(due, 'weekday 0')", "date(due, 'weekday 3')", "datetime(at, '+90 minutes')", "datetime(at, '-30 seconds')",
-		"datetime(at, 'start of day', '+1 day', '-1 second')", "datetime(at, '+01:30')", "datetime(at, '-12:00:00.5')",
-		"julianday(due)", "julianday(at) - julianday(due)", "unixepoch(at)", "unixepoch(at, 'subsec')", "unixepoch(due)",
-		"strftime('%Y-%m', due)", "strftime('%d.%m.%Y', due)", "strftime('%j %W %U %w %u', due)", "strftime('%V %G %g', due)",
-		"strftime('%H:%M:%f %p %P %I %l %k', at)", "strftime('%s', at)", "strftime('%J', at)", "strftime('%e|%F|%T|%R|%%', at)",
-		"strftime('%Q', at)", "date(qty * 100000000, 'unixepoch')", "datetime(price * 1000000000, 'unixepoch')",
-		"date(2460000.5)", "date('2026-02-30')", "date('2026-13-01')", "date('garbage')", "date(due, 'nonsense')",
-		"datetime('2026-03-04 05:06')", "datetime('2026-03-04T05:06:07+02:00')", "time('12:34')", "date(due, 'auto')",
-		"date(price, 'auto')", "date(due, 'unixepoch')", "date(due, '+1 day', 'unixepoch')",
-		"date(qty * 1000000, 'start of month')", "date(NULL, '+1 day')", "date(due, NULL)",
-		"due < '2026-06-01'", "due = '2024-02-29'", "at > '2026-01-01T00:00:00.000Z'", "due = date(at)",
-		"date(due) < date(at)", "julianday(at) > 2461000", "due || ''", "at || ''", "length(at)",
-		// locations and areas
-		"geo_lat(pt)", "geo_lon(pt)", "geo_point(price, qty)", "geo_point(51.5, -0.1278)", "geo_point(91, 0)",
-		"geo_distance_m(pt, geo_point(51.5, -0.12))", "geo_distance_m(pt, '48.85, 2.35')", "geo_within(pt, zone)",
-		"geo_within(geo_point(0.5, 0.5), zone)", "geo_within(geo_point(0.25, 0.5), zone)", "geo_within('0.5, 0', zone)",
-		"geo_area_m2(zone)", "geo_centroid(zone)", "geo_bbox(zone)", "pt || ''", "zone || ''", "length(zone)",
-		"geo_lat('51.5, -0.12')", "geo_lat('51.5, -0.12, 30')", "geo_lon('POINT(-0.12 51.5)')", "geo_lat('{\"lat\": \"1.5\", \"lng\": 2}')",
-		"geo_lat('{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[3,4]}}')",
-		"geo_lat('garbage')", "geo_lat('91, 0')", "geo_lat(name)", "geo_area_m2(note)",
-		"geo_area_m2('{\"type\":\"Polygon\",\"coordinates\":[[[170,0],[-170,0],[-170,1],[170,0]]]}')",
-		"geo_area_m2('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[1,1],[2,2],[0,0]]]}')",
-		"geo_centroid('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[3,0],[3,1],[0,1]]]}')",
-		"radians(qty)", "sin(qty)", "cos(price)", "tan(qty)", "atan(price)", "atan2(qty, price)", "acos(price)",
-		"asin(price)", "acosh(qty)", "asinh(price)", "atanh(price)", "sinh(price)", "cosh(price)", "tanh(qty)",
-	} {
+	for _, src := range expressionCases {
 		r, err := exprlang.Parse(src, scope)
 		if err != nil {
 			t.Errorf("%s: %v", src, err)
@@ -364,7 +395,7 @@ func (e *diffEnv) agree(t *testing.T, name string, s sqlgen.Stmt, allowed ...int
 			continue
 		}
 		for j := range lite[i] {
-			tol, ok := tolerances[name]
+			tol, ok := tolerances[strings.TrimPrefix(name, "stored ")]
 			if !ok {
 				tol = 1e-9
 			}

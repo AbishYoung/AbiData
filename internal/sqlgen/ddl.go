@@ -95,9 +95,11 @@ type DropTable struct {
 // DropIndex drops an index.
 type DropIndex struct{ Name string }
 
-// DropTrigger drops a trigger.
+// DropTrigger drops a trigger. PostgreSQL names triggers per table, so Table
+// is required there.
 type DropTrigger struct {
 	Name     string
+	Table    string
 	IfExists bool
 }
 

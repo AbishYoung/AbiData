@@ -248,6 +248,23 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
     - The area of a 1 cm² polygon, which can differ by a relative 2e-8 depending on the C library's `sin`, because the spherical-excess sum cancels; it is compared with a looser tolerance.
   - Number-to-text formatting also differs (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). The test data avoids that case, and part 2's codecs address it.
 
+**Phase F, part 2 (as built): user-table DDL.**
+
+- **Column types.** `sqlgen.Render(Postgres|Postgres17, …)` renders the schema statements with ADR 0012 §4's storage types:
+  - an identity `id` (BY DEFAULT, since restore and import write rows with their IDs);
+  - binary text;
+  - native `boolean`, `date`, `timestamptz` and `bigint`;
+  - `jsonb` for JSON, geometry and attachments.
+- **Domain checks:** a text length or link check, the attachments array check, and the geometry type check.
+- **Generated columns.**
+  - PostgreSQL 18's VIRTUAL columns may call builtins only, so a calculated field whose expression uses `<prefix>_lib` is STORED on 18 as well. PostgreSQL 17 stores them all.
+  - Generation expressions must be IMMUTABLE, so the date and JSON conversions they need go through `<prefix>_lib`. These are `abi_to_date` and `abi_to_timestamptz` (SQLite's parser) and IMMUTABLE forms of `concat`, `concat_ws` and `hex`. `to_char` and the text casts that depend on DateStyle and TimeZone are not used.
+- **Triggers and indexes.**
+  - Triggers call generic `<prefix>_lib` functions: `abi_occ_bump` (BEFORE UPDATE) and `abi_att_refs`.
+  - `abi_att_refs` runs as its owner, because sandboxed writes have no rights on `_sys_file_refs`.
+  - Text indexes use `abi_ci`, so unique text indexes ignore case as on SQLite, while `=` stays exact.
+- **Tests.** `internal/pgdb/ddl_test.go` creates every per-row expression of the differential list as a generated column on both engines and compares what each computed. 208 of them, on SQLite and PostgreSQL 18; the rest are query-only or cannot be stored on SQLite either. It also checks the triggers, the case-insensitive unique index and the domain checks.
+
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;
 - stored expressions get real parsing and good error messages instead of an authorizer probe;

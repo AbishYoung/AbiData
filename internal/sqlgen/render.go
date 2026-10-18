@@ -49,12 +49,6 @@ func Render(d Dialect, s Stmt) (Rendered, error) {
 		r.delete(s)
 		cols = s.Returning
 	default:
-		if r.d == Postgres {
-			// ADR 0013 Phase F, part 2: PostgreSQL DDL follows ADR 0012 §4's
-			// storage types and triggers.
-			r.err = fmt.Errorf("%w: %T on %s", ErrDialect, s, r.d)
-			break
-		}
 		if !r.ddl(s) {
 			r.fail("unsupported statement %T", s)
 		}
@@ -99,7 +93,7 @@ type renderer struct {
 }
 
 func newRenderer(d Dialect) (*renderer, error) {
-	if d != SQLite && d != Postgres {
+	if d != SQLite && d != Postgres && d != Postgres17 {
 		return nil, fmt.Errorf("%w: %s", ErrDialect, d)
 	}
 	return &renderer{d: d, seen: map[string]bool{}}, nil
@@ -449,7 +443,7 @@ func (r *renderer) expr(e Expr) {
 		}
 		r.w("(" + e.SQL + ")")
 	case Binary:
-		if r.d == Postgres {
+		if r.pg() {
 			r.pgBinary(e)
 			return
 		}
@@ -501,7 +495,7 @@ func (r *renderer) expr(e Expr) {
 			r.fail("unknown function %q", e.Name)
 			return
 		}
-		if r.d == Postgres {
+		if r.pg() {
 			r.pgFunc(def, e.Args)
 			return
 		}
@@ -511,7 +505,7 @@ func (r *renderer) expr(e Expr) {
 	case Agg:
 		r.agg(e)
 	case Cast:
-		if r.d == Postgres {
+		if r.pg() {
 			r.pgCast(e)
 			return
 		}
@@ -611,7 +605,7 @@ func (r *renderer) agg(a Agg) {
 		r.w("COUNT(*)")
 		return
 	}
-	if r.d == Postgres {
+	if r.pg() {
 		r.pgAgg(name, a)
 		return
 	}
@@ -637,7 +631,7 @@ func (r *renderer) match(m Match) {
 		}
 		return s
 	}
-	if r.d == Postgres {
+	if r.pg() {
 		r.pgMatchSubject(m.X)
 		if m.CI {
 			r.w(" ILIKE ")
@@ -699,7 +693,7 @@ func AccessWildcards(s string) string {
 // PostgreSQL (a yes/no 0 or 1 too), 1 and 0 on SQLite; a real number is
 // double precision on PostgreSQL rather than numeric.
 func (r *renderer) literal(l Lit) (string, error) {
-	if r.d == Postgres {
+	if r.pg() {
 		switch x := l.Value.(type) {
 		case bool:
 			if x {

@@ -1,7 +1,6 @@
 package sqlgen
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -202,11 +201,13 @@ func TestRenderRefusesMalformedSchema(t *testing.T) {
 		"refs for an unknown event":    refs(func(s *AttachmentRefs) { s.Event = TriggerEvent(9) }),
 	}
 	for name, s := range cases {
-		if r, err := Render(SQLite, s); err == nil {
-			t.Errorf("%s: rendered %q, want an error", name, r.SQL)
+		for _, d := range []Dialect{SQLite, Postgres} {
+			if d == Postgres && name == "domain check without a name" {
+				continue // a yes/no column is boolean there, with no domain check to name
+			}
+			if r, err := Render(d, s); err == nil {
+				t.Errorf("%s on %s: rendered %q, want an error", name, d, r.SQL)
+			}
 		}
-	}
-	if _, err := Render(Postgres, &DropTable{Name: "t"}); !errors.Is(err, ErrDialect) {
-		t.Errorf("Postgres: err = %v, want ErrDialect until Phase F", err)
 	}
 }
