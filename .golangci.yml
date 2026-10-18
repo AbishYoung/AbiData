@@ -41,6 +41,10 @@ linters:
       - path: internal/script/
         linters: [gosec]
         text: "G103|G115|G404"
+      # A developer tool: it runs git, go, npm and npx and reads the paths given on its command line.
+      - path: tools/testplan/
+        linters: [gosec]
+        text: "G204|G304"
       # Generated artifacts are world-readable by design.
       - path: tools/gen/
         linters: [gosec]

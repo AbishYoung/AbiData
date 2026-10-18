@@ -11,6 +11,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -103,7 +104,7 @@ func readPaths(root, file string) ([]Change, error) {
 		if f, err = os.Open(file); err != nil {
 			return nil, err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 	}
 	var out []Change
 	sc := bufio.NewScanner(f)
@@ -139,40 +140,42 @@ func cmdPlan(root string, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(p)
 	}
-	describe(os.Stdout, p)
+	describe(p)
 	return nil
 }
 
 func writeGitHubOutput(file string, p Plan) error {
 	areasJSON, _ := json.Marshal(p.E2EAreas)
-	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	pkgs := strings.Join(p.GoPackages, " ")
 	if p.GoAll {
 		pkgs = "./..."
 	}
 	_, err = fmt.Fprintf(f, "full=%t\ngo=%t\ngo_packages=%s\ngo_lint=%t\nweb=%t\nweb_static=%t\ne2e=%t\ne2e_areas=%s\nimage=%t\npostgres=%t\n",
 		p.Full, p.Go(), pkgs, p.GoLint, p.Web(), p.WebStatic, p.E2E(), areasJSON, p.Image, p.Postgres)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
 	return err
 }
 
-func describe(w *os.File, p Plan) {
+func describe(p Plan) {
 	line := func(name string, on bool, detail string) {
 		state := "skip"
 		if on {
 			state = "run "
 		}
-		fmt.Fprintf(w, "%-9s %s %s\n", name, state, detail)
+		fmt.Printf("%-9s %s %s\n", name, state, detail)
 	}
 	for i, r := range p.Reasons {
 		if i == 8 {
-			fmt.Fprintf(w, "why: ... and %d more\n", len(p.Reasons)-i)
+			fmt.Printf("why: ... and %d more\n", len(p.Reasons)-i)
 			break
 		}
-		fmt.Fprintln(w, "why:", r)
+		fmt.Println("why:", r)
 	}
 	line("go lint", p.GoLint, strings.Join(p.GoLintDirs, " "))
 	line("web lint", p.WebStatic, "typecheck + eslint")
@@ -203,7 +206,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	describe(os.Stdout, p)
+	describe(p)
 	want := strings.Split(*layers, ",")
 	var steps []step
 	if slices.Contains(want, "static") {
@@ -326,7 +329,7 @@ func (s step) run(dry bool) error {
 	if dry {
 		return nil
 	}
-	cmd := exec.Command(s.name, s.args...)
+	cmd := exec.CommandContext(context.Background(), s.name, s.args...)
 	cmd.Dir = s.dir
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return cmd.Run()

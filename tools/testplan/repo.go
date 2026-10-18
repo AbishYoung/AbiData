@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -83,7 +84,7 @@ func specHelpers(dir string) (map[string][]string, error) {
 	imports := map[string][]string{}
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".mjs")) {
+		if e.IsDir() || !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".mjs") {
 			continue
 		}
 		b, err := os.ReadFile(filepath.Join(dir, name))
@@ -161,7 +162,7 @@ func changedPaths(root, base string) ([]Change, error) {
 }
 
 func output(dir, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Dir = dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
