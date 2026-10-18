@@ -401,8 +401,10 @@ func errXLSXPanic() error {
 }
 
 // recoverXLSX turns a panic inside excelize (malformed workbooks have triggered
-// index-out-of-range, nil-dereference and stack-overflow panics upstream) into
-// an import error, so one bad upload cannot take the request or job down.
+// index-out-of-range and nil-dereference panics upstream) into an import
+// error, so one bad upload cannot take the request or job down. A stack
+// overflow or running out of memory cannot be recovered; keeping excelize
+// current is the defence there.
 func recoverXLSX(err *error) {
 	if r := recover(); r != nil {
 		*err = errXLSXPanic()
