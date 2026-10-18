@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 ABIDATA_BOOTSTRAP_ADMIN_EMAIL ?= admin@example.com
 
-.PHONY: dev dev-web test test-postgres lint gen build docker docker-local e2e screenshots web-deps web-build clean
+.PHONY: dev dev-web test test-changed test-plan test-go test-go-unit test-go-integration test-web test-e2e test-postgres lint gen build docker docker-local e2e screenshots web-deps web-build clean
 
 web/node_modules: web/package-lock.json
 	npm --prefix web ci
@@ -28,9 +28,43 @@ dev: web-build
 dev-web: web/node_modules
 	npm --prefix web run dev
 
+# Everything below `make test` is a layer of ADR 0016; CI runs the full set on main.
 test: web/node_modules
 	go test -race ./...
 	npm --prefix web test
+
+# Only what the changes since the merge base with BASE (committed, staged, unstaged and
+# untracked) can affect. LAYERS picks from static,go,web,e2e; GO_TEST_FLAGS defaults to -short.
+BASE ?= origin/main
+LAYERS ?= static,go,web,e2e
+GO_TEST_FLAGS ?= -short
+test-changed: web/node_modules
+	go run ./tools/testplan run -base $(BASE) -layers $(LAYERS) -go-flags "$(GO_TEST_FLAGS)"
+
+# Print what test-changed would run, and why.
+test-plan:
+	go run ./tools/testplan plan -base $(BASE)
+
+# Go: everything with the race detector (what CI runs), the fast unit layer (-short, no race,
+# without the HTTP and binary packages), and the integration layer (those two, with race).
+GO_INTEGRATION_PKGS = ./internal/httpapi/... ./cmd/...
+test-go:
+	go test -race ./...
+
+test-go-unit:
+	go test -short $$(go list ./... | grep -v -e '/internal/httpapi' -e '/cmd/')
+
+test-go-integration:
+	go test -race $(GO_INTEGRATION_PKGS)
+
+# Vitest; PROJECT=unit or PROJECT=component runs one project.
+test-web: web/node_modules
+	npm --prefix web test -- $(if $(PROJECT),--project $(PROJECT))
+
+# Playwright by area (go run ./tools/testplan areas lists them); no AREA runs every area.
+# E2E_WORKERS sets the parallel workers, each with its own servers.
+test-e2e:
+	go run ./tools/testplan e2e $(AREA)
 
 # PostgreSQL backend tests (ADR 0012) against throwaway servers in Docker.
 # ABIDATA_TEST_POSTGRES_IMAGES picks the images (default postgres:17 postgres:18).
