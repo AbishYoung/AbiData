@@ -36,15 +36,16 @@ var items = []struct {
 	active      any
 	due, at     any // a date and a date and time, as SQLite stores them
 	pt, zone    any // a location and an area, canonical GeoJSON
+	doc         any // a JSON document, its keys in jsonb's order (by length, then bytes)
 	description string
 }{
-	{"Apple", "50% off", int64(3), 1.25, true, "2026-01-31", "2026-10-18T09:30:15.250Z", `{"type":"Point","coordinates":[-0.1278,51.5074]}`, `{"type":"Polygon","coordinates":[[[-1,51],[1,51],[1,52],[-1,52],[-1,51]]]}`, "plain"},
-	{"banana", "50 percent", nil, 0.5, false, "2024-02-29", "2024-02-29T23:59:59.999Z", `{"type":"Point","coordinates":[2.3522,48.8566]}`, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]],[[0.25,0.25],[0.25,0.75],[0.75,0.75],[0.75,0.25],[0.25,0.25]]]}`, "lower case, no quantity, leap day"},
-	{"Cherry", "a_b", int64(10), -2.5, true, "2025-12-31", "2026-01-01T00:00:00.000Z", `{"type":"Point","coordinates":[0.5,0.5]}`, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}`, "negative price, year end"},
-	{"apricot", "axb", int64(-7), 2.675, nil, nil, nil, nil, nil, "negative quantity, unknown flag, no dates"},
-	{nil, nil, int64(0), nil, false, "1970-01-01", "1969-12-31T12:00:00.000Z", `{"type":"Point","coordinates":[1,0.25,12.5]}`, `{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,0]]],[[[2,2],[3,2],[3,3],[2,3],[2,2]]]]}`, "NULL text, epoch"},
-	{"Éclair", "crème brûlée", int64(1), 100.0, true, "2000-03-01", "2000-02-28T12:00:00.001Z", `{"type":"Point","coordinates":[0,0]}`, `{"type":"Polygon","coordinates":[[[0,0],[0.0000001,0],[0.0000001,0.0000001],[0,0.0000001],[0,0]]]}`, "non-ASCII, century leap year"},
-	{"date", "[x]*?", int64(2), 1e-3, false, "2026-07-05", "2026-07-05T00:00:00.000Z", `{"type":"Point","coordinates":[-73.9857,40.7484]}`, `{"type":"Polygon","coordinates":[[[-74.1,40.6],[-73.8,40.6],[-73.8,40.9],[-74.1,40.9],[-74.1,40.6]]]}`, "glob characters, a Sunday"},
+	{"Apple", "50% off", int64(3), 1.25, true, "2026-01-31", "2026-10-18T09:30:15.250Z", `{"type":"Point","coordinates":[-0.1278,51.5074]}`, `{"type":"Polygon","coordinates":[[[-1,51],[1,51],[1,52],[-1,52],[-1,51]]]}`, `{"n":3,"ok":true,"tags":["a","b"],"price":1.5,"colour":"red"}`, "plain"},
+	{"banana", "50 percent", nil, 0.5, false, "2024-02-29", "2024-02-29T23:59:59.999Z", `{"type":"Point","coordinates":[2.3522,48.8566]}`, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]],[[0.25,0.25],[0.25,0.75],[0.75,0.75],[0.75,0.25],[0.25,0.25]]]}`, `{"n":"5","ok":false,"nested":{"x":[1,{"y":null}]}}`, "lower case, no quantity, leap day"},
+	{"Cherry", "a_b", int64(10), -2.5, true, "2025-12-31", "2026-01-01T00:00:00.000Z", `{"type":"Point","coordinates":[0.5,0.5]}`, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}`, `[1,2.5,"three",null,true]`, "negative price, year end"},
+	{"apricot", "axb", int64(-7), 2.675, nil, nil, nil, nil, nil, `"just text"`, "negative quantity, unknown flag, no dates"},
+	{nil, nil, int64(0), nil, false, "1970-01-01", "1969-12-31T12:00:00.000Z", `{"type":"Point","coordinates":[1,0.25,12.5]}`, `{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,0]]],[[[2,2],[3,2],[3,3],[2,3],[2,2]]]]}`, nil, "NULL text, epoch"},
+	{"Éclair", "crème brûlée", int64(1), 100.0, true, "2000-03-01", "2000-02-28T12:00:00.001Z", `{"type":"Point","coordinates":[0,0]}`, `{"type":"Polygon","coordinates":[[[0,0],[0.0000001,0],[0.0000001,0.0000001],[0,0.0000001],[0,0]]]}`, `{"n":-2,"a.b":1,"tags":[]}`, "non-ASCII, century leap year"},
+	{"date", "[x]*?", int64(2), 1e-3, false, "2026-07-05", "2026-07-05T00:00:00.000Z", `{"type":"Point","coordinates":[-73.9857,40.7484]}`, `{"type":"Polygon","coordinates":[[[-74.1,40.6],[-73.8,40.6],[-73.8,40.9],[-74.1,40.9],[-74.1,40.6]]]}`, `{"n":0,"big":12345678901234}`, "glob characters, a Sunday"},
 }
 
 type diffEnv struct {
@@ -64,7 +65,7 @@ func diffSetup(t *testing.T) *diffEnv {
 	s := ident(e.a.Schema())
 	for _, q := range []string{
 		`CREATE TABLE ` + s + `.items (id bigint PRIMARY KEY, name text COLLATE "C", qty bigint,
-			price double precision, active boolean, note text COLLATE "C", due date, at timestamptz, pt jsonb, zone jsonb)`,
+			price double precision, active boolean, note text COLLATE "C", due date, at timestamptz, pt jsonb, zone jsonb, doc jsonb)`,
 	} {
 		if _, err := d.Exec(ctx, q); err != nil {
 			t.Fatal(err)
@@ -76,7 +77,7 @@ func diffSetup(t *testing.T) *diffEnv {
 	}
 	t.Cleanup(func() { _ = lite.Close() })
 	if err := lite.ExecScript(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER,
-		price REAL, active INTEGER, note TEXT, due TEXT, at TEXT, pt TEXT, zone TEXT) STRICT`); err != nil {
+		price REAL, active INTEGER, note TEXT, due TEXT, at TEXT, pt TEXT, zone TEXT, doc TEXT) STRICT`); err != nil {
 		t.Fatal(err)
 	}
 	for i, it := range items {
@@ -84,10 +85,10 @@ func diffSetup(t *testing.T) *diffEnv {
 		if b, ok := it.active.(bool); ok {
 			flag = map[bool]int64{false: 0, true: 1}[b]
 		}
-		if _, err := lite.Exec(ctx, `INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, flag, it.note, it.due, it.at, it.pt, it.zone); err != nil {
+		if _, err := lite.Exec(ctx, `INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, i+1, it.name, it.qty, it.price, flag, it.note, it.due, it.at, it.pt, it.zone, it.doc); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := d.Exec(ctx, `INSERT INTO `+s+`.items VALUES (?, ?, ?, ?, ?, ?, CAST(? AS date), CAST(? AS timestamptz), CAST(? AS jsonb), CAST(? AS jsonb))`, i+1, it.name, it.qty, it.price, it.active, it.note, it.due, it.at, it.pt, it.zone); err != nil {
+		if _, err := d.Exec(ctx, `INSERT INTO `+s+`.items VALUES (?, ?, ?, ?, ?, ?, CAST(? AS date), CAST(? AS timestamptz), CAST(? AS jsonb), CAST(? AS jsonb), CAST(? AS jsonb))`, i+1, it.name, it.qty, it.price, it.active, it.note, it.due, it.at, it.pt, it.zone, it.doc); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -227,6 +228,7 @@ var itemColumns = []exprlang.Column{
 	{Name: "at", Type: sqlgen.DateTime},
 	{Name: "pt", Type: sqlgen.GeoPoint},
 	{Name: "zone", Type: sqlgen.GeoArea},
+	{Name: "doc", Type: sqlgen.JSON},
 }
 
 // expressionCases are AbiData expressions over the items columns, evaluated
@@ -284,6 +286,21 @@ var expressionCases = []string{
 	"geo_centroid('{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[3,0],[3,1],[0,1]]]}')",
 	"radians(qty)", "sin(qty)", "cos(price)", "tan(qty)", "atan(price)", "atan2(qty, price)", "acos(price)",
 	"asin(price)", "acosh(qty)", "asinh(price)", "atanh(price)", "sinh(price)", "cosh(price)", "tanh(qty)",
+	// JSON
+	"json_extract(doc, '$.n')", "json_extract(doc, '$.n') + 1", "json_extract(doc, '$.price') * 2",
+	"json_extract(doc, '$.colour') || '!'", "json_extract(doc, '$.tags')", "json_extract(doc, '$.tags[1]')",
+	"json_extract(doc, '$.tags[#-1]')", "json_extract(doc, '$.tags[#]')", "json_extract(doc, '$[2]')",
+	"json_extract(doc, '$.nested.x[1].y')", "json_extract(doc, '$.nested.x[1]')", `json_extract(doc, '$."a.b"')`,
+	"json_extract(doc, '$.ok')", "json_extract(doc, '$.n', '$.ok')", "json_extract(doc, '$')", "json_extract(doc, '$.big')",
+	"json_extract(doc, '$.n') = 3", "json_extract(doc, '$.colour') = 'red'", "json_extract(doc, '$.ok') = 1",
+	"json_extract(doc, '$.n') > qty", "iif(json_extract(doc, '$.ok'), 'yes', 'no')",
+	"coalesce(json_extract(doc, '$.price'), 0)", "CAST(json_extract(doc, '$.n') AS INTEGER)",
+	"CAST(json_extract(doc, '$.price') AS TEXT)", "CASE WHEN json_extract(doc, '$.ok') THEN json_extract(doc, '$.n') ELSE 0 END",
+	`json_extract('{"a":[1,2]}', '$.a[0]')`, "json_extract(pt, '$.type')", "json_extract(zone, '$.coordinates[0][0][0]')",
+	"json_type(doc)", "json_type(doc, '$.n')", "json_type(doc, '$.tags')", "json_type(doc, '$.price')",
+	"json_type(doc, '$.nested.x[1].y')", "json_type(doc, '$.missing')", "json_array_length(doc)",
+	"json_array_length(doc, '$.tags')", "json_array_length(doc, '$.missing')", "json_valid(doc)", "json_valid(note)",
+	`json_valid('{"a":1}')`, "json_valid(qty)", "json(doc)", `json(' { "a" : [ 1 , 2 ] } ')`, "doc || ''", "length(doc)",
 }
 
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
@@ -298,7 +315,7 @@ func TestExpressionsAgree(t *testing.T) {
 			continue
 		}
 		stmt := &sqlgen.Select{
-			Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}, {Expr: r.Expr, As: "v"}},
+			Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}, {Expr: asText(r.Expr, r.Type), As: "v"}},
 			From:    sqlgen.Table{Name: "items"},
 			OrderBy: []sqlgen.Order{{Expr: sqlgen.Col{Name: "id"}}},
 		}
@@ -306,9 +323,26 @@ func TestExpressionsAgree(t *testing.T) {
 	}
 }
 
+// asText compares a JSON result as its text: jsonb reads back as Go values, in
+// which a JSON string and text look alike.
+func asText(e sqlgen.Expr, t sqlgen.Type) sqlgen.Expr {
+	if t != sqlgen.JSON {
+		return e
+	}
+	return sqlgen.Binary{Op: sqlgen.OpConcat, L: e, R: sqlgen.Lit{Value: "", Type: sqlgen.Text}}
+}
+
 // knownDifferences are the rows (1-based) where the engines are allowed to
-// disagree, each for a stated reason (ADR 0013 §9).
-var knownDifferences = map[string][]int{}
+// disagree, each for a stated reason (ADR 0013 §9). A "stored " key is the
+// expression as a generated column.
+var knownDifferences = map[string][]int{
+	// jsonb keeps a number's value, not its spelling: 1e-7 reads back as
+	// 0.0000001.
+	"stored geo_bbox(zone)": {6},
+	// A whole double as text: 3 on PostgreSQL, 3.0 on SQLite (the codecs'
+	// number formatting, ADR 0013 §3).
+	"stored json_extract(doc, '$.price') * 2": {1},
+}
 
 // tolerances loosen the comparison of numbers for an expression. A 1 cm²
 // area's spherical-excess sum cancels almost completely, so the last bits of

@@ -265,6 +265,28 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
   - Text indexes use `abi_ci`, so unique text indexes ignore case as on SQLite, while `=` stays exact.
 - **Tests.** `internal/pgdb/ddl_test.go` creates every per-row expression of the differential list as a generated column on both engines and compares what each computed. 208 of them, on SQLite and PostgreSQL 18; the rest are query-only or cannot be stored on SQLite either. It also checks the triggers, the case-insensitive unique index and the domain checks.
 
+**Phase F, part 3 (as built): reading JSON.**
+
+- **Functions.** `json`, `json_extract`, `json_type`, `json_array_length` and `json_valid` render on PostgreSQL.
+  - Documents are jsonb. A text argument is read as JSON, and is an error when it is not JSON, as on SQLite.
+  - `<prefix>_lib` parses SQLite's path syntax (`.key`, `."key"`, `[N]`, `[#-N]`) and gives no value where SQLite gives none.
+  - `json_valid` takes only its default flags (1). JSON5 and SQLite's binary JSONB do not exist on PostgreSQL.
+- **Typed extraction comes from the context.** `json_extract` returns the jsonb value, and the renderer converts it to the type its context needs, as SQLite would read the value there:
+  - arithmetic and aggregates use `abi_json_num`;
+  - concatenation, text functions and text columns use `abi_json_text`;
+  - conditions use `abi_json_bool`;
+  - a comparison uses the other side's type;
+  - the branches of `coalesce`, `iif` and `CASE` use their first fixed type.
+  
+  A bare `json_extract` in a select list stays jsonb, which reads back as the value's own type.
+- **JSON as text** is written without jsonb's spaces (`abi_json_min`).
+- **Recorded differences.** They come from jsonb keeping values, not spellings:
+  - object keys come back in jsonb's order (by length, then bytes), and a repeated key keeps only its last value;
+  - a number written with an exponent comes back in decimal, so `json_type` calls `1e2` an integer;
+  - a string compared with a number is read as a number, whereas on SQLite text never equals a number;
+  - `ORDER BY` an extracted value sorts in jsonb's type order.
+- **Still pending:** the functions that build or change documents (`json_array`, `json_object`, `json_insert`, `json_replace`, `json_set`, `json_remove`, `json_patch`, `json_quote`) and `json_error_position`.
+
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;
 - stored expressions get real parsing and good error messages instead of an authorizer probe;

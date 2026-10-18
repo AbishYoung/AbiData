@@ -517,6 +517,10 @@ func (r *renderer) expr(e Expr) {
 			r.fail("CASE needs at least one WHEN")
 			return
 		}
+		if r.pg() {
+			r.pgCase(e)
+			return
+		}
 		r.w("CASE")
 		for _, w := range e.Whens {
 			r.w(" WHEN ")

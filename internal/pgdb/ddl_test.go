@@ -79,10 +79,10 @@ func TestStoredExpressionsAgree(t *testing.T) {
 		}
 		stored++
 		e.agree(t, "stored "+src, &sqlgen.Select{
-			Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}, {Expr: sqlgen.Col{Name: "v", Type: typ}}},
+			Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}, {Expr: asText(sqlgen.Col{Name: "v", Type: typ}, typ)}},
 			From:    sqlgen.Table{Name: name},
 			OrderBy: []sqlgen.Order{{Expr: sqlgen.Col{Name: "id"}}},
-		}, knownDifferences[src]...)
+		}, knownDifferences["stored "+src]...)
 	}
 	if stored < len(expressionCases)/2 {
 		t.Errorf("only %d of %d expressions were stored", stored, len(expressionCases))
