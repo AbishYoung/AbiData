@@ -144,7 +144,7 @@ func (r *renderer) pgStored(e Expr, t Type) {
 		r.pgNumberExpr(e)
 		r.w(" AS double precision)")
 	case JSON, GeoPoint, GeoArea, Attachments:
-		if c, ok := e.(Col); ok && (c.Type == JSON || c.Type == GeoPoint || c.Type == GeoArea || c.Type == Attachments) {
+		if pgJSONB(e) {
 			r.expr(e)
 			return
 		}
@@ -156,17 +156,6 @@ func (r *renderer) pgStored(e Expr, t Type) {
 	default:
 		r.expr(e)
 	}
-}
-
-// pgCondition renders a CHECK: a condition that is a number is true when it
-// is not zero, as SQLite reads it.
-func (r *renderer) pgCondition(e Expr) {
-	if t := typeOf(e); t != Boolean && t != Unknown {
-		r.operand(e)
-		r.w(" <> 0")
-		return
-	}
-	r.expr(e)
 }
 
 // pgDomainCheck is the CHECK that keeps a column's values in its type's domain

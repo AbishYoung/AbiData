@@ -37,10 +37,18 @@ func pgType(t Type) string {
 // truncation (PostgreSQL rounds), and text by its leading number.
 func (r *renderer) pgCast(c Cast) {
 	from := typeOf(c.X)
+	if pgExtracted(c.X) {
+		switch c.Type {
+		case Text, Number:
+			r.pgAs(c.X, c.Type)
+			return
+		}
+		from = Number // the integer part of the value as a number
+	}
 	switch {
 	case (c.Type == Integer || c.Type == Currency) && from != Integer && from != Currency && from != Boolean:
 		r.w("CAST(trunc(CAST(")
-		r.expr(c.X)
+		r.pgNumberExpr(c.X)
 		r.w(" AS double precision)) AS bigint)")
 	case c.Type == Text && from == Boolean:
 		r.pgText(c.X)
@@ -58,6 +66,9 @@ func (r *renderer) pgCast(c Cast) {
 // pgNumber renders e as an operand of arithmetic: a yes/no counts as 0 or 1,
 // as it does on SQLite.
 func (r *renderer) pgNumber(e Expr) {
+	if r.pgAs(e, Number) {
+		return
+	}
 	if typeOf(e) == Boolean {
 		r.w("CAST(")
 		r.expr(e)
@@ -71,9 +82,21 @@ func (r *renderer) pgNumber(e Expr) {
 // 1; numbers use PostgreSQL's formatting (a whole number of type number shows
 // as 2, not SQLite's 2.0).
 func (r *renderer) pgText(e Expr) {
+	if r.pgAs(e, Text) {
+		return
+	}
 	switch typeOf(e) {
 	case Text, Unknown:
 		r.operand(e)
+	case JSON, Attachments:
+		if !pgJSONB(e) {
+			r.operand(e)
+			return
+		}
+		// The text SQLite holds, without jsonb's spaces.
+		r.w("abi_json_min(")
+		r.expr(e)
+		r.w(")")
 	case Boolean:
 		r.w("CAST(CAST(")
 		r.expr(e)
@@ -189,9 +212,13 @@ func (r *renderer) pgBinary(b Binary) {
 // column is read as a date (or date and time), as SQLite's comparison of ISO
 // text means.
 func (r *renderer) pgComparand(e, other Expr) {
+	if pgExtracted(e) && !pgNativeTime(other) && r.pgAs(e, typeOf(other)) {
+		// An extracted value compared with a typed one is read as that type.
+		return
+	}
 	if pgNativeTime(other) && !pgNativeTime(e) {
-		switch t := typeOf(e); t {
-		case Text, Date, DateTime:
+		switch t := typeOf(e); {
+		case t == Text || t == Date || t == DateTime || pgExtracted(e):
 			// SQLite's parser, IMMUTABLE and independent of DateStyle and
 			// TimeZone; text without a zone is UTC.
 			if typeOf(other) == Date {
@@ -232,7 +259,7 @@ func (r *renderer) pgAgg(name string, a Agg) {
 	}
 	arg := func() {
 		r.w(distinct)
-		if base == Boolean && (a.Fn == AggSum || a.Fn == AggAvg) {
+		if (base == Boolean || pgExtracted(a.X)) && (a.Fn == AggSum || a.Fn == AggAvg) {
 			r.pgNumber(a.X)
 			return
 		}
@@ -325,9 +352,6 @@ func init() {
 		"substr":       pgCall("abi_substr", nil),
 		"substring":    pgCall("abi_substr", nil),
 		"instr":        pgCall("strpos", asBinaryText),
-		"coalesce":     pgCall("coalesce", nil),
-		"ifnull":       pgCall("coalesce", nil),
-		"nullif":       pgCall("nullif", nil),
 		"abs":          pgCall("abs", asNumber),
 		"round":        pgCall("abi_round", asNumber),
 		"pi":           pgCall("pi", nil),
@@ -449,6 +473,7 @@ func init() {
 			r.w(" AS double precision)), 0)")
 		},
 	}
+	addPGJSONFuncs()
 }
 
 // pgDateFunc renders SQLite's date and time functions as the <prefix>_lib
@@ -539,7 +564,7 @@ func (r *renderer) pgTimeValue(e Expr) {
 // pgNumberExpr is pgNumber without parentheses around a compound operand
 // (for use inside a CAST).
 func (r *renderer) pgNumberExpr(e Expr) {
-	if typeOf(e) == Boolean {
+	if typeOf(e) == Boolean || pgExtracted(e) {
 		r.pgNumber(e)
 		return
 	}
@@ -564,22 +589,25 @@ func pgWhole(fn string) pgFn {
 // pgIf renders iif(c, a, b) and if(c1, a1, c2, a2, …[, else]) as CASE. A
 // condition that is a number is true when it is not zero.
 func pgIf(r *renderer, args []Expr) {
+	var results []Expr
+	for j := 1; j < len(args); j += 2 {
+		results = append(results, args[j])
+	}
+	if len(args)%2 == 1 {
+		results = append(results, args[len(args)-1])
+	}
+	t := pgCommonType(results)
 	r.w("CASE")
 	i := 0
 	for ; i+1 < len(args); i += 2 {
 		r.w(" WHEN ")
-		if t := typeOf(args[i]); t != Boolean && t != Unknown {
-			r.operand(args[i])
-			r.w(" <> 0")
-		} else {
-			r.expr(args[i])
-		}
+		r.pgCondition(args[i])
 		r.w(" THEN ")
-		r.expr(args[i+1])
+		r.pgBranch(args[i+1], t)
 	}
 	if i < len(args) {
 		r.w(" ELSE ")
-		r.expr(args[i])
+		r.pgBranch(args[i], t)
 	}
 	r.w(" END")
 }
@@ -598,8 +626,9 @@ func pgExtreme(fn string, agg AggFn) pgFn {
 			r.operand(args[i])
 			r.w(" IS NULL")
 		})
+		t := pgCommonType(args)
 		r.w(" THEN NULL ELSE " + fn + "(")
-		r.list(len(args), ", ", func(i int) { r.expr(args[i]) })
+		r.list(len(args), ", ", func(i int) { r.pgBranch(args[i], t) })
 		r.w(") END")
 	}
 }
@@ -607,8 +636,7 @@ func pgExtreme(fn string, agg AggFn) pgFn {
 // pgPending names the catalog functions that do not render on PostgreSQL yet.
 // Phase F part 2 adds them to <prefix>_lib with SQLite's semantics.
 var pgPending = strings.Fields(`timediff
-	json json_array json_array_length json_error_position json_extract json_insert json_object json_patch
-	json_quote json_remove json_replace json_set json_type json_valid
+	json_array json_error_position json_insert json_object json_patch json_quote json_remove json_replace json_set
 	format printf quote typeof unhex`)
 
 func (r *renderer) pgFunc(def FuncDef, args []Expr) {
