@@ -207,6 +207,25 @@ func (p *planner) execStmt(s sqlgen.Stmt) error {
 	return p.exec(sql)
 }
 
+// countRows counts the rows of table that match where (all rows when nil).
+func (p *planner) countRows(table string, where sqlgen.Expr) (int64, error) {
+	r, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
+		From: sqlgen.Table{Name: table}, Where: where})
+	if err != nil {
+		return 0, fmt.Errorf("catalog: %w", err)
+	}
+	var n int64
+	err = p.tx.QueryRow(p.ctx, r.SQL, r.Args...).Scan(&n)
+	return n, err
+}
+
+// convertCall calls one of the rebuild's conversion helpers (abidata_convert,
+// abidata_convert_ok) on column col. They are SQLite-only and internal to the
+// rebuild, so they are not in the builder-facing function catalog.
+func convertCall(fn string, from, to FieldType, col string) sqlgen.Expr {
+	return sqlgen.Raw{SQL: fmt.Sprintf("%s('%s', '%s', %s)", fn, from, to, Quote(col))}
+}
+
 func (p *planner) newID(proposed string) (string, error) {
 	if proposed == "" {
 		return ids.New(), nil
@@ -435,8 +454,8 @@ func (p *planner) dropTable(op Op) error {
 	if len(blockers) > 0 {
 		return badf("Other tables link to this table (%s). Remove those relationships or lookup fields first.", strings.Join(blockers, ", "))
 	}
-	var rows int64
-	if err := p.tx.QueryRow(p.ctx, "SELECT count(*) FROM "+Quote(t.PhysicalName)).Scan(&rows); err != nil {
+	rows, err := p.countRows(t.PhysicalName, nil)
+	if err != nil {
 		return err
 	}
 	p.report.RowsAffected += rows
@@ -921,8 +940,8 @@ func (p *planner) dropColumn(op Op) error {
 		break
 	}
 	before := cloneTable(t)
-	var nonNull int64
-	if err := p.tx.QueryRow(p.ctx, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s IS NOT NULL", Quote(t.PhysicalName), Quote(c.PhysicalName))).Scan(&nonNull); err != nil {
+	nonNull, err := p.countRows(t.PhysicalName, sqlgen.IsNull{X: sqlgen.Col{Name: c.PhysicalName}, Negate: true})
+	if err != nil {
 		return err
 	}
 	if nonNull > 0 {
@@ -1234,19 +1253,13 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 		dst = append(dst, c.PhysicalName)
 		var e sqlgen.Expr = sqlgen.Col{Name: old.PhysicalName}
 		if cv, ok := conv[c.ID]; ok {
-			// abidata_convert is SQLite-only and internal to the rebuild, so it
-			// is not in the builder-facing function catalog.
-			e = sqlgen.Raw{SQL: fmt.Sprintf("abidata_convert('%s', '%s', %s)", cv.from, cv.to, Quote(old.PhysicalName))}
+			e = convertCall("abidata_convert", cv.from, cv.to, old.PhysicalName)
 		}
 		src = append(src, sqlgen.Column{Expr: e})
 	}
 	from := sqlgen.Table{Name: before.PhysicalName}
-	countSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}}, From: from})
+	total, err := p.countRows(before.PhysicalName, nil)
 	if err != nil {
-		return err
-	}
-	var total int64
-	if err := p.tx.QueryRow(p.ctx, countSQL).Scan(&total); err != nil {
 		return err
 	}
 	copySQL, err := render(&sqlgen.Insert{Table: rebuildName, OrIgnore: true, Columns: dst, From: &sqlgen.Select{Columns: src, From: from}})
@@ -1334,17 +1347,23 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 
 // conversionFailures reports rows whose values cannot convert from old to nc.
 func (p *planner) conversionFailures(t *Table, old, nc Column) error {
-	q := Quote(old.PhysicalName)
-	where := fmt.Sprintf("%s IS NOT NULL AND NOT abidata_convert_ok('%s', '%s', %s)", q, old.Type, nc.Type, q)
-	var n int64
-	if err := p.tx.QueryRow(p.ctx, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s", Quote(t.PhysicalName), where)).Scan(&n); err != nil {
+	col := sqlgen.Col{Name: old.PhysicalName}
+	where := sqlgen.And{sqlgen.IsNull{X: col, Negate: true}, sqlgen.Not{X: convertCall("abidata_convert_ok", old.Type, nc.Type, old.PhysicalName)}}
+	n, err := p.countRows(t.PhysicalName, where)
+	if err != nil {
 		return err
 	}
 	if n == 0 {
 		return nil
 	}
 	cf := ConversionFailure{ColumnID: nc.ID, Column: nc.DisplayName, From: string(old.Type), To: string(nc.Type), Count: n}
-	rows, err := p.tx.Query(p.ctx, fmt.Sprintf(`SELECT "id", %s FROM %s WHERE %s ORDER BY "id" LIMIT 20`, q, Quote(t.PhysicalName), where))
+	id := sqlgen.Col{Name: "id"}
+	samplesSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}, {Expr: col}}, From: sqlgen.Table{Name: t.PhysicalName},
+		Where: where, OrderBy: []sqlgen.Order{{Expr: id}}, Limit: sqlgen.Lit{Value: 20}})
+	if err != nil {
+		return err
+	}
+	rows, err := p.tx.Query(p.ctx, samplesSQL)
 	if err != nil {
 		return err
 	}

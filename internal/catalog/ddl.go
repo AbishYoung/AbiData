@@ -165,7 +165,7 @@ func createIndexSQL(t *Table, x Index) (string, error) {
 
 func occTriggerName(t *Table) string { return "_occ_" + strings.ToLower(t.ID) }
 
-// occTriggerSQL is the safety-net trigger: any UPDATE that left _version
+// occTrigger is the safety-net trigger: any UPDATE that left _version
 // unchanged bumps it (recursive_triggers stays OFF, so it does not re-fire).
 func occTrigger(t *Table) sqlgen.Stmt {
 	return &sqlgen.OCCBump{Name: occTriggerName(t), Table: t.PhysicalName}
