@@ -4,12 +4,37 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 )
+
+// lnumberToInt converts n to int, saturating outside the int range and mapping
+// NaN to 0, instead of Go's implementation-defined float-to-int conversion.
+// [AbiData patch]
+func lnumberToInt(n LNumber) int {
+	f := float64(n)
+	switch {
+	case f != f:
+		return 0
+	case f >= math.MaxInt64:
+		return math.MaxInt
+	case f <= math.MinInt64:
+		return math.MinInt
+	}
+	// The bounds are checked again on the integer, where int may be 32 bits.
+	i := int64(f)
+	if i > math.MaxInt {
+		return math.MaxInt
+	}
+	if i < math.MinInt {
+		return math.MinInt
+	}
+	return int(i)
+}
 
 func intMin(a, b int) int {
 	if a < b {

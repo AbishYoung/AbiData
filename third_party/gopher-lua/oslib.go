@@ -29,7 +29,7 @@ func getIntField(L *LState, tb *LTable, key string, v int) int {
 			}
 		}
 		if num, err := parseNumber(slv); err == nil {
-			return int(num)
+			return lnumberToInt(num) // [AbiData patch]
 		}
 	default:
 		return v

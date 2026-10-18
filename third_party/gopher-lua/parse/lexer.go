@@ -236,7 +236,10 @@ func (sc *Scanner) scanEscape(ch int, buf *bytes.Buffer) error {
 				bytes = append(bytes, byte(sc.Next()))
 			}
 			val, _ := strconv.ParseInt(string(bytes), 10, 32)
-			writeChar(buf, int(val))
+			if val < 0 || val > 255 { // [AbiData patch]
+				return sc.Error(string(bytes), "decimal escape too large")
+			}
+			buf.WriteByte(byte(val))
 		} else {
 			writeChar(buf, ch)
 		}

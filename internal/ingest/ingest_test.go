@@ -410,6 +410,47 @@ func TestXLSXZipBomb(t *testing.T) {
 	}
 }
 
+// A panic inside excelize on a malformed workbook becomes an import error
+// instead of crashing the request.
+func TestXLSXParserPanicRecovered(t *testing.T) {
+	e := newEnv(t)
+	data := xlsxBytes(t, [][]any{{"a"}, {"1"}}, false)
+	old := openWorkbook
+	openWorkbook = func(string, ...excelize.Options) (*excelize.File, error) { panic("index out of range") }
+	defer func() { openWorkbook = old }()
+	_, err := e.svc.Upload(e.ctx, e.ws, "u", UploadOptions{Filename: "bad.xlsx"}, strings.NewReader(data))
+	if fcode(err) != fault.BadRequest || !strings.Contains(err.Error(), "could not be read as an XLSX workbook") {
+		t.Fatalf("expected a bad-file error, got %v", err)
+	}
+	dir, _ := e.svc.stagingDir(e.ws)
+	if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+		t.Fatalf("staging files left: %v", ents)
+	}
+
+	// The row reader uses the same guard.
+	readRow := func() (_ []string, err error) {
+		defer recoverXLSX(&err)
+		var cols []string
+		return cols[:1], nil //nolint:gosec // deliberate out-of-range slice
+	}
+	if _, err := readRow(); fcode(err) != fault.BadRequest {
+		t.Fatalf("row panic not recovered: %v", err)
+	}
+
+	// A structurally valid zip with malformed workbook XML is rejected cleanly.
+	var b bytes.Buffer
+	zw := zip.NewWriter(&b)
+	for _, name := range []string{"[Content_Types].xml", "xl/workbook.xml", "xl/worksheets/sheet1.xml", "xl/_rels/workbook.xml.rels"} {
+		w, _ := zw.Create(name)
+		_, _ = io.WriteString(w, `<?xml version="1.0"?><workbook><sheets><sheet name="S" sheetId="-1" r:id="rId9999999999999999999"/></sheets><row r="-5"><c r="ZZZZZZZZ0"`)
+	}
+	_ = zw.Close()
+	openWorkbook = old
+	if _, err := e.svc.Upload(e.ctx, e.ws, "u", UploadOptions{Filename: "mal.xlsx"}, &b); fcode(err) != fault.BadRequest {
+		t.Fatalf("malformed workbook: %v", err)
+	}
+}
+
 // ---- inference -------------------------------------------------------------
 
 func TestInference(t *testing.T) {

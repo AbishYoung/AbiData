@@ -3,6 +3,7 @@ package script
 import (
 	"context"
 	"errors"
+	"math"
 	"runtime"
 	"strings"
 	"testing"
@@ -60,6 +61,25 @@ func TestNaiveSandboxLeaks(t *testing.T) {
 	_ = L.DoString(`string.find(string.rep("a", 12), string.rep("a*", 12) .. "b")`)
 	if el := time.Since(start); el < 30*time.Millisecond {
 		t.Fatalf("naive pathological match returned in %v; expected it to overrun the 10 ms deadline", el)
+	}
+}
+
+// The gopher-lua fork's integer-conversion patches (third_party/gopher-lua/PATCHES.md #3).
+func TestForkIntegerConversions(t *testing.T) {
+	L := lua.NewState()
+	defer L.Close()
+	if err := L.DoString(`local s = "\999"`); err == nil || !strings.Contains(err.Error(), "decimal escape too large") {
+		t.Fatalf("decimal escape > 255 accepted: %v", err)
+	}
+	if err := L.DoString(`assert("\65\255" == "A\255")`); err != nil {
+		t.Fatal(err)
+	}
+	for in, want := range map[string]int{"1e300": math.MaxInt, "-1e300": math.MinInt, "nan": 0, "42": 42} {
+		L.SetTop(0)
+		L.Push(lua.LString(in))
+		if got := L.ToInt(1); got != want {
+			t.Fatalf("ToInt(%q) = %d, want %d", in, got, want)
+		}
 	}
 }
 

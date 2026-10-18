@@ -305,9 +305,13 @@ func format(v any, spec string, f *field, tz *time.Location) any {
 			return thousands(d.StringFixed(2))
 		}
 	case "fixed":
-		n, _ := strconv.Atoi(arg)
+		// Decimal places come from the report template. Parsing at 8 bits bounds
+		// the value (out-of-range input saturates to ±127) before it is clamped
+		// to 0..10 and narrowed to int32.
+		n, _ := strconv.ParseInt(arg, 10, 8)
+		places := int32(min(max(n, 0), 10))
 		if d, ok := asDecimal(v); ok {
-			return thousands(d.StringFixed(int32(min(max(n, 0), 10))))
+			return thousands(d.StringFixed(places))
 		}
 	case "integer":
 		if d, ok := asDecimal(v); ok {
