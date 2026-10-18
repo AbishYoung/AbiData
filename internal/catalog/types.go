@@ -82,6 +82,8 @@ type Column struct {
 	Description           string      `json:"description"`
 	Ordinal               int         `json:"ordinal"`
 	Hidden                bool        `json:"is_hidden"`
+	// ExprIssues is set when the schema is loaded (see exprs.go).
+	ExprIssues map[string]string `json:"expression_issues,omitempty" doc:"Expressions written before the expression language that fall outside it, keyed expression, validation_sql or default_sql, with the reason. They keep working on SQLite but need rewriting before the workspace can move to another backend (ADR 0013)."`
 }
 
 // MaxLen returns the effective short_text limit.

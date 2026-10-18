@@ -579,13 +579,6 @@ func (p *planner) buildColumn(spec ColumnSpec, t *Table, ordinal int, existing *
 	if len(c.ValidationText) > 500 || len(c.Description) > 4000 {
 		return Column{}, nil, badf("Validation text is limited to 500 characters and descriptions to 4000.")
 	}
-	for _, expr := range []string{c.DefaultSQL, c.ValidationSQL} {
-		if expr != "" {
-			if err := lexCheck(expr); err != nil {
-				return Column{}, nil, err
-			}
-		}
-	}
 	switch c.Type {
 	case ShortText:
 		if c.Options.MaxLength < 0 || c.Options.MaxLength > 65535 {
@@ -597,9 +590,6 @@ func (p *planner) buildColumn(spec ColumnSpec, t *Table, ordinal int, existing *
 	case Calculated:
 		if c.Options.Expression == "" {
 			return Column{}, nil, badf("A calculated field needs an expression.")
-		}
-		if err := lexCheck(c.Options.Expression); err != nil {
-			return Column{}, nil, err
 		}
 		switch c.Options.ResultType {
 		case "", "text", "integer", "number", "currency", "yes_no", "date", "datetime", "geo_point", "geo_area":
@@ -618,6 +608,9 @@ func (p *planner) buildColumn(spec ColumnSpec, t *Table, ordinal int, existing *
 	}
 	if c.Type != Calculated {
 		c.Options.Expression, c.Options.ResultType = "", ""
+	}
+	if err := checkColumnExprs(t, c, existing); err != nil {
+		return Column{}, nil, err
 	}
 	var rel *Relationship
 	if c.Type == Lookup {
@@ -689,15 +682,20 @@ func defaultDisplayColumn(t *Table) string {
 	return t.Columns[0].ID
 }
 
-// validateTableExprs runs the semantic expression checks against the live table.
+// validateTableExprs re-checks, against the live table, the expressions
+// embedded as written because they fall outside the grammar (see exprs.go).
+// Parsed expressions were checked before any DDL was built.
 func (p *planner) validateTableExprs(t *Table) error {
 	for _, c := range t.Columns {
-		checks := []struct {
-			kind ExprKind
-			expr string
-		}{{ExprValidation, c.ValidationSQL}, {ExprDefault, c.DefaultSQL}, {ExprCalculated, c.Options.Expression}}
-		for _, ch := range checks {
+		for _, k := range exprKinds {
+			ch := struct {
+				kind ExprKind
+				expr string
+			}{k.kind, k.text(c)}
 			if ch.expr == "" {
+				continue
+			}
+			if _, err := ParseExpr(t.Columns, ch.kind, ch.expr); err == nil {
 				continue
 			}
 			if err := ValidateExpr(p.ctx, p.tx, ch.kind, t.PhysicalName, ch.expr); err != nil {
@@ -729,7 +727,7 @@ func (p *planner) addColumn(op Op) error {
 	t, _ = p.s.Table(t.ID)
 	native := c.ValidationSQL == "" && (!c.Required || c.DefaultSQL != "") && (c.Type != Lookup || rel == nil || !rel.Enforce)
 	if native {
-		if err := p.execStmt(&sqlgen.AddColumn{Table: t.PhysicalName, Column: columnDef(c)}); err != nil {
+		if err := p.execStmt(&sqlgen.AddColumn{Table: t.PhysicalName, Column: columnDef(t.Columns, c)}); err != nil {
 			return ddlError(err)
 		}
 	} else if err := p.rebuild(before, t, nil); err != nil {

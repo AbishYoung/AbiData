@@ -111,6 +111,12 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 	for i := range s.Tables {
 		sort.SliceStable(s.Tables[i].Columns, func(a, b int) bool { return s.Tables[i].Columns[a].Ordinal < s.Tables[i].Columns[b].Ordinal })
 	}
+	for i := range s.Tables {
+		t := &s.Tables[i]
+		for j := range t.Columns {
+			t.Columns[j].ExprIssues = ExprIssues(t.Columns, t.Columns[j])
+		}
+	}
 	s.index()
 	return s, nil
 }

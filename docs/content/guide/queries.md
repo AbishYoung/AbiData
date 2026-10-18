@@ -23,7 +23,7 @@ Tick **Totals** above the field grid to group records. Each field then has a **T
 
 ### Expressions {#expressions}
 
-A field can be an SQL expression instead of a column. For example, `Quantity * Unit_price` uses the SQL names described in [Tables](/docs/guide/tables#design). Expressions can use built-in SQL functions. Only builders and owners can run or save queries that contain expressions.
+A field can be an [expression](/docs/reference/expressions) instead of a column. For example, `Quantity * Unit_price` uses the SQL names described in [Tables](/docs/guide/tables#design). When the query has several sources, write `o.Quantity` to name a source's field. Expressions in queries may also total (`sum(o.Quantity)`, `count(*)`) and use the current date. Only builders and owners can run or save queries that contain expressions.
 
 ## SQL view {#sql}
 

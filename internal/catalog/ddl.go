@@ -69,10 +69,10 @@ func fieldType(t FieldType) sqlgen.Type {
 	return sqlgen.Unknown
 }
 
-// columnDef declares one column (without foreign keys, which are table-level
-// constraints generated from relationships). Builder expressions are still
-// SQLite SQL, vetted when the column is defined, so they are embedded as Raw.
-func columnDef(c Column) sqlgen.ColumnDef {
+// columnDef declares one column of a table with columns cols (without foreign
+// keys, which are table-level constraints generated from relationships).
+// Builder expressions are embedded from their parsed form (see exprs.go).
+func columnDef(cols []Column, c Column) sqlgen.ColumnDef {
 	d := sqlgen.ColumnDef{Name: c.PhysicalName}
 	switch c.Type {
 	case Autonumber:
@@ -80,7 +80,7 @@ func columnDef(c Column) sqlgen.ColumnDef {
 		return d
 	case Calculated:
 		d.Type = calcType(c.Options.ResultType)
-		d.Generated = sqlgen.Raw{SQL: c.Options.Expression}
+		d.Generated = exprNode(cols, ExprCalculated, c.Options.Expression)
 		return d
 	}
 	d.Type = fieldType(c.Type)
@@ -94,12 +94,12 @@ func columnDef(c Column) sqlgen.ColumnDef {
 	d.NotNull = c.Required || c.Type == YesNo
 	switch {
 	case c.DefaultSQL != "":
-		d.Default = sqlgen.Raw{SQL: c.DefaultSQL}
+		d.Default = exprNode(cols, ExprDefault, c.DefaultSQL)
 	case c.Type == YesNo:
 		d.Default = sqlgen.Lit{Value: 0}
 	}
 	if c.ValidationSQL != "" {
-		d.Checks = []sqlgen.Check{{Name: validationConstraintName(c.ID), Expr: sqlgen.Raw{SQL: c.ValidationSQL}}}
+		d.Checks = []sqlgen.Check{{Name: validationConstraintName(c.ID), Expr: exprNode(cols, ExprValidation, c.ValidationSQL)}}
 	}
 	return d
 }
@@ -121,7 +121,7 @@ func render(s sqlgen.Stmt) (string, error) {
 func createTableSQL(s *Schema, t *Table, as string) (string, error) {
 	ct := &sqlgen.CreateTable{Name: as, Strict: true}
 	for _, c := range t.Columns {
-		ct.Columns = append(ct.Columns, columnDef(c))
+		ct.Columns = append(ct.Columns, columnDef(t.Columns, c))
 		if c.Type == Autonumber {
 			ct.Columns = append(ct.Columns, versionColumn)
 		}

@@ -2,12 +2,14 @@ package query
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 
 	"abidata/internal/catalog"
+	"abidata/internal/exprlang"
 	"abidata/internal/fault"
 	"abidata/internal/records"
 	"abidata/internal/sqlgen"
@@ -149,6 +151,15 @@ func Q(s string) string { return catalog.Quote(s) }
 
 // Compile turns m into SQL against schema sch.
 func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
+	return CompileWith(sch, m, resolve, nil)
+}
+
+// CompileWith is Compile for a model that may hold expression columns saved
+// before the expression language (ADR 0013 Phase D). An expression that does
+// not parse but for which legacy reports true is embedded as written, behind
+// the lexical check, as before; the query still runs under the user-SQL
+// authorizer. Any other expression must parse.
+func CompileWith(sch *catalog.Schema, m Model, resolve Resolver, legacy func(expr string) bool) (Compiled, error) {
 	var out Compiled
 	if len(m.Sources) == 0 {
 		return out, bad("Add a table to the query.")
@@ -195,6 +206,7 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 		srcs[key] = src
 		order = append(order, key)
 	}
+	scope := exprScope(srcs, order)
 	params := map[string]Param{}
 	for _, p := range m.Parameters {
 		if !paramRe.MatchString(p.Name) {
@@ -303,10 +315,30 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 		var col *catalog.Column
 		switch {
 		case f.ExprSQL != "" && f.ColumnID == "":
-			if err := catalog.CheckExpr(f.ExprSQL); err != nil {
+			r, err := exprlang.Parse(f.ExprSQL, scope)
+			switch {
+			case err == nil:
+				expr = r.Expr
+				for _, ref := range r.Columns {
+					if id := columnID(srcs, ref); id != "" {
+						deps["c"][id] = true
+					}
+				}
+				if r.Aggregate && f.Group != "" {
+					return out, bad("Field %d already totals its values; set its Total to none.", i+1)
+				}
+			case legacy != nil && legacy(f.ExprSQL):
+				if err := catalog.CheckExpr(f.ExprSQL); err != nil {
+					return out, err
+				}
+				expr = sqlgen.Raw{SQL: f.ExprSQL}
+			default:
+				var pe *exprlang.Error
+				if errors.As(err, &pe) {
+					return out, bad("Field %d: invalid expression at character %d: %s.", i+1, pe.Column, pe.Msg)
+				}
 				return out, err
 			}
-			expr = sqlgen.Raw{SQL: f.ExprSQL}
 		case f.ColumnID != "":
 			s, ok := srcs[strings.ToLower(f.Alias)]
 			if !ok {
@@ -588,4 +620,46 @@ func criterion(expr sqlgen.Expr, col *catalog.Column, c Criterion, params map[st
 		return withinCriterion(expr, col, c, params, ref)
 	}
 	return nil, bad("Unknown operator %q.", c.Op)
+}
+
+// exprScope lists what an expression column may reference: each source's
+// columns, by alias.
+func exprScope(srcs map[string]source, order []string) exprlang.Scope {
+	sc := exprlang.Scope{Mode: exprlang.Query}
+	for _, key := range order {
+		s := srcs[key]
+		es := exprlang.Source{Alias: s.Alias}
+		if s.table != nil {
+			es.Columns = append(es.Columns, exprlang.Column{Name: "id", Type: sqlgen.Integer}, exprlang.Column{Name: "_version", Type: sqlgen.Integer})
+			for _, c := range s.table.Columns {
+				if c.Type == catalog.Autonumber {
+					continue
+				}
+				es.Columns = append(es.Columns, exprlang.Column{Name: c.PhysicalName, Type: sqlgen.Type(FieldDisplayType(&c))})
+			}
+		} else {
+			for _, name := range s.query.Columns {
+				es.Columns = append(es.Columns, exprlang.Column{Name: name})
+			}
+		}
+		sc.Sources = append(sc.Sources, es)
+	}
+	return sc
+}
+
+// columnID maps an expression's "alias.name" reference to a table column ID,
+// or "" for a saved-query column or a system column.
+func columnID(srcs map[string]source, ref string) string {
+	alias, name, ok := strings.Cut(ref, ".")
+	if !ok {
+		return ""
+	}
+	s, ok := srcs[strings.ToLower(alias)]
+	if !ok || s.table == nil {
+		return ""
+	}
+	if c, ok := s.table.ColumnByPhysical(name); ok {
+		return c.ID
+	}
+	return ""
 }

@@ -1945,6 +1945,10 @@ export interface components {
             default_sql?: string;
             description: string;
             display_name: string;
+            /** @description Expressions written before the expression language that fall outside it, keyed expression, validation_sql or default_sql, with the reason. They keep working on SQLite but need rewriting before the workspace can move to another backend (ADR 0013). */
+            expression_issues?: {
+                [key: string]: string;
+            };
             field_type: string;
             id: string;
             is_hidden: boolean;
