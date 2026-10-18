@@ -5,7 +5,7 @@ import { alertBox } from "@/components/styles";
 import { draftKey, isDraftDirty, newDraft, toCompileState, useQueryDrafts } from "./draftStore";
 import { emptyModel, normalizeModel } from "./model";
 import { QueryDatasheet } from "./QueryDatasheet";
-import { QueryDesigner } from "./QueryDesigner";
+import { QueryDesigner } from "@/features/workspace/lazyFeatures";
 import { compileModel, useSavedQuery } from "./savedQueries";
 import { ReadOnlySql, SqlEditor } from "./SqlView";
 import { errorText } from "./useQueryRunner";

@@ -146,7 +146,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
         <textarea
           id={textId}
           spellCheck={false}
-          className="min-h-48 w-full flex-1 resize-none rounded-lg border border-border-strong/70 bg-surface p-3 font-mono text-sm text-fg shadow-xs focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20"
+          className="min-h-48 w-full flex-1 resize-none rounded-lg border border-border-strong/70 bg-surface p-3 font-mono text-sm text-fg shadow-xs focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus"
           value={sql}
           placeholder={"SELECT id, name\nFROM customers\nWHERE city = 'Leeds'\nORDER BY name;"}
           onChange={(e) => {
@@ -157,7 +157,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
         <p className="m-0 text-sm text-fg-muted">One read-only SELECT, WITH or VALUES statement. Use :name for parameters.</p>
       </div>
       {showRun && (
-        <Modal title="Query results" wide onClose={() => setShowRun(false)}>
+        <Modal title="Query results" wide ownClose onClose={() => setShowRun(false)}>
           <div className="flex h-[60vh] min-h-0 flex-col">
             <ResultsPanel ws={ws} runner={runner} label="Query results" onClose={() => setShowRun(false)} />
           </div>

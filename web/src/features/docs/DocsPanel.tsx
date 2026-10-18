@@ -1,4 +1,3 @@
-import { Tip } from "@/components/Tip";
 import {
   useEffect,
   useId,
@@ -276,14 +275,10 @@ export function DocsPanel() {
                 Contents
               </button>
             )}
-            <Tip label="Close documentation" shortcut="Esc">
-              <Dialog.Close
-                className={iconBtn}
-                aria-label="Close documentation"
-              >
-                <X size={16} aria-hidden="true" />
-              </Dialog.Close>
-            </Tip>
+            {/* No tooltip: one opened by focus would take the first Escape (review R14); the footer says Esc closes. */}
+            <Dialog.Close className={iconBtn} aria-label="Close documentation">
+              <X size={16} aria-hidden="true" />
+            </Dialog.Close>
           </div>
 
           <div className="border-b border-border bg-surface-2/50 px-4 py-3">

@@ -1,0 +1,382 @@
+{
+ "generated": "2026-10-18T04:58:49.139Z",
+ "screens": {
+  "sign-in-desktop-light": {
+   "file": "sign-in-desktop-light.png",
+   "violations": []
+  },
+  "sign-in-error-desktop-light": {
+   "file": "sign-in-error-desktop-light.png",
+   "violations": []
+  },
+  "not-found-desktop-light": {
+   "file": "not-found-desktop-light.png",
+   "violations": []
+  },
+  "public-app-report-desktop-light": {
+   "file": "public-app-report-desktop-light.png",
+   "violations": []
+  },
+  "public-app-form-desktop-light": {
+   "file": "public-app-form-desktop-light.png",
+   "violations": []
+  },
+  "picker-desktop-light": {
+   "file": "picker-desktop-light.png",
+   "violations": []
+  },
+  "shell-desktop-light": {
+   "file": "shell-desktop-light.png",
+   "violations": []
+  },
+  "datasheet-desktop-light": {
+   "file": "datasheet-desktop-light.png",
+   "violations": []
+  },
+  "row-history-desktop-light": {
+   "file": "row-history-desktop-light.png",
+   "violations": []
+  },
+  "datasheet-empty-desktop-light": {
+   "file": "datasheet-empty-desktop-light.png",
+   "violations": []
+  },
+  "table-design-desktop-light": {
+   "file": "table-design-desktop-light.png",
+   "violations": []
+  },
+  "query-designer-desktop-light": {
+   "file": "query-designer-desktop-light.png",
+   "violations": []
+  },
+  "query-sql-desktop-light": {
+   "file": "query-sql-desktop-light.png",
+   "violations": []
+  },
+  "query-results-desktop-light": {
+   "file": "query-results-desktop-light.png",
+   "violations": []
+  },
+  "form-runtime-desktop-light": {
+   "file": "form-runtime-desktop-light.png",
+   "violations": []
+  },
+  "form-designer-desktop-light": {
+   "file": "form-designer-desktop-light.png",
+   "violations": []
+  },
+  "report-viewer-desktop-light": {
+   "file": "report-viewer-desktop-light.png",
+   "violations": []
+  },
+  "report-designer-desktop-light": {
+   "file": "report-designer-desktop-light.png",
+   "violations": []
+  },
+  "script-editor-desktop-light": {
+   "file": "script-editor-desktop-light.png",
+   "violations": []
+  },
+  "job-desktop-light": {
+   "file": "job-desktop-light.png",
+   "violations": []
+  },
+  "import-wizard-desktop-light": {
+   "file": "import-wizard-desktop-light.png",
+   "violations": []
+  },
+  "export-dialog-desktop-light": {
+   "file": "export-dialog-desktop-light.png",
+   "violations": []
+  },
+  "command-palette-desktop-light": {
+   "file": "command-palette-desktop-light.png",
+   "violations": []
+  },
+  "docs-panel-desktop-light": {
+   "file": "docs-panel-desktop-light.png",
+   "violations": []
+  },
+  "workspace-settings-desktop-light": {
+   "file": "workspace-settings-desktop-light.png",
+   "violations": []
+  },
+  "admin-overview-desktop-light": {
+   "file": "admin-overview-desktop-light.png",
+   "violations": []
+  },
+  "admin-workspaces-desktop-light": {
+   "file": "admin-workspaces-desktop-light.png",
+   "violations": []
+  },
+  "admin-users-desktop-light": {
+   "file": "admin-users-desktop-light.png",
+   "violations": []
+  },
+  "admin-settings-desktop-light": {
+   "file": "admin-settings-desktop-light.png",
+   "violations": []
+  },
+  "admin-logs-desktop-light": {
+   "file": "admin-logs-desktop-light.png",
+   "violations": []
+  },
+  "sign-in-desktop-dark": {
+   "file": "sign-in-desktop-dark.png",
+   "violations": []
+  },
+  "sign-in-error-desktop-dark": {
+   "file": "sign-in-error-desktop-dark.png",
+   "violations": []
+  },
+  "not-found-desktop-dark": {
+   "file": "not-found-desktop-dark.png",
+   "violations": []
+  },
+  "public-app-report-desktop-dark": {
+   "file": "public-app-report-desktop-dark.png",
+   "violations": []
+  },
+  "public-app-form-desktop-dark": {
+   "file": "public-app-form-desktop-dark.png",
+   "violations": []
+  },
+  "picker-desktop-dark": {
+   "file": "picker-desktop-dark.png",
+   "violations": []
+  },
+  "shell-desktop-dark": {
+   "file": "shell-desktop-dark.png",
+   "violations": []
+  },
+  "datasheet-desktop-dark": {
+   "file": "datasheet-desktop-dark.png",
+   "violations": []
+  },
+  "row-history-desktop-dark": {
+   "file": "row-history-desktop-dark.png",
+   "violations": []
+  },
+  "datasheet-empty-desktop-dark": {
+   "file": "datasheet-empty-desktop-dark.png",
+   "violations": []
+  },
+  "table-design-desktop-dark": {
+   "file": "table-design-desktop-dark.png",
+   "violations": []
+  },
+  "query-designer-desktop-dark": {
+   "file": "query-designer-desktop-dark.png",
+   "violations": []
+  },
+  "query-sql-desktop-dark": {
+   "file": "query-sql-desktop-dark.png",
+   "violations": []
+  },
+  "query-results-desktop-dark": {
+   "file": "query-results-desktop-dark.png",
+   "violations": []
+  },
+  "form-runtime-desktop-dark": {
+   "file": "form-runtime-desktop-dark.png",
+   "violations": []
+  },
+  "form-designer-desktop-dark": {
+   "file": "form-designer-desktop-dark.png",
+   "violations": []
+  },
+  "report-viewer-desktop-dark": {
+   "file": "report-viewer-desktop-dark.png",
+   "violations": []
+  },
+  "report-designer-desktop-dark": {
+   "file": "report-designer-desktop-dark.png",
+   "violations": []
+  },
+  "script-editor-desktop-dark": {
+   "file": "script-editor-desktop-dark.png",
+   "violations": []
+  },
+  "job-desktop-dark": {
+   "file": "job-desktop-dark.png",
+   "violations": []
+  },
+  "import-wizard-desktop-dark": {
+   "file": "import-wizard-desktop-dark.png",
+   "violations": []
+  },
+  "export-dialog-desktop-dark": {
+   "file": "export-dialog-desktop-dark.png",
+   "violations": []
+  },
+  "command-palette-desktop-dark": {
+   "file": "command-palette-desktop-dark.png",
+   "violations": []
+  },
+  "docs-panel-desktop-dark": {
+   "file": "docs-panel-desktop-dark.png",
+   "violations": []
+  },
+  "workspace-settings-desktop-dark": {
+   "file": "workspace-settings-desktop-dark.png",
+   "violations": []
+  },
+  "admin-overview-desktop-dark": {
+   "file": "admin-overview-desktop-dark.png",
+   "violations": []
+  },
+  "admin-workspaces-desktop-dark": {
+   "file": "admin-workspaces-desktop-dark.png",
+   "violations": []
+  },
+  "admin-users-desktop-dark": {
+   "file": "admin-users-desktop-dark.png",
+   "violations": []
+  },
+  "admin-settings-desktop-dark": {
+   "file": "admin-settings-desktop-dark.png",
+   "violations": []
+  },
+  "admin-logs-desktop-dark": {
+   "file": "admin-logs-desktop-dark.png",
+   "violations": []
+  },
+  "sign-in-compact-light": {
+   "file": "sign-in-compact-light.png",
+   "violations": []
+  },
+  "sign-in-error-compact-light": {
+   "file": "sign-in-error-compact-light.png",
+   "violations": []
+  },
+  "not-found-compact-light": {
+   "file": "not-found-compact-light.png",
+   "violations": []
+  },
+  "public-app-report-compact-light": {
+   "file": "public-app-report-compact-light.png",
+   "violations": []
+  },
+  "public-app-form-compact-light": {
+   "file": "public-app-form-compact-light.png",
+   "violations": []
+  },
+  "picker-compact-light": {
+   "file": "picker-compact-light.png",
+   "violations": []
+  },
+  "shell-compact-light": {
+   "file": "shell-compact-light.png",
+   "violations": []
+  },
+  "datasheet-compact-light": {
+   "file": "datasheet-compact-light.png",
+   "violations": []
+  },
+  "record-sheet-compact-light": {
+   "file": "record-sheet-compact-light.png",
+   "violations": []
+  },
+  "datasheet-empty-compact-light": {
+   "file": "datasheet-empty-compact-light.png",
+   "violations": []
+  },
+  "form-runtime-compact-light": {
+   "file": "form-runtime-compact-light.png",
+   "violations": []
+  },
+  "report-viewer-compact-light": {
+   "file": "report-viewer-compact-light.png",
+   "violations": []
+  },
+  "workspace-settings-compact-light": {
+   "file": "workspace-settings-compact-light.png",
+   "violations": []
+  },
+  "admin-overview-compact-light": {
+   "file": "admin-overview-compact-light.png",
+   "violations": []
+  },
+  "admin-users-compact-light": {
+   "file": "admin-users-compact-light.png",
+   "violations": []
+  },
+  "sign-in-compact-dark": {
+   "file": "sign-in-compact-dark.png",
+   "violations": []
+  },
+  "sign-in-error-compact-dark": {
+   "file": "sign-in-error-compact-dark.png",
+   "violations": []
+  },
+  "not-found-compact-dark": {
+   "file": "not-found-compact-dark.png",
+   "violations": []
+  },
+  "public-app-report-compact-dark": {
+   "file": "public-app-report-compact-dark.png",
+   "violations": []
+  },
+  "public-app-form-compact-dark": {
+   "file": "public-app-form-compact-dark.png",
+   "violations": []
+  },
+  "picker-compact-dark": {
+   "file": "picker-compact-dark.png",
+   "violations": []
+  },
+  "shell-compact-dark": {
+   "file": "shell-compact-dark.png",
+   "violations": []
+  },
+  "datasheet-compact-dark": {
+   "file": "datasheet-compact-dark.png",
+   "violations": []
+  },
+  "record-sheet-compact-dark": {
+   "file": "record-sheet-compact-dark.png",
+   "violations": []
+  },
+  "datasheet-empty-compact-dark": {
+   "file": "datasheet-empty-compact-dark.png",
+   "violations": []
+  },
+  "form-runtime-compact-dark": {
+   "file": "form-runtime-compact-dark.png",
+   "violations": []
+  },
+  "report-viewer-compact-dark": {
+   "file": "report-viewer-compact-dark.png",
+   "violations": []
+  },
+  "workspace-settings-compact-dark": {
+   "file": "workspace-settings-compact-dark.png",
+   "violations": []
+  },
+  "admin-overview-compact-dark": {
+   "file": "admin-overview-compact-dark.png",
+   "violations": []
+  },
+  "admin-users-compact-dark": {
+   "file": "admin-users-compact-dark.png",
+   "violations": []
+  },
+  "query-results-compact-light": {
+   "file": "query-results-compact-light.png",
+   "violations": []
+  },
+  "docs-panel-compact-light": {
+   "file": "docs-panel-compact-light.png",
+   "violations": []
+  },
+  "query-results-compact-dark": {
+   "file": "query-results-compact-dark.png",
+   "violations": []
+  },
+  "docs-panel-compact-dark": {
+   "file": "docs-panel-compact-dark.png",
+   "violations": []
+  }
+ },
+ "errors": []
+}

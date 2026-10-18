@@ -10,3 +10,8 @@ export const ADMIN_TABS = [
 ] as const;
 
 export type AdminTab = (typeof ADMIN_TABS)[number]["id"];
+
+/** Validates the `tab` search param; unknown or missing values fall back to the overview. */
+export function parseAdminTab(v: unknown): AdminTab {
+  return ADMIN_TABS.some((t) => t.id === v) ? (v as AdminTab) : "overview";
+}

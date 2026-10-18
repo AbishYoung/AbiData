@@ -9,6 +9,7 @@ import { jobKeys, listRuns, type Run } from "./jobsApi";
 import { isRunActive, RunStatus, statusLabel, TRIGGER_LABEL } from "./RunStatus";
 import { useNow } from "./useNow";
 import { useIsCompact } from "@/lib/useMediaQuery";
+import { Tip } from "@/components/Tip";
 
 const ROW_HEIGHT = 32;
 /** Phones show each run as a small card instead of a seven-column row. */
@@ -139,9 +140,15 @@ export function RunHistory({
                     <span role="cell">{formatStamp(r.queued_at)}</span>
                     <span role="cell" className={compact ? "hidden" : ""}>{formatStamp(r.started_at)}</span>
                     <span role="cell">{d === null ? "" : formatDuration(d)}</span>
-                    <span role="cell" className={`truncate text-danger ${compact ? "basis-full" : ""}`} title={err}>
-                      {err}
-                    </span>
+                    {err ? (
+                      <Tip label={err}>
+                        <span role="cell" className={`truncate text-danger ${compact ? "basis-full" : ""}`}>
+                          {err}
+                        </span>
+                      </Tip>
+                    ) : (
+                      <span role="cell" className={compact ? "basis-full" : ""} />
+                    )}
                   </div>
                 );
               })}

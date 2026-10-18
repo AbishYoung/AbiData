@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { Map as MapIcon } from "lucide-react";
-import { AreaEditor, MapDialog } from "@/components/maps/GeoEditors";
+import { AreaDialog } from "@/components/maps/lazy";
 import { formatGeoValue } from "@/lib/geo/format";
 import { areaOf, type AreaGeometry } from "@/lib/geo/geometry";
 import { btnSm } from "@/components/styles";
@@ -241,18 +241,18 @@ function WithinCell({
         </button>
       )}
       {drawing && (
-        <MapDialog
+        <AreaDialog
           title={`${label}: is within`}
           description="Draw the area that matching locations must lie inside."
+          fieldName="Criteria area"
+          value={drawn}
+          onChange={(a) => setDraft(a)}
           onCancel={() => setDrawing(false)}
-          submitLabel="Use this area"
           onSubmit={() => {
             setDrawing(false);
             onChange(draft ? { row, op: "within", value: draft } : { row, op: "within" });
           }}
-        >
-          <AreaEditor fieldName="Criteria area" value={drawn} onChange={(a) => setDraft(a)} />
-        </MapDialog>
+        />
       )}
     </div>
   );

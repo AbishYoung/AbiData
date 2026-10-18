@@ -173,7 +173,7 @@ test("deletes a record after confirmation and explains linked records", async ({
   await rowAt(grid, n).getByRole("rowheader").click();
   await expect(rowAt(grid, n)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Delete");
-  const dialog = page.getByRole("dialog", { name: /Delete 1 record/ });
+  const dialog = page.getByRole("alertdialog", { name: /Delete 1 record/ });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Delete record" }).click();
   await expect(dialog).toBeHidden();
@@ -187,7 +187,7 @@ test("deletes a record after confirmation and explains linked records", async ({
   const bob = await rowIndexOf(people, "Bob Brown", "Full name");
   await rowAt(people, bob).getByRole("rowheader").click();
   await page.keyboard.press("Delete");
-  const linked = page.getByRole("dialog", { name: /Delete 1 record/ });
+  const linked = page.getByRole("alertdialog", { name: /Delete 1 record/ });
   await linked.getByRole("button", { name: "Delete record" }).click();
   await expect(linked.getByRole("alert")).toBeVisible();
   await linked.getByRole("button", { name: "Cancel" }).click();

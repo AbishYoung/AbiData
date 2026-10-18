@@ -8,7 +8,7 @@ import { AttachmentThumbs, useFilesWorkspace } from "@/features/files/FileParts"
 import { maxFilesOf, parseIds } from "@/features/files/filesLogic";
 import { draftOf, isEmpty, parseDraft, type ValueKind } from "./values";
 import { searchParent } from "./rowsApi";
-import { GeoValueDialog } from "@/components/maps/GeoEditors";
+import { GeoValueDialog } from "@/components/maps/lazy";
 import { accuracyValue } from "@/lib/geo/locate";
 
 /** Where focus goes after an edit is committed. */

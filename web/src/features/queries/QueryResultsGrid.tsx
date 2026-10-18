@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, Copy, Rows3, Table2 } from "lucide-react";
 import { toast } from "@/components/AppToasts";
@@ -7,9 +7,11 @@ import { copyText } from "@/lib/clipboard";
 import { formatCurrency, formatDateTime } from "@/features/datasheet/values";
 import type { QueryResult } from "./savedQueries";
 import { formatGeoValue } from "@/lib/geo/format";
+import { Tip } from "@/components/Tip";
+import { useRowHeight } from "@/lib/density";
 
-const ROW_HEIGHT = 32;
 const COL_WIDTH = 176;
+const HEADER_HEIGHT = 32;
 const PAGE = 10;
 
 const CURRENCY_SCALE = 10000n;
@@ -76,19 +78,21 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
   const scrollRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
   const { columns, rows } = result;
+  const rowHeight = useRowHeight();
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 8,
     initialRect: { width: 800, height: 400 },
   });
+  useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);
   const measured = virtualizer.getVirtualItems();
   // Before the scroll area has been measured there are no virtual items; render a first page meanwhile.
   const items =
     measured.length > 0 || rows.length === 0
       ? measured
-      : Array.from({ length: Math.min(rows.length, 30) }, (_, index) => ({ index, start: index * ROW_HEIGHT }));
+      : Array.from({ length: Math.min(rows.length, 30) }, (_, index) => ({ index, start: index * rowHeight }));
   const width = Math.max(1, columns.length) * COL_WIDTH;
   const template = `repeat(${Math.max(1, columns.length)}, ${COL_WIDTH}px)`;
   const cellId = (r: number, c: number) => `${gridId}-r${r}-c${c}`;
@@ -176,17 +180,17 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
         className="min-h-0 flex-1 overflow-auto bg-surface"
       >
         <div role="rowgroup" className="sticky top-0 z-10 bg-surface-2" style={{ width }}>
-          <div role="row" aria-rowindex={1} className="grid" style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}>
+          <div role="row" aria-rowindex={1} className="grid" style={{ gridTemplateColumns: template, height: HEADER_HEIGHT }}>
             {columns.map((c, i) => (
-              <div
-                key={`${c}-${i}`}
-                role="columnheader"
-                aria-colindex={i + 1}
-                className={`truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted ${isNumericType(result.types?.[i]) ? "text-right " : ""}${i === 0 ? "compact:sticky compact:left-0 compact:z-[2] compact:bg-surface-2" : ""}`}
-                title={c}
-              >
-                {c}
-              </div>
+              <Tip key={`${c}-${i}`} label={c}>
+                <div
+                  role="columnheader"
+                  aria-colindex={i + 1}
+                  className={`truncate border-b border-r border-border px-3 text-xs font-semibold leading-8 text-fg-muted ${isNumericType(result.types?.[i]) ? "text-right " : ""}${i === 0 ? "compact:sticky compact:left-0 compact:z-[2] compact:bg-surface-2" : ""}`}
+                >
+                  {c}
+                </div>
+              </Tip>
             ))}
           </div>
         </div>
@@ -199,7 +203,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                 role="row"
                 aria-rowindex={vi.index + 2}
                 className="absolute left-0 grid"
-                style={{ top: 0, transform: `translateY(${vi.start}px)`, height: ROW_HEIGHT, gridTemplateColumns: template, width }}
+                style={{ top: 0, transform: `translateY(${vi.start}px)`, height: rowHeight, gridTemplateColumns: template, width }}
               >
                 {columns.map((_, ci) => {
                   const isActive = active.row === vi.index && active.col === ci;
@@ -209,13 +213,11 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                   const isNull = value === null || value === undefined;
                   const flag = isNull ? null : boolOf(type, value);
                   const right = isNumericType(type) && flag === null;
-                  return (
+                  const cell = (
                     <div
-                      key={ci}
                       id={cellId(vi.index, ci)}
                       role="gridcell"
                       aria-colindex={ci + 1}
-                      title={isNull ? "NULL" : text}
                       aria-label={flag !== null ? text : undefined}
                       onClick={() => setActive({ row: vi.index, col: ci })}
                       className={`truncate border-b border-r border-border px-3 text-sm leading-8 ${right ? "tabular text-right " : ""}${ci === 0 ? `compact:sticky compact:left-0 compact:z-[1] ${isActive ? "" : "compact:bg-surface"} ` : ""}${isActive ? "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
@@ -230,6 +232,12 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
                         text
                       )}
                     </div>
+                  );
+                  // A tooltip with the whole value, for text the column cuts off.
+                  return (
+                    <Tip key={ci} label={text} disabled={isNull || flag !== null || text === ""}>
+                      {cell}
+                    </Tip>
                   );
                 })}
               </div>

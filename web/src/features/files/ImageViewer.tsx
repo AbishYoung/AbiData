@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- documented exception (DESIGN.md): the full-screen photo viewer's dark overlay with white controls. */
 import { useEffect, useRef } from "react";
 import { Dialog } from "radix-ui";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";

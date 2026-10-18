@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import type { Column } from "@/lib/schema";
@@ -12,7 +12,8 @@ import type { FormControl } from "../formsApi";
 import { formatCalcValue, formatNumeric } from "./format";
 import { effectiveProps, type CalcState, type Fields, type Overrides } from "./model";
 import { lookupKeys } from "./sources";
-import { MapControl } from "./MapControl";
+import { MapControl } from "@/components/maps/lazy";
+import { Tip } from "@/components/Tip";
 
 export interface ControlActions {
   commit: (control: FormControl, colId: string, value: unknown, display?: string) => Promise<boolean>;
@@ -122,17 +123,18 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
     case "button":
       return (
         <div style={style} data-control-name={c.name}>
-          <button
-            type="button"
-            id={id}
-            disabled={!p.enabled}
-            title={p.tooltip}
-            onFocus={env.actions.enterRow}
-            onClick={() => env.actions.click(c)}
-            className={`${btn} h-full w-full !py-0 ${tone}`}
-          >
-            {p.caption || c.caption || c.name}
-          </button>
+          <OptionalTip label={p.tooltip}>
+            <button
+              type="button"
+              id={id}
+              disabled={!p.enabled}
+              onFocus={env.actions.enterRow}
+              onClick={() => env.actions.click(c)}
+              className={`${btn} h-full w-full !py-0 ${tone}`}
+            >
+              {p.caption || c.caption || c.name}
+            </button>
+          </OptionalTip>
         </div>
       );
     case "subform":
@@ -475,4 +477,9 @@ function SelectControl({ control, id, colId, value, displayText, readOnly, disab
       {error && <ErrorNote id={errId} message={error} />}
     </>
   );
+}
+
+/** The form designer's Tooltip property: a `Tip` when it is set. */
+function OptionalTip({ label, children }: { label: string | undefined; children: ReactElement }) {
+  return label ? <Tip label={label}>{children}</Tip> : children;
 }

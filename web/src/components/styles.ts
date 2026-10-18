@@ -26,8 +26,8 @@ export const iconBtnSm = `${base} h-6 w-6 p-0 rounded text-fg-muted hover:bg-sur
 export const input =
   "w-full h-8 rounded-md border border-border-strong/70 bg-surface px-3 text-sm text-fg shadow-xs placeholder:text-fg-subtle " +
   "transition-[border-color,box-shadow] duration-150 hover:border-border-strong " +
-  "focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20 focus-visible:outline-none " +
-  "disabled:bg-surface-2 disabled:text-fg-muted disabled:cursor-not-allowed aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/20";
+  "focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus focus-visible:outline-none " +
+  "disabled:bg-surface-2 disabled:text-fg-muted disabled:cursor-not-allowed aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
 /** Multi-line input: same look, natural height. */
 export const textarea = input.replace("h-8 ", "min-h-20 py-2 ");
 export const select = `${input} pr-8 appearance-auto`;
@@ -75,11 +75,11 @@ export const menuItem =
 export const menuSeparator = "my-1 h-px bg-border";
 
 /** Dialog surfaces (Radix). */
-export const overlay = "fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]";
+export const overlay = "fixed inset-0 z-40 bg-scrim/40 backdrop-blur-[2px]";
 export const dialog = "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl border border-border bg-surface shadow-lg";
 
 /** Dialog chrome (DESIGN.md "Dialogs"). Pair `dialogOverlay` with `dialogPanel` and give the content `p-5`. */
-export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]";
+export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-scrim/45 backdrop-blur-[2px]";
 /** Centered dialog surface; set the width with a `w-[min(26rem,calc(100vw-2rem))]` class. */
 export const dialogPanel =
   "ui-dialog fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface text-fg shadow-lg";
@@ -93,3 +93,8 @@ export const sheetPanel =
   "ui-sheet fixed inset-y-0 right-0 z-50 flex w-[min(92vw,28rem)] flex-col border-l border-border bg-surface text-fg shadow-lg";
 /** Small tinted square for a semantic dialog icon. */
 export const iconChip = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg";
+
+/** The document toolbar at the top of an editor tab (DESIGN.md "Document toolbar"). */
+export const docToolbar = "flex min-h-11 flex-wrap items-center gap-1.5 border-b border-border bg-surface px-3 py-1.5";
+/** Slim footer bar under an editor (counts, status). */
+export const docFooter = "flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-surface-2 px-3 py-1 text-xs text-fg-muted";

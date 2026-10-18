@@ -5,8 +5,14 @@
    on <html>. Text pairs meet WCAG AA; input borders meet 3:1 non-text contrast. */
 @import "tailwindcss";
 
-/* Phones and narrow touch screens (see lib/useMediaQuery.ts). `compact:` utilities apply only there. */
-@custom-variant compact (@media (max-width: 767px), (pointer: coarse) and (max-width: 1023px));
+/* Phones and narrow touch screens (see lib/useMediaQuery.ts). `compact:` utilities apply only there.
+   The block form is required: in the shorthand `@custom-variant compact (@media A, B)` Tailwind splits
+   the comma as a selector list and drops the touch-tablet branch (review R1). */
+@custom-variant compact {
+  @media (max-width: 767px), (pointer: coarse) and (max-width: 1023px) {
+    @slot;
+  }
+}
 
 @theme {
   --font-sans: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -35,6 +41,7 @@
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-focus: var(--focus);
+  --color-scrim: var(--scrim);
   /* Object kinds: icon colour and its tinted chip background. */
   --color-kind-table: var(--kind-table);
   --color-kind-table-soft: var(--kind-table-soft);
@@ -61,112 +68,133 @@
 }
 
 :root {
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --surface-2: #f2f4f7;
-  --surface-3: #e7eaef;
-  --border: #e0e4ea;
-  --border-strong: #8a94a6;   /* 3.1:1 on white: input outlines */
-  --fg: #101828;
-  --fg-muted: #475467;        /* 7.6:1 on white */
-  --fg-subtle: #667085;       /* 4.8:1 on white */
-  --accent: #4f46e5;          /* indigo-600, 6.3:1 on white */
-  --accent-hover: #4338ca;
-  --accent-fg: #ffffff;
-  --accent-soft: #eef0ff;
-  --brand-from: #4f46e5;
-  --brand-to: #0891b2;
-  --danger: #b42318;
-  --danger-fg: #ffffff;
-  --danger-soft: #fef3f2;
-  --warning: #b54708;
-  --warning-soft: #fffaeb;
-  --success: #067647;
-  --success-soft: #ecfdf3;
-  --focus: #4f46e5;
-  --kind-table: #2563eb;  --kind-table-soft: #eaf1ff;
-  --kind-query: #7c3aed;  --kind-query-soft: #f3eeff;
-  --kind-form: #059669;   --kind-form-soft: #e7f8f1;
-  --kind-report: #c2410c; --kind-report-soft: #fff1e8;
-  --kind-script: #0e7490; --kind-script-soft: #e6f6fa;
-  --kind-job: #be185d;    --kind-job-soft: #fdeef5;
-  --shadow-color-1: rgb(16 24 40 / 0.05);
-  --shadow-color-2: rgb(16 24 40 / 0.08);
-  --shadow-color-3: rgb(16 24 40 / 0.18);
+  --bg: oklch(97.29% 0.0029 264.54);
+  --surface: oklch(100% 0 0);
+  --surface-2: oklch(96.65% 0.0045 258.32);
+  --surface-3: oklch(93.62% 0.0075 260.73);
+  --border: oklch(91.75% 0.0092 258.34);
+  --border-strong: oklch(66.45% 0.0291 262.29);   /* 3.1:1 on white: input outlines */
+  --fg: oklch(20.99% 0.0341 263.44);
+  --fg-muted: oklch(44.22% 0.0355 257.79);        /* 7.6:1 on white */
+  --fg-subtle: oklch(54.44% 0.0350 265.11);       /* 4.8:1 on white */
+  --accent: oklch(51.06% 0.2301 276.97);          /* indigo-600, 6.3:1 on white */
+  --accent-hover: oklch(45.68% 0.2146 277.02);
+  --accent-fg: oklch(100% 0 0);
+  --accent-soft: oklch(95.80% 0.0202 279.94);
+  --brand-from: oklch(51.06% 0.2301 276.97);
+  --brand-to: oklch(60.89% 0.1109 221.72);
+  --danger: oklch(50.03% 0.1821 29.51);
+  --danger-fg: oklch(100% 0 0);
+  --danger-soft: oklch(97.25% 0.0119 23.70);
+  --warning: oklch(53.94% 0.1562 42.99);
+  --warning-soft: oklch(98.49% 0.0204 91.58);
+  --success: oklch(49.87% 0.1168 157.07);
+  --success-soft: oklch(97.88% 0.0221 160.24);
+  --focus: oklch(51.06% 0.2301 276.97);
+  --kind-table: oklch(54.61% 0.2152 262.88);  --kind-table-soft: oklch(95.70% 0.0203 264.47);
+  --kind-query: oklch(54.13% 0.2466 293.01);  --kind-query-soft: oklch(95.79% 0.0232 299.37);
+  --kind-form: oklch(59.60% 0.1274 163.23);   --kind-form-soft: oklch(96.46% 0.0201 169.35);
+  --kind-report: oklch(55.34% 0.1739 38.40); --kind-report-soft: oklch(96.67% 0.0194 55.15);
+  --kind-script: oklch(51.98% 0.0936 223.13); --kind-script-soft: oklch(96.25% 0.0177 214.38);
+  --kind-job: oklch(52.46% 0.1990 3.96);    --kind-job-soft: oklch(96.29% 0.0186 347.42);
+  --shadow-color-1: oklch(20.99% 0.0341 263.44 / 0.05);
+  --shadow-color-2: oklch(20.99% 0.0341 263.44 / 0.08);
+  --shadow-color-3: oklch(20.99% 0.0341 263.44 / 0.18);
   color-scheme: light;
+}
+
+/* The same in both themes (ADR 0015: no literal colours outside this file). */
+:root {
+  /* Dims the page behind dialogs and drawers. */
+  --scrim: oklch(0% 0 0);
+  /* Workspace avatars: deep fills that keep white initials at AA contrast (4.5:1) in both themes. */
+  --avatar-1: oklch(48.82% 0.2172 264.38); --avatar-2: oklch(49.07% 0.2412 292.58); --avatar-3: oklch(50.81% 0.1049 165.61); --avatar-4: oklch(55.53% 0.1455 49.00);
+  --avatar-5: oklch(51.98% 0.0936 223.13); --avatar-6: oklch(52.46% 0.1990 3.96); --avatar-7: oklch(45.68% 0.2146 277.02);
+  /* Report pages are paper: white with black ink in either theme, and so are their maps. */
+  --paper: oklch(100% 0 0);
+  --paper-ink: oklch(0% 0 0);
+  --paper-shadow: oklch(0% 0.0000 0.00 / 0.35);
+  --paper-map-bg: oklch(98.42% 0.0034 247.86);
+  --paper-map-edge: oklch(86.90% 0.0198 252.89);
+  --paper-map-grid: oklch(71.07% 0.0351 256.79);
+  --paper-map-label: oklch(44.55% 0.0374 257.28);
+  --paper-map-credit: oklch(32.11% 0 0);
+  --paper-map-value: oklch(48.82% 0.2172 264.38);
+  --paper-map-overlay: oklch(55.53% 0.1455 49.00);
+  --paper-map-overlay-label: oklch(41.37% 0.1054 45.90);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c0e13;
-    --surface: #13161d;
-    --surface-2: #1a1e27;
-    --surface-3: #232834;
-    --border: #272c38;
-    --border-strong: #5d6779;  /* 3.1:1 on surface */
-    --fg: #e7e9ef;
-    --fg-muted: #a6aebd;       /* 8:1 on surface */
-    --fg-subtle: #8a93a4;      /* 5.6:1 on surface */
-    --accent: #8f90fa;         /* 6.6:1 on surface */
-    --accent-hover: #a9aafc;
-    --accent-fg: #0c0e13;
-    --accent-soft: #24244a;
-    --brand-from: #7c7cf8;
-    --brand-to: #22b8d4;
-    --danger: #f97066;
-    --danger-fg: #0c0e13;
-    --danger-soft: #3a1614;
-    --warning: #fdb022;
-    --warning-soft: #33250a;
-    --success: #47cd89;
-    --success-soft: #0e2e1e;
-    --focus: #8f90fa;
-    --kind-table: #6ea0ff;  --kind-table-soft: #16233f;
-    --kind-query: #b18cff;  --kind-query-soft: #241a3d;
-    --kind-form: #34d399;   --kind-form-soft: #0f2c22;
-    --kind-report: #fb923c; --kind-report-soft: #33200f;
-    --kind-script: #38bdf8; --kind-script-soft: #0f2633;
-    --kind-job: #f472b6;    --kind-job-soft: #331526;
-    --shadow-color-1: rgb(0 0 0 / 0.3);
-    --shadow-color-2: rgb(0 0 0 / 0.35);
-    --shadow-color-3: rgb(0 0 0 / 0.55);
+    --bg: oklch(16.40% 0.0111 268.01);
+    --surface: oklch(20.03% 0.0148 266.83);
+    --surface-2: oklch(23.51% 0.0184 266.19);
+    --surface-3: oklch(27.73% 0.0234 267.18);
+    --border: oklch(29.35% 0.0231 267.24);
+    --border-strong: oklch(51.19% 0.0311 262.22);  /* 3.1:1 on surface */
+    --fg: oklch(93.42% 0.0084 271.32);
+    --fg-muted: oklch(74.92% 0.0234 263.16);       /* 8:1 on surface */
+    --fg-subtle: oklch(66.16% 0.0273 263.27);      /* 5.6:1 on surface */
+    --accent: oklch(69.88% 0.1531 281.27);         /* 6.6:1 on surface */
+    --accent-hover: oklch(76.87% 0.1166 282.77);
+    --accent-fg: oklch(16.40% 0.0111 268.01);
+    --accent-soft: oklch(28.19% 0.0685 281.07);
+    --brand-from: oklch(64.68% 0.1804 280.10);
+    --brand-to: oklch(72.21% 0.1214 214.54);
+    --danger: oklch(70.86% 0.1699 26.47);
+    --danger-fg: oklch(16.40% 0.0111 268.01);
+    --danger-soft: oklch(25.47% 0.0577 25.19);
+    --warning: oklch(81.09% 0.1634 75.65);
+    --warning-soft: oklch(27.48% 0.0457 81.07);
+    --success: oklch(75.85% 0.1527 157.18);
+    --success-soft: oklch(27.19% 0.0484 158.82);
+    --focus: oklch(69.88% 0.1531 281.27);
+    --kind-table: oklch(71.26% 0.1495 262.24);  --kind-table-soft: oklch(26.02% 0.0559 264.09);
+    --kind-query: oklch(72.22% 0.1650 296.91);  --kind-query-soft: oklch(24.99% 0.0647 294.42);
+    --kind-form: oklch(77.29% 0.1535 163.22);   --kind-form-soft: oklch(26.73% 0.0400 168.06);
+    --kind-report: oklch(75.76% 0.1590 55.93); --kind-report-soft: oklch(26.33% 0.0406 61.41);
+    --kind-script: oklch(75.35% 0.1390 232.66); --kind-script-soft: oklch(25.66% 0.0379 235.65);
+    --kind-job: oklch(72.53% 0.1752 349.76);    --kind-job-soft: oklch(24.70% 0.0545 346.73);
+    --shadow-color-1: oklch(0% 0.0000 0.00 / 0.3);
+    --shadow-color-2: oklch(0% 0.0000 0.00 / 0.35);
+    --shadow-color-3: oklch(0% 0.0000 0.00 / 0.55);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0c0e13;
-  --surface: #13161d;
-  --surface-2: #1a1e27;
-  --surface-3: #232834;
-  --border: #272c38;
-  --border-strong: #5d6779;
-  --fg: #e7e9ef;
-  --fg-muted: #a6aebd;
-  --fg-subtle: #8a93a4;
-  --accent: #8f90fa;
-  --accent-hover: #a9aafc;
-  --accent-fg: #0c0e13;
-  --accent-soft: #24244a;
-  --brand-from: #7c7cf8;
-  --brand-to: #22b8d4;
-  --danger: #f97066;
-  --danger-fg: #0c0e13;
-  --danger-soft: #3a1614;
-  --warning: #fdb022;
-  --warning-soft: #33250a;
-  --success: #47cd89;
-  --success-soft: #0e2e1e;
-  --focus: #8f90fa;
-  --kind-table: #6ea0ff;  --kind-table-soft: #16233f;
-  --kind-query: #b18cff;  --kind-query-soft: #241a3d;
-  --kind-form: #34d399;   --kind-form-soft: #0f2c22;
-  --kind-report: #fb923c; --kind-report-soft: #33200f;
-  --kind-script: #38bdf8; --kind-script-soft: #0f2633;
-  --kind-job: #f472b6;    --kind-job-soft: #331526;
-  --shadow-color-1: rgb(0 0 0 / 0.3);
-  --shadow-color-2: rgb(0 0 0 / 0.35);
-  --shadow-color-3: rgb(0 0 0 / 0.55);
+  --bg: oklch(16.40% 0.0111 268.01);
+  --surface: oklch(20.03% 0.0148 266.83);
+  --surface-2: oklch(23.51% 0.0184 266.19);
+  --surface-3: oklch(27.73% 0.0234 267.18);
+  --border: oklch(29.35% 0.0231 267.24);
+  --border-strong: oklch(51.19% 0.0311 262.22);
+  --fg: oklch(93.42% 0.0084 271.32);
+  --fg-muted: oklch(74.92% 0.0234 263.16);
+  --fg-subtle: oklch(66.16% 0.0273 263.27);
+  --accent: oklch(69.88% 0.1531 281.27);
+  --accent-hover: oklch(76.87% 0.1166 282.77);
+  --accent-fg: oklch(16.40% 0.0111 268.01);
+  --accent-soft: oklch(28.19% 0.0685 281.07);
+  --brand-from: oklch(64.68% 0.1804 280.10);
+  --brand-to: oklch(72.21% 0.1214 214.54);
+  --danger: oklch(70.86% 0.1699 26.47);
+  --danger-fg: oklch(16.40% 0.0111 268.01);
+  --danger-soft: oklch(25.47% 0.0577 25.19);
+  --warning: oklch(81.09% 0.1634 75.65);
+  --warning-soft: oklch(27.48% 0.0457 81.07);
+  --success: oklch(75.85% 0.1527 157.18);
+  --success-soft: oklch(27.19% 0.0484 158.82);
+  --focus: oklch(69.88% 0.1531 281.27);
+  --kind-table: oklch(71.26% 0.1495 262.24);  --kind-table-soft: oklch(26.02% 0.0559 264.09);
+  --kind-query: oklch(72.22% 0.1650 296.91);  --kind-query-soft: oklch(24.99% 0.0647 294.42);
+  --kind-form: oklch(77.29% 0.1535 163.22);   --kind-form-soft: oklch(26.73% 0.0400 168.06);
+  --kind-report: oklch(75.76% 0.1590 55.93); --kind-report-soft: oklch(26.33% 0.0406 61.41);
+  --kind-script: oklch(75.35% 0.1390 232.66); --kind-script-soft: oklch(25.66% 0.0379 235.65);
+  --kind-job: oklch(72.53% 0.1752 349.76);    --kind-job-soft: oklch(24.70% 0.0545 346.73);
+  --shadow-color-1: oklch(0% 0.0000 0.00 / 0.3);
+  --shadow-color-2: oklch(0% 0.0000 0.00 / 0.35);
+  --shadow-color-3: oklch(0% 0.0000 0.00 / 0.55);
   color-scheme: dark;
 }
 

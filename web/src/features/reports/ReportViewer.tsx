@@ -4,7 +4,7 @@ import { createPortal, flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Printer, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { Tip } from "@/components/Tip";
-import { btn, btnGhost } from "@/components/styles";
+import { btnGhost } from "@/components/styles";
 import { PageView } from "./PageView";
 import { cssPageSize, type Pagination, type PageSetup, type ReportInstance, type ReportLayout } from "./paginate";
 import { fitWidthZoom, pageAtScroll } from "./viewerLogic";
@@ -158,16 +158,16 @@ export function ReportViewer({
         </div>
         <div className="ml-auto flex gap-1.5">
           {onChangeParams && (
-            <button type="button" className={btn} onClick={onChangeParams}>
+            <button type="button" className={btnGhost} onClick={onChangeParams}>
               <SlidersHorizontal size={14} aria-hidden="true" />
               Parameters
             </button>
           )}
-          <button type="button" className={btn} onClick={onRefresh}>
+          <button type="button" className={btnGhost} onClick={onRefresh}>
             <RefreshCw size={14} aria-hidden="true" />
             Refresh
           </button>
-          <button type="button" className={btn} onClick={print}>
+          <button type="button" className={btnGhost} onClick={print}>
             <Printer size={14} aria-hidden="true" />
             Print
           </button>

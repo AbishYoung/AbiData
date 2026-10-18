@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -12,10 +13,19 @@ import { ME_KEY, fetchMe, fetchSetupPending, type Me } from "@/lib/session";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SetupPage } from "@/features/auth/SetupPage";
 import { PickerPage } from "@/features/workspace/PickerPage";
-import { AdminPage, parseAdminTab } from "@/features/admin/AdminPage";
+import { parseAdminTab } from "@/features/admin/adminTabs";
 import { WorkspaceShell } from "@/features/workspace/WorkspaceShell";
-import { PublicAppPage } from "@/features/apps/PublicAppPage";
-import { alertBox, btn } from "@/components/styles";
+import { suspended } from "@/lib/suspended";
+import { Compass, TriangleAlert } from "lucide-react";
+import { Button, buttonClass, StatusPage } from "@/components/ui";
+
+// The admin console and the public app page are routes of their own and load on first use (review R7).
+const AdminPage = suspended<ComponentProps<typeof import("@/features/admin/AdminPage").AdminPage>>(() =>
+  import("@/features/admin/AdminPage").then((m) => ({ default: m.AdminPage })),
+);
+const PublicAppPage = suspended<ComponentProps<typeof import("@/features/apps/PublicAppPage").PublicAppPage>>(() =>
+  import("@/features/apps/PublicAppPage").then((m) => ({ default: m.PublicAppPage })),
+);
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -27,26 +37,41 @@ function currentMe(qc: QueryClient): Promise<Me | null> {
 
 function RouteError({ error, reset }: ErrorComponentProps) {
   return (
-    <main className="mx-auto max-w-lg p-6">
-      <h1 className="mb-3 text-xl font-semibold">Something went wrong</h1>
-      <div role="alert" className={alertBox}>
+    <StatusPage
+      icon={TriangleAlert}
+      tone="danger"
+      title="Something went wrong"
+      actions={
+        <>
+          <Button variant="primary" onClick={reset}>
+            Try again
+          </Button>
+          <a href="/" className={buttonClass()}>
+            Back to your workspaces
+          </a>
+        </>
+      }
+    >
+      <p role="alert" className="m-0">
         {error instanceof Error ? error.message : "Unexpected error"}
-      </div>
-      <button type="button" className={`${btn} mt-4`} onClick={reset}>
-        Try again
-      </button>
-    </main>
+      </p>
+    </StatusPage>
   );
 }
 
 function NotFound() {
   return (
-    <main className="mx-auto max-w-lg p-6">
-      <h1 className="text-xl font-semibold">Page not found</h1>
-      <a className="mt-2 inline-block text-accent underline" href="/">
-        Back to your workspaces
-      </a>
-    </main>
+    <StatusPage
+      icon={Compass}
+      title="Page not found"
+      actions={
+        <a href="/" className={buttonClass("primary")}>
+          Back to your workspaces
+        </a>
+      }
+    >
+      <p className="m-0">The address may be mistyped, or the page may have moved. Your workspaces are one click away.</p>
+    </StatusPage>
   );
 }
 

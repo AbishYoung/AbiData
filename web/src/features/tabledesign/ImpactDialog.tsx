@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { Dialog } from "radix-ui";
 import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import { Tip } from "@/components/Tip";
-import { btn, btnPrimary } from "@/components/styles";
+import { btn, btnDanger, btnPrimary, dialogDescription, dialogOverlay, dialogPanel, dialogTitle } from "@/components/styles";
 import type { ImpactReport } from "./draft";
 
 type Issue = NonNullable<ImpactReport["breaking"]>[number];
@@ -82,6 +82,8 @@ export interface ImpactDialogProps {
   concurrent?: boolean;
   onReload?: () => void;
   applyLabel?: string;
+  /** The change deletes something (a table or a field): the apply button is a danger button. */
+  danger?: boolean;
   onApply: (force: boolean) => void;
   onCancel: () => void;
 }
@@ -95,6 +97,7 @@ export function ImpactDialog({
   concurrent,
   onReload,
   applyLabel = "Apply",
+  danger = false,
   onApply,
   onCancel,
 }: ImpactDialogProps) {
@@ -110,12 +113,10 @@ export function ImpactDialog({
   return (
     <Dialog.Root open onOpenChange={(open) => (open || busy ? undefined : onCancel())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 flex max-h-[calc(100vh-2rem)] w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-surface p-5 text-fg shadow-xl"
-        >
-          <Dialog.Title className="m-0 text-base font-semibold">{title}</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-fg-muted">{summary}</Dialog.Description>
+        <Dialog.Overlay className={dialogOverlay} />
+        <Dialog.Content className={`${dialogPanel} flex w-[min(44rem,calc(100vw-2rem))] flex-col p-5`}>
+          <Dialog.Title className={dialogTitle}>{title}</Dialog.Title>
+          <Dialog.Description className={dialogDescription}>{summary}</Dialog.Description>
 
           <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             {report === null && !error && (
@@ -232,7 +233,7 @@ export function ImpactDialog({
                   <span className="inline-flex">
                     <button
                       type="button"
-                      className={btnPrimary}
+                      className={danger ? btnDanger : btnPrimary}
                       disabled={busy || breaking.length > 0}
                       onClick={() => onApply(false)}
                     >
@@ -253,7 +254,7 @@ export function ImpactDialog({
                     <span className="inline-flex">
                       <button
                         type="button"
-                        className={btnPrimary}
+                        className={btnDanger}
                         disabled={busy || !understood}
                         onClick={() => onApply(true)}
                       >

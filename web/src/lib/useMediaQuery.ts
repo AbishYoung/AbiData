@@ -3,13 +3,22 @@ import { useSyncExternalStore } from "react";
 /** The one definition of "compact" (phones, and touch devices in landscape). Keep in sync with `@custom-variant compact` in styles/tokens.css and styles/mobile.css. */
 export const COMPACT_QUERY = "(max-width: 767px), (pointer: coarse) and (max-width: 1023px)";
 
+// One subscribe function per query: useSyncExternalStore resubscribes whenever it gets a new one,
+// and a fresh closure per render re-added the matchMedia listener on every render (review R15).
+const subscribers = new Map<string, (notify: () => void) => () => void>();
+
 function subscribeTo(query: string) {
-  return (notify: () => void) => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
-    const mql = window.matchMedia(query);
-    mql.addEventListener("change", notify);
-    return () => mql.removeEventListener("change", notify);
-  };
+  let sub = subscribers.get(query);
+  if (!sub) {
+    sub = (notify: () => void) => {
+      if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", notify);
+      return () => mql.removeEventListener("change", notify);
+    };
+    subscribers.set(query, sub);
+  }
+  return sub;
 }
 
 /** Subscribes to a CSS media query. False where matchMedia is unavailable (tests, SSR). */

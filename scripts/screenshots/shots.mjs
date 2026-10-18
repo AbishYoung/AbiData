@@ -12,33 +12,20 @@ const STYLE = `
   [role="status"][aria-label="Notifications"] { display: none !important; }
 `;
 
-export async function shoot(ctx) {
-  const { playwright, browser, base, out, email, password, displayName, token, only } = ctx;
-  const want = (name) => !only || only.has(name);
-  const written = [];
-
-  const settle = async (page) => {
-    await page.addStyleTag({ content: STYLE }).catch(() => {});
-    await page.evaluate(() => document.fonts.ready).catch(() => {});
-    await page.waitForFunction(() => !document.querySelector('[aria-busy="true"], [role="progressbar"], .animate-spin'), undefined, { timeout: 10_000 }).catch(() => {});
-    await page.waitForTimeout(600);
-  };
-  const save = async (page, name, opts = {}) => {
-    await settle(page);
-    const jpeg = JPEG.has(name);
-    const file = `${name}.${jpeg ? "jpg" : "png"}`;
-    rmSync(join(out, `${name}.${jpeg ? "png" : "jpg"}`), { force: true });
-    await page.screenshot({ path: join(out, file), ...(jpeg ? { type: "jpeg", quality: 85 } : { type: "png" }), ...opts });
-    written.push(file);
-    console.log("  wrote", file);
-  };
-
+/**
+ * First-run setup through the API (the setup token comes from the server log) and some activity, so
+ * the screens have members, keys, history, a job run and a backup. Shared with the review mode
+ * (review.mjs). Returns the signed-in admin context, the workspace id and an API helper.
+ */
+export async function prepare(ctx) {
+  const { browser, base, password, displayName, token } = ctx;
   // ---- first-run setup through the API (the setup token comes from the server log) ----
   const origin = { Origin: base };
   const admin = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2 });
   const setup = await admin.request.post(`${base}/api/v1/auth/setup`, { data: { token, display_name: displayName, password }, headers: origin });
   if (!setup.ok()) throw new Error(`setup failed: ${setup.status()} ${await setup.text()}`);
   const me = await setup.json();
+  // Two sample workspaces exist; the screens use Northwind Traders.
   const ws = (me.memberships.find((m) => m.workspace_name === "Northwind Traders") ?? me.memberships[0]).workspace_id;
   const csrf = { ...origin, "X-CSRF-Token": me.csrf_token };
   const call = async (method, path, data, headers = {}) => {
@@ -95,6 +82,32 @@ export async function shoot(ctx) {
     await call("GET", `/api/v1/w/${ws}/schema`);
     if (i % 8 === 0) await admin.request.get(`${base}/api/v1/w/${ws}/tables/nope/rows`, { headers: csrf });
   }
+
+  return { admin, ws, call };
+}
+
+export async function shoot(ctx) {
+  const { playwright, browser, base, out, email, password, displayName, only } = ctx;
+  const want = (name) => !only || only.has(name);
+  const written = [];
+
+  const settle = async (page) => {
+    await page.addStyleTag({ content: STYLE }).catch(() => {});
+    await page.evaluate(() => document.fonts.ready).catch(() => {});
+    await page.waitForFunction(() => !document.querySelector('[aria-busy="true"], [role="progressbar"], .animate-spin'), undefined, { timeout: 10_000 }).catch(() => {});
+    await page.waitForTimeout(600);
+  };
+  const save = async (page, name, opts = {}) => {
+    await settle(page);
+    const jpeg = JPEG.has(name);
+    const file = `${name}.${jpeg ? "jpg" : "png"}`;
+    rmSync(join(out, `${name}.${jpeg ? "png" : "jpg"}`), { force: true });
+    await page.screenshot({ path: join(out, file), ...(jpeg ? { type: "jpeg", quality: 85 } : { type: "png" }), ...opts });
+    written.push(file);
+    console.log("  wrote", file);
+  };
+
+  const { admin, ws, call } = await prepare(ctx);
 
   // ---- page helpers ----
   const newPage = async (context, signedIn = true) => {

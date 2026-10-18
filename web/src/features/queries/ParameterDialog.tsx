@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent } from "react";
 import { Map as MapIcon } from "lucide-react";
 import { btn, btnPrimary, btnSm, input, label as labelClass } from "@/components/styles";
-import { AreaEditor, MapDialog } from "@/components/maps/GeoEditors";
+import { AreaDialog } from "@/components/maps/lazy";
 import { areaOf, type AreaGeometry } from "@/lib/geo/geometry";
 import { Modal } from "./Modal";
 import type { Param } from "./model";
@@ -113,18 +113,18 @@ export function ParameterDialog({
         </div>
       </form>
       {drawing !== null && (
-        <MapDialog
+        <AreaDialog
           title={`Parameter ${drawing}`}
           description="Draw the area for this parameter."
+          fieldName={`Parameter ${drawing}`}
+          value={areaOf(raw[drawing])}
+          onChange={(a) => setDrawn(a)}
           onCancel={() => setDrawing(null)}
-          submitLabel="Use this area"
           onSubmit={() => {
             if (drawn) setRaw({ ...raw, [drawing]: JSON.stringify(drawn) });
             setDrawing(null);
           }}
-        >
-          <AreaEditor fieldName={`Parameter ${drawing}`} value={areaOf(raw[drawing])} onChange={(a) => setDrawn(a)} />
-        </MapDialog>
+        />
       )}
     </Modal>
   );

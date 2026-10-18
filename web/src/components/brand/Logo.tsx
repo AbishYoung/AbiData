@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- documented exception (DESIGN.md): white marks on the solid brand gradient. */
 import { useId } from "react";
 
 /**

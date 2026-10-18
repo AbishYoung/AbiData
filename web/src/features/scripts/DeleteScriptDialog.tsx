@@ -1,7 +1,7 @@
-import { Dialog } from "radix-ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTabs } from "@/app/tabs";
-import { btn, alertBox } from "@/components/styles";
+import { alertBox } from "@/components/styles";
+import { ConfirmDialog } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { deleteScript, scriptKeys, type Script } from "./scriptsApi";
 
@@ -32,36 +32,22 @@ export function DeleteScriptDialog({
   const err = del.error instanceof ApiError ? del.error : null;
 
   return (
-    <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface p-5 text-fg shadow-xl">
-          <Dialog.Title className="m-0 text-base font-semibold">Delete script “{script.name}”</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-fg-muted">
-            This permanently deletes the script. Other scripts that load it with require will stop working.
-          </Dialog.Description>
-          {err && (
-            <div role="alert" className={`${alertBox} mt-3`}>
-              <p className="m-0 font-semibold">{err.title}</p>
-              <p className="m-0">{err.message}</p>
-              {err.recovery && <p className="m-0 text-fg-muted">{err.recovery}</p>}
-            </div>
-          )}
-          <div className="mt-4 flex justify-end gap-2">
-            <button type="button" className={btn} onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={`${btn} !border-danger !bg-danger !text-accent-fg`}
-              disabled={del.isPending}
-              onClick={() => del.mutate()}
-            >
-              Delete script
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <ConfirmDialog
+      title={`Delete script “${script.name}”`}
+      message="This permanently deletes the script. Other scripts that load it with require will stop working."
+      confirmLabel="Delete script"
+      danger
+      busy={del.isPending}
+      onConfirm={() => del.mutate()}
+      onCancel={onClose}
+    >
+      {err && (
+        <div role="alert" className={alertBox}>
+          <p className="m-0 font-semibold">{err.title}</p>
+          <p className="m-0">{err.message}</p>
+          {err.recovery && <p className="m-0 text-fg-muted">{err.recovery}</p>}
+        </div>
+      )}
+    </ConfirmDialog>
   );
 }

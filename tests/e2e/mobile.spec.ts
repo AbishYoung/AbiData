@@ -528,7 +528,6 @@ test("wide tables reflow into stacked rows or show a scroll cue", async ({ page 
 });
 
 test("the import wizard step labels are not truncated on a phone", async ({ page }) => {
-  test.fixme(process.platform === "linux", "A step label truncates with Linux fonts; follow-up in ADR 0016");
   await signIn(page);
   await page.getByRole("link", { name: new RegExp(WS()) }).tap();
   await page.getByRole("button", { name: "Open navigation" }).tap();
@@ -611,6 +610,25 @@ test("axe is clean on phones in light and dark", async ({ page }) => {
     await expectNoAxeViolations(page);
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
+
+    // The user menu (theme and density choices) and the documentation sheet (ADR 0015, O6).
+    await page.getByRole("button", { name: /Admin/ }).tap();
+    await expect(page.getByRole("menuitemradio", { name: "Comfortable rows" })).toBeVisible();
+    // Only the menu: a modal Radix menu aria-hides the page behind it while trapping focus, and axe
+    // (which treats only dialogs as modal) would report the hidden controls (review, R19).
+    await expectNoAxeViolations(page, '[role="menu"]');
+    await page.getByRole("menuitem", { name: "Documentation" }).tap();
+    await expect(page.getByRole("dialog", { name: "Documentation" })).toBeVisible();
+    await expectNoAxeViolations(page);
+    await page.keyboard.press("Escape");
+
+    // The admin console's overview and users on a phone.
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { name: "Admin console" })).toBeVisible();
+    await expectNoAxeViolations(page);
+    await page.getByRole("tab", { name: /Users/ }).tap();
+    await expect(page.getByRole("tab", { name: /Users/, selected: true })).toBeVisible();
+    await expectNoAxeViolations(page);
 
     await page.context().clearCookies();
   }

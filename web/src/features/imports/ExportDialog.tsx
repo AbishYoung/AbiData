@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Dialog } from "radix-ui";
-import { alertBox, btn, btnPrimary } from "@/components/styles";
+import { alertBox, btn, btnPrimary, dialogOverlay, dialogPanel } from "@/components/styles";
 import { ParameterDialog } from "@/features/queries/ParameterDialog";
 import type { Param } from "@/features/queries/model";
 import { recallParams, rememberParams, type ParamRaw } from "@/features/queries/params";
@@ -129,13 +129,13 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+        <Dialog.Overlay className={dialogOverlay} />
         <Dialog.Content
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             headingRef.current?.focus();
           }}
-          className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface p-5 text-fg shadow-lg"
+          className={`${dialogPanel} w-[min(28rem,calc(100vw-2rem))] p-5`}
         >
           <Dialog.Title ref={headingRef} tabIndex={-1} className="m-0 text-base font-semibold tracking-tight outline-none">
             Export “{source.name}”

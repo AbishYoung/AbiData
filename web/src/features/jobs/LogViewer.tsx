@@ -111,9 +111,9 @@ export function LogViewer({ log, label = "Run log", startedAt }: { log: string; 
           : parts.map((p, i) => {
               const content =
                 p.iso !== undefined ? (
-                  <time dateTime={p.iso} title={stampTitle(p.iso)}>
-                    {p.text}
-                  </time>
+                  <Tip label={stampTitle(p.iso)}>
+                    <time dateTime={p.iso}>{p.text}</time>
+                  </Tip>
                 ) : (
                   p.text
                 );

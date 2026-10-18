@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { Tabs } from "radix-ui";
-import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, ShieldOff, Users, type LucideIcon } from "lucide-react";
+import { buttonClass, StatusPage } from "@/components/ui";
 import { LogoMark } from "@/components/brand/Logo";
 import { pageTitle } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
-import { ADMIN_TABS, type AdminTab } from "./adminTabs";
+import { ADMIN_TABS, parseAdminTab, type AdminTab } from "./adminTabs";
 import { OverviewTab } from "./OverviewTab";
 import { WorkspacesTab } from "./WorkspacesTab";
 import { UsersTab } from "./UsersTab";
@@ -28,22 +29,23 @@ const SECTIONS = ADMIN_TABS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
 
 export type { AdminTab };
 
-/** Validates the `tab` search param; unknown or missing values fall back to the overview. */
-export function parseAdminTab(v: unknown): AdminTab {
-  return SECTIONS.some((t) => t.id === v) ? (v as AdminTab) : "overview";
-}
+export { parseAdminTab };
 
 function Forbidden() {
   return (
-    <main className="mx-auto max-w-lg p-6">
-      <h1 className="text-xl font-semibold">403 Forbidden</h1>
-      <p role="alert" className="mt-2">
+    <StatusPage
+      icon={ShieldOff}
+      title="403 Forbidden"
+      actions={
+        <Link to="/" className={buttonClass("primary")}>
+          Back to your workspaces
+        </Link>
+      }
+    >
+      <p role="alert" className="m-0">
         Only platform administrators can open the admin console.
       </p>
-      <Link to="/" className="mt-2 inline-block text-accent underline">
-        Back to your workspaces
-      </Link>
-    </main>
+    </StatusPage>
   );
 }
 
@@ -72,7 +74,7 @@ export function AdminPage({ me, tab, onTabChange }: { me: Me; tab: AdminTab; onT
           <p className="m-0 mt-1 text-sm text-fg-muted">Monitor the server and manage workspaces, users, API keys and platform settings.</p>
         </div>
         <Tabs.Root value={tab} onValueChange={(v) => onTabChange(parseAdminTab(v))} className="flex min-h-0 flex-1 flex-col">
-          <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
+          <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 compact:pr-10 compact:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:mx-0 sm:px-0">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <Tabs.Trigger
                 key={id}

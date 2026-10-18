@@ -15,18 +15,16 @@ import { useIsCompact } from "@/lib/useMediaQuery";
 import { useFocusOpenedTab } from "./focusOpened";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
-import { TableDesignTab } from "@/features/tabledesign/TableDesignTab";
 import { QueryTab } from "@/features/queries/QueryTab";
 import { useSavedQueries } from "@/features/queries/savedQueries";
 import { FormTab } from "@/features/forms/FormTab";
-import { ScriptTab } from "@/features/scripts/ScriptTab";
 import { ReportTab } from "@/features/reports/ReportTab";
-import { JobTab } from "@/features/jobs/JobTab";
-import { EgressSettings } from "@/features/settings/EgressSettings";
+import { EgressSettings, JobTab, ScriptTab, TableDesignTab } from "./lazyFeatures";
 import { OperationsStatus } from "@/components/OperationsStatus";
 import { HelpButton } from "@/features/docs/HelpButton";
 import { alertBox, badge, btn, infoBox, dialogOverlay, dialogPanel, dialogTitle, iconBtn, kbd } from "@/components/styles";
 import { Tip } from "@/components/Tip";
+import { askToConfirm, type ConfirmRequest } from "@/components/ui";
 import { KindIcon } from "@/components/objectKinds";
 import { LogoMark } from "@/components/brand/Logo";
 import { usePalette } from "@/features/palette/commands";
@@ -64,6 +62,11 @@ function shownView(tab: Tab, views: readonly TableView[]): TableView {
   return views.includes(tab.view) ? tab.view : tab.view === "design" && views.includes("sql") ? "sql" : tab.view;
 }
 
+/** The question before closing a tab with unsaved changes. */
+export function discardTabQuestion(t: Pick<Tab, "title">): ConfirmRequest {
+  return { title: `Close “${t.title}”?`, message: "It has unsaved changes. Closing it discards them.", confirmLabel: "Discard and close", danger: true };
+}
+
 const LIVE_LABEL: Record<LiveState, string> = { live: "Live", reconnecting: "Reconnecting", offline: "Offline" };
 const LIVE_TIP: Record<LiveState, string> = {
   live: "Connected. Changes made by others appear as they happen.",
@@ -88,9 +91,12 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   const current = tabs.find((t) => t.key === active);
   const menuKey = useRef<string | null>(null);
 
-  function onClose(t: Tab) {
-    if (t.dirty && !window.confirm(`“${t.title}” has unsaved changes. Close it and discard them?`)) return;
+  async function onClose(t: Tab): Promise<void> {
+    const hadFocus = !!document.activeElement?.closest("[data-tab-key]");
+    if (t.dirty && !(await askToConfirm(discardTabQuestion(t)))) return;
     close(ws, t.key);
+    // Closing the focused tab moves focus to the tab that is now active, not to <body> (review R2).
+    if (hadFocus) requestAnimationFrame(() => document.querySelector<HTMLElement>('[role="tablist"][aria-label="Open objects"] [aria-selected="true"]')?.focus());
   }
 
   const compact = useIsCompact();
@@ -100,8 +106,8 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   const shown = current ? shownView(current, views) : "datasheet";
 
   // Right-click on a tab: close it or its neighbours, or switch its view.
-  function closeMany(list: readonly Tab[]) {
-    for (const t of list) onClose(t);
+  async function closeMany(list: readonly Tab[]) {
+    for (const t of list) await onClose(t);
   }
   function tabMenu(): MenuEntry[] {
     const i = tabs.findIndex((t) => t.key === menuKey.current);
@@ -115,10 +121,10 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
         setView(ws, t.key, v);
       } })),
       { id: "s1", separator: true },
-      { id: "close", label: "Close", icon: X, shortcut: "Delete", run: () => onClose(t) },
-      { id: "others", label: "Close other tabs", disabled: tabs.length < 2, run: () => closeMany(tabs.filter((x) => x.key !== t.key)) },
-      { id: "right", label: "Close tabs to the right", disabled: i === tabs.length - 1, run: () => closeMany(tabs.slice(i + 1)) },
-      { id: "all", label: "Close all tabs", run: () => closeMany(tabs) },
+      { id: "close", label: "Close", icon: X, shortcut: "Delete", run: () => void onClose(t) },
+      { id: "others", label: "Close other tabs", disabled: tabs.length < 2, run: () => void closeMany(tabs.filter((x) => x.key !== t.key)) },
+      { id: "right", label: "Close tabs to the right", disabled: i === tabs.length - 1, run: () => void closeMany(tabs.slice(i + 1)) },
+      { id: "all", label: "Close all tabs", run: () => void closeMany(tabs) },
     ];
   }
 
@@ -146,11 +152,11 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
                 onKeyDown={(e) => {
                   if (e.key === "Delete") {
                     e.preventDefault();
-                    onClose(t);
+                    void onClose(t);
                   }
                 }}
                 onAuxClick={(e) => {
-                  if (e.button === 1) onClose(t);
+                  if (e.button === 1) void onClose(t);
                 }}
                 className={`group relative flex h-full max-w-60 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition-colors ${
                   on
@@ -195,7 +201,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
           )}
           <button
             type="button"
-            onClick={() => onClose(current)}
+            onClick={() => void onClose(current)}
             className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-surface hover:text-fg"
             aria-label={`Close ${current.title}`}
           >
@@ -209,7 +215,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
 }
 
 /** Phone version of the tab strip: one "current object" button that opens a sheet listing every open tab. */
-function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole | undefined; onClose: (t: Tab) => void }) {
+function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole | undefined; onClose: (t: Tab) => Promise<void> }) {
   const { tabs, active } = useWorkspaceTabs(ws);
   const activate = useTabs((s) => s.activate);
   const setView = useTabs((s) => s.setView);
@@ -269,7 +275,7 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
                       <span className="min-w-0 flex-1 truncate">{t.title}</span>
                       {t.dirty && <span className="text-xs text-warning">Unsaved</span>}
                     </button>
-                    <button type="button" className={iconBtn} aria-label={`Close ${t.title}`} onClick={() => onClose(t)}>
+                    <button type="button" className={iconBtn} aria-label={`Close ${t.title}`} onClick={() => void onClose(t)}>
                       <X size={16} aria-hidden="true" />
                     </button>
                   </li>
@@ -278,7 +284,7 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <button type="button" className={iconBtn} aria-label={`Close ${current.title}`} onClick={() => onClose(current)}>
+        <button type="button" className={iconBtn} aria-label={`Close ${current.title}`} onClick={() => void onClose(current)}>
           <X size={18} aria-hidden="true" />
         </button>
       </div>

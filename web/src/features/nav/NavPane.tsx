@@ -15,8 +15,8 @@ import { TableNavItem, tableActions } from "./TableNavItem";
 import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
 import { QueryNavItem, queryActions } from "./QueryNavItem";
-import { ImportWizard } from "@/features/imports/ImportWizard";
-import { ExportDialog, type ExportSource } from "@/features/imports/ExportDialog";
+import type { ExportSource } from "@/features/imports/ExportDialog";
+import { ExportDialog, ImportWizard, prefetchFor } from "@/features/workspace/lazyFeatures";
 import { effectiveParams } from "@/features/queries/params";
 
 interface NavGroup {
@@ -169,7 +169,7 @@ export function NavPane({ ws, role, variant = "sidebar" }: { ws: string; role: s
           const open = !collapsed.has(g.id);
           const panelId = `nav-group-${g.id}`;
           return (
-            <section key={g.id} aria-label={g.label}>
+            <section key={g.id} aria-label={g.label} onPointerEnter={() => prefetchFor(g.kind, design)} onFocus={() => prefetchFor(g.kind, design)}>
               <div className="group/head mx-2 flex items-center gap-0.5 pr-0.5">
                 <h2 className="m-0 min-w-0 flex-1">
                   <button

@@ -1,13 +1,5 @@
-/** Deep fills that keep white initials at AA contrast (≥ 4.5:1) in both themes. */
-const AVATAR_FILLS = [
-  "#1d4ed8",
-  "#6d28d9",
-  "#047857",
-  "#b45309",
-  "#0e7490",
-  "#be185d",
-  "#4338ca",
-];
+/** Deep fills (tokens.css --avatar-*) that keep white initials at AA contrast in both themes. */
+const AVATAR_FILLS = 7;
 
 /** A coloured tile with the workspace's initials; the colour is stable per name. */
 export function WorkspaceAvatar({
@@ -35,7 +27,8 @@ export function WorkspaceAvatar({
   return (
     <span
       aria-hidden="true"
-      style={{ backgroundColor: AVATAR_FILLS[h % AVATAR_FILLS.length] }}
+      style={{ backgroundColor: `var(--avatar-${(h % AVATAR_FILLS) + 1})` }}
+      // eslint-disable-next-line no-restricted-syntax -- documented exception: white initials on a solid avatar fill.
       className={`inline-flex shrink-0 items-center justify-center font-semibold text-white ${box}`}
     >
       {initials}

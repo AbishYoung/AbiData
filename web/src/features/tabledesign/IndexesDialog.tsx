@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { Dialog } from "radix-ui";
 import { Trash2 } from "lucide-react";
 import { Tip } from "@/components/Tip";
-import { btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { btn, btnPrimary, input, label as labelClass, dialogOverlay, dialogPanel } from "@/components/styles";
 import { MAX_INDEX_FIELDS, indexFieldNames, isIndexable, type Draft, type DraftIndex } from "./draft";
 import { ulid } from "./ulid";
 
@@ -40,8 +40,8 @@ export function IndexesDialog({ draft, onChange, onClose }: IndexesDialogProps) 
   return (
     <Dialog.Root open onOpenChange={(open) => (open ? undefined : onClose())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 flex max-h-[calc(100vh-2rem)] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-surface p-5 text-fg shadow-xl">
+        <Dialog.Overlay className={dialogOverlay} />
+        <Dialog.Content className={`${dialogPanel} flex w-[min(40rem,calc(100vw-2rem))] flex-col p-5`}>
           <Dialog.Title className="m-0 text-base font-semibold">Indexes</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-fg-muted">
             Changes here join your other design changes; nothing is applied until you use Preview changes.

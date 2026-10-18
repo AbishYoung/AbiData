@@ -2,10 +2,10 @@
 .rv-page {
   position: relative;
   overflow: hidden;
-  background: #fff;
-  color: #000;
+  background: var(--paper);
+  color: var(--paper-ink);
   font: 12px/1.25 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  box-shadow: 0 1px 4px var(--paper-shadow);
   transform-origin: 0 0;
 }
 .rv-content {
@@ -53,7 +53,7 @@
   body {
     height: auto !important;
     overflow: visible !important;
-    background: #fff !important;
+    background: var(--paper) !important;
   }
   body > *:not(.rv-print-root) {
     display: none !important;

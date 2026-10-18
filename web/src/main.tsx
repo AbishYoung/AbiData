@@ -8,8 +8,9 @@ import "./styles/mobile.css";
 import { queryClient } from "./app/queryClient";
 import { router } from "./app/router";
 import { ErrorHost } from "./components/ErrorDialog";
+import { ConfirmHost } from "./components/ui";
 import { ActivityBanner } from "./components/ActivityBanner";
-import { DocsPanel } from "./features/docs/DocsPanel";
+import { DocsHost } from "./features/docs/DocsHost";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { GlobalShortcuts } from "./features/palette/GlobalShortcuts";
 import { ChangePasswordHost } from "./features/account/ChangePasswordDialog";
@@ -28,9 +29,10 @@ createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
       <ErrorHost />
+      <ConfirmHost />
       <ActivityBanner />
       <CommandPalette />
-      <DocsPanel />
+      <DocsHost />
       <GlobalShortcuts />
       <ChangePasswordHost />
       <AppToasts />

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
+import { useDensityStore } from "@/lib/density";
 import { QueryResultsGrid, formatCell, toTsv } from "./QueryResultsGrid";
 
 afterEach(cleanup);
@@ -14,6 +16,16 @@ describe("QueryResultsGrid", () => {
     expect(screen.getByRole("columnheader", { name: "Qty" })).toBeInTheDocument();
     expect(screen.getByRole("gridcell", { name: "Ann" })).toBeInTheDocument();
     expect(screen.queryByText(/truncated/)).toBeNull();
+  });
+
+  it("sizes rows by the user's density", () => {
+    render(<QueryResultsGrid label="Results" result={{ columns: ["Name"], rows: [["Ann"], ["Bob"]], truncated: false }} />);
+    const row = () => screen.getByRole("gridcell", { name: "Bob" }).closest('[role="row"]') as HTMLElement;
+    expect(row().style.height).toBe("32px");
+    act(() => useDensityStore.getState().setDensity("comfortable"));
+    expect(row().style.height).toBe("40px");
+    expect(row().style.transform).toBe("translateY(40px)");
+    act(() => useDensityStore.getState().setDensity("compact"));
   });
 
   it("shows the truncated notice", () => {

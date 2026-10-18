@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- documented exception (DESIGN.md): Monaco takes hex colours; these are fallbacks for when the tokens cannot be read. */
 // Loaded only from the lazily imported MonacoEditor chunk. Monaco is bundled locally (no CDN: the
 // CSP is script-src 'self'; worker-src 'self' blob:); only the editor worker and the Lua grammar ship.
 import * as monaco from "monaco-editor/editor/editor.api";
@@ -26,6 +27,7 @@ import "monaco-editor/languages/definitions/lua/register";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { loader } from "@monaco-editor/react";
 import { openDocs } from "@/features/docs/docsStore";
+import { parseColor, toHex } from "@/lib/color";
 import {
   hoverFor,
   manifest,
@@ -165,9 +167,10 @@ registerProviders();
 
 export type ThemeName = "abidata-light" | "abidata-dark";
 
+/** A token as #rrggbb (Monaco takes only hex; the tokens are oklch). */
 function cssVar(name: string, fallback: string): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(v) ? v : fallback;
+  const c = parseColor(getComputedStyle(document.documentElement).getPropertyValue(name).trim());
+  return c ? toHex(c) : fallback;
 }
 
 /** The theme the app is currently showing: data-theme override, else the OS preference. */

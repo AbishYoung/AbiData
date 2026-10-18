@@ -4,7 +4,7 @@ import { ListTree, TriangleAlert } from "lucide-react";
 import { KindIcon } from "@/components/objectKinds";
 import { useTabs } from "@/app/tabs";
 import { Tip } from "@/components/Tip";
-import { alertBox, btn, btnPrimary, input, label as labelClass } from "@/components/styles";
+import { alertBox, btn, btnPrimary, input, label as labelClass, textarea } from "@/components/styles";
 import { keys } from "@/lib/events";
 import { findTable, useSchema, type Schema } from "@/lib/schema";
 import {
@@ -30,6 +30,7 @@ import { FieldProperties } from "./FieldProperties";
 import { IndexesDialog } from "./IndexesDialog";
 import { SchemaChangeFlow } from "./SchemaChangeFlow";
 import { ulid } from "./ulid";
+import { askToConfirm } from "@/components/ui";
 
 interface PendingChange extends BuiltChange {
   baseVersion: number | null;
@@ -155,8 +156,14 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
     setServerError(null);
   }
 
-  function reload(): void {
-    if (!window.confirm("Discard your unapplied changes and reload the current design?")) return;
+  async function reload(): Promise<void> {
+    const ok = await askToConfirm({
+      title: "Reload the design?",
+      message: "Your changes that are not applied yet are discarded, and the current design is loaded.",
+      confirmLabel: "Discard and reload",
+      danger: true,
+    });
+    if (!ok) return;
     setChange(null);
     setValidation(null);
     setServerError(null);
@@ -239,7 +246,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
         <div role="alert" className="flex items-center gap-3 border-b border-danger bg-danger-soft px-3 py-2 text-sm">
           <TriangleAlert size={16} aria-hidden="true" />
           <span>This table’s design was changed elsewhere after you started editing. Applying will be refused.</span>
-          <button type="button" className={btn} onClick={reload}>
+          <button type="button" className={btn} onClick={() => void reload()}>
             Reload design
           </button>
         </div>
@@ -321,7 +328,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
                 <textarea
                   id={descId}
                   rows={3}
-                  className={input}
+                  className={textarea}
                   value={draft.description}
                   onChange={(e) => edit((d) => ({ ...d, description: e.target.value }))}
                 />
@@ -363,7 +370,7 @@ function DesignEditor({ ws, tableId, tabKey, storeKey, entry, schema, dirty }: E
           }
           onApplied={onApplied}
           onCancel={() => setChange(null)}
-          onReload={reload}
+          onReload={() => void reload()}
           onOpError={onOpError}
         />
       )}

@@ -126,7 +126,7 @@ export function FieldGrid(props: FieldGridProps) {
                       onChange={(e) => props.onTypeChange(f.id, e.target.value)}
                     >
                       {FIELD_TYPES.filter((t) => t.value !== "attachments" || f.isNew || placeholder).map((t) => (
-                        <option key={t.value} value={t.value} title={t.hint}>
+                        <option key={t.value} value={t.value}>
                           {t.label}
                         </option>
                       ))}
