@@ -213,6 +213,29 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 | F. PostgreSQL renderer and codecs | Second renderer, `<prefix>_lib` functions, codecs, and differential testing. This is the hand-off point into ADR 0012 Phase 3. | Differential tests green on PostgreSQL 17 and 18. |
 | G. Lua builder | `db.select` / `insert` / `update` / `delete` on the model. | Lua API manifest updated; scripts using it pass on both backends. |
 
+**Phase F, part 1 (as built).**
+
+- **What renders.** `sqlgen.Render(sqlgen.Postgres, …)` renders expressions and DML.
+  - Placeholders stay `?`/`:name` for `dbx.Rebind`.
+  - DDL returns `ErrDialect` until part 2.
+- **SQLite's answers, pinned explicitly:**
+  - `IS [NOT] DISTINCT FROM`;
+  - NULL for division or `%` by zero;
+  - `%` on integer parts;
+  - yes/no counted as 0/1 next to numbers;
+  - `CAST` to integer truncates;
+  - SUM of integers stays `bigint` and AVG is `double precision`;
+  - MIN/MAX of yes/no is `bool_and`/`bool_or`;
+  - scalar `max`/`min` are NULL if any argument is;
+  - float literals are `float8`.
+- **Matching.** LIKE, GLOB, `instr` and `replace` work on the text under `COLLATE "default"`, since text columns use the nondeterministic `<prefix>_ci` collation. `Match.CI` renders as `ILIKE`.
+- **Functions.** Each catalog function maps to a builtin, a rewrite, or an `abi_*` function in `<prefix>_lib` (`internal/pgdb/lib`, installed by `pgdb.InstallLib`).
+  - The library has SQLite's `substr`, `round` (of the double's exact value), the math functions that are NULL on domain errors, `mod`, `glob` and a 64-bit `random`.
+  - The date/time, JSON, geo, `printf`/`format`, `quote`, `typeof` and `unhex` functions are listed as pending. They fail to render rather than render wrongly, and a test keeps that list exact.
+- **Differential tests** (`internal/pgdb/dialect_test.go`) run about 130 expressions and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
+  - The one recorded difference is `lower`/`upper` on non-ASCII letters: SQLite changes ASCII only.
+  - Number-to-text formatting also differs (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). The test data avoids that case, and part 2's codecs address it.
+
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;
 - stored expressions get real parsing and good error messages instead of an authorizer probe;
