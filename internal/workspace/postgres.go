@@ -74,7 +74,7 @@ func (m *Manager) pgOpen(ctx context.Context, h *handle) error {
 	pc, n := m.pg(), m.Names(h.id)
 	d := pgdb.Pool(pc.Pool)
 	var exists bool
-	if err := d.QueryRow(ctx, `SELECT to_regnamespace(?) IS NOT NULL`, pgdb.Ident(n.Schema())).Scan(&exists); err != nil {
+	if err := d.QueryRow(ctx, sqlPGOpen.SQL, pgdb.Ident(n.Schema())).Scan(&exists); err != nil {
 		return err
 	}
 	if !exists {
@@ -141,7 +141,7 @@ func (l *Lease) pgWrite(ctx context.Context, p Priority, fn func(tx dbx.Tx) erro
 			return err
 		}
 	}
-	if _, err := tx.Exec(ctx, `SELECT 1 FROM _sys_schema WHERE id = 1 FOR UPDATE`); err != nil {
+	if _, err := tx.Exec(ctx, sqlPGWrite.SQL); err != nil {
 		var pe *pgconn.PgError
 		if errors.As(err, &pe) && pe.Code == "55P03" { // lock_not_available
 			return &fault.Error{Code: fault.WorkspaceBusy, Cause: err}

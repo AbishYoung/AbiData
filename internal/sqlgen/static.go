@@ -22,10 +22,16 @@ type Static struct {
 	// sqliteOnly marks a statement that uses SQLite-specific SQL (PRAGMA,
 	// json_*, strftime …) and still needs a PostgreSQL variant.
 	sqliteOnly bool
+	// postgresOnly marks a statement for what only the PostgreSQL backend
+	// has (its catalogs, row locks).
+	postgresOnly bool
 }
 
 // SQLiteOnly reports whether the statement has no PostgreSQL form yet.
 func (s *Static) SQLiteOnly() bool { return s.sqliteOnly }
+
+// PostgresOnly reports whether the statement is for the PostgreSQL backend only.
+func (s *Static) PostgresOnly() bool { return s.postgresOnly }
 
 var (
 	staticMu sync.Mutex
@@ -44,6 +50,13 @@ func Register(name, sql string) *Static { return register(name, sql, false) }
 // one is part of the counted remainder ADR 0012 Phase 3 gives a PostgreSQL
 // form.
 func RegisterSQLiteOnly(name, sql string) *Static { return register(name, sql, true) }
+
+// RegisterPostgresOnly declares a statement only the PostgreSQL backend runs.
+func RegisterPostgresOnly(name, sql string) *Static {
+	s := register(name, sql, true)
+	s.sqliteOnly, s.postgresOnly = false, true
+	return s
+}
 
 func register(name, sql string, sqliteOnly bool) *Static {
 	if name == "" || sql == "" {
