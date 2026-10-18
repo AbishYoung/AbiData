@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -12,11 +13,19 @@ import { ME_KEY, fetchMe, fetchSetupPending, type Me } from "@/lib/session";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SetupPage } from "@/features/auth/SetupPage";
 import { PickerPage } from "@/features/workspace/PickerPage";
-import { AdminPage, parseAdminTab } from "@/features/admin/AdminPage";
+import { parseAdminTab } from "@/features/admin/adminTabs";
 import { WorkspaceShell } from "@/features/workspace/WorkspaceShell";
-import { PublicAppPage } from "@/features/apps/PublicAppPage";
+import { suspended } from "@/lib/suspended";
 import { Compass, TriangleAlert } from "lucide-react";
 import { Button, buttonClass, StatusPage } from "@/components/ui";
+
+// The admin console and the public app page are routes of their own and load on first use (review R7).
+const AdminPage = suspended<ComponentProps<typeof import("@/features/admin/AdminPage").AdminPage>>(() =>
+  import("@/features/admin/AdminPage").then((m) => ({ default: m.AdminPage })),
+);
+const PublicAppPage = suspended<ComponentProps<typeof import("@/features/apps/PublicAppPage").PublicAppPage>>(() =>
+  import("@/features/apps/PublicAppPage").then((m) => ({ default: m.PublicAppPage })),
+);
 
 interface RouterContext {
   queryClient: QueryClient;

@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { keys } from "@/lib/events";
 import { useErrorStore } from "@/lib/errorStore";
@@ -12,14 +11,14 @@ import { alertBox, badge, badgeWarning, btn } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
 import { FilesWorkspaceProvider } from "@/features/files/FileParts";
 import { docFooter } from "@/components/EditorParts";
-import { Grid, HEADER_HEIGHT, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
+import { Grid, ROW_HEIGHT, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
-import { CARD_SLOT, CardList } from "./CardList";
+import { CardList } from "./CardList";
 import { RecordSheet, type FieldChange, type SheetSave } from "./RecordSheet";
-import { ExportDialog } from "@/features/imports/ExportDialog";
+import { ExportDialog } from "@/features/workspace/lazyFeatures";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
-import { GeoFilterDialog } from "./GeoFilterDialog";
+import { GeoFilterDialog } from "@/components/maps/lazy";
 import { accuracyColumn } from "@/lib/geo/locate";
 import { DeleteDialog } from "./DeleteDialog";
 import type { EditorHandle, LookupInfo, Move } from "./Editors";
@@ -58,30 +57,13 @@ import { toast } from "@/components/AppToasts";
 import { ContextArea, type MenuEntry } from "@/components/ContextArea";
 import { copyText, readClipboardText } from "@/lib/clipboard";
 import { detectPlatform, formatKeys } from "@/lib/shortcuts";
-import {
-  ArrowDownWideNarrow,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
-  ArrowUpNarrowWide,
-  ClipboardPaste,
-  Copy,
-  Filter,
-  FilterX,
-  History,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { gridMenu, type MenuTarget } from "./gridMenu";
+import { useRowPages } from "./useRowPages";
 import { NAV_KEYS, clampCell, moveActive, tabTarget, type Cell, type NavDims } from "./nav";
 import {
-  PAGE_SIZE,
   classifyFailure,
   deleteRow,
-  fetchCount,
-  fetchRows,
   type Row,
-  type RowPage,
 } from "./rowsApi";
 import { formatValue, isReadOnlyColumn, kindOf } from "./values";
 
@@ -169,91 +151,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const filterActive = appliedQuick.trim() !== "" || conditions.length > 0;
 
   // ---- data -------------------------------------------------------------------
-  const countQuery = useQuery({
-    queryKey: [...keys.count(ws, tableId), { filter: filterStr ?? null }],
-    queryFn: ({ signal }) => fetchCount(ws, tableId, filterStr, signal),
-    staleTime: 15_000,
-  });
-  const total = countQuery.data?.count ?? 0;
-  const capped = countQuery.data?.capped ?? false;
-  const rowCount = total + (canEdit ? 1 : 0);
-
-  const pageKey = (page: number) =>
-    [...keys.rows(ws, tableId), { sort: sortStr ?? null, filter: filterStr ?? null, page }] as const;
-
-  const virtualizer = useVirtualizer({
-    count: rowCount,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10,
-    scrollMargin: HEADER_HEIGHT,
-    scrollPaddingStart: HEADER_HEIGHT,
-  });
-  const cardVirtualizer = useVirtualizer({
-    count: total,
-    getScrollElement: () => cardScrollRef.current,
-    estimateSize: () => CARD_SLOT,
-    overscan: 6,
-  });
-  const items = mode === "cards" ? cardVirtualizer.getVirtualItems() : virtualizer.getVirtualItems();
-
-  const pageSet = new Set<number>();
-  for (const v of items) if (v.index < total) pageSet.add(Math.floor(v.index / PAGE_SIZE));
-  if (sheetIndex !== null && sheetIndex < total) pageSet.add(Math.floor(sheetIndex / PAGE_SIZE));
-  const pages = [...pageSet].sort((a, b) => a - b);
-
-  const pageQueries = useQueries({
-    queries: pages.map((page) => ({
-      queryKey: pageKey(page),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        fetchRows(
-          { ws, tableId, offset: page * PAGE_SIZE, limit: PAGE_SIZE, sort: sortStr, filter: filterStr },
-          signal,
-        ),
-      staleTime: 15_000,
-    })),
-  });
-  const failed = countQuery.isError ? countQuery.error : pageQueries.find((q) => q.isError)?.error;
-  const fetching = countQuery.isFetching || pageQueries.some((q) => q.isFetching);
-
-  function rowAt(index: number): Row | undefined {
-    if (index < 0 || index >= total) return undefined;
-    return qc.getQueryData<RowPage>(pageKey(Math.floor(index / PAGE_SIZE)))?.items?.[index % PAGE_SIZE];
-  }
-
-  function indexOfRow(id: number): number {
-    for (const [key, data] of qc.getQueriesData<RowPage>({ queryKey: keys.rows(ws, tableId) })) {
-      const meta = key[key.length - 1];
-      if (typeof meta !== "object" || meta === null || !("page" in meta) || typeof meta.page !== "number") continue;
-      const at = data?.items?.findIndex((r) => r.id === id) ?? -1;
-      if (at >= 0) return meta.page * PAGE_SIZE + at;
-    }
-    return -1;
-  }
-
-  function findRow(id: number): Row | undefined {
-    for (const [, data] of qc.getQueriesData<RowPage>({ queryKey: keys.rows(ws, tableId) })) {
-      const r = data?.items?.find((x) => x.id === id);
-      if (r) return r;
-    }
-    return undefined;
-  }
-
-  function keyAt(index: number): RowKey | undefined {
-    if (index >= total) return canEdit ? "new" : undefined;
-    return rowAt(index)?.id;
-  }
-
-  function setRowInCache(row: Row) {
-    qc.setQueriesData<RowPage>({ queryKey: keys.rows(ws, tableId) }, (old) =>
-      old && old.items ? { ...old, items: old.items.map((r) => (r.id === row.id ? row : r)) } : old,
-    );
-  }
-
-  function refreshData() {
-    void qc.invalidateQueries({ queryKey: keys.rows(ws, tableId) });
-    void qc.invalidateQueries({ queryKey: keys.count(ws, tableId) });
-  }
+  const { countQuery, total, capped, rowCount, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData } =
+    useRowPages({ ws, tableId, filterStr, sortStr, canEdit, mode, sheetIndex, scrollRef, cardScrollRef });
 
   // ---- buffers ------------------------------------------------------------------
   function updateBuffers(fn: (m: Map<RowKey, RowBuffer>) => void) {
@@ -750,7 +649,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   // ---- context menu ------------------------------------------------------------------------
   // What the right-click was on, worked out when the menu opens (before React re-renders), so the
   // entries describe that cell even though the active cell has not caught up yet.
-  const menuTarget = useRef<{ kind: "cell"; cell: Cell } | { kind: "column"; col: number } | null>(null);
+  const menuTarget = useRef<MenuTarget | null>(null);
 
   function onGridContextMenu(e: MouseEvent) {
     menuTarget.current = null;
@@ -784,60 +683,32 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     menuTarget.current = { kind: "cell", cell };
   }
 
-  function gridMenu(): MenuEntry[] {
-    const target = menuTarget.current;
-    if (!target) return [];
-    if (target.kind === "column") {
-      const col = columns[target.col];
-      if (!col) return [];
-      const sorted = sort?.col === col.id;
-      return [
-        { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => onSort(col.id, "asc") },
-        { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => onSort(col.id, "desc") },
-        { id: "unsort", label: "Clear sort", icon: ArrowUpDown, disabled: !sorted, run: () => onSort(col.id, "none") },
-        { id: "s1", separator: true },
-        { id: "left", label: "Move column left", icon: ArrowLeft, disabled: target.col === 0, run: () => onMoveColumn(col.id, -1) },
-        { id: "right", label: "Move column right", icon: ArrowRight, disabled: target.col === columns.length - 1, run: () => onMoveColumn(col.id, 1) },
-      ];
-    }
-    const { cell } = target;
-    const col = columns[cell.col];
-    const row = rowAt(cell.row);
-    const isNew = cell.row >= total;
-    const ids = row ? (selected.has(row.id) ? [...selected] : [row.id]) : [];
-    const cur = effectiveValue(cell);
-    const filterable = !isNew && row !== undefined && col !== undefined && canSelectFilter(col, cur?.value);
-    const sorted = col !== undefined && sort?.col === col.id;
-    return [
-      { id: "copy", label: "Copy", icon: Copy, shortcut: "Mod+C", disabled: isNew || !col, run: () => void copyCell(cell) },
-      { id: "paste", label: "Paste", icon: ClipboardPaste, shortcut: "Mod+V", disabled: !canType(cell), run: () => void pasteFromMenu(cell) },
-      { id: "edit", label: "Edit cell", icon: Pencil, shortcut: "F2", disabled: !canType(cell), run: () => startEdit(null, cell) },
-      { id: "s1", separator: true },
-      ...(col
-        ? ([
-            { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => onSort(col.id, "asc") },
-            { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => onSort(col.id, "desc") },
-            ...(sorted ? [{ id: "unsort", label: "Clear sort", icon: ArrowUpDown, run: () => onSort(col.id, "none") }] : []),
-          ] satisfies MenuEntry[])
-        : []),
-      { id: "filter", label: "Filter by selection", icon: Filter, disabled: !filterable, run: () => filterBySelection(cell) },
-      ...(filterActive ? [{ id: "unfilter", label: "Clear filter", icon: FilterX, run: clearFilter }] : []),
-      { id: "s2", separator: true },
-      { id: "history", label: "Record history", icon: History, disabled: !row, run: () => row && setHistoryRow(row.id) },
-      ...(canEdit
-        ? ([
-            { id: "new", label: "New record", icon: Plus, shortcut: "Mod+Shift+N", run: () => moveTo({ row: total, col: cell.col }) },
-            {
-              id: "delete",
-              label: ids.length > 1 ? `Delete ${formatCount(ids.length)} records` : "Delete record",
-              icon: Trash2,
-              danger: true,
-              disabled: ids.length === 0,
-              run: () => setDel({ ids, busy: false, error: null }),
-            },
-          ] satisfies MenuEntry[])
-        : []),
-    ];
+  function menuEntries(): MenuEntry[] {
+    return gridMenu(menuTarget.current, {
+      columns,
+      sortedCol: sort?.col ?? null,
+      total,
+      canEdit,
+      selected,
+      filterActive,
+      rowAt,
+      canFilterCell: (cell) => {
+        const col = columns[cell.col];
+        return col !== undefined && canSelectFilter(col, effectiveValue(cell)?.value);
+      },
+      canType,
+      formatCount,
+      onSort,
+      onMoveColumn,
+      copyCell: (cell) => void copyCell(cell),
+      pasteInto: (cell) => void pasteFromMenu(cell),
+      startEdit: (cell) => startEdit(null, cell),
+      filterBySelection,
+      clearFilter,
+      openHistory: setHistoryRow,
+      newRecord: (col) => moveTo({ row: total, col }),
+      requestDelete: (ids) => setDel({ ids, busy: false, error: null }),
+    });
   }
 
   // ---- effects --------------------------------------------------------------------------
@@ -1013,7 +884,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         />
       )}
       {mode === "grid" && (
-      <ContextArea label={`${table.display_name} actions`} onOpen={onGridContextMenu} entries={gridMenu}>
+      <ContextArea label={`${table.display_name} actions`} onOpen={onGridContextMenu} entries={menuEntries}>
       <Grid
         gridId={gridId}
         label={`${table.display_name} datasheet`}

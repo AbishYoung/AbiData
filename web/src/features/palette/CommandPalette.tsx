@@ -4,7 +4,7 @@ import { ChevronDown, CornerDownLeft, Search } from "lucide-react";
 import { dialogOverlay, dialogPanel, kbd } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
 import { useReturnFocus } from "@/components/ui";
-import { ImportWizard } from "@/features/imports/ImportWizard";
+import { ImportWizard } from "@/features/workspace/lazyFeatures";
 import { useImportRequest, usePalette } from "./commands";
 import { buildRows, moreLabel, moveActive, type GroupId, type PaletteItem, type Row } from "./match";
 import { usePaletteItems } from "./usePaletteItems";

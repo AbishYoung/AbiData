@@ -12,7 +12,7 @@ import type { FormControl } from "../formsApi";
 import { formatCalcValue, formatNumeric } from "./format";
 import { effectiveProps, type CalcState, type Fields, type Overrides } from "./model";
 import { lookupKeys } from "./sources";
-import { MapControl } from "./MapControl";
+import { MapControl } from "@/components/maps/lazy";
 import { Tip } from "@/components/Tip";
 
 export interface ControlActions {

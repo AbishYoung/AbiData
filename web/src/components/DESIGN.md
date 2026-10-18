@@ -79,6 +79,9 @@ The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/compo
   - Use `Tip`, never the native `title` attribute. `disabled` keeps the tree stable where a tooltip only sometimes applies (grid cells).
   - Dialog and sheet close buttons have no tooltip: focus lands on them, and a tooltip opened by focus takes the first Escape.
 
+## Loading code
+The entry chunk holds what opening a workspace needs: the shell, the navigation pane, datasheets, query results, and the form and report runtimes. Everything else loads on first use through `suspended()` (`lib/suspended.tsx`, a lazy component in its own Suspense boundary): the designers, table design, scripts and jobs, workspace settings, imports and exports (`features/workspace/lazyFeatures.tsx`), the map editors and Leaflet (`components/maps/lazy.tsx`), the admin console, the public app page and the documentation panel. Hovering or focusing a navigation group prefetches its editors (`prefetchFor`). New heavy features follow the same pattern; check the entry chunk with `npm run build`.
+
 ## Lint guards
 `eslint.config.js` enforces the rules above (ADR 0015): no `title=` on intrinsic elements, no `confirm`/`alert`/`prompt` (use `askToConfirm` or `ConfirmDialog`), and no Tailwind palette classes (`bg-gray-…`, `text-white` …) or hex colours outside `tokens.css`. Tests are exempt.
 

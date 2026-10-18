@@ -6,7 +6,7 @@ import { LogoMark } from "@/components/brand/Logo";
 import { pageTitle } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
-import { ADMIN_TABS, type AdminTab } from "./adminTabs";
+import { ADMIN_TABS, parseAdminTab, type AdminTab } from "./adminTabs";
 import { OverviewTab } from "./OverviewTab";
 import { WorkspacesTab } from "./WorkspacesTab";
 import { UsersTab } from "./UsersTab";
@@ -29,10 +29,7 @@ const SECTIONS = ADMIN_TABS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
 
 export type { AdminTab };
 
-/** Validates the `tab` search param; unknown or missing values fall back to the overview. */
-export function parseAdminTab(v: unknown): AdminTab {
-  return SECTIONS.some((t) => t.id === v) ? (v as AdminTab) : "overview";
-}
+export { parseAdminTab };
 
 function Forbidden() {
   return (
