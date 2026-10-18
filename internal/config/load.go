@@ -9,9 +9,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const minKeyBytes = 32
@@ -92,7 +95,58 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.AllowedOrigins, err = l.origins("ABIDATA_ALLOWED_ORIGINS"); err != nil {
 		return Config{}, err
 	}
+	if err := l.postgres(&c); err != nil {
+		return Config{}, err
+	}
 	return c, nil
+}
+
+// prefixPattern keeps every name the app derives from the prefix a plain,
+// lower-case PostgreSQL identifier within its 63-byte limit: the longest is
+// <prefix>_ws_<26-character workspace ID>_write.
+var prefixPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,15}$`)
+
+// postgres reads the backend choice and the PostgreSQL settings. The
+// connection string is a secret: errors name the variable, never the value.
+func (l loader) postgres(c *Config) error {
+	db, _, err := l.lookup("ABIDATA_DB")
+	if err != nil {
+		return err
+	}
+	switch strings.ToLower(db) {
+	case "", DBSQLite:
+		c.DB = DBSQLite
+	case DBPostgres:
+		c.DB = DBPostgres
+	default:
+		return fmt.Errorf("config: ABIDATA_DB must be %q or %q", DBSQLite, DBPostgres)
+	}
+	if c.PostgresURL, _, err = l.lookup("ABIDATA_POSTGRES_URL"); err != nil {
+		return err
+	}
+	switch {
+	case c.DB == DBPostgres && c.PostgresURL == "":
+		return errors.New("config: ABIDATA_POSTGRES_URL (or ABIDATA_POSTGRES_URL_FILE) is required with ABIDATA_DB=postgres")
+	case c.DB == DBSQLite && c.PostgresURL != "":
+		// A URL with no use is a configuration that disagrees with itself
+		// (ADR 0012 §1): never a silent fallback.
+		return errors.New("config: ABIDATA_POSTGRES_URL is set but ABIDATA_DB is sqlite; set ABIDATA_DB=postgres or unset the URL")
+	}
+	if c.PostgresURL != "" {
+		if _, err := pgxpool.ParseConfig(c.PostgresURL); err != nil {
+			return errors.New("config: ABIDATA_POSTGRES_URL is not a valid PostgreSQL connection string")
+		}
+	}
+	if c.PostgresMaxConns, err = l.integer("ABIDATA_POSTGRES_MAX_CONNS", 20, 1); err != nil {
+		return err
+	}
+	if c.PostgresPrefix, err = l.nonEmpty("ABIDATA_POSTGRES_SCHEMA_PREFIX", "abd"); err != nil {
+		return err
+	}
+	if !prefixPattern.MatchString(c.PostgresPrefix) {
+		return errors.New("config: ABIDATA_POSTGRES_SCHEMA_PREFIX must be a lower-case letter followed by at most 15 lower-case letters, digits or underscores")
+	}
+	return nil
 }
 
 type loader struct {

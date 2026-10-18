@@ -51,6 +51,9 @@ func serve() error {
 	if err != nil {
 		return err
 	}
+	if err := checkBackend(context.Background(), cfg); err != nil {
+		return err
+	}
 	metrics := obs.NewMetrics()
 	sampler := obs.NewSampler(metrics)
 	// Records at info and above also feed the admin console's live log stream.

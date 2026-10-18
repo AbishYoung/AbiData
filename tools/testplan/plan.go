@@ -75,10 +75,12 @@ var imagePaths = []string{"Dockerfile", ".dockerignore", "compose.yaml", "compos
 
 // postgresPaths run the PostgreSQL backend tests on top of whatever the Go graph selects:
 // the SQL layer that both backends share, and the test script. Migrations too (below).
-var postgresPaths = []string{"scripts/test-postgres.sh", "internal/pgdb/", "internal/pgtest/", "internal/dbx/", "internal/sqlgen/"}
+var postgresPaths = []string{"scripts/test-postgres.sh", "internal/pgdb/", "internal/pgtest/", "internal/dbx/", "internal/sqlgen/",
+	"cmd/abidata/backend"}
 
-// postgresPackages have tests that run against PostgreSQL; keep them in step
-// with the packages scripts/test-postgres.sh runs by default.
+// postgresPackages have tests that run against PostgreSQL; with
+// cmd/abidata's startup checks (a path above, since every package is its
+// dependency), they are the packages scripts/test-postgres.sh runs.
 var postgresPackages = []string{"abidata/internal/pgdb", "abidata/internal/admin", "abidata/internal/auth"}
 
 // inert paths are documentation and tests: they never change what is built or shipped.

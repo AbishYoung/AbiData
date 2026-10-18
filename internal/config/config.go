@@ -30,7 +30,18 @@ type Config struct {
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info
 	TrustedProxies      []netip.Prefix // ABIDATA_TRUSTED_PROXIES: comma-separated CIDRs or bare IPs
 	AllowedOrigins      []string       // ABIDATA_ALLOWED_ORIGINS: comma-separated extra origins (scheme://host[:port]) the Origin check accepts, e.g. a LAN address for testing on a phone
+
+	DB               string // ABIDATA_DB: "sqlite" (default) or "postgres" (ADR 0012 §1)
+	PostgresURL      string // ABIDATA_POSTGRES_URL: pgx connection string, required with ABIDATA_DB=postgres; secret
+	PostgresMaxConns int    // ABIDATA_POSTGRES_MAX_CONNS, default 20
+	PostgresPrefix   string // ABIDATA_POSTGRES_SCHEMA_PREFIX, default "abd": prefix of every schema and role the app creates
 }
+
+// Backends.
+const (
+	DBSQLite   = "sqlite"
+	DBPostgres = "postgres"
+)
 
 // SecureCookies reports whether cookies must carry Secure (and may use __Host-).
 func (c Config) SecureCookies() bool { return len(c.PublicURL) >= 8 && c.PublicURL[:8] == "https://" }
