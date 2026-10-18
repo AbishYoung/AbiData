@@ -747,6 +747,9 @@ func TestCancelBetweenChunks(t *testing.T) {
 }
 
 func TestReplaceLargeWarns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("imports a large replace; runs without -short")
+	}
 	e := newEnv(t)
 	tb := e.table("R", catalog.ColumnSpec{DisplayName: "N", Type: catalog.Integer})
 	var sb strings.Builder

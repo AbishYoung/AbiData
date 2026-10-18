@@ -69,6 +69,9 @@ func TestSecReview_XLSXSharedStringAmplification(t *testing.T) {
 // Nothing limits how many pending imports a workspace may hold: every upload
 // keeps its source file and staging DB on disk for 24 h.
 func TestSecReview_UnboundedPendingImports(t *testing.T) {
+	if testing.Short() {
+		t.Skip("stages the maximum number of pending imports; runs without -short")
+	}
 	e := newEnv(t)
 	data := "a,b\n" + strings.Repeat("xxxxxxxxxx,yyyyyyyyyy\n", 5000)
 	for i := 0; i < MaxPendingImports; i++ {
@@ -127,6 +130,9 @@ func TestSecReview_JSONKeyDedupQuadratic(t *testing.T) {
 // out of memory by a few builders. This query needs more than a reader may use
 // and succeeds on staging.
 func TestSecReview_StagingQueryMemoryCapLooserThanReaders(t *testing.T) {
+	if testing.Short() {
+		t.Skip("fills staging past the reader memory cap; runs without -short")
+	}
 	e := newEnv(t)
 	rs := e.fresh()
 	h, err := rs.Create(context.Background(), []string{"a"})

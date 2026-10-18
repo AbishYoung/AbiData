@@ -424,6 +424,9 @@ func TestTamper(t *testing.T) {
 // workspace is entirely old or entirely new, never a mix, and a stale -wal
 // never applies to the restored file.
 func TestCrashMatrix(t *testing.T) {
+	if testing.Short() {
+		t.Skip("restores once per crash point; runs without -short")
+	}
 	steps := []string{"prepared", "restoring", "move:.db", "move:.db-wal", "move:.db-shm", "moved_aside", "renamed", "swapped", "finish"}
 	for _, step := range steps {
 		t.Run(step, func(t *testing.T) {

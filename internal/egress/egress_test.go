@@ -315,6 +315,9 @@ func TestDNSRebinding(t *testing.T) {
 }
 
 func TestResponseCaps(t *testing.T) {
+	if testing.Short() {
+		t.Skip("moves several megabytes; runs without -short")
+	}
 	e := newEnv(t)
 	big := bytes.Repeat([]byte("a"), 3<<20)
 	var gz bytes.Buffer
