@@ -1,0 +1,32 @@
+index ix_Customers_Name Customers CREATE UNIQUE INDEX "ix_Customers_Name" ON "Customers" ("Name" COLLATE NOCASE)
+table Customers Customers CREATE TABLE "Customers" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "_version" INTEGER NOT NULL DEFAULT 1,
+  "Name" TEXT NOT NULL CONSTRAINT "ty_<ID>" CHECK (length("Name") <= 40),
+  "Notes" TEXT NOT NULL DEFAULT ('n') CONSTRAINT "ty_<ID>" CHECK (length("Notes") <= 255),
+  "Visits" INTEGER CONSTRAINT "ck_<ID>" CHECK (Visits >= 0),
+  "Score" REAL,
+  "Balance" INTEGER DEFAULT (0),
+  "Active" INTEGER NOT NULL DEFAULT 0 CONSTRAINT "ty_<ID>" CHECK ("Active" IN (0,1)),
+  "Born" TEXT CONSTRAINT "ty_<ID>" CHECK ("Born" IS NULL OR date("Born") IS "Born"),
+  "Seen_At" TEXT CONSTRAINT "ty_<ID>" CHECK ("Seen_At" IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', "Seen_At") IS "Seen_At"),
+  "Website" TEXT CONSTRAINT "ty_<ID>" CHECK ("Website" IS NULL OR "Website" GLOB 'http*://*'),
+  "Label" ANY GENERATED ALWAYS AS (Name || ' (' || Visits || ')') VIRTUAL
+) STRICT
+table Places Places CREATE TABLE "Places" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "_version" INTEGER NOT NULL DEFAULT 1,
+  "Customer" INTEGER,
+  "Location" TEXT CONSTRAINT "ty_<ID>" CHECK ("Location" IS NULL OR (json_valid("Location") AND json_extract("Location", '$.type') IN ('Point'))),
+  "Area" TEXT CONSTRAINT "ty_<ID>" CHECK ("Area" IS NULL OR (json_valid("Area") AND json_extract("Area", '$.type') IN ('Polygon','MultiPolygon'))),
+  "Photos" TEXT CONSTRAINT "ty_<ID>" CHECK ("Photos" IS NULL OR (json_valid("Photos") AND json_type("Photos") = 'array')),
+  "Next" INTEGER GENERATED ALWAYS AS (Customer + 1) VIRTUAL,
+  "Docs" TEXT CONSTRAINT "ty_<ID>" CHECK ("Docs" IS NULL OR (json_valid("Docs") AND json_type("Docs") = 'array')),
+  "Code" TEXT NOT NULL DEFAULT ('x') CONSTRAINT "ty_<ID>" CHECK (length("Code") <= 255) CONSTRAINT "ck_<ID>" CHECK (length(Code) > 0),
+  CONSTRAINT "fk_<ID>" FOREIGN KEY ("Customer") REFERENCES "Customers"("id") ON DELETE RESTRICT
+) STRICT
+trigger _att_<ID>_d Places CREATE TRIGGER "_att_<ID>_d" AFTER DELETE ON "Places" FOR EACH ROW BEGIN DELETE FROM _sys_file_refs WHERE table_id = '<ID>' AND row_id = OLD."id"; END
+trigger _att_<ID>_i Places CREATE TRIGGER "_att_<ID>_i" AFTER INSERT ON "Places" FOR EACH ROW BEGIN INSERT OR IGNORE INTO _sys_file_refs(file_id, table_id, row_id, column_id) SELECT value, '<ID>', NEW."id", '<ID>' FROM json_each(NEW."Photos") WHERE type = 'text'; INSERT OR IGNORE INTO _sys_file_refs(file_id, table_id, row_id, column_id) SELECT value, '<ID>', NEW."id", '<ID>' FROM json_each(NEW."Docs") WHERE type = 'text';  END
+trigger _att_<ID>_u Places CREATE TRIGGER "_att_<ID>_u" AFTER UPDATE OF "Photos", "Docs" ON "Places" FOR EACH ROW BEGIN DELETE FROM _sys_file_refs WHERE table_id = '<ID>' AND row_id = OLD."id" AND column_id = '<ID>' AND file_id NOT IN (SELECT value FROM json_each(NEW."Photos") WHERE type = 'text'); INSERT OR IGNORE INTO _sys_file_refs(file_id, table_id, row_id, column_id) SELECT value, '<ID>', NEW."id", '<ID>' FROM json_each(NEW."Photos") WHERE type = 'text'; DELETE FROM _sys_file_refs WHERE table_id = '<ID>' AND row_id = OLD."id" AND column_id = '<ID>' AND file_id NOT IN (SELECT value FROM json_each(NEW."Docs") WHERE type = 'text'); INSERT OR IGNORE INTO _sys_file_refs(file_id, table_id, row_id, column_id) SELECT value, '<ID>', NEW."id", '<ID>' FROM json_each(NEW."Docs") WHERE type = 'text';  END
+trigger _occ_<ID> Customers CREATE TRIGGER "_occ_<ID>" AFTER UPDATE ON "Customers" FOR EACH ROW WHEN NEW."_version" = OLD."_version" BEGIN UPDATE "Customers" SET "_version" = OLD."_version" + 1 WHERE "id" = NEW."id"; END
+trigger _occ_<ID> Places CREATE TRIGGER "_occ_<ID>" AFTER UPDATE ON "Places" FOR EACH ROW WHEN NEW."_version" = OLD."_version" BEGIN UPDATE "Places" SET "_version" = OLD."_version" + 1 WHERE "id" = NEW."id"; END

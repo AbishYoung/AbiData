@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"abidata/internal/sqlitex"
+	"abidata/internal/dbx"
 )
 
 const defaultAuditLimit = 100
@@ -30,7 +30,7 @@ func (s *Store) Audit(ctx context.Context, e AuditEntry) error {
 	if at.IsZero() {
 		at = time.Now()
 	}
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO _adm_audit (at, user_id, action, object_kind, object_id, details)
 			VALUES (?,?,?,?,?,?)`, at, nullIfEmpty(e.UserID), e.Action, nullIfEmpty(e.ObjectKind),
 			nullIfEmpty(e.ObjectID), details)
@@ -44,7 +44,7 @@ func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) 
 		limit = defaultAuditLimit
 	}
 	var out []AuditEntry
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT at, user_id, action, object_kind, object_id, details
 			FROM _adm_audit ORDER BY at DESC, id DESC LIMIT ?`, limit)
 		if err != nil {

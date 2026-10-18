@@ -15,6 +15,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/query"
 	"abidata/internal/records"
@@ -335,7 +336,7 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 			keyExpr[name] = catalog.Quote(name)
 		}
 		for k, v := range in.Params {
-			args = append(args, sqlitex.Named{Name: ":" + k, Value: v})
+			args = append(args, dbx.Named{Name: ":" + k, Value: v})
 		}
 	default:
 		return nil, nil, fault.New(fault.BadRequest, "Reports need a table or query source.")

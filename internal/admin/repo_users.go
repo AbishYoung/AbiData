@@ -8,7 +8,7 @@ import (
 
 	"github.com/ncruces/go-sqlite3"
 
-	"abidata/internal/sqlitex"
+	"abidata/internal/dbx"
 )
 
 var _ Repository = (*Store)(nil)
@@ -30,13 +30,13 @@ func wrapWrite(err error, what string) error {
 }
 
 func notFoundIfNoRows(err error, what string) error {
-	if sqlitex.IsNoRows(err) {
+	if dbx.IsNoRows(err) {
 		return fmt.Errorf("%s: %w", what, ErrNotFound)
 	}
 	return err
 }
 
-func requireChanged(res sqlitex.Result, what string) error {
+func requireChanged(res dbx.Result, what string) error {
 	if res.Changes == 0 {
 		return fmt.Errorf("%s: %w", what, ErrNotFound)
 	}
@@ -44,7 +44,7 @@ func requireChanged(res sqlitex.Result, what string) error {
 }
 
 func parseTime(s string) (time.Time, error) {
-	t, err := sqlitex.ParseTime(s)
+	t, err := dbx.ParseTime(s)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("admin: bad timestamp %q: %w", s, err)
 	}
@@ -77,10 +77,10 @@ func scanUser(r scanner) (User, error) {
 }
 
 func (s *Store) CreateUser(ctx context.Context, u User) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		var last *string
 		if u.LastLoginAt != nil {
-			v := sqlitex.FormatTime(*u.LastLoginAt)
+			v := dbx.FormatTime(*u.LastLoginAt)
 			last = &v
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO _adm_users (`+userCols+`) VALUES (?,?,?,?,?,?,?,?)`,
@@ -91,7 +91,7 @@ func (s *Store) CreateUser(ctx context.Context, u User) error {
 
 func (s *Store) GetUser(ctx context.Context, id string) (User, error) {
 	var u User
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		var err error
 		u, err = scanUser(c.QueryRow(ctx, `SELECT `+userCols+` FROM _adm_users WHERE id = ?`, id))
 		return err
@@ -104,7 +104,7 @@ func (s *Store) GetUser(ctx context.Context, id string) (User, error) {
 
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	var u User
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		var err error
 		u, err = scanUser(c.QueryRow(ctx, `SELECT `+userCols+` FROM _adm_users WHERE email = ?`, email))
 		return err
@@ -117,7 +117,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, error) 
 
 func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	var out []User
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT `+userCols+` FROM _adm_users ORDER BY email COLLATE NOCASE, id`)
 		if err != nil {
 			return err
@@ -137,7 +137,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		return c.QueryRow(ctx, `SELECT count(*) FROM _adm_users`).Scan(&n)
 	})
 	return n, err
@@ -154,14 +154,14 @@ func (s *Store) UpdateUser(ctx context.Context, id string, p UserPatch) error {
 	if p.Disabled != nil {
 		disabled = *p.Disabled
 	}
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		res, err := tx.Exec(ctx, `UPDATE _adm_users SET
 			display_name = COALESCE(:dn, display_name),
 			is_platform_admin = COALESCE(:admin, is_platform_admin),
 			disabled = COALESCE(:disabled, disabled)
 			WHERE id = :id`,
-			sqlitex.Named{Name: "dn", Value: dn}, sqlitex.Named{Name: "admin", Value: admin},
-			sqlitex.Named{Name: "disabled", Value: disabled}, sqlitex.Named{Name: "id", Value: id})
+			dbx.Named{Name: "dn", Value: dn}, dbx.Named{Name: "admin", Value: admin},
+			dbx.Named{Name: "disabled", Value: disabled}, dbx.Named{Name: "id", Value: id})
 		if err != nil {
 			return err
 		}
@@ -170,7 +170,7 @@ func (s *Store) UpdateUser(ctx context.Context, id string, p UserPatch) error {
 }
 
 func (s *Store) SetPasswordHash(ctx context.Context, id, hash string) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		res, err := tx.Exec(ctx, `UPDATE _adm_users SET password_hash = ? WHERE id = ?`, hash, id)
 		if err != nil {
 			return err
@@ -180,7 +180,7 @@ func (s *Store) SetPasswordHash(ctx context.Context, id, hash string) error {
 }
 
 func (s *Store) TouchLogin(ctx context.Context, id string, at time.Time) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		res, err := tx.Exec(ctx, `UPDATE _adm_users SET last_login_at = ? WHERE id = ?`, at, id)
 		if err != nil {
 			return err

@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
 	"abidata/internal/query"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -40,7 +40,7 @@ func TestImportSkipsAttachmentsColumns(t *testing.T) {
 		t.Fatalf("%+v", res)
 	}
 	var n int
-	if err := e.l.Read(e.ctx, func(q sqlitex.Querier) error {
+	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(e.ctx, `SELECT count(*) FROM Sightings WHERE Photos IS NOT NULL`).Scan(&n)
 	}); err != nil || n != 0 {
 		t.Fatalf("attachments cells were filled: %d %v", n, err)
@@ -58,7 +58,7 @@ func TestExportWithAttachmentsColumn(t *testing.T) {
 	tb := e.table("Sightings", catalog.ColumnSpec{DisplayName: "Species", Type: catalog.ShortText},
 		catalog.ColumnSpec{DisplayName: "Photos", Type: catalog.Attachments})
 	fid := ids.New()
-	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		if _, err := tx.Exec(e.ctx, `INSERT INTO _sys_files(id, sha256, size, name, content_type, created_at) VALUES (?, ?, 1, 'a.jpg', 'image/jpeg', '2026-01-01T00:00:00.000Z')`,
 			fid, strings.Repeat("a", 64)); err != nil {
 			return err

@@ -11,8 +11,10 @@ import (
 
 	"github.com/ncruces/go-sqlite3"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -40,7 +42,7 @@ type ApplyOptions struct {
 
 // Validator inspects the changed schema inside the transaction (saved queries,
 // forms, reports, Lua references) and returns breaking issues and warnings.
-type Validator func(ctx context.Context, tx *sqlitex.Tx, s *Schema) (breaking, warnings []Issue, err error)
+type Validator func(ctx context.Context, tx dbx.Tx, s *Schema) (breaking, warnings []Issue, err error)
 
 // Engine runs schema changes (D3). Hooks are optional.
 type Engine struct {
@@ -78,7 +80,7 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 	var report ImpactReport
 	var final *Schema
 	err := l.WriteWith(ctx, workspace.Interactive, workspace.WriteOptions{ForeignKeysOff: true, Setup: registerConvertFuncs},
-		func(tx *sqlitex.Tx) error {
+		func(tx dbx.Tx) error {
 			report = ImpactReport{RestorePointRequired: destructive}
 			s, err := Load(ctx, tx)
 			if err != nil {
@@ -180,7 +182,7 @@ func opError(i int, op Op, err error) error {
 
 type planner struct {
 	ctx        context.Context
-	tx         *sqlitex.Tx
+	tx         dbx.Tx
 	s          *Schema
 	report     *ImpactReport
 	now        func() time.Time
@@ -195,6 +197,34 @@ func badf(format string, args ...any) error { return fault.Newf(fault.BadRequest
 func (p *planner) exec(sql string, args ...any) error {
 	_, err := p.tx.Exec(p.ctx, sql, args...)
 	return err
+}
+
+// execStmt renders a generated statement and runs it.
+func (p *planner) execStmt(s sqlgen.Stmt) error {
+	sql, err := render(s)
+	if err != nil {
+		return err
+	}
+	return p.exec(sql)
+}
+
+// countRows counts the rows of table that match where (all rows when nil).
+func (p *planner) countRows(table string, where sqlgen.Expr) (int64, error) {
+	r, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
+		From: sqlgen.Table{Name: table}, Where: where})
+	if err != nil {
+		return 0, fmt.Errorf("catalog: %w", err)
+	}
+	var n int64
+	err = p.tx.QueryRow(p.ctx, r.SQL, r.Args...).Scan(&n)
+	return n, err
+}
+
+// convertCall calls one of the rebuild's conversion helpers (abidata_convert,
+// abidata_convert_ok) on column col. They are SQLite-only and internal to the
+// rebuild, so they are not in the builder-facing function catalog.
+func convertCall(fn string, from, to FieldType, col string) sqlgen.Expr {
+	return sqlgen.Raw{SQL: fmt.Sprintf("%s('%s', '%s', %s)", fn, from, to, Quote(col))}
 }
 
 func (p *planner) newID(proposed string) (string, error) {
@@ -340,7 +370,7 @@ func (p *planner) createTable(op Op) error {
 	if err := p.exec(ddl); err != nil {
 		return ddlError(err)
 	}
-	if err := p.exec(occTriggerSQL(tp)); err != nil {
+	if err := p.execStmt(occTrigger(tp)); err != nil {
 		return err
 	}
 	if err := p.syncAttachTriggers(tp); err != nil {
@@ -349,7 +379,7 @@ func (p *planner) createTable(op Op) error {
 	if err := p.validateTableExprs(tp); err != nil {
 		return err
 	}
-	now := sqlitex.FormatTime(p.now())
+	now := dbx.FormatTime(p.now())
 	if err := p.exec(`INSERT INTO _sys_tables(id, physical_name, display_name, description, track_history, version, created_at, updated_at)
 		VALUES (?,?,?,?,?,1,?,?)`, tp.ID, tp.PhysicalName, tp.DisplayName, tp.Description, tp.TrackHistory, now, now); err != nil {
 		return err
@@ -402,7 +432,7 @@ func (p *planner) renameTable(op Op) error {
 				return badf("The name %q is already used by another object.", op.PhysicalName)
 			}
 		}
-		if err := p.exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", Quote(t.PhysicalName), Quote(op.PhysicalName))); err != nil {
+		if err := p.execStmt(&sqlgen.RenameTable{From: t.PhysicalName, To: op.PhysicalName}); err != nil {
 			return ddlError(err)
 		}
 		t.PhysicalName = op.PhysicalName
@@ -425,8 +455,8 @@ func (p *planner) dropTable(op Op) error {
 	if len(blockers) > 0 {
 		return badf("Other tables link to this table (%s). Remove those relationships or lookup fields first.", strings.Join(blockers, ", "))
 	}
-	var rows int64
-	if err := p.tx.QueryRow(p.ctx, "SELECT count(*) FROM "+Quote(t.PhysicalName)).Scan(&rows); err != nil {
+	rows, err := p.countRows(t.PhysicalName, nil)
+	if err != nil {
 		return err
 	}
 	p.report.RowsAffected += rows
@@ -434,7 +464,7 @@ func (p *planner) dropTable(op Op) error {
 		p.report.Warnings = append(p.report.Warnings, Issue{Kind: "data_loss", Object: "table", ID: t.ID,
 			Message: fmt.Sprintf("Table %q and its %d rows will be deleted. A restore point is taken first.", t.DisplayName, rows)})
 	}
-	if err := p.exec("DROP TABLE " + Quote(t.PhysicalName)); err != nil {
+	if err := p.execStmt(&sqlgen.DropTable{Name: t.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
 	if err := p.exec(`DELETE FROM _sys_file_refs WHERE table_id = ?`, t.ID); err != nil {
@@ -670,7 +700,7 @@ func (p *planner) validateTableExprs(t *Table) error {
 			if ch.expr == "" {
 				continue
 			}
-			if err := ValidateExpr(p.ctx, p.tx.Conn, ch.kind, t.PhysicalName, ch.expr); err != nil {
+			if err := ValidateExpr(p.ctx, p.tx, ch.kind, t.PhysicalName, ch.expr); err != nil {
 				return badf("Field %q: %s", c.DisplayName, fault.Classify(err).DisplayMessage())
 			}
 		}
@@ -699,7 +729,7 @@ func (p *planner) addColumn(op Op) error {
 	t, _ = p.s.Table(t.ID)
 	native := c.ValidationSQL == "" && (!c.Required || c.DefaultSQL != "") && (c.Type != Lookup || rel == nil || !rel.Enforce)
 	if native {
-		if err := p.exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", Quote(t.PhysicalName), columnDef(c))); err != nil {
+		if err := p.execStmt(&sqlgen.AddColumn{Table: t.PhysicalName, Column: columnDef(c)}); err != nil {
 			return ddlError(err)
 		}
 	} else if err := p.rebuild(before, t, nil); err != nil {
@@ -774,7 +804,7 @@ func (p *planner) renameColumn(op Op) error {
 			return badf("The field name %q is already used in this table.", op.PhysicalName)
 		}
 		old := c.PhysicalName
-		if err := p.exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", Quote(t.PhysicalName), Quote(old), Quote(op.PhysicalName))); err != nil {
+		if err := p.execStmt(&sqlgen.RenameColumn{Table: t.PhysicalName, From: old, To: op.PhysicalName}); err != nil {
 			return ddlError(err)
 		}
 		c.PhysicalName = op.PhysicalName
@@ -911,8 +941,8 @@ func (p *planner) dropColumn(op Op) error {
 		break
 	}
 	before := cloneTable(t)
-	var nonNull int64
-	if err := p.tx.QueryRow(p.ctx, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s IS NOT NULL", Quote(t.PhysicalName), Quote(c.PhysicalName))).Scan(&nonNull); err != nil {
+	nonNull, err := p.countRows(t.PhysicalName, sqlgen.IsNull{X: sqlgen.Col{Name: c.PhysicalName}, Negate: true})
+	if err != nil {
 		return err
 	}
 	if nonNull > 0 {
@@ -1075,7 +1105,7 @@ func (p *planner) dropIndex(op Op) error {
 			if x.ID != op.IndexID {
 				continue
 			}
-			if err := p.exec("DROP INDEX " + Quote(x.PhysicalName)); err != nil {
+			if err := p.execStmt(&sqlgen.DropIndex{Name: x.PhysicalName}); err != nil {
 				return ddlError(err)
 			}
 			t.Indexes = append(t.Indexes[:i:i], t.Indexes[i+1:]...)
@@ -1210,8 +1240,9 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	if err := p.exec(ddl); err != nil {
 		return ddlError(err)
 	}
-	dst := []string{`"id"`, `"_version"`}
-	src := []string{`"id"`, `"_version"`}
+	id := sqlgen.Col{Name: "id"}
+	dst := []string{"id", "_version"}
+	src := []sqlgen.Column{{Expr: id}, {Expr: sqlgen.Col{Name: "_version"}}}
 	for _, c := range after.Columns {
 		if c.Type == Autonumber || c.Type == Calculated {
 			continue
@@ -1220,19 +1251,23 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 		if !ok || old.Type == Calculated {
 			continue // new column: DEFAULT applies
 		}
-		dst = append(dst, Quote(c.PhysicalName))
+		dst = append(dst, c.PhysicalName)
+		var e sqlgen.Expr = sqlgen.Col{Name: old.PhysicalName}
 		if cv, ok := conv[c.ID]; ok {
-			src = append(src, fmt.Sprintf("abidata_convert('%s', '%s', %s)", cv.from, cv.to, Quote(old.PhysicalName)))
-		} else {
-			src = append(src, Quote(old.PhysicalName))
+			e = convertCall("abidata_convert", cv.from, cv.to, old.PhysicalName)
 		}
+		src = append(src, sqlgen.Column{Expr: e})
 	}
-	var total int64
-	if err := p.tx.QueryRow(p.ctx, "SELECT count(*) FROM "+Quote(before.PhysicalName)).Scan(&total); err != nil {
+	from := sqlgen.Table{Name: before.PhysicalName}
+	total, err := p.countRows(before.PhysicalName, nil)
+	if err != nil {
 		return err
 	}
-	res, err := p.tx.Exec(p.ctx, fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s",
-		Quote(rebuildName), strings.Join(dst, ", "), strings.Join(src, ", "), Quote(before.PhysicalName)))
+	copySQL, err := render(&sqlgen.Insert{Table: rebuildName, OrIgnore: true, Columns: dst, From: &sqlgen.Select{Columns: src, From: from}})
+	if err != nil {
+		return err
+	}
+	res, err := p.tx.Exec(p.ctx, copySQL)
 	if err != nil {
 		return ddlError(err)
 	}
@@ -1240,8 +1275,13 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	if res.Changes < total {
 		p.violations = true
 		var samples []Sample
-		rows, err := p.tx.Query(p.ctx, fmt.Sprintf(`SELECT "id" FROM %s WHERE "id" NOT IN (SELECT "id" FROM %s) ORDER BY "id" LIMIT 20`,
-			Quote(before.PhysicalName), Quote(rebuildName)))
+		lostSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: from,
+			Where:   sqlgen.Not{X: sqlgen.In{X: id, Select: &sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}}, From: sqlgen.Table{Name: rebuildName}}}},
+			OrderBy: []sqlgen.Order{{Expr: id}}, Limit: sqlgen.Lit{Value: 20}})
+		if err != nil {
+			return err
+		}
+		rows, err := p.tx.Query(p.ctx, lostSQL)
 		if err != nil {
 			return err
 		}
@@ -1265,13 +1305,13 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 				total-res.Changes, after.DisplayName, strings.Join(ids, ", "))})
 	}
 	var seq *int64
-	if err := p.tx.QueryRow(p.ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, before.PhysicalName).Scan(&seq); err != nil && !sqlitex.IsNoRows(err) {
+	if err := p.tx.QueryRow(p.ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, before.PhysicalName).Scan(&seq); err != nil && !dbx.IsNoRows(err) {
 		return err
 	}
-	if err := p.exec("DROP TABLE " + Quote(before.PhysicalName)); err != nil {
+	if err := p.execStmt(&sqlgen.DropTable{Name: before.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
-	if err := p.exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", Quote(rebuildName), Quote(after.PhysicalName))); err != nil {
+	if err := p.execStmt(&sqlgen.RenameTable{From: rebuildName, To: after.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
 	if seq != nil {
@@ -1300,7 +1340,7 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 			return ddlError(err)
 		}
 	}
-	if err := p.exec(occTriggerSQL(after)); err != nil {
+	if err := p.execStmt(occTrigger(after)); err != nil {
 		return err
 	}
 	return p.syncAttachTriggers(after)
@@ -1308,17 +1348,23 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 
 // conversionFailures reports rows whose values cannot convert from old to nc.
 func (p *planner) conversionFailures(t *Table, old, nc Column) error {
-	q := Quote(old.PhysicalName)
-	where := fmt.Sprintf("%s IS NOT NULL AND NOT abidata_convert_ok('%s', '%s', %s)", q, old.Type, nc.Type, q)
-	var n int64
-	if err := p.tx.QueryRow(p.ctx, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s", Quote(t.PhysicalName), where)).Scan(&n); err != nil {
+	col := sqlgen.Col{Name: old.PhysicalName}
+	where := sqlgen.And{sqlgen.IsNull{X: col, Negate: true}, sqlgen.Not{X: convertCall("abidata_convert_ok", old.Type, nc.Type, old.PhysicalName)}}
+	n, err := p.countRows(t.PhysicalName, where)
+	if err != nil {
 		return err
 	}
 	if n == 0 {
 		return nil
 	}
 	cf := ConversionFailure{ColumnID: nc.ID, Column: nc.DisplayName, From: string(old.Type), To: string(nc.Type), Count: n}
-	rows, err := p.tx.Query(p.ctx, fmt.Sprintf(`SELECT "id", %s FROM %s WHERE %s ORDER BY "id" LIMIT 20`, q, Quote(t.PhysicalName), where))
+	id := sqlgen.Col{Name: "id"}
+	samplesSQL, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: id}, {Expr: col}}, From: sqlgen.Table{Name: t.PhysicalName},
+		Where: where, OrderBy: []sqlgen.Order{{Expr: id}}, Limit: sqlgen.Lit{Value: 20}})
+	if err != nil {
+		return err
+	}
+	rows, err := p.tx.Query(p.ctx, samplesSQL)
 	if err != nil {
 		return err
 	}
@@ -1459,7 +1505,7 @@ func (p *planner) checkObjects(validators []Validator) error {
 func issueKey(i Issue) string { return i.Kind + "|" + i.Object + "|" + i.ID }
 
 // baselineBreakage returns the objects that are already broken in schema s, before any change.
-func baselineBreakage(ctx context.Context, tx *sqlitex.Tx, s *Schema, validators []Validator) (map[string]bool, error) {
+func baselineBreakage(ctx context.Context, tx dbx.Tx, s *Schema, validators []Validator) (map[string]bool, error) {
 	bp := &planner{ctx: ctx, tx: tx, s: s, report: &ImpactReport{}}
 	if err := bp.checkObjects(validators); err != nil {
 		return nil, err
@@ -1519,7 +1565,7 @@ func (p *planner) checkSavedQueries() error {
 		if flagged[x.id] {
 			continue
 		}
-		if _, err := p.tx.Prepare(p.ctx, x.sql); err != nil {
+		if _, err := p.tx.(dbx.Preparer).Prepare(p.ctx, x.sql); err != nil {
 			p.report.Breaking = append(p.report.Breaking, Issue{Kind: "query_invalid", Object: "query", ID: x.id,
 				Message: fmt.Sprintf("Saved query %q would stop working: %s", x.name, sqliteMessage(err))})
 		}
@@ -1528,7 +1574,7 @@ func (p *planner) checkSavedQueries() error {
 }
 
 func (p *planner) finish(ops []Op) error {
-	now := sqlitex.FormatTime(p.now())
+	now := dbx.FormatTime(p.now())
 	for id := range p.touched {
 		if err := p.exec(`UPDATE _sys_tables SET version = version + 1, updated_at = ? WHERE id = ?`, now, id); err != nil {
 			return err

@@ -49,7 +49,9 @@ func Render(d Dialect, s Stmt) (Rendered, error) {
 		r.delete(s)
 		cols = s.Returning
 	default:
-		r.fail("unsupported statement %T", s)
+		if !r.ddl(s) {
+			r.fail("unsupported statement %T", s)
+		}
 	}
 	return r.result(cols)
 }
@@ -263,7 +265,14 @@ func (r *renderer) insert(s *Insert) {
 		r.returning(s.Returning)
 		return
 	}
-	r.w("INSERT INTO " + Quote(s.Table) + " (")
+	r.w("INSERT ")
+	if s.OrIgnore {
+		if s.OnConflict != nil {
+			r.fail("an INSERT takes OR IGNORE or ON CONFLICT, not both")
+		}
+		r.w("OR IGNORE ")
+	}
+	r.w("INTO " + Quote(s.Table) + " (")
 	r.list(len(s.Columns), ", ", func(i int) { r.w(Quote(s.Columns[i])) })
 	r.w(")")
 	switch {
@@ -295,7 +304,12 @@ func (r *renderer) insert(s *Insert) {
 		r.w(" ON CONFLICT")
 		if len(oc.Target) > 0 {
 			r.w(" (")
-			r.list(len(oc.Target), ", ", func(i int) { r.w(Quote(oc.Target[i])) })
+			r.list(len(oc.Target), ", ", func(i int) {
+				r.w(Quote(oc.Target[i].Name))
+				if oc.Target[i].CI {
+					r.w(" COLLATE NOCASE")
+				}
+			})
 			r.w(")")
 		}
 		if len(oc.Set) == 0 {
@@ -442,13 +456,17 @@ func (r *renderer) expr(e Expr) {
 			r.w(" IS NULL")
 		}
 	case In:
-		if len(e.List) == 0 {
-			r.fail("IN needs at least one value")
+		if (len(e.List) == 0) == (e.Select == nil) {
+			r.fail("IN needs either values or a SELECT")
 			return
 		}
 		r.operand(e.X)
 		r.w(" IN (")
-		r.list(len(e.List), ", ", func(i int) { r.expr(e.List[i]) })
+		if e.Select != nil {
+			r.selectStmt(e.Select)
+		} else {
+			r.list(len(e.List), ", ", func(i int) { r.expr(e.List[i]) })
+		}
 		r.w(")")
 	case Between:
 		r.operand(e.X)

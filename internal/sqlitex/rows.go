@@ -184,9 +184,6 @@ func (r *Row) Scan(dest ...any) error {
 	return r.rows.Scan(dest...)
 }
 
-// IsNoRows reports whether err is ErrNoRows.
-func IsNoRows(err error) bool { return errors.Is(err, ErrNoRows) }
-
 // stmtCache holds prepared statements keyed by SQL text. A statement taken from
 // the cache is removed until put back, so nested use of the same SQL prepares a
 // second statement instead of sharing one.

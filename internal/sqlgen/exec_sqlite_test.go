@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"abidata/internal/dbx"
 	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 )
@@ -33,7 +34,7 @@ func testDB(t *testing.T) *sqlitex.Conn {
 	return c
 }
 
-func run(t *testing.T, c *sqlitex.Conn, s sqlgen.Stmt, named ...sqlitex.Named) [][]any {
+func run(t *testing.T, c *sqlitex.Conn, s sqlgen.Stmt, named ...dbx.Named) [][]any {
 	t.Helper()
 	r, err := sqlgen.Render(sqlgen.SQLite, s)
 	if err != nil {
@@ -126,7 +127,7 @@ func TestExecPredicatesAndParams(t *testing.T) {
 		sqlgen.And{sqlgen.In{X: qty, List: []sqlgen.Expr{sqlgen.Arg{Value: int64(3)}, sqlgen.Arg{Value: int64(10)}}}},
 		sqlgen.And{sqlgen.Between{X: qty, Lo: sqlgen.Param{Name: "lo"}, Hi: sqlgen.Param{Name: "hi"}}, sqlgen.Binary{Op: sqlgen.OpIsNot, L: name, R: sqlgen.Lit{Value: "x"}}},
 	}
-	got := ids(run(t, c, selectIDs(where), sqlitex.Named{Name: ":lo", Value: int64(6)}, sqlitex.Named{Name: ":hi", Value: int64(8)}))
+	got := ids(run(t, c, selectIDs(where), dbx.Named{Name: ":lo", Value: int64(6)}, dbx.Named{Name: ":hi", Value: int64(8)}))
 	if want := []int64{1, 3, 4}; !reflect.DeepEqual(got, want) {
 		t.Errorf("ids %v, want %v", got, want)
 	}
@@ -154,7 +155,7 @@ func TestExecUpsertsAndReturning(t *testing.T) {
 	c := testDB(t)
 	put := func(k string, v int64) [][]any {
 		return run(t, c, &sqlgen.Insert{Table: "kv", Columns: []string{"k", "v"}, Rows: [][]sqlgen.Expr{{sqlgen.Arg{Value: k}, sqlgen.Arg{Value: v}}},
-			OnConflict: &sqlgen.OnConflict{Target: []string{"k"}, Set: []sqlgen.Assign{{Column: "v", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "v"}, R: sqlgen.Excluded("v")}}}},
+			OnConflict: &sqlgen.OnConflict{Target: []sqlgen.Col{{Name: "k"}}, Set: []sqlgen.Assign{{Column: "v", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "v"}, R: sqlgen.Excluded("v")}}}},
 			Returning:  []sqlgen.Column{{Expr: sqlgen.Col{Name: "v"}}}})
 	}
 	put("a", 2)
@@ -198,5 +199,25 @@ func TestExecCatalogFunctionsExistInSQLite(t *testing.T) {
 		if err != nil && strings.Contains(err.Error(), "no such function") {
 			t.Errorf("%s: %v", f, err)
 		}
+	}
+}
+
+// An upsert on a case-insensitive unique index needs the collation in its
+// conflict target, or SQLite finds no matching constraint.
+func TestExecUpsertOnCaseInsensitiveKey(t *testing.T) {
+	c := testDB(t)
+	if err := c.ExecScript(context.Background(), `CREATE TABLE people (email TEXT, n INTEGER) STRICT;
+		CREATE UNIQUE INDEX people_email ON people(email COLLATE NOCASE);`); err != nil {
+		t.Fatal(err)
+	}
+	put := func(email string, n int64) {
+		run(t, c, &sqlgen.Insert{Table: "people", Columns: []string{"email", "n"}, Rows: [][]sqlgen.Expr{{sqlgen.Arg{Value: email}, sqlgen.Arg{Value: n}}},
+			OnConflict: &sqlgen.OnConflict{Target: []sqlgen.Col{{Name: "email", CI: true}}, Set: []sqlgen.Assign{{Column: "n", Value: sqlgen.Excluded("n")}}}})
+	}
+	put("Ada@example.com", 1)
+	put("ada@EXAMPLE.com", 2)
+	rows := run(t, c, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "email"}}, {Expr: sqlgen.Col{Name: "n"}}}, From: sqlgen.Table{Name: "people"}})
+	if len(rows) != 1 || rows[0][0] != "Ada@example.com" || rows[0][1] != int64(2) {
+		t.Errorf("people = %v, want one row updated in place", rows)
 	}
 }

@@ -1,6 +1,8 @@
 package sqlitex
 
 import (
+	"abidata/internal/dbx"
+
 	"context"
 	"errors"
 	"path/filepath"
@@ -106,7 +108,7 @@ func TestExecQueryScan(t *testing.T) {
 	if err != nil || res.Changes != 1 || res.LastInsertID != 1 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	if _, err := c.Exec(ctx, `INSERT INTO t(s,f) VALUES (:s, :f)`, Named{"s", "b"}, Named{"f", 2.5}); err != nil {
+	if _, err := c.Exec(ctx, `INSERT INTO t(s,f) VALUES (:s, :f)`, Named{Name: "s", Value: "b"}, Named{Name: "f", Value: 2.5}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.Exec(ctx, `INSERT INTO t(s) VALUES ('x'); DROP TABLE t`); err == nil {
@@ -138,7 +140,7 @@ func TestExecQueryScan(t *testing.T) {
 	if rows.Err() != nil || len(got) != 2 || got[1] != "b" {
 		t.Fatalf("%v %v", got, rows.Err())
 	}
-	if err := c.QueryRow(ctx, `SELECT 1 FROM t WHERE id = 99`).Scan(new(int)); !IsNoRows(err) {
+	if err := c.QueryRow(ctx, `SELECT 1 FROM t WHERE id = 99`).Scan(new(int)); !dbx.IsNoRows(err) {
 		t.Fatalf("want ErrNoRows, got %v", err)
 	}
 }

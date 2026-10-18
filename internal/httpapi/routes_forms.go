@@ -8,10 +8,10 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"abidata/internal/admin"
+	"abidata/internal/dbx"
 	"abidata/internal/forms"
 	"abidata/internal/script"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -25,7 +25,7 @@ func (s *Server) caller(ctx context.Context, l *workspace.Lease) forms.Caller {
 // workspaceTZ reads _sys_meta.timezone (UTC on any problem).
 func workspaceTZ(ctx context.Context, l *workspace.Lease) *time.Location {
 	var name string
-	_ = l.Read(ctx, func(q sqlitex.Querier) error {
+	_ = l.Read(ctx, func(q dbx.Querier) error {
 		return q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'timezone'`).Scan(&name)
 	})
 	if loc, err := time.LoadLocation(name); err == nil && name != "" {

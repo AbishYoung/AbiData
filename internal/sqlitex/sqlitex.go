@@ -15,6 +15,7 @@ import (
 
 	"github.com/ncruces/go-sqlite3"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 )
 
@@ -57,7 +58,7 @@ type Options struct {
 }
 
 // ErrNoRows is returned by Row.Scan when the query produced no rows.
-var ErrNoRows = errors.New("sqlitex: no rows in result set")
+var ErrNoRows = dbx.ErrNoRows
 
 // Conn is one SQLite connection.
 type Conn struct {
@@ -251,16 +252,10 @@ func (c *Conn) bindCtx(ctx context.Context) func() {
 }
 
 // Result reports the effect of Exec.
-type Result struct {
-	Changes      int64
-	LastInsertID int64
-}
+type Result = dbx.Result
 
 // Named binds a value to a :name, @name or $name parameter.
-type Named struct {
-	Name  string
-	Value any
-}
+type Named = dbx.Named
 
 // ExecScript runs a trusted multi-statement script (migrations, internal DDL).
 // Never pass user-supplied SQL here.
@@ -295,7 +290,15 @@ func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (_ Result, err
 }
 
 // Query runs a statement and returns its rows. Rows must be closed.
-func (c *Conn) Query(ctx context.Context, sql string, args ...any) (_ *Rows, err error) {
+func (c *Conn) Query(ctx context.Context, sql string, args ...any) (dbx.Rows, error) {
+	r, err := c.query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (c *Conn) query(ctx context.Context, sql string, args ...any) (_ *Rows, err error) {
 	defer c.guard(&err)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -315,8 +318,8 @@ func (c *Conn) Query(ctx context.Context, sql string, args ...any) (_ *Rows, err
 }
 
 // QueryRow runs a query expected to return at most one row.
-func (c *Conn) QueryRow(ctx context.Context, sql string, args ...any) *Row {
-	rows, err := c.Query(ctx, sql, args...)
+func (c *Conn) QueryRow(ctx context.Context, sql string, args ...any) dbx.Row {
+	rows, err := c.query(ctx, sql, args...)
 	return &Row{rows: rows, err: err}
 }
 
@@ -442,7 +445,7 @@ func bindOne(st *sqlite3.Stmt, i int, v any) error {
 		}
 		return st.BindBlob(i, x)
 	case time.Time:
-		return st.BindText(i, FormatTime(x))
+		return st.BindText(i, dbx.FormatTime(x))
 	case *string:
 		if x == nil {
 			return st.BindNull(i)
@@ -457,18 +460,6 @@ func bindOne(st *sqlite3.Stmt, i int, v any) error {
 		return fmt.Errorf("unsupported type %T", v)
 	}
 }
-
-// TimeLayout is the canonical timestamp format: UTC, millisecond precision.
-const TimeLayout = "2006-01-02T15:04:05.000Z"
-
-// FormatTime renders t in TimeLayout.
-func FormatTime(t time.Time) string { return t.UTC().Format(TimeLayout) }
-
-// Now returns the current time in TimeLayout.
-func Now() string { return FormatTime(time.Now()) }
-
-// ParseTime parses TimeLayout.
-func ParseTime(s string) (time.Time, error) { return time.Parse(TimeLayout, s) }
 
 // Statement describes a prepared statement without running it.
 type Statement struct {

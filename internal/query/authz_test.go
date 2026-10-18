@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -50,7 +50,7 @@ func setup(t *testing.T) *fx {
 		catalog.Apply, catalog.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO Items(Name, Qty) VALUES ('a', 1), ('b', 2)`); err != nil {
 			return err
 		}

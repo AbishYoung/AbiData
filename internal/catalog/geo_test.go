@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"abidata/internal/sqlitex"
+	"abidata/internal/dbx"
 	"abidata/internal/workspace"
 )
 
@@ -51,7 +51,7 @@ func TestConvertGeo(t *testing.T) {
 
 func (f *fixture) mustFail(sql string) {
 	f.t.Helper()
-	err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, sql)
 		return err
 	})

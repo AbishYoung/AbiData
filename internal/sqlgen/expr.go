@@ -86,10 +86,12 @@ type IsNull struct {
 	Negate bool
 }
 
-// In tests X against a non-empty list of values.
+// In tests X against a non-empty list of values or a subquery.
 type In struct {
 	X    Expr
 	List []Expr
+	// Select replaces List with the rows of a one-column SELECT.
+	Select *Select
 }
 
 // Between tests Lo <= X <= Hi.

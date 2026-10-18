@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -130,8 +130,8 @@ func TestReconcileAndShutdown(t *testing.T) {
 	})
 	// A row left behind by a dead process.
 	stale := ids.New()
-	if err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO _sys_operations (id, kind, status, created_by, created_at) VALUES (?, 'import', 'running', 'u9', ?)`, stale, sqlitex.Now())
+	if err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO _sys_operations (id, kind, status, created_by, created_at) VALUES (?, 'import', 'running', 'u9', ?)`, stale, dbx.Now())
 		return err
 	}); err != nil {
 		t.Fatal(err)

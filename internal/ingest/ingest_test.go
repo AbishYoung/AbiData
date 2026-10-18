@@ -19,12 +19,12 @@ import (
 
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/ops"
 	"abidata/internal/query"
 	"abidata/internal/records"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -123,7 +123,7 @@ func (e *env) upload(name, data string, opt UploadOptions) ImportMeta {
 
 func (e *env) count(t *catalog.Table) int64 {
 	var n int64
-	if err := e.l.Read(e.ctx, func(q sqlitex.Querier) error {
+	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(e.ctx, `SELECT count(*) FROM `+catalog.Quote(t.PhysicalName)).Scan(&n)
 	}); err != nil {
 		e.t.Fatal(err)
@@ -558,7 +558,7 @@ func rowsOf(t *testing.T, e *env, tb *catalog.Table, cols ...string) [][]any {
 	for i, c := range cols {
 		sel[i] = catalog.Quote(col2(t, tb, c).PhysicalName)
 	}
-	err := e.l.Read(e.ctx, func(q sqlitex.Querier) error {
+	err := e.l.Read(e.ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(e.ctx, `SELECT `+strings.Join(sel, ",")+` FROM `+catalog.Quote(tb.PhysicalName)+` ORDER BY id`)
 		if err != nil {
 			return err
@@ -618,7 +618,7 @@ func TestCommitModes(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 	var ver int64
-	_ = e.l.Read(e.ctx, func(q sqlitex.Querier) error {
+	_ = e.l.Read(e.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(e.ctx, `SELECT _version FROM `+tb.PhysicalName+` WHERE id = 2`).Scan(&ver)
 	})
 	if ver != 3 {
@@ -790,7 +790,7 @@ func TestExports(t *testing.T) {
 	tb := e.table("Orders", catalog.ColumnSpec{DisplayName: "Customer", Type: catalog.ShortText}, catalog.ColumnSpec{DisplayName: "Total", Type: catalog.Currency},
 		catalog.ColumnSpec{DisplayName: "Day", Type: catalog.Date}, catalog.ColumnSpec{DisplayName: "Paid", Type: catalog.YesNo})
 	n := ExportPage*2 + 17
-	if err := e.l.Write(e.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := e.l.Write(e.ctx, workspace.Background, func(tx dbx.Tx) error {
 		for i := 1; i <= n; i++ {
 			name := fmt.Sprintf("c%d", i)
 			if i == 1 {

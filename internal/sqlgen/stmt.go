@@ -91,7 +91,9 @@ type Assign struct {
 
 // OnConflict turns an INSERT into an upsert. With no Set it does nothing.
 type OnConflict struct {
-	Target []string // conflict columns
+	// Target names the conflict columns. A CI column matches a case-insensitive
+	// unique index, so it renders with the dialect's case-insensitive collation.
+	Target []Col
 	Set    []Assign
 	Where  Expr // optional, on the DO UPDATE
 }
@@ -101,7 +103,10 @@ func Excluded(column string) Expr { return Col{Table: "excluded", Name: column} 
 
 // Insert is an INSERT. Exactly one of Rows and From is set.
 type Insert struct {
-	Table      string
+	Table string
+	// OrIgnore skips rows that break a constraint (SQLite only; it is how
+	// the table rebuild counts rejected rows).
+	OrIgnore   bool
 	Columns    []string
 	Rows       [][]Expr
 	From       *Select

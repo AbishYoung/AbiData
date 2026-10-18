@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -269,7 +269,7 @@ func (s *Service) Upload(ctx context.Context, l *workspace.Lease, actor, name st
 	// Place the blob and insert the row in one writer transaction, so the
 	// janitor (which runs on the same writer) can never delete a blob that is
 	// being adopted by a new row.
-	err = l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var exists bool
 		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM _sys_files WHERE sha256 = ?)`, m.SHA256).Scan(&exists); err != nil {
 			return err
@@ -297,7 +297,7 @@ func (s *Service) Upload(ctx context.Context, l *workspace.Lease, actor, name st
 			by = actor
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO _sys_files(id, sha256, size, name, content_type, width, height, created_at, created_by, state)
-			VALUES (?,?,?,?,?,?,?,?,?, 'pending')`, m.ID, m.SHA256, m.Size, m.Name, m.ContentType, w, hh, sqlitex.FormatTime(m.CreatedAt), by); err != nil {
+			VALUES (?,?,?,?,?,?,?,?,?, 'pending')`, m.ID, m.SHA256, m.Size, m.Name, m.ContentType, w, hh, dbx.FormatTime(m.CreatedAt), by); err != nil {
 			if created {
 				_ = bk.Remove(m.SHA256)
 			}
@@ -348,7 +348,7 @@ func scanMeta(row interface{ Scan(...any) error }) (Meta, error) {
 		wi, hi := int(*w), int(*h)
 		m.Width, m.Height = &wi, &hi
 	}
-	t, err := sqlitex.ParseTime(at)
+	t, err := dbx.ParseTime(at)
 	if err != nil {
 		return Meta{}, err
 	}
@@ -366,12 +366,12 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Meta,
 		return Meta{}, errNotFound()
 	}
 	var m Meta
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var e error
 		m, e = scanMeta(q.QueryRow(ctx, `SELECT `+metaCols+` FROM _sys_files WHERE id = ?`, id))
 		return e
 	})
-	if sqlitex.IsNoRows(err) {
+	if dbx.IsNoRows(err) {
 		return Meta{}, errNotFound()
 	}
 	if err != nil {
@@ -494,7 +494,7 @@ func writeAtomic(path string, data []byte) error {
 
 // Usage reports the distinct bytes and the number of file rows in a workspace.
 func (s *Service) Usage(ctx context.Context, l *workspace.Lease) (bytes int64, count int64, err error) {
-	err = l.Read(ctx, func(q sqlitex.Querier) error {
+	err = l.Read(ctx, func(q dbx.Querier) error {
 		if err := q.QueryRow(ctx, `SELECT COALESCE(SUM(size), 0) FROM (SELECT size FROM _sys_files GROUP BY sha256)`).Scan(&bytes); err != nil {
 			return err
 		}

@@ -14,6 +14,7 @@ import (
 	"github.com/ncruces/go-sqlite3"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -91,8 +92,12 @@ func RunTyped(ctx context.Context, l *workspace.Lease, p Policy, sch *catalog.Sc
 					res.Types[i] = hints[i]
 					continue
 				}
-				table, col, decl := rows.ColumnOrigin(i)
-				res.Types[i] = originType(sch, table, col, decl)
+				// dialect: sqlite. Column origins type user SQL's columns;
+				// generated SQL carries its types in hints.
+				if o, ok := rows.(dbx.OriginRows); ok {
+					table, col, decl := o.ColumnOrigin(i)
+					res.Types[i] = originType(sch, table, col, decl)
+				}
 				if res.Types[i] == "" && aggregateOfCurrency(sch, res.Columns[i]) {
 					res.Types[i] = "currency"
 				}
@@ -193,7 +198,7 @@ func bindParams(names []string, params Params) ([]any, error) {
 		default:
 			return nil, fault.Newf(fault.BadRequest, "Parameter %s must be a text, number, yes/no or empty value.", key)
 		}
-		args = append(args, sqlitex.Named{Name: n, Value: v})
+		args = append(args, dbx.Named{Name: n, Value: v})
 	}
 	if len(missing) > 0 {
 		return nil, fault.Newf(fault.BadRequest, "Enter a value for: %s.", strings.Join(missing, ", ")).

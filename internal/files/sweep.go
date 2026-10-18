@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -88,11 +88,11 @@ type candidate struct {
 
 func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket, now time.Time) (SweepResult, error) {
 	var res SweepResult
-	pendingCut := sqlitex.FormatTime(now.Add(-PendingTTL))
-	graceCut := sqlitex.FormatTime(now.Add(-UnreferencedGrace))
-	nowS := sqlitex.FormatTime(now)
+	pendingCut := dbx.FormatTime(now.Add(-PendingTTL))
+	graceCut := dbx.FormatTime(now.Add(-UnreferencedGrace))
+	nowS := dbx.FormatTime(now)
 	lock := s.wsLock(l.ID())
-	err := l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 		// A backup copying blobs holds the lock for reading; never wait for it
 		// while holding the writer. Try again on the next pass.
 		if !lock.TryLock() {
@@ -184,7 +184,7 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 // describes (left by a crash between placing a blob and committing its row).
 func (s *Service) sweepOrphans(ctx context.Context, l *workspace.Lease, bk Bucket, now time.Time) (n int, freed int64, err error) {
 	known := map[string]bool{}
-	err = l.Read(ctx, func(q sqlitex.Querier) error {
+	err = l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT DISTINCT sha256 FROM _sys_files`)
 		if err != nil {
 			return err
@@ -215,7 +215,7 @@ func (s *Service) sweepOrphans(ctx context.Context, l *workspace.Lease, bk Bucke
 		return 0, 0, nil
 	}
 	lock := s.wsLock(l.ID())
-	err = l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	err = l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 		if !lock.TryLock() {
 			return nil
 		}

@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -22,6 +24,7 @@ type Saved struct {
 	Kind        string    `json:"kind" enum:"visual,sql"`
 	Visual      *Model    `json:"visual_model,omitempty"`
 	SQL         string    `json:"sql_text"`
+	Dialect     string    `json:"dialect" enum:"sqlite,postgres" doc:"The SQL dialect sql_text is in (ADR 0012)."`
 	Parameters  []Param   `json:"parameters"`
 	Description string    `json:"description"`
 	Version     int64     `json:"version"`
@@ -56,8 +59,8 @@ type Service struct {
 const maxNesting = 4
 
 // loadAll reads every saved query (inside a read or write transaction).
-func loadAll(ctx context.Context, q sqlitex.Querier) (map[string]*Saved, error) {
-	rows, err := q.Query(ctx, `SELECT id, name, kind, visual_model, sql_text, parameters, description, version, updated_at, updated_by FROM _sys_queries`)
+func loadAll(ctx context.Context, q dbx.Querier) (map[string]*Saved, error) {
+	rows, err := q.Query(ctx, `SELECT id, name, kind, visual_model, sql_text, dialect, parameters, description, version, updated_at, updated_by FROM _sys_queries`)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +70,7 @@ func loadAll(ctx context.Context, q sqlitex.Querier) (map[string]*Saved, error) 
 		var s Saved
 		var vis *string
 		var params, at string
-		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &vis, &s.SQL, &params, &s.Description, &s.Version, &at, &s.UpdatedBy); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &vis, &s.SQL, &s.Dialect, &params, &s.Description, &s.Version, &at, &s.UpdatedBy); err != nil {
 			return nil, err
 		}
 		if vis != nil {
@@ -80,7 +83,7 @@ func loadAll(ctx context.Context, q sqlitex.Querier) (map[string]*Saved, error) 
 		if err := json.Unmarshal([]byte(params), &s.Parameters); err != nil {
 			return nil, err
 		}
-		s.UpdatedAt, _ = sqlitex.ParseTime(at)
+		s.UpdatedAt, _ = dbx.ParseTime(at)
 		out[s.ID] = &s
 	}
 	return out, rows.Err()
@@ -117,9 +120,15 @@ func (r *resolver) resolve(id string) (SavedQuery, bool) {
 
 // describeSQL validates a SQL-kind query under the editor policy (so every
 // saved query can be run by editors) and returns its columns.
-func describeSQL(ctx context.Context, c *sqlitex.Conn, sql string) ([]string, error) {
+func describeSQL(ctx context.Context, q dbx.Querier, sql string) ([]string, error) {
 	if strings.TrimSpace(sql) == "" || len(sql) > MaxSQLLen {
 		return nil, fault.New(fault.BadRequest, "Enter a SQL statement.")
+	}
+	// dialect: sqlite. User SQL is vetted by the SQLite authorizer; the
+	// PostgreSQL sandbox is ADR 0012 §3.
+	c, ok := sqlitex.ConnOf(q)
+	if !ok {
+		return nil, fmt.Errorf("query: SQL check needs a SQLite connection, got %T", q)
 	}
 	var desc sqlitex.Statement
 	var denial Denial
@@ -143,7 +152,7 @@ func describeSQL(ctx context.Context, c *sqlitex.Conn, sql string) ([]string, er
 }
 
 // fill computes derived fields (SQL, columns, editability) for s.
-func fill(ctx context.Context, c *sqlitex.Conn, sch *catalog.Schema, all map[string]*Saved, s *Saved) (Deps, error) {
+func fill(ctx context.Context, c dbx.Querier, sch *catalog.Schema, all map[string]*Saved, s *Saved) (Deps, error) {
 	switch s.Kind {
 	case "visual":
 		if s.Visual == nil {
@@ -173,14 +182,14 @@ func fill(ctx context.Context, c *sqlitex.Conn, sch *catalog.Schema, all map[str
 	return Deps{}, fault.Newf(fault.BadRequest, "Unknown query kind %q.", s.Kind)
 }
 
-func writeDeps(ctx context.Context, tx *sqlitex.Tx, id string, d Deps) error {
+func writeDeps(ctx context.Context, tx dbx.Tx, id string, d Deps) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM _sys_dependencies WHERE dependent_kind = 'query' AND dependent_id = ?`, id); err != nil {
 		return err
 	}
 	for kind, list := range map[string][]string{"table": d.Tables, "column": d.Columns, "query": d.Queries} {
 		for _, target := range list {
-			if _, err := tx.Exec(ctx, `INSERT OR IGNORE INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence)
-				VALUES ('query', ?, ?, ?, 'exact')`, id, kind, target); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence)
+				VALUES ('query', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, id, kind, target); err != nil {
 				return err
 			}
 		}
@@ -188,7 +197,10 @@ func writeDeps(ctx context.Context, tx *sqlitex.Tx, id string, d Deps) error {
 	return nil
 }
 
-func save(ctx context.Context, tx *sqlitex.Tx, s *Saved) error {
+func save(ctx context.Context, tx dbx.Tx, s *Saved) error {
+	// Visual queries are compiled for, and SQL queries are checked against,
+	// the backend this workspace runs on.
+	s.Dialect = sqlgen.SQLite.String()
 	var vis any
 	if s.Visual != nil {
 		b, err := json.Marshal(s.Visual)
@@ -201,11 +213,11 @@ func save(ctx context.Context, tx *sqlitex.Tx, s *Saved) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO _sys_queries(id, name, kind, visual_model, sql_text, parameters, description, version, updated_at, updated_by)
-		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind,
-		visual_model = excluded.visual_model, sql_text = excluded.sql_text, parameters = excluded.parameters,
+	_, err = tx.Exec(ctx, `INSERT INTO _sys_queries(id, name, kind, visual_model, sql_text, dialect, parameters, description, version, updated_at, updated_by)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind,
+		visual_model = excluded.visual_model, sql_text = excluded.sql_text, dialect = excluded.dialect, parameters = excluded.parameters,
 		description = excluded.description, version = excluded.version, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-		s.ID, s.Name, s.Kind, vis, s.SQL, string(params), s.Description, s.Version, sqlitex.FormatTime(s.UpdatedAt), s.UpdatedBy)
+		s.ID, s.Name, s.Kind, vis, s.SQL, s.Dialect, string(params), s.Description, s.Version, dbx.FormatTime(s.UpdatedAt), s.UpdatedBy)
 	if err != nil && fault.Classify(err).Code == fault.DuplicateValue {
 		return fault.Newf(fault.DuplicateValue, "A query named %q already exists.", s.Name)
 	}
@@ -220,7 +232,7 @@ func nonNil(p []Param) []Param {
 }
 
 // recompileDependents refreshes visual queries that use query id as a source.
-func recompileDependents(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, all map[string]*Saved, id string) error {
+func recompileDependents(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, all map[string]*Saved, id string) error {
 	seen := map[string]bool{id: true}
 	queue := []string{id}
 	for len(queue) > 0 {
@@ -248,7 +260,7 @@ func recompileDependents(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schem
 				continue
 			}
 			seen[d] = true
-			if _, err := fill(ctx, tx.Conn, sch, all, s); err != nil {
+			if _, err := fill(ctx, tx, sch, all, s); err != nil {
 				return fault.Newf(fault.BadRequest, "This change would break query %q: %s", s.Name, fault.Classify(err).DisplayMessage())
 			}
 			if err := save(ctx, tx, s); err != nil {
@@ -326,7 +338,7 @@ func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expe
 		return Saved{}, err
 	}
 	var out Saved
-	err = l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		all, err := loadAll(ctx, tx)
 		if err != nil {
 			return err
@@ -347,7 +359,7 @@ func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expe
 			s.ID, s.Version = id, cur.Version+1
 		}
 		all[s.ID] = s
-		deps, err := fill(ctx, tx.Conn, sch, all, s)
+		deps, err := fill(ctx, tx, sch, all, s)
 		if err != nil {
 			return err
 		}
@@ -374,9 +386,9 @@ func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expe
 
 // Delete removes a query unless other queries use it.
 func (svc *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var ver int64
-		if err := tx.QueryRow(ctx, `SELECT version FROM _sys_queries WHERE id = ?`, id).Scan(&ver); sqlitex.IsNoRows(err) {
+		if err := tx.QueryRow(ctx, `SELECT version FROM _sys_queries WHERE id = ?`, id).Scan(&ver); dbx.IsNoRows(err) {
 			return fault.E(fault.NotFound)
 		} else if err != nil {
 			return err
@@ -498,7 +510,7 @@ type Usage struct {
 // Usages lists objects depending on (kind, id) from the _sys_dependencies cache.
 func Usages(ctx context.Context, l *workspace.Lease, kind, id string) ([]Usage, error) {
 	out := []Usage{}
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT d.dependent_kind, d.dependent_id, d.confidence,
 			coalesce((SELECT name FROM _sys_queries WHERE id = d.dependent_id), (SELECT name FROM _sys_forms WHERE id = d.dependent_id),
 			         (SELECT name FROM _sys_reports WHERE id = d.dependent_id), (SELECT name FROM _sys_scripts WHERE id = d.dependent_id), d.dependent_id)
@@ -521,7 +533,7 @@ func Usages(ctx context.Context, l *workspace.Lease, kind, id string) ([]Usage, 
 
 // SchemaValidator recompiles visual queries inside a schema change (they follow
 // renames by column ID) and reports queries the change would break.
-func SchemaValidator(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema) (breaking, warnings []catalog.Issue, err error) {
+func SchemaValidator(ctx context.Context, tx dbx.Tx, sch *catalog.Schema) (breaking, warnings []catalog.Issue, err error) {
 	all, err := loadAll(ctx, tx)
 	if err != nil {
 		return nil, nil, err
@@ -533,7 +545,7 @@ func SchemaValidator(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema) (
 				continue
 			}
 			old := s.SQL
-			if _, err := fill(ctx, tx.Conn, sch, all, s); err != nil {
+			if _, err := fill(ctx, tx, sch, all, s); err != nil {
 				continue
 			}
 			if s.SQL != old {
@@ -582,7 +594,7 @@ func RefreshCompiled(ctx context.Context, c *sqlitex.Conn, sch *catalog.Schema) 
 					continue
 				}
 				old := s.SQL
-				if _, err := fill(ctx, tx.Conn, sch, all, s); err != nil {
+				if _, err := fill(ctx, tx, sch, all, s); err != nil {
 					continue
 				}
 				if s.SQL != old {

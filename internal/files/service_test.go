@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/files"
 	"abidata/internal/ids"
 	"abidata/internal/records"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -164,7 +164,7 @@ func (r *rig) setFiles(row records.Row, fileIDs ...string) (records.Row, error) 
 
 func (r *rig) fileState(id string) (state string, unref *string) {
 	r.t.Helper()
-	err := r.l.Read(r.ctx, func(q sqlitex.Querier) error {
+	err := r.l.Read(r.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(r.ctx, `SELECT state, last_unreferenced_at FROM _sys_files WHERE id = ?`, id).Scan(&state, &unref)
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func (r *rig) fileState(id string) (state string, unref *string) {
 func (r *rig) count(sql string, args ...any) int {
 	r.t.Helper()
 	var n int
-	if err := r.l.Read(r.ctx, func(q sqlitex.Querier) error { return q.QueryRow(r.ctx, sql, args...).Scan(&n) }); err != nil {
+	if err := r.l.Read(r.ctx, func(q dbx.Querier) error { return q.QueryRow(r.ctx, sql, args...).Scan(&n) }); err != nil {
 		r.t.Fatal(err)
 	}
 	return n
@@ -488,7 +488,7 @@ func TestTriggersCoverRawSQL(t *testing.T) {
 	a, b := r.upload("a.txt", []byte("aaa")), r.upload("b.txt", []byte("bbb"))
 	tq, cq := catalog.Quote(r.tbl.PhysicalName), catalog.Quote(r.att.PhysicalName)
 	exec := func(sql string, args ...any) error {
-		return r.l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error { _, err := tx.Exec(r.ctx, sql, args...); return err })
+		return r.l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error { _, err := tx.Exec(r.ctx, sql, args...); return err })
 	}
 	if err := exec(`INSERT INTO `+tq+` (`+cq+`) VALUES (?)`, `["`+a.ID+`","`+b.ID+`"]`); err != nil {
 		t.Fatal(err)
@@ -656,7 +656,7 @@ func TestRefsConsistentUnderConcurrentWrites(t *testing.T) {
 	wg.Wait()
 
 	want := map[string]bool{}
-	err := r.l.Read(r.ctx, func(q sqlitex.Querier) error {
+	err := r.l.Read(r.ctx, func(q dbx.Querier) error {
 		rs, err := q.Query(r.ctx, `SELECT t.id, j.value FROM `+catalog.Quote(r.tbl.PhysicalName)+` t, json_each(t.`+catalog.Quote(r.att.PhysicalName)+`) j`)
 		if err != nil {
 			return err
@@ -676,7 +676,7 @@ func TestRefsConsistentUnderConcurrentWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := map[string]bool{}
-	err = r.l.Read(r.ctx, func(q sqlitex.Querier) error {
+	err = r.l.Read(r.ctx, func(q dbx.Querier) error {
 		rs, err := q.Query(r.ctx, `SELECT file_id, row_id FROM _sys_file_refs`)
 		if err != nil {
 			return err
@@ -727,8 +727,8 @@ func TestSweepTimingWithFakeClock(t *testing.T) {
 		t.Fatal(err)
 	}
 	stamp := func(id string, at time.Time) {
-		err := r.l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-			_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET last_unreferenced_at = ? WHERE id = ?`, sqlitex.FormatTime(at), id)
+		err := r.l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
+			_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET last_unreferenced_at = ? WHERE id = ?`, dbx.FormatTime(at), id)
 			return err
 		})
 		if err != nil {
@@ -737,8 +737,8 @@ func TestSweepTimingWithFakeClock(t *testing.T) {
 	}
 	stamp(dropped.ID, r.now)
 	setCreated := func(id string, at time.Time) {
-		err := r.l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-			_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET created_at = ? WHERE id = ?`, sqlitex.FormatTime(at), id)
+		err := r.l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
+			_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET created_at = ? WHERE id = ?`, dbx.FormatTime(at), id)
 			return err
 		})
 		if err != nil {
@@ -791,8 +791,8 @@ func TestSweepKeepsFilesNamedByRecentHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Pretend the grace stamp is old, but the history entry is from the fake clock's "now".
-	if err := r.l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-		_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET last_unreferenced_at = ?`, sqlitex.FormatTime(r.now.Add(-30*24*time.Hour)))
+	if err := r.l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET last_unreferenced_at = ?`, dbx.FormatTime(r.now.Add(-30*24*time.Hour)))
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -834,11 +834,11 @@ func TestSweepKeepsSharedBlobsAndPrunesDirs(t *testing.T) {
 	if err := r.rec.Delete(r.ctx, r.l, r.tbl.ID, cur.ID, cur.Version, records.Actor{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	_ = r.l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-		_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET last_unreferenced_at = ?`, sqlitex.FormatTime(r.now.Add(-48*time.Hour)))
+	_ = r.l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		_, err := tx.Exec(r.ctx, `UPDATE _sys_files SET last_unreferenced_at = ?`, dbx.FormatTime(r.now.Add(-48*time.Hour)))
 		return err
 	})
-	_ = r.l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	_ = r.l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(r.ctx, `DELETE FROM _sys_row_history`)
 		return err
 	})

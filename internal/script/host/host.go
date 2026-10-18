@@ -7,10 +7,10 @@ import (
 	"context"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/egress"
 	"abidata/internal/files"
 	"abidata/internal/records"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -27,7 +27,7 @@ type Data struct {
 	UserID   string
 
 	// tx is set while a db.transaction block runs.
-	tx *sqlitex.Tx
+	tx dbx.Tx
 	// txCtx is the transaction's context (bounded by the TxBlock budget).
 	txCtx context.Context
 
@@ -67,10 +67,10 @@ type JobRun struct {
 }
 
 // Tx returns the active db.transaction, if any.
-func (d *Data) Tx() (*sqlitex.Tx, context.Context, bool) { return d.tx, d.txCtx, d.tx != nil }
+func (d *Data) Tx() (dbx.Tx, context.Context, bool) { return d.tx, d.txCtx, d.tx != nil }
 
 // SetTx installs (or clears with nil) the active transaction.
-func (d *Data) SetTx(ctx context.Context, tx *sqlitex.Tx) { d.tx, d.txCtx = tx, ctx }
+func (d *Data) SetTx(ctx context.Context, tx dbx.Tx) { d.tx, d.txCtx = tx, ctx }
 
 // AfterCommit queues fn to run after the active transaction commits, or runs
 // it immediately when no transaction is active.

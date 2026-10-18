@@ -1,6 +1,6 @@
 # ADR 0012: PostgreSQL as an alternative storage backend
 
-Status: Proposed (plan for future implementation) · 2026-10-17 · Depends on [ADR 0013](0013-backend-agnostic-sql-layer.md)
+Status: Proposed (plan for future implementation) · 2026-10-17 · Depends on [ADR 0013](0013-backend-agnostic-sql-layer.md) · Phase 1 spike done 2026-10-18 ([findings](#spike-findings-phase-1)); §3 and §5 are amended by it
 
 ## Context
 
@@ -54,7 +54,7 @@ Add PostgreSQL as an **install-wide alternative backend**, chosen by configurati
 - **Driver.** Use `github.com/jackc/pgx/v5`, which is pure Go, so the build stays CGo-free (ADR 0001's constraint). Use it through its native API, not `database/sql`, for the same reasons ADR 0001 gave for SQLite.
 - **Minimum server.** PostgreSQL **17**. PostgreSQL **18** is recommended: it adds `VIRTUAL` generated columns (calculated fields without table rewrites) and `LIKE` on nondeterministic collations. Features are detected at startup and both paths are kept (§4).
 - **Required privileges** for the app's role, checked at startup with a clear message:
-  - `CREATE` on the database;
+  - ownership of the database (it revokes PUBLIC's `CONNECT` and `TEMPORARY` there);
   - `CREATEROLE`. Since PostgreSQL 16 this only grants control over roles the app itself creates, which is what §3 needs.
 
   No superuser. No extensions are required; PostGIS is used if present (§4).
@@ -89,12 +89,12 @@ PostgreSQL has no prepare-time authorizer callback, so isolation moves from a ca
 
 | Today (SQLite authorizer) | PostgreSQL |
 |---|---|
-| User SQL can read only this workspace's user tables. | Each workspace has NOLOGIN roles `<prefix>_ws_<id>_read` (SELECT on its user tables, USAGE on its schema and on `<prefix>_lib`) and `<prefix>_ws_<id>_write` (adds INSERT/UPDATE/DELETE on user tables, for Lua `db.exec` in write contexts). The app's login role is a member of both and runs user SQL with `SET LOCAL ROLE` inside the transaction. No grant ever names another workspace's schema. |
+| User SQL can read only this workspace's user tables. | Each workspace has NOLOGIN roles `<prefix>_ws_<id>_read` (SELECT on its user tables, USAGE on its schema and on `<prefix>_lib`) and `<prefix>_ws_<id>_write` (adds INSERT/UPDATE/DELETE on user tables, for Lua `db.exec` in write contexts). **User-typed SQL never runs as the app's login role** (spike finding 1). It runs on a small per-workspace pool logged in as `<prefix>_ws_<id>_sqlr`, a NOINHERIT login that is a member of `_read` only, or `_sqlw` (member of `_write`) for Lua writes, and switches with `SET LOCAL ROLE`. Their passwords are random per process and sent as SCRAM verifiers. Generated SQL may run on the app's pool under `SET LOCAL ROLE`, since it cannot call `set_config`. No grant ever names another workspace's schema. |
 | `_sys_*` hidden from editors; builders may read metadata. | `_sys_*` tables get no grants to the `_read`/`_write` roles. Builders get `<prefix>_ws_<id>_meta`, with SELECT on a curated set of views over `_sys_tables` / `_sys_columns` / `_sys_relationships` / `_sys_indexes`. |
-| Read-only statements only, except Lua writes. | `SET TRANSACTION READ ONLY` plus the read role's lack of write grants. Two independent barriers. |
+| Read-only statements only, except Lua writes. | `READ ONLY` transactions plus the read login's lack of write grants. Two independent barriers, because `_sqlr` cannot become `_write`. User SQL is run as `DECLARE … CURSOR FOR <sql>` over the extended protocol, which the server restricts to one SELECT, VALUES or WITH without data-modifying parts. |
 | `ATTACH`, `PRAGMA` and `load_extension` denied. | They have no equivalent to deny. Server-side file and program access (`COPY … PROGRAM`, `pg_read_file`, `lo_import`) already needs superuser or `pg_read_server_files`/`pg_execute_server_program`, which the app never grants. |
-| Denied functions. | `REVOKE EXECUTE … FROM PUBLIC` is applied, at install, to the few PUBLIC functions a tenant shouldn't call, such as `pg_sleep*` and the advisory-lock functions. An explicit list is kept in code and tested. `set_config('role', …)` cannot escalate, because role membership is still checked. |
-| Seeing other workspaces' table names. | **Catalog hardening.** `pg_class`, `pg_attribute`, `pg_namespace` and friends are readable by PUBLIC and would list every workspace's table names. Revoke SELECT on those catalogs from PUBLIC **in this database**: the planner does not need the privilege. `information_schema` already filters by privilege, so builders' introspection keeps working there. A capability test proves a `_read` role cannot enumerate a foreign schema. |
+| Denied functions. | **Not available without a superuser** (spike finding 2): `pg_catalog` functions belong to the bootstrap superuser, so the app's role cannot revoke them, and managed services don't allow it either. The plan therefore does not rely on denying functions. `pg_sleep` is bounded by `statement_timeout`; advisory locks are harmless because no app invariant uses them (§5); `set_config('role', …)` cannot escalate because the session user is the workspace's own login. |
+| Seeing other workspaces' table names. | **Not hidden in the schema-per-workspace layout** (spike finding 3). The catalogs are readable by PUBLIC, only a superuser can revoke that, and even then views such as `pg_tables` and `pg_stat_all_tables` still list every table. Other workspaces' **data** stays unreadable; their schema, table and column **names** are visible to anyone who can run SQL. `information_schema` filters by privilege, so the app's own introspection uses it. Installs that need names hidden use a database per workspace (§2, open question 1). |
 | Interrupt after 10 s; row and byte caps. | `SET LOCAL statement_timeout`, `idle_in_transaction_session_timeout`, `temp_file_limit` and `work_mem` per transaction. Rows are fetched through a cursor, and `query.Run` stops at its caps exactly as now. |
 | `TEMP` tables, `CREATE` anything. | `REVOKE TEMP ON DATABASE … FROM PUBLIC`. The sandbox roles own nothing and have no CREATE on any schema. |
 | Stored expressions use only allowlisted deterministic functions. | **Unchanged in spirit.** Expressions are still lexically checked, then validated by preparing `SELECT (expr) FROM table` as the workspace's `_read` role. A parse-level allowlist replaces the authorizer's function hook (see below). Generated columns additionally require IMMUTABLE functions, which PostgreSQL enforces itself. |
@@ -152,7 +152,7 @@ Generated SQL comes from ADR 0013's renderers, and values pass through its per-d
 
 ### 5. Concurrency, quotas and process model
 
-- **Writes stay serialised per workspace at first.** Today's invariants assume one writer per workspace: schema apply, `_version` bumps, history ordering, reference counting and idempotency records. `Lease.Write` therefore takes `pg_advisory_xact_lock(<workspace key>)` at the start of each write transaction. That reproduces `BEGIN IMMEDIATE` and the gate's semantics, including the `WORKSPACE_BUSY` timeout (via `lock_timeout`), and it works across several app instances. Relaxing record writes to row-level concurrency (`SELECT … FOR UPDATE` plus the existing OCC) is a later optimisation with its own ADR.
+- **Writes stay serialised per workspace at first.** Today's invariants assume one writer per workspace: schema apply, `_version` bumps, history ordering, reference counting and idempotency records. `Lease.Write` therefore starts each write transaction with `SELECT … FOR UPDATE` on the workspace's row in a `<prefix>_admin` lock table. That reproduces `BEGIN IMMEDIATE` and the gate's semantics, including the `WORKSPACE_BUSY` timeout (via `lock_timeout`), and it works across several app instances. It is **not** an advisory lock: any role can take any advisory lock key, so user SQL could hold a workspace's writer key (spike finding 4). The single-instance guard below is a row lock for the same reason. Relaxing record writes to row-level concurrency (`SELECT … FOR UPDATE` plus the existing OCC) is a later optimisation with its own ADR.
 - **Readers** use `READ ONLY` transactions at `REPEATABLE READ`. That is the same snapshot guarantee WAL readers give today.
 - **Pooling.** There is one pgx pool for the install. The workspace manager keeps its LRU and refcounted leases, but a lease now means "this workspace's schema and roles are known and migrated", not "files are open". A per-workspace semaphore keeps the existing caps (1 writer, ≤4 readers) so one workspace can't starve the pool.
 - **Quotas.**
@@ -165,7 +165,8 @@ Generated SQL comes from ADR 0013's renderers, and values pass through its per-d
   - background operations to claimed rows;
   - the files bucket and upload staging to shared storage (an object-store interface).
 
-  Until that phase, a PostgreSQL install supports **one app instance**. Startup takes a session-level advisory lock and refuses a second instance with a clear error.
+  Until that phase, a PostgreSQL install supports **one app instance**. Startup holds a row lock on an `<prefix>_admin` row for the life of the process and refuses a second instance with a clear error.
+- **NOTIFY is untrusted.** A read-only sandbox can still call `pg_notify` (spike finding 5), so the Phase 6 event bus must treat a notification as a wake-up with no authority and re-read state from tables.
 
 ### 6. Code structure
 
@@ -265,7 +266,7 @@ Each phase merges on its own, keeps SQLite green, and has an exit criterion.
 | Phase | Work | Exit criterion |
 |---|---|---|
 | 0. Converge | ADR 0013 Phases A–E (generated SQL and DDL, the expression language, the statement registry); introduce `dbx` with SQLite as the only implementation; dialect-tag saved queries; split migrations into per-backend folders (SQLite only). | ADR 0013's exit criteria; SQLite suite, e2e and benchmarks unchanged. |
-| 1. Spike | Prove the riskiest parts in isolation: §3's privilege sandbox and catalog hardening on PostgreSQL 17 and 18, and the plan-based function allowlist. | Capability tests pass on both versions, or the fallback tokenizer is chosen; findings appended to this ADR. |
+| 1. Spike | Prove the riskiest parts in isolation: §3's privilege sandbox and catalog hardening on PostgreSQL 17 and 18, and the plan-based function allowlist. | Capability tests pass on both versions, or the fallback tokenizer is chosen; findings appended to this ADR. **Done on 18.6; 17 still to run** (`make test-postgres`). |
 | 2. Admin store on PostgreSQL | `<prefix>_admin` migrations and repositories; configuration, the backend lock and startup checks. | Admin, auth and API-key tests pass on both backends. |
 | 3. Workspaces on PostgreSQL | Schema-per-workspace lifecycle, roles, DDL, triggers, `<prefix>_lib`, records, catalog apply/preview, visual compiler, sandboxed user SQL, Lua `db`, soft quotas. | Full Go suite green on PostgreSQL except backup, restore and import. |
 | 4. Archive and interchange | Portable archive export/import (§8) with translation and the import report; backups and restore on top of it (§7). | Round-trip tests green; restore crash-recovery tests green on PostgreSQL. |
@@ -296,7 +297,21 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 
 ## Open questions
 
-1. Is catalog hardening (revoking PUBLIC SELECT on `pg_class` and similar in the app's database) acceptable to the operators who'd use this? If not, a database per workspace becomes the default (§2), at the connection-count cost.
+1. ~~Is catalog hardening acceptable to operators?~~ Answered by the spike: it isn't possible without a superuser and doesn't work with one (finding 3). The open question becomes: is it acceptable that SQL users see other workspaces' table **names** (never data)? If not, a database per workspace becomes the default (§2), at the connection-count cost.
 2. Should the PostgreSQL dialect offer a PostGIS-backed fast path for spatial joins when the extension exists, or stay pure SQL for identical results everywhere?
 3. ~~A dialect-neutral expression language for stored expressions?~~ Answered by ADR 0013 §5: yes. Saved SQL queries get no portable mode (ADR 0013, Decisions taken), so §8's translation of saved SQL stays.
 4. What is the target scale for one PostgreSQL install (workspaces × tables)? It decides when per-schema catalog growth needs attention, typically past tens of thousands of tables.
+
+## Spike findings (Phase 1)
+
+Run on 2026-10-18 against PostgreSQL 18.6, with the app as a non-superuser role holding `CREATEROLE` and owning the database. The capability tests are `internal/pgdb/capabilities_test.go` (`make test-postgres`); PostgreSQL 17 has not been run yet. Each finding below is pinned by a test, and the two known leaks are pinned by tests that fail if they ever close, so this list stays true.
+
+1. **Shared app login escalates.** PostgreSQL checks `SET ROLE` and `set_config('role', …)` against the *session* user. If user SQL runs on the app's login with `SET LOCAL ROLE <ws>_read`, as §3 first said, then `SELECT set_config('role', '<other ws>_read', true)` reads another workspace and `set_config('role', '<app role>', true)` becomes the app itself, with every workspace and the admin tables. This also works through functions that run SQL text, such as `query_to_xml` and `ts_stat`. **Fix:** user SQL connects as a per-workspace login (`_sqlr`, or `_sqlw` for writes) that is a member of nothing else. From there every escalation attempt fails with "permission denied to set role".
+2. **No function or catalog revokes without a superuser.** The app's role gets "no privileges could be revoked" on `pg_catalog` objects. A superuser *can* revoke `set_config` from PUBLIC, which closes finding 1 a second way, but managed services don't allow it, so the design can't depend on it. Denylisting functions is not a boundary anyway: `query_to_xml` and `ts_stat` run arbitrary SQL text, so a plan-based check can't see what they call.
+3. **Table names leak.** With `pg_class`, `pg_namespace` and `pg_attribute` revoked by a superuser, `pg_tables` and `pg_stat_all_tables` still list every workspace's tables, because views run as their owner. Without a superuser nothing can be revoked at all. Data stays protected (schema USAGE and table grants hold); names don't. `information_schema` filters correctly.
+4. **Advisory locks are open to everyone, and outlive ROLLBACK.** A sandboxed statement can take any session advisory lock; it survives the transaction's rollback and is released only by `DISCARD ALL` (which the sandbox pool runs on every release). App invariants therefore use row locks on admin tables, which sandbox roles cannot touch (§5).
+5. **`pg_notify` works in a READ ONLY transaction**, so notifications are untrusted (§5).
+6. **pgx's `Exec` without arguments uses the simple protocol**, whatever query mode is requested, and the simple protocol runs every statement in the string. `DECLARE … CURSOR FOR <user sql>` sent that way ran `SELECT 1; SELECT 2`, so the single-statement gate silently didn't exist. The sandbox sends the cursor through `Query`, which honours the extended protocol; a test checks a harmless second statement is refused, and a mutation test confirmed it catches the regression.
+7. **What held as planned:** `REVOKE TEMPORARY` on the database stops TEMP tables; `pg_read_file`, `lo_import`, `pg_ls_dir` and `COPY … PROGRAM` are denied to non-privileged roles; `statement_timeout` stops a runaway recursive CTE and `pg_sleep`; `DECLARE CURSOR` rejects `SET`, DDL, DML and data-modifying `WITH`; `READ ONLY` cannot be switched off after the first query; `SET`, `RESET` and `DO` inside `query_to_xml` are refused ("not allowed in a non-volatile function"); `DISCARD ALL` clears settings, advisory locks and prepared statements between borrowers.
+8. **Not needed after ADR 0013.** The plan-based function allowlist for stored expressions is moot: they are parsed against the function catalog (ADR 0013 §5). For user SQL, finding 2 shows a function check can't be a boundary, so it is not built; precise error messages come from the server's own errors.
+9. **Limits that need a superuser:** setting `temp_file_limit` is refused to the app's role ("permission denied to set parameter"). Per-statement temp-file caps are therefore left to the server's configuration, unless the operator runs `GRANT SET ON PARAMETER temp_file_limit TO <app role>` once (PostgreSQL 15+); the sandbox then sets it per transaction. The docs must say so.

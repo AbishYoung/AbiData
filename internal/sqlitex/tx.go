@@ -4,13 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"abidata/internal/dbx"
 )
 
-// Querier is the read surface shared by Conn and Tx.
-type Querier interface {
-	Query(ctx context.Context, sql string, args ...any) (*Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) *Row
-}
+// The driver-neutral interfaces this package implements.
+var (
+	_ dbx.Execer     = (*Conn)(nil)
+	_ dbx.Tx         = (*Tx)(nil)
+	_ dbx.Rows       = (*Rows)(nil)
+	_ dbx.OriginRows = (*Rows)(nil)
+)
 
 // Tx is a write transaction on the writer connection (BEGIN IMMEDIATE).
 type Tx struct {
@@ -68,4 +72,17 @@ func (tx *Tx) Savepoint(ctx context.Context, fn func() error) (err error) {
 		_, _ = tx.Exec(context.WithoutCancel(ctx), "RELEASE sx")
 	}()
 	return fn()
+}
+
+// ConnOf returns the SQLite connection behind a dbx value, for the few
+// callers that need a SQLite-only capability (the authorizer, Describe,
+// scripts). Such call sites are tagged "dialect: sqlite".
+func ConnOf(q any) (*Conn, bool) {
+	switch x := q.(type) {
+	case *Conn:
+		return x, true
+	case *Tx:
+		return x.Conn, true
+	}
+	return nil, false
 }

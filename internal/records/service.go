@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/sqlgen"
@@ -139,7 +140,7 @@ func render(s sqlgen.Stmt) (sqlgen.Rendered, error) {
 	return r, nil
 }
 
-func scanRow(rows *sqlitex.Rows, data, lookups []catalog.Column) (Row, error) {
+func scanRow(rows dbx.Rows, data, lookups []catalog.Column) (Row, error) {
 	vals := rows.Values()
 	r := Row{Fields: make(map[string]any, len(data))}
 	id, ok1 := vals[0].(int64)
@@ -189,7 +190,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 		return nil, false, err
 	}
 	var out []Row
-	err = l.Read(ctx, func(qr sqlitex.Querier) error {
+	err = l.Read(ctx, func(qr dbx.Querier) error {
 		rows, err := qr.Query(ctx, stmt.SQL, stmt.Args...)
 		if err != nil {
 			return err
@@ -242,7 +243,7 @@ func (s *Service) Count(ctx context.Context, l *workspace.Lease, tableID string,
 		return 0, false, err
 	}
 	var n int64
-	err = l.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, stmt.SQL, stmt.Args...).Scan(&n) })
+	err = l.Read(ctx, func(q dbx.Querier) error { return q.QueryRow(ctx, stmt.SQL, stmt.Args...).Scan(&n) })
 	if err != nil {
 		return 0, false, fault.Classify(err)
 	}
@@ -259,7 +260,7 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, tableID string, i
 		return Row{}, err
 	}
 	var r Row
-	err = l.Read(ctx, func(q sqlitex.Querier) error {
+	err = l.Read(ctx, func(q dbx.Querier) error {
 		var e error
 		r, e = getRow(ctx, q, sch, t, id)
 		return e
@@ -267,7 +268,7 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, tableID string, i
 	return r, err
 }
 
-func getRow(ctx context.Context, q sqlitex.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
+func getRow(ctx context.Context, q dbx.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
 	cols, data, lookups := selectList(sch, t)
 	stmt, err := render(&sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"},
 		Where: sqlgen.Binary{Op: sqlgen.OpEq, L: sqlgen.Col{Table: "t", Name: "id"}, R: sqlgen.Arg{Value: id}}})
@@ -322,7 +323,7 @@ func decodeFields(t *catalog.Table, fields map[string]any) ([]catalog.Column, []
 // request → stored response replayed; different request → IDEMPOTENCY_CONFLICT)
 // and publishes the resulting change after commit.
 func (s *Service) mutation(ctx context.Context, l *workspace.Lease, idem *Idempotency, request any,
-	fn func(tx *sqlitex.Tx) (resp any, change *change, err error)) (json.RawMessage, error) {
+	fn func(tx dbx.Tx) (resp any, change *change, err error)) (json.RawMessage, error) {
 	var hash string
 	if idem != nil && idem.Key != "" {
 		if len(idem.Key) > 200 {
@@ -337,7 +338,7 @@ func (s *Service) mutation(ctx context.Context, l *workspace.Lease, idem *Idempo
 	}
 	var out json.RawMessage
 	var ch *change
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		if hash != "" {
 			var user, h, resp string
 			err := tx.QueryRow(ctx, `SELECT user_id, request_hash, response FROM _sys_idempotency WHERE key = ?`, idem.Key).Scan(&user, &h, &resp)
@@ -347,7 +348,7 @@ func (s *Service) mutation(ctx context.Context, l *workspace.Lease, idem *Idempo
 				return nil
 			case err == nil:
 				return fault.E(fault.IdempotencyConflict)
-			case !sqlitex.IsNoRows(err):
+			case !dbx.IsNoRows(err):
 				return err
 			}
 		}
@@ -362,7 +363,7 @@ func (s *Service) mutation(ctx context.Context, l *workspace.Lease, idem *Idempo
 		out, ch = b, c
 		if hash != "" {
 			if _, err := tx.Exec(ctx, `INSERT INTO _sys_idempotency(key, user_id, request_hash, status_code, response, created_at) VALUES (?,?,?,?,?,?)`,
-				idem.Key, idem.UserID, hash, 200, string(b), sqlitex.FormatTime(s.now())); err != nil {
+				idem.Key, idem.UserID, hash, 200, string(b), dbx.FormatTime(s.now())); err != nil {
 				return err
 			}
 		}
@@ -456,7 +457,7 @@ func typeRuleMessage(c catalog.Column) string {
 	return fmt.Sprintf("The value for %q is not valid.", c.DisplayName)
 }
 
-func (s *Service) history(ctx context.Context, tx *sqlitex.Tx, t *catalog.Table, rowID, version int64, op string, actor Actor, before, after *Row) error {
+func (s *Service) history(ctx context.Context, tx dbx.Tx, t *catalog.Table, rowID, version int64, op string, actor Actor, before, after *Row) error {
 	if !t.TrackHistory {
 		return nil
 	}
@@ -472,7 +473,7 @@ func (s *Service) history(ctx context.Context, tx *sqlitex.Tx, t *catalog.Table,
 		user = actor.UserID
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO _sys_row_history(table_id, row_id, row_version, op, user_id, at, before, after) VALUES (?,?,?,?,?,?,?,?)`,
-		t.ID, rowID, version, op, user, sqlitex.FormatTime(s.now()), enc(before), enc(after))
+		t.ID, rowID, version, op, user, dbx.FormatTime(s.now()), enc(before), enc(after))
 	return err
 }
 
@@ -487,7 +488,7 @@ func (s *Service) Insert(ctx context.Context, l *workspace.Lease, tableID string
 		return Row{}, err
 	}
 	raw, err := s.mutation(ctx, l, idem, map[string]any{"op": "insert", "table": tableID, "fields": fields},
-		func(tx *sqlitex.Tx) (any, *change, error) {
+		func(tx dbx.Tx) (any, *change, error) {
 			r, err := insertRow(ctx, tx, sch, t, cols, vals)
 			if err != nil {
 				return nil, nil, err
@@ -504,7 +505,7 @@ func (s *Service) Insert(ctx context.Context, l *workspace.Lease, tableID string
 	return r, json.Unmarshal(raw, &r)
 }
 
-func insertRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *catalog.Table, cols []catalog.Column, vals []any) (Row, error) {
+func insertRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.Table, cols []catalog.Column, vals []any) (Row, error) {
 	if err := checkAttachments(ctx, tx, cols, vals); err != nil {
 		return Row{}, err
 	}
@@ -539,7 +540,7 @@ func (s *Service) Update(ctx context.Context, l *workspace.Lease, tableID string
 		return Row{}, err
 	}
 	raw, err := s.mutation(ctx, l, idem, map[string]any{"op": "update", "table": tableID, "id": id, "version": expectedVersion, "fields": fields},
-		func(tx *sqlitex.Tx) (any, *change, error) {
+		func(tx dbx.Tx) (any, *change, error) {
 			r, before, err := updateRow(ctx, tx, sch, t, id, expectedVersion, cols, vals, t.TrackHistory)
 			if err != nil {
 				return nil, nil, err
@@ -556,7 +557,7 @@ func (s *Service) Update(ctx context.Context, l *workspace.Lease, tableID string
 	return r, json.Unmarshal(raw, &r)
 }
 
-func updateRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *catalog.Table, id, expected int64, cols []catalog.Column, vals []any, wantBefore bool) (Row, *Row, error) {
+func updateRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.Table, id, expected int64, cols []catalog.Column, vals []any, wantBefore bool) (Row, *Row, error) {
 	if err := checkAttachments(ctx, tx, cols, vals); err != nil {
 		return Row{}, nil, err
 	}
@@ -598,7 +599,7 @@ func versionMatch(id, expected int64) sqlgen.Expr {
 }
 
 // occFailure distinguishes a missing row from a version conflict.
-func occFailure(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *catalog.Table, id int64) error {
+func occFailure(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.Table, id int64) error {
 	cur, err := getRow(ctx, tx, sch, t, id)
 	if err != nil {
 		return err
@@ -613,7 +614,7 @@ func (s *Service) Delete(ctx context.Context, l *workspace.Lease, tableID string
 		return err
 	}
 	_, err = s.mutation(ctx, l, idem, map[string]any{"op": "delete", "table": tableID, "id": id, "version": expectedVersion},
-		func(tx *sqlitex.Tx) (any, *change, error) {
+		func(tx dbx.Tx) (any, *change, error) {
 			if err := deleteRow(ctx, tx, sch, t, id, expectedVersion, s, actor); err != nil {
 				return nil, nil, err
 			}
@@ -625,7 +626,7 @@ func (s *Service) Delete(ctx context.Context, l *workspace.Lease, tableID string
 	return nil
 }
 
-func deleteRow(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema, t *catalog.Table, id, expected int64, s *Service, actor Actor) error {
+func deleteRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.Table, id, expected int64, s *Service, actor Actor) error {
 	var before *Row
 	if t.TrackHistory {
 		if b, err := getRow(ctx, tx, sch, t, id); err == nil {
@@ -688,7 +689,7 @@ func (s *Service) Batch(ctx context.Context, l *workspace.Lease, tableID string,
 		}
 	}
 	raw, err := s.mutation(ctx, l, idem, map[string]any{"op": "batch", "table": tableID, "ops": ops},
-		func(tx *sqlitex.Tx) (any, *change, error) {
+		func(tx dbx.Tx) (any, *change, error) {
 			out := make([]BatchResult, len(ops))
 			ch := &change{tableID: t.ID, op: "batch"}
 			for i, op := range ops {
@@ -740,8 +741,8 @@ func withIndex(err error, i int) error {
 
 // PurgeIdempotency deletes keys older than 24 h (janitor).
 func PurgeIdempotency(ctx context.Context, l *workspace.Lease, now time.Time) error {
-	return l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _sys_idempotency WHERE created_at < ?`, sqlitex.FormatTime(now.Add(-idempotencyTTL)))
+	return l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM _sys_idempotency WHERE created_at < ?`, dbx.FormatTime(now.Add(-idempotencyTTL)))
 		return err
 	})
 }
@@ -764,7 +765,7 @@ func (s *Service) publisher(ws string, c *change) func() {
 }
 
 // InsertTx inserts within tx.
-func (s *Service) InsertTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *catalog.Schema, t *catalog.Table, fields map[string]any, actor Actor) (TxResult, error) {
+func (s *Service) InsertTx(ctx context.Context, tx dbx.Tx, ws string, sch *catalog.Schema, t *catalog.Table, fields map[string]any, actor Actor) (TxResult, error) {
 	cols, vals, err := decodeFields(t, fields)
 	if err != nil {
 		return TxResult{}, err
@@ -780,7 +781,7 @@ func (s *Service) InsertTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *
 }
 
 // UpdateTx updates within tx (OCC on expectedVersion).
-func (s *Service) UpdateTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, fields map[string]any, actor Actor) (TxResult, error) {
+func (s *Service) UpdateTx(ctx context.Context, tx dbx.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, fields map[string]any, actor Actor) (TxResult, error) {
 	cols, vals, err := decodeFields(t, fields)
 	if err != nil {
 		return TxResult{}, err
@@ -796,7 +797,7 @@ func (s *Service) UpdateTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *
 }
 
 // DeleteTx deletes within tx (OCC on expectedVersion).
-func (s *Service) DeleteTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, actor Actor) (TxResult, error) {
+func (s *Service) DeleteTx(ctx context.Context, tx dbx.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, actor Actor) (TxResult, error) {
 	if err := deleteRow(ctx, tx, sch, t, id, expectedVersion, s, actor); err != nil {
 		return TxResult{}, translate(t, err)
 	}
@@ -804,7 +805,7 @@ func (s *Service) DeleteTx(ctx context.Context, tx *sqlitex.Tx, ws string, sch *
 }
 
 // GetTx reads a row within tx.
-func GetTx(ctx context.Context, q sqlitex.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
+func GetTx(ctx context.Context, q dbx.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
 	return getRow(ctx, q, sch, t, id)
 }
 

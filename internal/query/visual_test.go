@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -28,8 +29,8 @@ func shopSchema(t *testing.T) (*fx, *catalog.Schema) {
 	}, catalog.Apply, catalog.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
-		return tx.ExecScript(ctx, `INSERT INTO Customers(Name, City) VALUES ('Ada','London'),('Bo','Paris');
+	if err := f.l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		return tx.(*sqlitex.Tx).ExecScript(ctx, `INSERT INTO Customers(Name, City) VALUES ('Ada','London'),('Bo','Paris');
 			INSERT INTO Orders(Customer, Item, Qty, Amount) VALUES (1,1,2,25000),(1,2,1,10000),(2,1,5,99900)`)
 	}); err != nil {
 		t.Fatal(err)

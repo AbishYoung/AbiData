@@ -13,8 +13,8 @@ import (
 
 	"abidata/internal/admin"
 	"abidata/internal/auth"
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 )
 
 // bearer talks to the API the way an external bot does: no cookie jar, no
@@ -306,7 +306,7 @@ func TestAPIKeyBadCredentialsAreIndistinguishable(t *testing.T) {
 		t.Fatal("revoke")
 	}
 	// Expire a key by rewriting its expiry in the past.
-	if err := k.ad.Write(context.Background(), func(tx *sqlitex.Tx) error {
+	if err := k.ad.Write(context.Background(), func(tx dbx.Tx) error {
 		_, err := tx.Exec(context.Background(), `UPDATE _adm_api_keys SET expires_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`, expID)
 		return err
 	}); err != nil {

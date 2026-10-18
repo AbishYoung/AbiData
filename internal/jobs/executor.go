@@ -11,6 +11,7 @@ import (
 
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/egress"
 	"abidata/internal/fault"
 	"abidata/internal/files"
@@ -20,7 +21,6 @@ import (
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -156,13 +156,13 @@ func FormatLogs(entries []script.LogEntry) string {
 }
 
 // ReadRuns lists a job's runs, newest first (limit ≤ 200), optionally before a queued_at cursor.
-func ReadRuns(ctx context.Context, q sqlitex.Querier, jobID string, limit int, before time.Time) ([]Run, error) {
+func ReadRuns(ctx context.Context, q dbx.Querier, jobID string, limit int, before time.Time) ([]Run, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
 	cursor := "9999"
 	if !before.IsZero() {
-		cursor = sqlitex.FormatTime(before)
+		cursor = dbx.FormatTime(before)
 	}
 	rows, err := q.Query(ctx, `SELECT `+RunCols+` FROM _sys_job_runs WHERE job_id = ? AND queued_at < ?
 		ORDER BY queued_at DESC, id DESC LIMIT ?`, jobID, cursor, limit)

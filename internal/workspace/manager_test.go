@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
@@ -75,8 +76,8 @@ func TestNestedWrite(t *testing.T) {
 	}
 	defer l.Release()
 	// Captured outer ctx (lease-level detection).
-	err = l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
-		return l.Write(ctx, Interactive, func(*sqlitex.Tx) error { return nil })
+	err = l.Write(ctx, Interactive, func(tx dbx.Tx) error {
+		return l.Write(ctx, Interactive, func(dbx.Tx) error { return nil })
 	})
 	if !errors.Is(err, ErrNestedWrite) {
 		t.Fatalf("want ErrNestedWrite, got %v", err)
@@ -88,7 +89,7 @@ func TestNestedWrite(t *testing.T) {
 	}
 	defer l2.Release()
 	inner := func(c context.Context) error {
-		return l2.Write(c, Interactive, func(*sqlitex.Tx) error { return nil })
+		return l2.Write(c, Interactive, func(dbx.Tx) error { return nil })
 	}
 	var nested error
 	_ = m.withWriteCtx(ctx, l, func(c context.Context) { nested = inner(c) })
@@ -102,7 +103,7 @@ func TestNestedWrite(t *testing.T) {
 
 // withWriteCtx runs fn inside a Write, passing the write-marked context.
 func (m *Manager) withWriteCtx(ctx context.Context, l *Lease, fn func(context.Context)) error {
-	return l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+	return l.Write(ctx, Interactive, func(tx dbx.Tx) error {
 		fn(context.WithValue(ctx, writeKey{l.h.id}, true))
 		return nil
 	})
@@ -120,7 +121,7 @@ func TestWriteReadAndGateOrder(t *testing.T) {
 	go func() {
 		la, _ := m.Acquire(ctx, id)
 		defer la.Release()
-		_ = la.Write(ctx, Background, func(tx *sqlitex.Tx) error {
+		_ = la.Write(ctx, Background, func(tx dbx.Tx) error {
 			close(started)
 			<-hold
 			return nil
@@ -136,7 +137,7 @@ func TestWriteReadAndGateOrder(t *testing.T) {
 			defer wg.Done()
 			lx, _ := m.Acquire(ctx, id)
 			defer lx.Release()
-			_ = lx.Write(ctx, p, func(tx *sqlitex.Tx) error {
+			_ = lx.Write(ctx, p, func(tx dbx.Tx) error {
 				mu.Lock()
 				order = append(order, name)
 				mu.Unlock()
@@ -159,7 +160,7 @@ func TestWriteReadAndGateOrder(t *testing.T) {
 		}
 	}
 	var n int
-	if err := l.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, `SELECT count(*) FROM t`).Scan(&n) }); err != nil || n != 4 {
+	if err := l.Read(ctx, func(q dbx.Querier) error { return q.QueryRow(ctx, `SELECT count(*) FROM t`).Scan(&n) }); err != nil || n != 4 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
 }
@@ -177,12 +178,12 @@ func TestGateTimeoutIsBusy(t *testing.T) {
 	go func() {
 		l, _ := m.Acquire(ctx, id)
 		defer l.Release()
-		_ = l.Write(ctx, Background, func(*sqlitex.Tx) error { close(started); <-hold; return nil })
+		_ = l.Write(ctx, Background, func(dbx.Tx) error { close(started); <-hold; return nil })
 	}()
 	<-started
 	l, _ := m.Acquire(ctx, id)
 	defer l.Release()
-	err = l.Write(ctx, Interactive, func(*sqlitex.Tx) error { return nil })
+	err = l.Write(ctx, Interactive, func(dbx.Tx) error { return nil })
 	close(hold)
 	if fe := fault.Classify(err); fe.Code != fault.WorkspaceBusy {
 		t.Fatalf("want WORKSPACE_BUSY, got %v", err)
@@ -198,7 +199,7 @@ func TestConcurrentAcquireReleaseLRU(t *testing.T) {
 	}
 	// Warm up lazily-initialised runtime/driver state before measuring FDs.
 	l, _ := m.Acquire(ctx, wsIDs[0])
-	_ = l.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, "SELECT 1").Scan(new(int)) })
+	_ = l.Read(ctx, func(q dbx.Querier) error { return q.QueryRow(ctx, "SELECT 1").Scan(new(int)) })
 	l.Release()
 	baseline := countFDs(t)
 
@@ -217,12 +218,12 @@ func TestConcurrentAcquireReleaseLRU(t *testing.T) {
 					return
 				}
 				if i%2 == 0 {
-					err = l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+					err = l.Write(ctx, Interactive, func(tx dbx.Tx) error {
 						_, err := tx.Exec(ctx, `INSERT INTO t(v) VALUES (?)`, g)
 						return err
 					})
 				} else {
-					err = l.Read(ctx, func(q sqlitex.Querier) error {
+					err = l.Read(ctx, func(q dbx.Querier) error {
 						return q.QueryRow(ctx, `SELECT count(*) FROM t`).Scan(new(int))
 					})
 				}
@@ -304,7 +305,7 @@ func TestExclusiveDrainsAndBlocksAcquire(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reopened and usable.
-	if err := owner.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+	if err := owner.Write(ctx, Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO t(v) VALUES (1)`)
 		return err
 	}); err != nil {
@@ -330,7 +331,7 @@ func TestExclusiveDrainTimeout(t *testing.T) {
 		t.Fatalf("want WORKSPACE_BUSY, got %v", err)
 	}
 	// Back to normal afterwards.
-	if err := other.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, "SELECT 1").Scan(new(int)) }); err != nil {
+	if err := other.Read(ctx, func(q dbx.Querier) error { return q.QueryRow(ctx, "SELECT 1").Scan(new(int)) }); err != nil {
 		t.Fatal(err)
 	}
 	l, err := m.Acquire(ctx, id)

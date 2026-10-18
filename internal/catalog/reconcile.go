@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"abidata/internal/sqlitex"
+	"abidata/internal/dbx"
 )
 
 // Reconcile compares the catalog snapshot against the physical schema (D5) and
 // returns human-readable drift descriptions (empty when consistent).
-func Reconcile(ctx context.Context, q sqlitex.Querier, s *Schema) ([]string, error) {
+func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) {
 	var drift []string
 	for _, t := range s.Tables {
 		rows, err := q.Query(ctx, `SELECT name, hidden FROM pragma_table_xinfo(?)`, t.PhysicalName)

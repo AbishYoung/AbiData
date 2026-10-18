@@ -14,6 +14,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/query"
 	"abidata/internal/script"
@@ -178,7 +179,7 @@ func params(r *script.Run, L *lua.LState, i int) []any {
 	})
 	sort.Strings(keys)
 	for _, k := range keys {
-		out = append(out, sqlitex.Named{Name: ":" + k, Value: vals[k]})
+		out = append(out, dbx.Named{Name: ":" + k, Value: vals[k]})
 	}
 	return out
 }
@@ -202,11 +203,20 @@ func withConn(r *script.Run, L *lua.LState, write bool, fn func(ctx context.Cont
 	run := func(ctx context.Context, c *sqlitex.Conn) error {
 		return c.WithAuthorizer(pol.Authorizer(&denial), func() error { return fn(ctx, c) })
 	}
+	// dialect: sqlite. Raw db.query/db.exec strings are SQLite SQL, vetted by
+	// its authorizer (ADR 0013 §8 adds a neutral builder).
+	onTx := func(ctx context.Context, tx dbx.Tx) error {
+		c, ok := sqlitex.ConnOf(tx)
+		if !ok {
+			return fmt.Errorf("db: raw SQL needs a SQLite connection, got %T", tx)
+		}
+		return run(ctx, c)
+	}
 	var err error
 	if tx, tctx, ok := d.Tx(); ok {
-		err = run(tctx, tx.Conn)
+		err = onTx(tctx, tx)
 	} else if write {
-		err = d.Lease.Write(r.Ctx, priority(r), func(tx *sqlitex.Tx) error { return run(r.Ctx, tx.Conn) })
+		err = d.Lease.Write(r.Ctx, priority(r), func(tx dbx.Tx) error { return onTx(r.Ctx, tx) })
 	} else {
 		err = d.Lease.ReadConn(r.Ctx, func(c *sqlitex.Conn) error { return run(r.Ctx, c) })
 	}
@@ -296,8 +306,10 @@ func readValues(r *script.Run, L *lua.LState, sql string, args []any) lua.LValue
 			return err
 		}
 		defer rows.Close()
-		if rows.Next() && rows.ColumnCount() > 0 {
-			out = toLua(r, rows.Value(0))
+		if rows.Next() {
+			if v := rows.Values(); len(v) > 0 {
+				out = toLua(r, v[0])
+			}
 		}
 		return rows.Err()
 	})
@@ -312,12 +324,12 @@ func checkWrite(r *script.Run, L *lua.LState) *host.Data {
 	return d
 }
 
-func execSQL(r *script.Run, L *lua.LState, sql string, args []any) sqlitex.Result {
+func execSQL(r *script.Run, L *lua.LState, sql string, args []any) dbx.Result {
 	d := checkWrite(r, L)
 	if err := query.CheckDML(sql); err != nil {
 		r.RaiseFault(err)
 	}
-	var res sqlitex.Result
+	var res dbx.Result
 	var touched []string
 	withConn(r, L, true, func(ctx context.Context, c *sqlitex.Conn) error {
 		desc, err := c.Describe(ctx, sql)
@@ -390,7 +402,7 @@ func transaction(r *script.Run, L *lua.LState) int {
 	defer cancel()
 	nret := 0
 	var luaErr error
-	err := d.Lease.Write(tctx, priority(r), func(tx *sqlitex.Tx) error {
+	err := d.Lease.Write(tctx, priority(r), func(tx dbx.Tx) error {
 		d.SetTx(tctx, tx)
 		// The block's budget applies to Lua instructions too.
 		prev := L.Context()

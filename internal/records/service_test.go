@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -140,7 +140,7 @@ func TestOCCConcurrentUpdates(t *testing.T) {
 		t.Fatalf("ok=%d conflict=%d", ok.Load(), conflict.Load())
 	}
 	// A raw UPDATE without a version bump still increments _version (safety-net trigger).
-	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(e.ctx, `UPDATE Customers SET Name = 'raw' WHERE id = ?`, r.ID)
 		return err
 	}); err != nil {
@@ -220,7 +220,7 @@ func TestConstraintTranslationAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ops []string
-	_ = e.l.Read(e.ctx, func(q sqlitex.Querier) error {
+	_ = e.l.Read(e.ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(e.ctx, `SELECT op FROM _sys_row_history WHERE row_id = ? ORDER BY id`, r.ID)
 		if err != nil {
 			return err

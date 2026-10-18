@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -42,7 +42,7 @@ type Service struct {
 // List returns a workspace's jobs.
 func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Job, error) {
 	var out []Job
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var err error
 		out, err = ReadJobs(ctx, q, "")
 		return err
@@ -56,7 +56,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Job, error) {
 // Get returns one job.
 func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Job, error) {
 	var out []Job
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var err error
 		out, err = ReadJobs(ctx, q, id)
 		return err
@@ -73,10 +73,10 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Job, 
 // ByName returns a job by its (case-insensitive) name.
 func (s *Service) ByName(ctx context.Context, l *workspace.Lease, name string) (Job, error) {
 	var id string
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		return q.QueryRow(ctx, `SELECT id FROM _sys_jobs WHERE name = ? COLLATE NOCASE`, name).Scan(&id)
 	})
-	if sqlitex.IsNoRows(err) {
+	if dbx.IsNoRows(err) {
 		return Job{}, fault.Newf(fault.NotFound, "There is no job named %q.", name)
 	}
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *Service) normalize(ctx context.Context, l *workspace.Lease, in JobInput
 
 func readTZ(ctx context.Context, l *workspace.Lease) string {
 	var name string
-	_ = l.Read(ctx, func(q sqlitex.Querier) error {
+	_ = l.Read(ctx, func(q dbx.Querier) error {
 		return q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'timezone'`).Scan(&name)
 	})
 	if name == "" {
@@ -162,8 +162,8 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 		return Job{}, err
 	}
 	enabled := in.Enabled == nil || *in.Enabled
-	now := sqlitex.Now()
-	err = l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	now := dbx.Now()
+	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var sched any
 		if in.Schedule != "" {
 			sched = in.Schedule
@@ -204,7 +204,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 	return out, nil
 }
 
-func conflictOrMissing(ctx context.Context, tx *sqlitex.Tx, id string) error {
+func conflictOrMissing(ctx context.Context, tx dbx.Tx, id string) error {
 	var n int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM _sys_jobs WHERE id = ?`, id).Scan(&n); err != nil {
 		return err
@@ -217,7 +217,7 @@ func conflictOrMissing(ctx context.Context, tx *sqlitex.Tx, id string) error {
 
 // Delete removes a job and its run history.
 func (s *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		res, err := tx.Exec(ctx, `DELETE FROM _sys_jobs WHERE id = ? AND version = ?`, id, expectedVersion)
 		if err != nil {
 			return err
@@ -248,7 +248,7 @@ func (s *Service) changed(ctx context.Context, ws ids.WorkspaceID, data map[stri
 // Runs lists a job's runs, newest first.
 func (s *Service) Runs(ctx context.Context, l *workspace.Lease, jobID string, limit int, before time.Time) ([]Run, error) {
 	var out []Run
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var err error
 		out, err = ReadRuns(ctx, q, jobID, limit, before)
 		return err
@@ -262,7 +262,7 @@ func (s *Service) Runs(ctx context.Context, l *workspace.Lease, jobID string, li
 // GetRun returns one run with its log.
 func (s *Service) GetRun(ctx context.Context, l *workspace.Lease, runID string) (Run, error) {
 	var out Run
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT `+RunCols+` FROM _sys_job_runs WHERE id = ?`, runID)
 		if err != nil {
 			return err

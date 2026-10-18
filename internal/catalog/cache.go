@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"sync"
 
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -24,7 +24,7 @@ func NewCache() *Cache { return &Cache{m: map[ids.WorkspaceID]*Schema{}} }
 // and must be treated as read-only.
 func (c *Cache) Get(ctx context.Context, l *workspace.Lease) (*Schema, error) {
 	var s *Schema
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var v string
 		if err := q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'schema_version'`).Scan(&v); err != nil {
 			return err

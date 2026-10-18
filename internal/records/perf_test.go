@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -41,7 +41,7 @@ func TestPerfMillionRowPageFetch(t *testing.T) {
 		catalog.Apply, catalog.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 1000000)
 			INSERT INTO Big(Name, Amount, Note) SELECT printf('name-%07d', (i * 7919) % 1000000), i * 10000, 'note ' || i FROM n`)
 		return err

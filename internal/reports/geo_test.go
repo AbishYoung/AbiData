@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/forms"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -42,7 +42,7 @@ func TestGeoInReports(t *testing.T) {
 	sch, _ := f.svc.Schemas.Get(f.ctx, f.l)
 	tbl, _ := sch.TableByPhysical("Sightings")
 	// A 0.01° square at the equator: about 1.236 km² on the sphere.
-	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `INSERT INTO Sightings(Species, Location, Zone) VALUES ('Knotweed', '{"type":"Point","coordinates":[-0.1418923,51.5013512]}',
 			'{"type":"Polygon","coordinates":[[[0,0],[0.01,0],[0.01,0.01],[0,0.01],[0,0]]]}')`)
 		return err

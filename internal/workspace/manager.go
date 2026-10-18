@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
@@ -485,7 +486,7 @@ func (m *Manager) ReapplyQuota(ctx context.Context, id ids.WorkspaceID) error {
 		return err
 	}
 	defer l.Release()
-	return l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+	return l.Write(ctx, Interactive, func(tx dbx.Tx) error {
 		// 0 means unlimited; SQLite's maximum page count restores that.
 		if pages <= 0 {
 			pages = 4294967294

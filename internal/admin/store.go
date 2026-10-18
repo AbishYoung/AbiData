@@ -12,10 +12,11 @@ import (
 	"strings"
 	"sync"
 
+	"abidata/internal/dbx"
 	"abidata/internal/sqlitex"
 )
 
-//go:embed migrations/*.sql
+//go:embed migrations/sqlite/*.sql
 var migrationFS embed.FS
 
 // ApplicationID marks admin DB files ("ABAD").
@@ -65,7 +66,7 @@ func (s *Store) migrate(ctx context.Context) error {
 	if appID != 0 && appID != ApplicationID {
 		return fmt.Errorf("admin: %s is not an AbiData admin database", s.path)
 	}
-	names, err := fs.Glob(migrationFS, "migrations/*.sql")
+	names, err := fs.Glob(migrationFS, "migrations/sqlite/*.sql")
 	if err != nil {
 		return err
 	}
@@ -81,14 +82,14 @@ func (s *Store) migrate(ctx context.Context) error {
 		script := fmt.Sprintf("BEGIN IMMEDIATE;\n%s\nPRAGMA application_id=%d;\nPRAGMA user_version=%d;\nCOMMIT;", body, ApplicationID, i+1)
 		if err := s.writer.ExecScript(ctx, script); err != nil {
 			_ = s.writer.ExecScript(context.Background(), "ROLLBACK")
-			return fmt.Errorf("admin: migration %s: %w", strings.TrimPrefix(names[i], "migrations/"), err)
+			return fmt.Errorf("admin: migration %s: %w", strings.TrimPrefix(names[i], "migrations/sqlite/"), err)
 		}
 	}
 	return nil
 }
 
 // Read runs fn on a reader connection.
-func (s *Store) Read(ctx context.Context, fn func(c *sqlitex.Conn) error) error {
+func (s *Store) Read(ctx context.Context, fn func(q dbx.Querier) error) error {
 	select {
 	case c := <-s.readers:
 		defer func() {
@@ -107,15 +108,15 @@ func (s *Store) Read(ctx context.Context, fn func(c *sqlitex.Conn) error) error 
 }
 
 // Write runs fn in a BEGIN IMMEDIATE transaction on the writer.
-func (s *Store) Write(ctx context.Context, fn func(tx *sqlitex.Tx) error) error {
+func (s *Store) Write(ctx context.Context, fn func(tx dbx.Tx) error) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	return s.writer.Immediate(ctx, fn)
+	return s.writer.Immediate(ctx, func(tx *sqlitex.Tx) error { return fn(tx) })
 }
 
 // Ping verifies the DB answers (readyz).
 func (s *Store) Ping(ctx context.Context) error {
-	return s.Read(ctx, func(c *sqlitex.Conn) error {
+	return s.Read(ctx, func(c dbx.Querier) error {
 		var one int
 		return c.QueryRow(ctx, "SELECT 1").Scan(&one)
 	})

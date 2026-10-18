@@ -17,6 +17,7 @@ import (
 
 	"abidata/internal/admin"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
@@ -101,7 +102,7 @@ func (e *env) exec(ws ids.WorkspaceID, sql string, args ...any) {
 	e.t.Helper()
 	l := e.lease(ws)
 	defer l.Release()
-	if err := l.Write(e.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(e.ctx, sql, args...)
 		return err
 	}); err != nil {
@@ -309,7 +310,7 @@ func TestBackupUnderLoad(t *testing.T) {
 			defer l.Release()
 			for i := 0; !stop.Load(); i++ {
 				amt := int64(w*1000 + i%97)
-				err := l.Write(e.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+				err := l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 					if _, err := tx.Exec(e.ctx, `INSERT INTO ledger (amount, note) VALUES (?, ?)`, amt, strings.Repeat("x", 200)); err != nil {
 						return err
 					}

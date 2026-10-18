@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/records"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -33,7 +33,7 @@ func TestPerfUpsertUnderInteractiveWrites(t *testing.T) {
 	if raceEnabled {
 		total = 40_000
 	}
-	if err := e.l.Write(e.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := e.l.Write(e.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(e.ctx, fmt.Sprintf(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < %d)
 			INSERT INTO Parts(SKU, Qty, Price, Note) SELECT 'SKU-' || i, 0, 0, 'old' FROM n`, total/2))
 		return err
