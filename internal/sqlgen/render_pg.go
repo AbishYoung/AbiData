@@ -108,13 +108,22 @@ func (r *renderer) pgText(e Expr) {
 	}
 }
 
-// pgMatchSubject renders the text a LIKE or GLOB tests. Text columns use a
-// nondeterministic collation (ADR 0012 §4), which LIKE does not accept before
-// PostgreSQL 18; the match itself states its case rule (LIKE or ILIKE), so
-// the subject is matched under the deterministic default collation.
+// ciCollation is the case-insensitive collation: SQLite's NOCASE, and on
+// PostgreSQL <prefix>_lib's abi_ci (found on the search path).
+func (r *renderer) ciCollation() string {
+	if r.d == Postgres {
+		return "abi_ci"
+	}
+	return "NOCASE"
+}
+
+// pgMatchSubject renders the text a LIKE or GLOB tests under the binary "C"
+// collation, whatever the operand's: the match states its own case rule (LIKE
+// or ILIKE), "C" folds ASCII letters only as SQLite's LIKE does, and LIKE does
+// not accept a nondeterministic collation such as abi_ci before PostgreSQL 18.
 func (r *renderer) pgMatchSubject(e Expr) {
 	r.pgText(e)
-	r.w(` COLLATE "default"`)
+	r.w(` COLLATE "C"`)
 }
 
 func (r *renderer) pgBinary(b Binary) {

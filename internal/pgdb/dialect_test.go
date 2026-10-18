@@ -2,9 +2,10 @@ package pgdb
 
 // ADR 0013 Phase F: differential tests. The same sqlgen model, rendered for
 // SQLite and for PostgreSQL, must give the same answers on the same data. The
-// tables mirror each other the way ADR 0012 §4 maps storage types: text with
-// a case-insensitive collation, yes/no as boolean on PostgreSQL and 0/1 on
-// SQLite, numbers as double precision.
+// tables mirror each other the way the catalog stores user tables: text is
+// binary on both (TEXT on SQLite, COLLATE "C" on PostgreSQL) and only sorting
+// and matching ignore case; yes/no is boolean on PostgreSQL and 0/1 on SQLite;
+// numbers are double precision; dates and geometry are native on PostgreSQL.
 
 import (
 	"context"
@@ -59,9 +60,8 @@ func diffSetup(t *testing.T) *diffEnv {
 	}
 	s := ident(e.a.Schema())
 	for _, q := range []string{
-		`CREATE COLLATION ` + s + `.ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)`,
-		`CREATE TABLE ` + s + `.items (id bigint PRIMARY KEY, name text COLLATE ` + s + `.ci, qty bigint,
-			price double precision, active boolean, note text COLLATE ` + s + `.ci, due date, at timestamptz, pt jsonb, zone jsonb)`,
+		`CREATE TABLE ` + s + `.items (id bigint PRIMARY KEY, name text COLLATE "C", qty bigint,
+			price double precision, active boolean, note text COLLATE "C", due date, at timestamptz, pt jsonb, zone jsonb)`,
 	} {
 		if _, err := d.Exec(ctx, q); err != nil {
 			t.Fatal(err)
@@ -72,8 +72,8 @@ func diffSetup(t *testing.T) *diffEnv {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = lite.Close() })
-	if err := lite.ExecScript(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT COLLATE NOCASE, qty INTEGER,
-		price REAL, active INTEGER, note TEXT COLLATE NOCASE, due TEXT, at TEXT, pt TEXT, zone TEXT) STRICT`); err != nil {
+	if err := lite.ExecScript(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER,
+		price REAL, active INTEGER, note TEXT, due TEXT, at TEXT, pt TEXT, zone TEXT) STRICT`); err != nil {
 		t.Fatal(err)
 	}
 	for i, it := range items {
@@ -272,12 +272,7 @@ func TestExpressionsAgree(t *testing.T) {
 
 // knownDifferences are the rows (1-based) where the engines are allowed to
 // disagree, each for a stated reason (ADR 0013 §9).
-var knownDifferences = map[string][]int{
-	// SQLite's lower and upper change ASCII letters only; PostgreSQL's
-	// follow Unicode.
-	"lower(name)": {6},
-	"upper(note)": {6},
-}
+var knownDifferences = map[string][]int{}
 
 // tolerances loosen the comparison of numbers for an expression. A 1 cm²
 // area's spherical-excess sum cancels almost completely, so the last bits of

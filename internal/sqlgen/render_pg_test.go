@@ -49,8 +49,8 @@ func TestRenderPostgres(t *testing.T) {
 		`"active" = TRUE`:                                                            Binary{Op: OpEq, L: active, R: Lit{Value: true, Type: Boolean}},
 		`CAST("qty" AS text) || '!'`:                                                 Binary{Op: OpConcat, L: qty, R: Lit{Value: "!", Type: Text}},
 		`"price" * 1.5::float8`:                                                      Binary{Op: OpMul, L: price, R: Lit{Value: 1.5, Type: Number}},
-		`"name" COLLATE "default" ILIKE ? ESCAPE '\'`:                                Match{Kind: MatchContains, X: name, Pattern: Arg{Value: "a"}, CI: true},
-		`"name" COLLATE "default" LIKE 'a%' ESCAPE '\'`:                              Match{Kind: MatchStarts, X: name, Pattern: Lit{Value: "a"}},
+		`"name" COLLATE "C" ILIKE ? ESCAPE '\'`:                                      Match{Kind: MatchContains, X: name, Pattern: Arg{Value: "a"}, CI: true},
+		`"name" COLLATE "C" LIKE 'a%' ESCAPE '\'`:                                    Match{Kind: MatchStarts, X: name, Pattern: Lit{Value: "a"}},
 		`CAST(trunc(CAST("price" AS double precision)) AS bigint)`:                   Cast{X: price, Type: Integer},
 		`CASE WHEN "qty" IS NULL OR 2 IS NULL THEN NULL ELSE GREATEST("qty", 2) END`: Func{Name: "max", Args: []Expr{qty, Lit{Value: 2, Type: Integer}}},
 		`CASE WHEN "qty" <> 0 THEN 'y' ELSE 'n' END`:                                 Func{Name: "iif", Args: []Expr{qty, Lit{Value: "y"}, Lit{Value: "n"}}},
@@ -69,9 +69,9 @@ func TestRenderPostgres(t *testing.T) {
 			t.Errorf("got  %s\nwant %s", r.SQL, want)
 		}
 	}
-	// Sorting a case-insensitive column relies on its collation, and OR
+	// A case-insensitive column sorts by <prefix>_lib's abi_ci, and OR
 	// IGNORE has no PostgreSQL equivalent for CHECK failures.
-	if r, err := Render(Postgres, &Select{Columns: []Column{{Expr: name}}, From: Table{Name: "t"}, OrderBy: []Order{{Expr: name, Nulls: NullsLast}}}); err != nil || r.SQL != `SELECT "name" FROM "t" ORDER BY "name" ASC NULLS LAST` {
+	if r, err := Render(Postgres, &Select{Columns: []Column{{Expr: name}}, From: Table{Name: "t"}, OrderBy: []Order{{Expr: name, Nulls: NullsLast}}}); err != nil || r.SQL != `SELECT "name" FROM "t" ORDER BY "name" COLLATE abi_ci ASC NULLS LAST` {
 		t.Errorf("order: %q %v", r.SQL, err)
 	}
 	if _, err := Render(Postgres, &Insert{Table: "t", OrIgnore: true, Columns: []string{"a"}, Rows: [][]Expr{{Arg{Value: 1}}}}); err == nil {

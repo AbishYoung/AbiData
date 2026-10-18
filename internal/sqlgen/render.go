@@ -213,9 +213,8 @@ func (r *renderer) columns(cols []Column) {
 
 func (r *renderer) order(o Order) {
 	r.expr(o.Expr)
-	if c, ok := o.Expr.(Col); ok && c.CI && r.d == SQLite {
-		// On PostgreSQL the column's own collation (ADR 0012 §4) sorts it.
-		r.w(" COLLATE NOCASE")
+	if c, ok := o.Expr.(Col); ok && c.CI {
+		r.w(" COLLATE " + r.ciCollation())
 	}
 	if o.Desc {
 		r.w(" DESC")
@@ -318,8 +317,8 @@ func (r *renderer) insert(s *Insert) {
 			r.w(" (")
 			r.list(len(oc.Target), ", ", func(i int) {
 				r.w(Quote(oc.Target[i].Name))
-				if oc.Target[i].CI && r.d == SQLite {
-					r.w(" COLLATE NOCASE")
+				if oc.Target[i].CI {
+					r.w(" COLLATE " + r.ciCollation())
 				}
 			})
 			r.w(")")
