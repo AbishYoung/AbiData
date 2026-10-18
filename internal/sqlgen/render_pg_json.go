@@ -18,10 +18,56 @@ func pgJSONB(e Expr) bool {
 	case Col:
 		return e.Type == JSON || e.Type == GeoPoint || e.Type == GeoArea || e.Type == Attachments
 	case Func:
-		n := strings.ToLower(e.Name)
-		return n == "json" || n == "json_extract"
+		return pgJSONBFuncs[strings.ToLower(e.Name)]
 	}
 	return false
+}
+
+// pgJSONBFuncs are the functions whose result is jsonb on PostgreSQL.
+var pgJSONBFuncs = map[string]bool{
+	"json": true, "json_extract": true, "json_array": true, "json_object": true, "json_quote": true,
+	"json_insert": true, "json_replace": true, "json_set": true, "json_remove": true, "json_patch": true,
+}
+
+// pgJSONValue renders e as the JSON value SQLite's JSON functions make of an
+// argument. The result of a JSON function is embedded as JSON; anything else,
+// a JSON column's text included, is a JSON number or string. Yes/no is 1 or 0;
+// NULL is SQL NULL (JSON null where the caller says so).
+func (r *renderer) pgJSONValue(e Expr) {
+	t := typeOf(e)
+	switch {
+	case pgExtracted(e):
+		r.w("abi_json_arg(")
+		r.expr(e)
+		r.w(")")
+	case pgJSONB(e):
+		if _, ok := e.(Func); ok {
+			r.expr(e)
+			return
+		}
+		r.w("abi_jv(CAST(")
+		r.pgText(e)
+		r.w(" AS text))")
+	case t == Boolean:
+		r.w("abi_jv(CAST(CAST(")
+		r.expr(e)
+		r.w(" AS integer) AS bigint))")
+	case t.numeric():
+		r.w("abi_jv(CAST(")
+		r.expr(e)
+		r.w(" AS " + pgType(t) + "))")
+	default:
+		r.w("abi_jv(CAST(")
+		r.pgText(e)
+		r.w(" AS text))")
+	}
+}
+
+// pgJSONValueOrNull is pgJSONValue with SQL NULL as JSON null.
+func (r *renderer) pgJSONValueOrNull(e Expr) {
+	r.w("coalesce(")
+	r.pgJSONValue(e)
+	r.w(", 'null'::jsonb)")
 }
 
 // pgExtracted reports whether e is a json_extract call, whose value has no
@@ -159,6 +205,72 @@ func addPGJSONFuncs() {
 		}
 		r.w("abi_json_valid(")
 		r.pgText(args[0])
+		r.w(")")
+	}
+	pgFuncs["json_quote"] = func(r *renderer, args []Expr) { r.pgJSONValueOrNull(args[0]) }
+	pgFuncs["json_array"] = func(r *renderer, args []Expr) {
+		if len(args) == 0 {
+			r.w("'[]'::jsonb")
+			return
+		}
+		r.w("abi_json_array(")
+		r.list(len(args), ", ", func(i int) { r.pgJSONValue(args[i]) })
+		r.w(")")
+	}
+	pgFuncs["json_object"] = func(r *renderer, args []Expr) {
+		if len(args)%2 == 1 {
+			r.fail("json_object takes key and value pairs, not %d arguments", len(args))
+			return
+		}
+		if len(args) == 0 {
+			r.w("'{}'::jsonb")
+			return
+		}
+		r.w("abi_json_object(ARRAY[")
+		for i := 0; i < len(args); i += 2 {
+			if i > 0 {
+				r.w(", ")
+			}
+			r.w("CAST(")
+			r.pgText(args[i])
+			r.w(" AS text)")
+		}
+		r.w("], ARRAY[")
+		for i := 1; i < len(args); i += 2 {
+			if i > 1 {
+				r.w(", ")
+			}
+			r.pgJSONValue(args[i])
+		}
+		r.w("]::jsonb[])")
+	}
+	for _, mode := range []string{"insert", "replace", "set"} {
+		pgFuncs["json_"+mode] = func(r *renderer, args []Expr) {
+			if len(args)%2 == 0 {
+				r.fail("json_%s takes a document and path and value pairs, not %d arguments", mode, len(args))
+				return
+			}
+			r.w("abi_json_edit('" + mode + "', ")
+			asJSONDoc(r, args[0])
+			for i, a := range args[1:] {
+				r.w(", ")
+				if i%2 == 0 {
+					r.w("abi_jv(CAST(")
+					r.pgText(a)
+					r.w(" AS text))")
+				} else {
+					r.pgJSONValueOrNull(a)
+				}
+			}
+			r.w(")")
+		}
+	}
+	pgFuncs["json_remove"] = pgJSONFn("abi_json_remove")
+	pgFuncs["json_patch"] = func(r *renderer, args []Expr) {
+		r.w("abi_json_patch(")
+		asJSONDoc(r, args[0])
+		r.w(", ")
+		asJSONDoc(r, args[1])
 		r.w(")")
 	}
 	pgFuncs["coalesce"] = pgSameType("coalesce")

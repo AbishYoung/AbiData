@@ -285,7 +285,15 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
   - a number written with an exponent comes back in decimal, so `json_type` calls `1e2` an integer;
   - a string compared with a number is read as a number, whereas on SQLite text never equals a number;
   - `ORDER BY` an extracted value sorts in jsonb's type order.
-- **Still pending:** the functions that build or change documents (`json_array`, `json_object`, `json_insert`, `json_replace`, `json_set`, `json_remove`, `json_patch`, `json_quote`) and `json_error_position`.
+- **Building and changing documents (part 4).** `json_array`, `json_object`, `json_quote`, `json_insert`, `json_replace`, `json_set`, `json_remove` and `json_patch` render on PostgreSQL. Arguments follow SQLite's rule:
+  - a JSON function's result is embedded as JSON;
+  - anything else is a JSON number or string, including a JSON column, which SQLite reads as text;
+  - a yes/no is 1 or 0.
+  
+  A path that does not exist yet is created through objects, and through `[0]` or `[#]` for arrays. They are IMMUTABLE, so calculated fields may use them.
+  
+  The comparison tests compare JSON results as JSON values, since jsonb keeps neither key order nor number spelling.
+- **Still pending:** `json_error_position`, which needs a JSON scanner that reports SQLite's error positions.
 
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;

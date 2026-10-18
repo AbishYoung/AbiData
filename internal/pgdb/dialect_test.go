@@ -301,6 +301,19 @@ var expressionCases = []string{
 	"json_type(doc, '$.nested.x[1].y')", "json_type(doc, '$.missing')", "json_array_length(doc)",
 	"json_array_length(doc, '$.tags')", "json_array_length(doc, '$.missing')", "json_valid(doc)", "json_valid(note)",
 	`json_valid('{"a":1}')`, "json_valid(qty)", "json(doc)", `json(' { "a" : [ 1 , 2 ] } ')`, "doc || ''", "length(doc)",
+	"json_array()", "json_array(qty, price, name, active, NULL)", "json_array(json_array(1, 2), doc)",
+	"json_array(json(doc))", "json_array(json_extract(doc, '$.ok'), json_extract(doc, '$.tags'))", "json_array(due, at)",
+	"json_object()", "json_object('q', qty, 'n', name)", "json_object('d', json(doc))", "json_quote(name)", "json_quote(qty)",
+	"json_quote(price)", "json_quote(NULL)", "json_quote(json(doc))", "json_quote(active)",
+	"json_set(doc, '$.n', 9)", "json_set(doc, '$.z', 'new')", "json_set(doc, '$.tags[#]', 'c')", "json_set(doc, '$.tags[0]', qty)",
+	"json_set(doc, '$.a.b.c', 1)", "json_set(doc, '$[0]', 'first')", "json_set(doc, '$', json_array(1))",
+	"json_set(doc, '$.n', 1, '$.m', 2)", "json_set(doc, '$.n', json('[1,2]'))", "json_set(doc, '$.n', NULL)",
+	"json_insert(doc, '$.n', 9)", "json_insert(doc, '$.z', 9)", "json_insert(doc, '$[#]', 9)", "json_insert(doc, '$', 9)",
+	"json_replace(doc, '$.n', 9)", "json_replace(doc, '$.z', 9)", "json_replace(doc, '$[1]', 9)", "json_replace(doc, '$.tags[5]', 9)",
+	"json_remove(doc, '$.n')", "json_remove(doc, '$.tags[0]')", "json_remove(doc, '$.tags[#-1]', '$.ok')", "json_remove(doc, '$[1]')",
+	"json_remove(doc, '$.nested.x[1].y')", "json_remove(doc, '$.missing')", "json_remove(doc, '$')",
+	`json_patch(doc, '{"n":null,"z":{"w":1}}')`, `json_patch(doc, '[1]')`, `json_patch('{"a":{"b":1,"c":2}}', '{"a":{"b":null}}')`,
+	"json_extract(json_set(doc, '$.n', 7), '$.n') + 1", "json_array_length(json_array(qty, price))",
 }
 
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
@@ -319,12 +332,14 @@ func TestExpressionsAgree(t *testing.T) {
 			From:    sqlgen.Table{Name: "items"},
 			OrderBy: []sqlgen.Order{{Expr: sqlgen.Col{Name: "id"}}},
 		}
-		e.agree(t, src, stmt, knownDifferences[src]...)
+		e.agreeJSON(t, src, stmt, r.Type == sqlgen.JSON, knownDifferences[src]...)
 	}
 }
 
-// asText compares a JSON result as its text: jsonb reads back as Go values, in
-// which a JSON string and text look alike.
+// asText reads a JSON result as its text: jsonb reads back as Go values, in
+// which a JSON string and text look alike. agreeJSON then compares the texts
+// as JSON values, since jsonb keeps values, not spellings: its keys are in its
+// own order and its numbers in decimal.
 func asText(e sqlgen.Expr, t sqlgen.Type) sqlgen.Expr {
 	if t != sqlgen.JSON {
 		return e
@@ -336,9 +351,6 @@ func asText(e sqlgen.Expr, t sqlgen.Type) sqlgen.Expr {
 // disagree, each for a stated reason (ADR 0013 §9). A "stored " key is the
 // expression as a generated column.
 var knownDifferences = map[string][]int{
-	// jsonb keeps a number's value, not its spelling: 1e-7 reads back as
-	// 0.0000001.
-	"stored geo_bbox(zone)": {6},
 	// A whole double as text: 3 on PostgreSQL, 3.0 on SQLite (the codecs'
 	// number formatting, ADR 0013 §3).
 	"stored json_extract(doc, '$.price') * 2": {1},
@@ -416,6 +428,27 @@ func TestStatementsAgree(t *testing.T) {
 
 func (e *diffEnv) agree(t *testing.T, name string, s sqlgen.Stmt, allowed ...int) {
 	t.Helper()
+	e.agreeJSON(t, name, s, false, allowed...)
+}
+
+// sameJSON compares two JSON texts as values.
+func sameJSON(lite, pg any) (bool, string) {
+	ls, lok := lite.(string)
+	ps, pok := pg.(string)
+	if !lok || !pok {
+		return lite == nil && pg == nil, ""
+	}
+	var lv, pv any
+	if json.Unmarshal([]byte(ls), &lv) != nil || json.Unmarshal([]byte(ps), &pv) != nil {
+		return false, "not JSON"
+	}
+	return reflect.DeepEqual(lv, pv), ""
+}
+
+// agreeJSON is agree; with isJSON the result column (the last) holds JSON
+// text, compared as JSON values.
+func (e *diffEnv) agreeJSON(t *testing.T, name string, s sqlgen.Stmt, isJSON bool, allowed ...int) {
+	t.Helper()
 	lite, pg, pgSQL, err := e.rows(t, s)
 	if err != nil {
 		t.Errorf("%s: PostgreSQL: %v\n%s", name, err, pgSQL)
@@ -427,8 +460,13 @@ func (e *diffEnv) agree(t *testing.T, name string, s sqlgen.Stmt, allowed ...int
 	}
 	var diffs []string
 	for i := range lite {
+		last := len(lite[i]) - 1
 		if slices.Contains(allowed, i+1) {
-			if ok, _ := same(lite[i][1], pg[i][1]); ok {
+			cmp := same
+			if isJSON {
+				cmp = sameJSON
+			}
+			if ok, _ := cmp(lite[i][last], pg[i][last]); ok {
 				diffs = append(diffs, fmt.Sprintf("row %d now agrees; drop it from knownDifferences", i+1))
 			}
 			continue
@@ -438,7 +476,11 @@ func (e *diffEnv) agree(t *testing.T, name string, s sqlgen.Stmt, allowed ...int
 			if !ok {
 				tol = 1e-9
 			}
-			if ok, why := sameWithin(lite[i][j], pg[i][j], tol); !ok {
+			cmp := func(a, b any) (bool, string) { return sameWithin(a, b, tol) }
+			if isJSON && j == last {
+				cmp = sameJSON
+			}
+			if ok, why := cmp(lite[i][j], pg[i][j]); !ok {
 				diffs = append(diffs, fmt.Sprintf("row %d col %d: SQLite %#v, PostgreSQL %#v %s", i+1, j+1, lite[i][j], pg[i][j], why))
 			}
 		}

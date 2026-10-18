@@ -635,9 +635,7 @@ func pgExtreme(fn string, agg AggFn) pgFn {
 
 // pgPending names the catalog functions that do not render on PostgreSQL yet.
 // Phase F part 2 adds them to <prefix>_lib with SQLite's semantics.
-var pgPending = strings.Fields(`timediff
-	json_array json_error_position json_insert json_object json_patch json_quote json_remove json_replace json_set
-	format printf quote typeof unhex`)
+var pgPending = strings.Fields(`timediff json_error_position format printf quote typeof unhex`)
 
 func (r *renderer) pgFunc(def FuncDef, args []Expr) {
 	if def.MaxArgs >= 0 && len(args) > def.MaxArgs || len(args) < def.MinArgs {
