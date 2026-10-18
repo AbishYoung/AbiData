@@ -115,6 +115,9 @@ func TestSharedSQLLayerWidens(t *testing.T) {
 	if p := compute("internal/pgdb/caps.go"); !p.Postgres || p.E2E() {
 		t.Errorf("pgdb: postgres=%v e2e=%v", p.Postgres, p.E2EAreas)
 	}
+	if p := compute("internal/admin/repo_users.go"); !p.Postgres {
+		t.Errorf("admin: postgres=%v", p.Postgres)
+	}
 }
 
 func TestEmbeddedContentBelongsToItsPackage(t *testing.T) {

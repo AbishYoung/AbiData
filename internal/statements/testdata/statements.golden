@@ -23,7 +23,7 @@ admin.DropWorkspace	admin	portable
 admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_at,expires_at,ip,user_agent
 admin.GetSetting	admin	portable	value
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
-admin.ListMembers	admin	sqlite	id,email,display_name,role
+admin.ListMembers	admin	portable	id,email,display_name,role
 admin.ListSettings	admin	portable	key,value
 admin.Ping	admin	portable	1
 admin.PurgeSessions	admin	portable	

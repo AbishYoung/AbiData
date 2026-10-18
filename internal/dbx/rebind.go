@@ -52,6 +52,16 @@ func Rebind(sql string, args []any) (string, []any, error) {
 	return p.sql, out, nil
 }
 
+// RebindText is Rebind's SQL alone, for preparing a statement without its
+// arguments.
+func RebindText(sql string) (string, error) {
+	p, err := parsed(sql)
+	if err != nil {
+		return "", err
+	}
+	return p.sql, nil
+}
+
 type slot struct {
 	pos  int    // 1-based positional arg, or 0
 	name string // named parameter, or ""

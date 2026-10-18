@@ -66,6 +66,12 @@ func (n Names) WriteLogin() string { return n.base() + "_sqlw" }
 // Lib is the install's shared function schema.
 func (n Names) Lib() string { return n.Prefix + "_lib" }
 
+// Admin is the install's admin schema.
+func (n Names) Admin() string { return n.Prefix + "_admin" }
+
+// Ident quotes a PostgreSQL identifier.
+func Ident(s string) string { return ident(s) }
+
 func ident(s string) string { return pgx.Identifier{s}.Sanitize() }
 
 // HardenDatabase removes what PUBLIC may do in the app's database by default.
