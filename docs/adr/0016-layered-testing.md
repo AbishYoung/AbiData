@@ -124,7 +124,7 @@ Every existing guarantee still holds on `main`: the generated-files check, lint,
 | `go test -short ./...` | 14.8 s | 12.6 s |
 | `go test -race -short ./...` | 36.5 s | 32.3 s |
 | `go test -race ./...` (full, cache cleared) | 58.5 s | 50.5 s (the same tests; the difference is machine noise) |
-| e2e, whole suite | 5 min 49 s (1 worker) | 2 min 01 s (4 workers, build included); 1 min 33 s (6 workers, prebuilt) |
+| e2e, whole suite | 5 min 49 s (1 worker) | 3 min 15 s (2 workers), 2 min 01 s (4 workers, build included), 1 min 30 s (6 workers, the default here, build included) |
 | e2e, one area (e.g. a11y + files-geo + apps + reports for a reports change) | the whole suite | 49 s |
 
 Serial test time per area, as a guide for CI shard length: a11y 79 s, automation 41 s, shell 31 s, files-geo 29 s, admin 28 s, forms 24 s, datasheet 21 s, queries 20 s, auth 18 s, reports 15 s, apps 14 s, tables 13 s.
@@ -142,7 +142,9 @@ Serial test time per area, as a guide for CI shard length: a11y 79 s, automation
 - No new dependencies. `tools/testplan` uses only the Go standard library.
 - New specs, new web feature directories and new server packages must be added to `tools/testplan/areas.go`. The tests flag new specs. Unmapped source paths run every area, so forgetting costs time, not coverage.
 - More servers run during e2e: two per worker, each with its own temp directory, removed on exit. Port use is `ABIDATA_E2E_PORT` through `ABIDATA_E2E_PORT + 2 × workers − 1`. `ABIDATA_E2E_DEMO_PORT` is gone.
-- Parallel e2e puts more load on the machine. One timing-sensitive test, `mobile.spec.ts` › drawer navigation, failed once in about five full local runs under heavy load and passed on rerun. The CI retry covers this kind of failure, and the report marks it as flaky so it stays visible.
+- Parallel e2e puts more load on the machine, which exposed two timing races in specs:
+  - `reports-designer.spec.ts` waited too little for a rAF focus. It now waits for the new control's focus, a one-line fix.
+  - `mobile.spec.ts` › drawer navigation failed once in about eight full local runs under heavy load and passed on rerun. It is left as is, since the ADR 0015 UI work owns that spec. The CI retry covers it, and the report marks it as flaky so it stays visible.
 - Follow-ups:
   - `t.Parallel()` in `internal/httpapi`. Its 61 tests run one after another and take about 23 s under race, which makes it the longest package in the fast layer.
   - Moving `httpapi` tests into the per-feature areas once the package is split.
