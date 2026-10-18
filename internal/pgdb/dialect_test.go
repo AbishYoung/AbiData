@@ -338,6 +338,23 @@ var expressionCases = []string{
 	"timediff('2024-02-29 12:00:00', '2023-01-31')", "timediff(due, '2000-01-01')", "timediff('2000-01-01', due)",
 	"timediff(at, at)", "timediff(NULL, due)", "timediff('garbage', due)", "timediff('2026-01-31', '2026-03-01')",
 	"timediff('2026-03-01 00:00:00', '2026-01-31 23:59:59.5')",
+	// printf
+	"printf('%d', qty)", "printf('%5d|', qty)", "printf('%-5d|', qty)", "printf('%05d', qty)", "printf('%+d', qty)",
+	"printf('% d', qty)", "printf('%.3d', qty)", "printf('%,d', qty * 123456789)", "printf('%d', price)", "printf('%d', name)",
+	"printf('%d', '12345678901234567')", "printf('%d', 1e20)", "printf('%x', qty)", "printf('%X', qty * 1000)",
+	"printf('%o', qty)", "printf('%#x', qty)", "printf('%#o', qty)", "printf('%08.3x', qty)",
+	"printf('%f', price)", "printf('%.2f', price)", "printf('%10.3f|', price)", "printf('%-10.1f|', price)",
+	"printf('%010.2f', price)", "printf('%+.1f', price)", "printf('%.0f', price)", "printf('%#.0f', price)",
+	"printf('%.0f', 2.5)", "printf('%.0f', 0.5)", "printf('%.2f', -0.001)", "printf('%.20f', 0.1)", "printf('%f', name)",
+	"printf('%e', price)", "printf('%.3e', price)", "printf('%E', price * 1e10)", "printf('%e', 0)",
+	"printf('%g', price)", "printf('%g', price / 1e7)", "printf('%g', price * 1e10)", "printf('%G', 1e-10)",
+	"printf('%.3g', price)", "printf('%#g', price)", "printf('%g', 100000)", "printf('%g', 1000000)", "printf('%g', 0)",
+	"printf('%s', name)", "printf('%s', qty)", "printf('%s', price)", "printf('%s', active)", "printf('%s', due)",
+	"printf('%.2s', name)", "printf('%10s|', name)", "printf('%-10s|', name)", "printf('%!.2s', name)", "printf('%!10s|', name)",
+	"printf('%q', note)", "printf('%Q', name)", "printf('%w', 'a\"b')", "printf('%c', name)", "printf('%.3c', name)",
+	"printf('%%')", "printf('%s and %d', name, qty)", "printf('%*d|', 6, qty)", "printf('%-*d|', 6, qty)", "printf('%.*f', 1, price)",
+	"printf('%s %s', name)", "printf('%y', qty)", "printf('100%')", "printf(NULL, qty)", "printf('no args')",
+	"format('%d-%s', qty, name)", "printf('%lld', qty)", "printf('%5.1s|', name)",
 }
 
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
@@ -383,6 +400,14 @@ var knownDifferences = map[string][]int{
 	"stored price / 1e7 || ''":                {2, 6, 7},
 	"stored qty * 1.0 || ''":                  {1, 3, 4, 5, 6, 7},
 	"stored json_extract(doc, '$.price') * 2": {1},
+	// PostgreSQL text holds neither a NUL character (printf's %c of NULL) nor
+	// a character cut in half (a byte precision inside a UTF-8 sequence).
+	"printf('%c', name)":            {5},
+	"printf('%.3c', name)":          {5},
+	"printf('%5.1s|', name)":        {6},
+	"stored printf('%c', name)":     {5},
+	"stored printf('%.3c', name)":   {5},
+	"stored printf('%5.1s|', name)": {6},
 }
 
 // tolerances loosen the comparison of numbers for an expression. A 1 cm²

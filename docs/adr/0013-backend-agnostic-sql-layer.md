@@ -303,7 +303,13 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 - **`unhex`** returns `bytea`.
 - **`timediff`** ports date.c's calendar arithmetic.
 - **Recorded difference:** arithmetic with a text operand, or with a `json_extract` value, gives an integer or a double on SQLite depending on the value, but always a double on PostgreSQL. Stored as text, that double is written in PostgreSQL's form.
-- **Still pending:** `printf`/`format` and `json_error_position`.
+- **`printf` and `format` (part 6)** are a `<prefix>_lib` port of SQLite's formatter.
+  - **Conversions:** `d i x X o f e E g G s z q Q w c %`.
+  - **Formatting:** flags, `*` widths and precisions, and byte-counted widths and precisions for text, characters with `!`.
+  - **Arguments** pass as SQLite's text of the value, and each conversion reads its argument back as SQLite does. A double is rounded from its exact value, to at most 16 significant digits.
+  - **Unknown conversions:** one makes the result NULL, as on SQLite.
+  - **Recorded differences:** PostgreSQL text holds neither the NUL character that `%c` writes for NULL, nor a UTF-8 character that a byte precision cuts in half.
+- **Still pending:** `json_error_position`.
 
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;
