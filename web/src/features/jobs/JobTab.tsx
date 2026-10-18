@@ -8,7 +8,9 @@ import { useTabs, useWorkspaceTabs } from "@/app/tabs";
 import { alertBox, badgeSuccess, badgeWarning, btn, btnGhost, btnPrimary, card, eyebrow, input, textarea, label as labelClass } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { ApiError } from "@/lib/api";
-import { listScripts, scriptKeys } from "@/features/scripts/scriptsApi";
+import { createScript, listScripts, scriptKeys, type Script } from "@/features/scripts/scriptsApi";
+import { generate, NO_TEMPLATE, TemplatePicker, type TemplateChoice } from "@/features/scripts/TemplatePicker";
+import { useSchema } from "@/lib/schema";
 import { DeleteJobDialog, RunWithArgsDialog } from "./JobDialogs";
 import {
   formToInput,
@@ -80,6 +82,17 @@ function SavedJob({ ws, jobId, tabKey }: { ws: string; jobId: string; tabKey: st
   );
 }
 
+/** Creates a job script, adding " 2", " 3"… to the name while a script of that name exists. */
+async function createJobScript(ws: string, name: string, source: string): Promise<Script> {
+  for (let n = 1; ; n++) {
+    try {
+      return await createScript(ws, { name: n === 1 ? name : `${name} ${n}`, kind: "job", source });
+    } catch (e) {
+      if (!(e instanceof ApiError && e.code === "DUPLICATE_VALUE") || n >= 20) throw e;
+    }
+  }
+}
+
 const SERVER_FIELDS: Readonly<Record<string, keyof JobFormValues>> = { schedule: "cron", script_id: "script_id", timezone: "timezone" };
 
 function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job | null }) {
@@ -91,6 +104,8 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [runWithArgs, setRunWithArgs] = useState(false);
   const [formError, setFormError] = useState<unknown>(null);
+  // A new job can start from a job template: saving then creates the job script from it first.
+  const [choice, setChoice] = useState<TemplateChoice>(NO_TEMPLATE);
 
   const form = useForm<JobFormValues>({ defaultValues: job ? jobToForm(job) : newJobValues("") });
   const {
@@ -100,6 +115,7 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
     setError,
     clearErrors,
     watch,
+    setValue,
     formState: { errors, isDirty },
   } = form;
   useDirtyGuard(ws, tabKey, isDirty);
@@ -109,13 +125,39 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
   const jobScripts = (scripts.data ?? []).filter((s) => s.kind === "job").sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   const zones = useMemo(() => timeZones(job?.timezone), [job?.timezone]);
   const changedElsewhere = job !== null && job.version !== base;
+  const schema = useSchema(ws, choice.templateId !== "");
+  const fromTemplate = job === null && choice.templateId !== "";
+  const generated = fromTemplate ? generate(choice, schema.data) : null;
+
+  function chooseTemplate(c: TemplateChoice): void {
+    setChoice(c);
+    const g = generate(c, schema.data);
+    const suggestion = g?.template.job;
+    if (!g || !suggestion) return;
+    const opts = { shouldDirty: true, shouldValidate: false } as const;
+    if (form.getValues("name").trim() === "") setValue("name", g.name, opts);
+    setValue("preset", suggestion.preset, opts);
+    if (suggestion.time) setValue("time", suggestion.time, opts);
+    setValue("args", JSON.stringify(suggestion.args, null, 2), opts);
+    clearErrors("script_id");
+  }
 
   const save = useMutation({
     meta: { inline: true },
-    mutationFn: (values: JobFormValues) => {
+    mutationFn: async (values: JobFormValues) => {
       const body = formToInput(values);
-      if (!body) return Promise.reject(new Error("invalid args"));
-      return job ? updateJob(ws, job.id, base, body) : createJob(ws, body);
+      if (!body) throw new Error("invalid args");
+      if (job) return updateJob(ws, job.id, base, body);
+      if (fromTemplate) {
+        if (!generated) throw new Error("template needs a table");
+        const script = await createJobScript(ws, body.name, generated.source);
+        // From here on the job uses the new script, so a failed job save is not retried with a second copy.
+        void qc.invalidateQueries({ queryKey: scriptKeys.all(ws) });
+        setChoice(NO_TEMPLATE);
+        setValue("script_id", script.id);
+        body.script_id = script.id;
+      }
+      return createJob(ws, body);
     },
     onSuccess: (saved) => {
       setFormError(null);
@@ -151,6 +193,10 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
 
   function submit(): void {
     setFormError(null);
+    if (fromTemplate && !generated) {
+      setFormError(new ApiError({ status: 0, code: "BAD_REQUEST", title: "Choose a table", message: "This template needs a table. Choose one, or start from an existing job script." }));
+      return;
+    }
     void handleSubmit((values) => save.mutate(values))();
   }
 
@@ -256,6 +302,11 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
         >
           <div className={`${card} flex flex-col gap-4 p-4`}>
           <h3 className={`${eyebrow} m-0`}>Basics</h3>
+          {job === null && (
+            <div className="flex flex-col gap-3">
+              <TemplatePicker ws={ws} kinds={["job"]} blankLabel="An existing job script" value={choice} onChange={chooseTemplate} />
+            </div>
+          )}
           {field(
             "name",
             "Job name",
@@ -268,7 +319,23 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
             />,
           )}
 
-          {field(
+          {fromTemplate ? (
+            <div>
+              <p className="m-0 text-sm text-fg-muted">
+                {generated
+                  ? `Saving creates a job script named after the job from the “${generated.template.title}” template; open it in Script Studio afterwards to change it.`
+                  : "Choose a table to fill in the template."}
+              </p>
+              {generated && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-sm font-medium">Preview the script</summary>
+                  <pre aria-label="Template script preview" className="mt-2 max-h-72 overflow-auto rounded-md border border-border bg-surface-2 p-2 font-mono text-xs">
+                    {generated.source}
+                  </pre>
+                </details>
+              )}
+            </div>
+          ) : field(
             "script_id",
             "Job script",
             <div className="flex gap-2">
@@ -277,7 +344,7 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
                 className={input}
                 aria-invalid={errors.script_id ? true : undefined}
                 aria-describedby={describe("script_id", "script_id-hint")}
-                {...register("script_id", { validate: (x) => (x === "" ? "Choose a job script." : true) })}
+                {...register("script_id", { validate: (x) => (x === "" && !fromTemplate ? "Choose a job script." : true) })}
               >
                 <option value="">Choose a job script…</option>
                 {jobScripts.map((s) => (
@@ -301,7 +368,7 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
               </button>
             </div>,
             scripts.isSuccess && jobScripts.length === 0
-              ? "There are no job scripts yet. Create one under Scripts → New script, kind Job."
+              ? "There are no job scripts yet. Start from a template above, or create one under Scripts → New script, kind Job."
               : "Only scripts of kind Job can be scheduled.",
           )}
 
