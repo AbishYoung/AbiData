@@ -10,12 +10,14 @@ import (
 
 type fakeProvisioner struct {
 	calls   int
+	kinds   []demo.Kind
 	started chan struct{}
 	release chan struct{}
 }
 
-func (f *fakeProvisioner) ProvisionAll(context.Context) (demo.Provisioned, error) {
+func (f *fakeProvisioner) ProvisionAll(_ context.Context, kind demo.Kind) (demo.Provisioned, error) {
 	f.calls++
+	f.kinds = append(f.kinds, kind)
 	if f.started != nil {
 		close(f.started)
 		<-f.release
@@ -32,11 +34,20 @@ func TestAdminProvisionDemos(t *testing.T) {
 	e.user("editor@example.com", false)
 	const path = "/api/v1/admin/demo-workspaces"
 
-	if st, body, _ := e.login("editor@example.com").do("POST", path, nil); st != 403 || fake.calls != 0 {
+	traders := map[string]any{"kind": "traders"}
+	if st, body, _ := e.login("editor@example.com").do("POST", path, traders); st != 403 || fake.calls != 0 {
 		t.Fatalf("non-admin: status %d (%v), %d calls; want 403 and no run", st, body, fake.calls)
 	}
 	adm := e.login("admin@example.com")
-	st, body, _ := adm.do("POST", path, nil)
+	for _, bad := range []map[string]any{nil, {"kind": "everything"}} {
+		if st, body, _ := adm.do("POST", path, bad); st != 400 && st != 422 {
+			t.Errorf("kind %v: status %d (%v), want a validation error", bad, st, body)
+		}
+	}
+	if fake.calls != 0 {
+		t.Fatalf("an invalid kind ran the provisioner %d times", fake.calls)
+	}
+	st, body, _ := adm.do("POST", path, traders)
 	if st != 200 {
 		t.Fatalf("admin: status %d (%v)", st, body)
 	}
@@ -55,21 +66,21 @@ func TestAdminProvisionDemos(t *testing.T) {
 	// A second press while a run is in progress is refused, not run twice.
 	fake.started, fake.release = make(chan struct{}), make(chan struct{})
 	done := make(chan int)
-	go func() { st, _, _ := adm.do("POST", path, nil); done <- st }()
+	go func() { st, _, _ := adm.do("POST", path, map[string]any{"kind": "invasives"}); done <- st }()
 	<-fake.started
-	if st, body, _ := adm.do("POST", path, nil); st != 503 {
+	if st, body, _ := adm.do("POST", path, traders); st != 503 {
 		t.Errorf("concurrent run: status %d (%v), want 503", st, body)
 	}
 	close(fake.release)
 	if st := <-done; st != 200 {
 		t.Errorf("first run: status %d", st)
 	}
-	if fake.calls != 2 {
-		t.Errorf("ProvisionAll ran %d times, want 2", fake.calls)
+	if fake.calls != 2 || fake.kinds[0] != demo.Traders || fake.kinds[1] != demo.Invasives {
+		t.Errorf("ProvisionAll ran %d times with %v, want traders then invasives", fake.calls, fake.kinds)
 	}
 
 	e.s.deps.Demo = nil
-	if st, _, _ := adm.do("POST", path, nil); st != 404 {
+	if st, _, _ := adm.do("POST", path, traders); st != 404 {
 		t.Errorf("without a provisioner: status %d, want 404", st)
 	}
 }

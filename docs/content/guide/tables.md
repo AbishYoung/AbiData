@@ -171,6 +171,8 @@ Click a cell, or move with the arrow keys. Press `Enter` or `F2` to edit the cel
 - The empty row at the bottom adds a new record. `Mod+Shift+N` jumps to it.
 - To delete records, click a row header to select a record. `Shift+click` selects a range, and `Ctrl+click` (`⌘ click` on Mac) adds one. Then press `Delete` or choose **Delete record** in the toolbar. AbiData asks you to confirm.
 
+Right-click a cell for its actions: **Copy**, **Paste**, **Edit cell**, sorting, **Filter by selection**, **Record history**, **New record** and **Delete record**. Right-click a column heading to sort it or move it left or right. `Mod+C` copies the current cell, and `Mod+V` pastes into it. The context-menu key or `Shift+F10` opens the same menu from the keyboard. A cell you are editing keeps your browser's own menu.
+
 See [Keyboard shortcuts](/docs/reference/shortcuts) for more.
 
 Other people's changes appear live. The status bar shows **Updates: Live** while the connection works.

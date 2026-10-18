@@ -10,7 +10,7 @@ AbiData is a self-hosted database application platform for teams, in the spirit 
 
 ## Features
 
-On first setup AbiData creates a **Northwind Traders** sample workspace (employees, customers, products, orders, saved queries, forms, reports and a scheduled job) plus an **invasive species** scenario (supplier farms, sightings with GPS positions and photos, quarantine zones drawn as fences on a map, spatial queries and a report with maps), and every screenshot below comes from it.
+On first setup AbiData creates two sample workspaces: **Northwind Traders** (employees, customers, products, orders, saved queries, a form, a report and a scheduled job) and **Northwind Invasives** (supplier farms, invasive species sightings with GPS positions and photos, quarantine zones drawn as fences on a map, spatial queries and a report with maps). Every screenshot below comes from them.
 
 ### Data
 
@@ -158,7 +158,7 @@ docker compose logs abidata | grep setup_token
 # for the development stack: docker compose -p abidata-dev -f compose.yaml -f compose.dev.yaml logs abidata | grep setup_token
 ```
 
-Open the site, paste the token, choose a display name and a password of at least 10 characters. The account uses the configured email. When setup finishes, AbiData also creates the **Northwind Traders** sample workspace and makes you its owner. Set `ABIDATA_DEMO_WORKSPACE=false` before the first start to skip it.
+Open the site, paste the token, choose a display name and a password of at least 10 characters. The account uses the configured email. When setup finishes, AbiData also creates the **Northwind Traders** and **Northwind Invasives** sample workspaces and makes you their owner. Set `ABIDATA_DEMO_WORKSPACE=false` before the first start to skip it.
 
 Details, including the volumes, proxy settings and the command-line alternative for creating the first administrator, are in [Install](docs/content/operations/install.md). Every setting is in [Configuration](docs/content/operations/configuration.md).
 
@@ -263,7 +263,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 
 - **Go**: `go test -race ./...` covers the server packages, including the demo workspace.
 - **Web**: Vitest unit and component tests in `web/`.
-- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`. `make e2e` builds the web app and the server, starts the server on port 18080 (set `ABIDATA_E2E_PORT` to change it) with a fresh data directory, plus a second one on the next port that has the Northwind Traders sample workspace for `invasive-species.spec.ts`, and runs the desktop suite on Chromium plus the phone suite on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
+- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`. `make e2e` builds the web app and the server, starts the server on port 18080 (set `ABIDATA_E2E_PORT` to change it) with a fresh data directory, plus a second one on the next port that has the two sample workspaces for `invasive-species.spec.ts` and `demo-provision.spec.ts`, and runs the desktop suite on Chromium plus the phone suite on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
 
 ### Screenshots
 

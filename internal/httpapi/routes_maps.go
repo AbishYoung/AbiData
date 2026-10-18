@@ -216,6 +216,11 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		h.Set("Content-Security-Policy", s.csp(r.Context()))
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
+		if strings.HasPrefix(r.URL.Path, "/a/") {
+			// A public app's page carries its secret link in the URL (ADR 0014).
+			h.Set("Referrer-Policy", "no-referrer")
+			h.Set("X-Robots-Tag", "noindex, nofollow")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

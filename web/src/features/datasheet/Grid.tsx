@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type Ref } from "react";
+import { useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent, type MouseEvent as ReactMouseEvent, type PointerEvent, type Ref } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { DropdownMenu } from "radix-ui";
 import {
@@ -57,6 +57,9 @@ export interface GridProps {
   accuracyCol?: Column;
   editorRef: Ref<EditorHandle>;
   onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void;
+  /** Right-click anywhere in the grid (set by the ContextArea around it). */
+  onContextMenu?: (e: ReactMouseEvent) => void;
+  onPaste?: (e: ClipboardEvent<HTMLDivElement>) => void;
   onCellMouseDown: (cell: Cell) => void;
   onCellDoubleClick: (cell: Cell) => void;
   onRowHeaderClick: (index: number, e: MouseEvent) => void;
@@ -382,6 +385,8 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
       aria-activedescendant={activeRendered ? cellId(gridId, active.row, active.col) : undefined}
       tabIndex={0}
       onKeyDown={props.onKeyDown}
+      onContextMenu={props.onContextMenu}
+      onPaste={props.onPaste}
       className="relative min-h-0 flex-1 overflow-auto bg-surface"
     >
       <div role="rowgroup" className="sticky top-0 z-20" style={{ width: totalWidth, height: HEADER_HEIGHT }}>

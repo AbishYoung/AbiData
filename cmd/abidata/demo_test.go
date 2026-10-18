@@ -132,8 +132,9 @@ func buildBinary(t *testing.T) string {
 }
 
 // TestSetupCreatesDemoWorkspace: on a fresh install the first-run setup also
-// creates the Northwind Traders workspace, owned by the new administrator, with
-// its tables, rows and saved queries; `abidata demo` is then a no-op.
+// creates the Northwind Traders and Northwind Invasives workspaces, owned by the
+// new administrator, with their tables, rows and saved queries; `abidata demo`
+// is then a no-op.
 func TestSetupCreatesDemoWorkspace(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the binary")
@@ -142,37 +143,50 @@ func TestSetupCreatesDemoWorkspace(t *testing.T) {
 	s := newDemoServer(t, bin)
 	s.start()
 	ms := s.setup()
-	if len(ms) != 1 {
+	if len(ms) != 2 {
 		t.Fatalf("memberships after setup: %v", ms)
 	}
-	mem := ms[0].(map[string]any)
-	if mem["workspace_name"] != "Northwind Traders" || mem["role"] != "owner" {
-		t.Fatalf("membership: %v", mem)
+	byName := map[string]string{}
+	for _, m := range ms {
+		mem := m.(map[string]any)
+		if mem["role"] != "owner" {
+			t.Fatalf("membership: %v", mem)
+		}
+		byName[mem["workspace_name"].(string)] = mem["workspace_id"].(string)
 	}
-	ws := mem["workspace_id"].(string)
+	ws, inv := byName["Northwind Traders"], byName["Northwind Invasives"]
+	if ws == "" || inv == "" {
+		t.Fatalf("memberships after setup: %v", ms)
+	}
 
-	st, sch := s.do("GET", "/api/v1/w/"+ws+"/schema", nil)
-	if st != 200 {
-		t.Fatalf("schema: %d", st)
-	}
-	want := map[string]int{"Customers": 25, "Products": 20, "Orders": 60, "Employees": 6, "Order lines": 60,
-		"Suppliers": 6, "Species": 6, "Pest sightings": 40, "Quarantine zones": 3}
-	tables := map[string]string{}
-	for _, x := range sch["tables"].([]any) {
-		tm := x.(map[string]any)
-		tables[tm["display_name"].(string)] = tm["id"].(string)
-	}
-	for name, min := range want {
-		id, ok := tables[name]
-		if !ok {
-			t.Errorf("table %q missing; have %v", name, tables)
-			continue
+	checkTables := func(ws string, want map[string]int) {
+		t.Helper()
+		st, sch := s.do("GET", "/api/v1/w/"+ws+"/schema", nil)
+		if st != 200 {
+			t.Fatalf("schema: %d", st)
 		}
-		st, c := s.do("GET", "/api/v1/w/"+ws+"/tables/"+id+"/rows/count", nil)
-		if n, _ := c["count"].(float64); st != 200 || int(n) < min {
-			t.Errorf("%s: status %d count %v, want >= %d", name, st, c["count"], min)
+		tables := map[string]string{}
+		for _, x := range sch["tables"].([]any) {
+			tm := x.(map[string]any)
+			tables[tm["display_name"].(string)] = tm["id"].(string)
+		}
+		if len(tables) != len(want) {
+			t.Errorf("tables %v, want exactly %v", tables, want)
+		}
+		for name, min := range want {
+			id, ok := tables[name]
+			if !ok {
+				t.Errorf("table %q missing; have %v", name, tables)
+				continue
+			}
+			st, c := s.do("GET", "/api/v1/w/"+ws+"/tables/"+id+"/rows/count", nil)
+			if n, _ := c["count"].(float64); st != 200 || int(n) < min {
+				t.Errorf("%s: status %d count %v, want >= %d", name, st, c["count"], min)
+			}
 		}
 	}
+	checkTables(ws, map[string]int{"Customers": 25, "Products": 20, "Orders": 60, "Employees": 6, "Order lines": 60})
+	checkTables(inv, map[string]int{"Suppliers": 6, "Species": 6, "Pest sightings": 40, "Quarantine zones": 3})
 
 	st, ql := s.do("GET", "/api/v1/w/"+ws+"/queries", nil)
 	if st != 200 {
@@ -229,9 +243,20 @@ func TestDemoDisabledAndCLI(t *testing.T) {
 	if out, err := cli.CombinedOutput(); err == nil || !strings.Contains(string(out), "no user has the email") {
 		t.Fatalf("unknown owner: %v %s", err, out)
 	}
+	cli = exec.Command(bin, "demo", "--owner", "admin@example.com", "--kind", "everything")
+	cli.Env = s.env
+	if out, err := cli.CombinedOutput(); err == nil || !strings.Contains(string(out), "unknown demo") {
+		t.Fatalf("unknown kind: %v %s", err, out)
+	}
+	cli = exec.Command(bin, "demo", "--owner", "admin@example.com", "--kind", "invasives")
+	cli.Env = s.env
+	if out, err := cli.CombinedOutput(); err != nil || !strings.Contains(string(out), `created workspace "Northwind Invasives"`) || strings.Contains(string(out), "Traders") {
+		t.Fatalf("abidata demo --kind invasives: %v %s", err, out)
+	}
 	cli = exec.Command(bin, "demo", "--owner", "admin@example.com")
 	cli.Env = s.env
-	if out, err := cli.CombinedOutput(); err != nil || !strings.Contains(string(out), "created workspace") {
+	if out, err := cli.CombinedOutput(); err != nil || !strings.Contains(string(out), `created workspace "Northwind Traders"`) ||
+		!strings.Contains(string(out), `"Northwind Invasives" already exists`) {
 		t.Fatalf("abidata demo: %v %s", err, out)
 	}
 
@@ -241,7 +266,7 @@ func TestDemoDisabledAndCLI(t *testing.T) {
 	if st != 200 {
 		t.Fatalf("login: %d %v", st, me)
 	}
-	if ms, _ := me["memberships"].([]any); len(ms) != 1 {
+	if ms, _ := me["memberships"].([]any); len(ms) != 2 {
 		t.Fatalf("memberships: %v", me["memberships"])
 	}
 	s.stop()

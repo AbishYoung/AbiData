@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +49,7 @@ const (
 	RestoreFailed          Code = "RESTORE_FAILED"
 	BackupInvalid          Code = "BACKUP_INVALID"
 	RateLimited            Code = "RATE_LIMITED"
+	AppItemChanged         Code = "APP_ITEM_CHANGED"
 	Internal               Code = "INTERNAL"
 )
 
@@ -89,8 +91,10 @@ var registry = map[Code]Entry{
 	ImportRowErrors: {http.StatusUnprocessableEntity, "Import has row errors", "Some rows could not be imported.", "Review the listed rows, fix the source file or mapping, and try again.", false, false},
 	RestoreFailed:   {http.StatusInternalServerError, "Restore failed", "The restore did not complete. The workspace was returned to its previous state.", "Check the server logs and try again.", false, false},
 	BackupInvalid:   {http.StatusUnprocessableEntity, "Backup invalid", "The backup failed verification and cannot be restored.", "Choose a different backup.", false, false},
-	RateLimited:     {http.StatusTooManyRequests, "Too many requests", "Too many requests were made in a short time.", "Wait a moment and try again.", true, false},
-	Internal:        {http.StatusInternalServerError, "Unexpected error", "An unexpected error occurred.", "Try again. If it keeps happening, contact an administrator with the request ID.", false, false},
+	AppItemChanged: {http.StatusServiceUnavailable, "Being updated", "This page is being updated.",
+		"Try again later. If you manage this app, approve the changes in the app's settings.", true, false},
+	RateLimited: {http.StatusTooManyRequests, "Too many requests", "Too many requests were made in a short time.", "Wait a moment and try again.", true, false},
+	Internal:    {http.StatusInternalServerError, "Unexpected error", "An unexpected error occurred.", "Try again. If it keeps happening, contact an administrator with the request ID.", false, false},
 }
 
 // Lookup returns the registry entry for c, falling back to Internal.
@@ -113,6 +117,16 @@ type Error struct {
 	Details    map[string]any // machine-readable context (e.g. details.current for OCC)
 	RetryAfter time.Duration
 	Cause      error
+}
+
+// GetHeaders carries Retry-After onto the response when an API handler
+// returns the error (it satisfies huma.HeadersError).
+func (e *Error) GetHeaders() http.Header {
+	if e.RetryAfter <= 0 {
+		return nil
+	}
+	secs := int(e.RetryAfter.Seconds() + 0.999)
+	return http.Header{"Retry-After": []string{strconv.Itoa(max(secs, 1))}}
 }
 
 func (e *Error) Error() string {

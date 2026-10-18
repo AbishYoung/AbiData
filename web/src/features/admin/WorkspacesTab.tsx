@@ -8,7 +8,17 @@ import { Modal } from "@/features/queries/Modal";
 import { absoluteTime } from "@/features/backups/backupLogic";
 import { alertBox, btn, btnPrimary, input } from "@/components/styles";
 import { Tip } from "@/components/Tip";
-import { adminKeys, createWorkspace, demoSummary, listWorkspaces, provisionDemos, updateWorkspace, type AdminWorkspace } from "./adminApi";
+import {
+  adminKeys,
+  createWorkspace,
+  DEMO_SAMPLES,
+  demoSummary,
+  listWorkspaces,
+  provisionDemos,
+  updateWorkspace,
+  type AdminWorkspace,
+  type DemoKind,
+} from "./adminApi";
 import { QUOTA_FIELDS, emptyQuotaForm, parseQuotaForm, quotaSummary, quotaToForm, type QuotaForm } from "./quota";
 import { ErrorBox, Field, td, th } from "./ui";
 
@@ -158,19 +168,20 @@ function SuspendDialog({ ws, onClose, onDone }: { ws: AdminWorkspace; onClose: (
   );
 }
 
-function DemoDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
+function DemoDialog({ kind, onClose, onDone }: { kind: DemoKind; onClose: () => void; onDone: (message: string) => void }) {
   const qc = useQueryClient();
+  const sample = DEMO_SAMPLES[kind];
   const run = useMutation({
-    mutationFn: provisionDemos,
+    mutationFn: () => provisionDemos(kind),
     onSuccess: async (r) => {
       await Promise.all([qc.invalidateQueries({ queryKey: adminKeys.workspaces }), qc.invalidateQueries({ queryKey: ME_KEY })]);
-      onDone(demoSummary(r));
+      onDone(demoSummary(r, kind));
     },
   });
   return (
     <Modal
-      title="Give everyone the Northwind demo?"
-      description="Each active user, administrators included, who does not already own a Northwind Traders demo gets their own copy that they own, named after them. Their changes do not affect anyone else's copy."
+      title={`Give everyone ${sample.name}?`}
+      description={`${sample.name} has ${sample.about}. Each active user, administrators included, who does not already own a copy gets their own, named after them. Their changes do not affect anyone else's copy.`}
       onClose={onClose}
     >
       <p className="mt-0 text-sm text-fg-muted">This can take a few seconds per person. Running it again only adds copies for people who joined since.</p>
@@ -194,7 +205,7 @@ function DemoDialog({ onClose, onDone }: { onClose: () => void; onDone: (message
 export function WorkspacesTab() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: adminKeys.workspaces, queryFn: listWorkspaces });
-  const [dialog, setDialog] = useState<{ kind: "new" | "demo" } | { kind: "edit" | "suspend"; ws: AdminWorkspace } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: "new" } | { kind: "demo"; sample: DemoKind } | { kind: "edit" | "suspend"; ws: AdminWorkspace } | null>(null);
   const [status, setStatus] = useState("");
   const activate = useMutation({
     mutationFn: (w: AdminWorkspace) => updateWorkspace(w.id, { status: "active" }),
@@ -215,12 +226,14 @@ export function WorkspacesTab() {
           <Plus size={14} aria-hidden="true" />
           New workspace
         </button>
-        <Tip label="Give every user, administrators included, their own copy of the Northwind Traders sample workspace">
-          <button type="button" className={btn} onClick={() => setDialog({ kind: "demo" })}>
-            <Sparkles size={14} aria-hidden="true" />
-            Demo for everyone…
-          </button>
-        </Tip>
+        {(Object.keys(DEMO_SAMPLES) as DemoKind[]).map((k) => (
+          <Tip key={k} label={`Give every user, administrators included, their own copy of the ${DEMO_SAMPLES[k].name} sample workspace`}>
+            <button type="button" className={btn} onClick={() => setDialog({ kind: "demo", sample: k })}>
+              <Sparkles size={14} aria-hidden="true" />
+              {DEMO_SAMPLES[k].name} for everyone…
+            </button>
+          </Tip>
+        ))}
         <span role="status" aria-live="polite" className="text-sm text-fg-muted">
           {status}
         </span>
@@ -287,7 +300,7 @@ export function WorkspacesTab() {
         </table></div>
       )}
       {dialog?.kind === "new" && <WorkspaceDialog onClose={() => setDialog(null)} onSaved={done} />}
-      {dialog?.kind === "demo" && <DemoDialog onClose={() => setDialog(null)} onDone={done} />}
+      {dialog?.kind === "demo" && <DemoDialog kind={dialog.sample} onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.kind === "edit" && <WorkspaceDialog existing={dialog.ws} onClose={() => setDialog(null)} onSaved={done} />}
       {dialog?.kind === "suspend" && <SuspendDialog ws={dialog.ws} onClose={() => setDialog(null)} onDone={done} />}
     </section>

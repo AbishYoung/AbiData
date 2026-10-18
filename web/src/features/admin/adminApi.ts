@@ -40,19 +40,30 @@ export async function listWorkspaces(): Promise<AdminWorkspace[]> {
 export type DemoProvisionResult = components["schemas"]["DemoProvisionDTO"];
 
 /** Gives every active user (administrators included) their own demo workspace. */
-export async function provisionDemos(): Promise<DemoProvisionResult> {
-  return api.requestData((c, init) => c.POST("/api/v1/admin/demo-workspaces", init), { label: "Creating demo workspaces" });
+/** The sample workspaces an administrator can hand out. */
+export type DemoKind = "traders" | "invasives";
+
+export const DEMO_SAMPLES: Record<DemoKind, { name: string; about: string }> = {
+  traders: { name: "Northwind Traders", about: "customers, orders, products, queries, a form, a report and a scheduled job" },
+  invasives: { name: "Northwind Invasives", about: "invasive species sightings with maps, quarantine zones and photos" },
+};
+
+export async function provisionDemos(kind: DemoKind): Promise<DemoProvisionResult> {
+  return api.requestData((c, init) => c.POST("/api/v1/admin/demo-workspaces", { ...init, body: { kind } }), {
+    label: `Creating ${DEMO_SAMPLES[kind].name} workspaces`,
+  });
 }
 
-/** One sentence describing a provisioning run, for the status line. */
-export function demoSummary(r: DemoProvisionResult): string {
+/** One sentence describing a provisioning run of the kind's sample, for the status line. */
+export function demoSummary(r: DemoProvisionResult, kind: DemoKind): string {
+  const name = DEMO_SAMPLES[kind].name;
   const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
   const created = r.created ?? [];
   const skipped = r.skipped ?? [];
   const failed = r.failed ?? [];
   const parts: string[] = [];
-  if (created.length > 0) parts.push(`Created a demo workspace for ${people(created.length)}`);
-  else parts.push("No new demo workspaces were needed");
+  if (created.length > 0) parts.push(`Created a ${name} workspace for ${people(created.length)}`);
+  else parts.push(`No new ${name} workspaces were needed`);
   if (skipped.length > 0) parts.push(`${people(skipped.length)} already had one`);
   let text = parts.join("; ") + ".";
   if (failed.length > 0) text += ` Could not create one for ${failed.map((f) => f.email).join(", ")}: see the server log.`;

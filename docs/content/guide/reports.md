@@ -12,9 +12,19 @@ A report turns a table or saved query into paginated output with headers, groups
 
 1. In the **Reports** group, choose **New report**.
 2. Enter a **Report name** and choose the **Record source**: a table or a saved query.
-3. In the page settings, choose the **Paper** (**Letter**, **A4** or **Legal**), the **Orientation** (**Portrait** or **Landscape**) and the margins.
-4. Choose a band, then add controls to it from the **Toolbox**, or drag fields from the **Field list**.
-5. Choose **Save**. Use the **Preview** panel to see the report with data.
+3. Choose a **Layout**:
+   - **Blank** starts with empty bands.
+   - **Tabular: one row per record** adds every field. Headings go across the top of each page, with one row of values per record. Fields that do not fit the page width continue on a second row.
+   - **Columnar: one block per record** adds every field as a block per record, with each field's name beside its value.
+
+   Either way you get a title, the date and page numbers. The detail band can grow, so long text wraps instead of being cut off. Change anything afterwards in the designer.
+4. In the page settings, choose the **Paper** (**Letter**, **A4** or **Legal**), the **Orientation** (**Portrait** or **Landscape**) and the margins.
+5. Choose a band, then add controls to it from the **Toolbox**, or drag fields from the **Field list**.
+6. Choose **Save**. Use the **Preview** panel to see the report with data.
+
+Right-click the design canvas to duplicate, delete or align the selected controls.
+
+Text in a band that cannot grow shows as many whole lines as fit, ending in "…". Point at it to see the full text in the viewer, or turn on **Can grow** for the band.
 
 If the report needs input, base it on a [parameter query](/docs/guide/queries#parameters). Running the report asks for the values. The **Parameters** button in the viewer changes them later.
 

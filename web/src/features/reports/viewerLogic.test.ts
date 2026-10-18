@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReportControl, ReportLayout } from "./paginate";
-import { assembleMeasured, contentHeight, controlCss, fitWidthZoom, growIndexes, pageAtScroll } from "./viewerLogic";
+import { assembleMeasured, clampCss, contentHeight, controlCss, fitWidthZoom, growIndexes, pageAtScroll } from "./viewerLogic";
 
 const box = (c: Partial<ReportControl>): ReportControl => ({ id: "c", name: "C", type: "textbox", x: 1, y: 2, w: 30, h: 20, ...c });
 const band = (height: number, can_grow = false, controls: ReportControl[] = [box({})]) => ({ height, can_grow, controls });
@@ -61,5 +61,14 @@ describe("pageAtScroll / fitWidthZoom", () => {
     expect(fitWidthZoom(408, 816)).toBe(0.5);
     expect(fitWidthZoom(10000, 816)).toBe(2);
     expect(fitWidthZoom(0, 816)).toBe(1);
+  });
+});
+
+describe("clampCss", () => {
+  it("keeps whole lines of the control's font in a fixed-height control", () => {
+    expect(clampCss({}, 24).WebkitLineClamp).toBe(1); // 12px text, 15px lines: one line in 24px
+    expect(clampCss({}, 30).WebkitLineClamp).toBe(2);
+    expect(clampCss({ fontSize: 18 }, 30).WebkitLineClamp).toBe(1);
+    expect(clampCss({}, 4).WebkitLineClamp).toBe(1); // never zero lines
   });
 });

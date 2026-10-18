@@ -14,6 +14,7 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 |---|---|---|---|
 | Open the command palette | `⌘ K` | `Ctrl+K` | Everywhere |
 | Open the documentation | `?` | `?` | Everywhere, except in text fields, editors and datasheets |
+| Open the context menu of the focused item (the same as a right-click) | `⇧ F10` | `Shift+F10` | Navigation pane, document tabs, datasheets, query results and designers |
 | Save the design | `⌘ S` | `Ctrl+S` | Table design, queries, forms, reports, scripts, jobs |
 
 ## Navigation
@@ -48,6 +49,8 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 | Select or deselect the current record | `⇧ Space` | `Shift+Space` | Datasheet |
 | Toggle a Yes/No cell | `Space` | `Space` | Datasheet |
 | Resize a column (Alt+Left: narrower, Alt+Right: wider) | `⌥ →` | `Alt+→` | Datasheet column header |
+| Copy the current cell | `⌘ C` | `Ctrl+C` | Datasheet and query results |
+| Paste into the current cell (opens it for editing with the pasted text) | `⌘ V` | `Ctrl+V` | Datasheet |
 
 ## Queries
 
