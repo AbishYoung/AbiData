@@ -304,6 +304,17 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
   - With `ABIDATA_TEST_DB=postgres`, which `make test-postgres` sets, the admin and auth suites run on PostgreSQL.
   - `internal/admin/admintest` opens the selected backend's store for other packages' tests.
 
+**Phase 2, part 3 (as built): configuration and the backend lock.**
+
+- **Configuration.** `ABIDATA_DB`, `ABIDATA_POSTGRES_URL` (and `_FILE`), `ABIDATA_POSTGRES_MAX_CONNS` and `ABIDATA_POSTGRES_SCHEMA_PREFIX` are read and checked.
+  - The URL is required with `postgres` and refused with `sqlite`.
+  - Errors never show the URL.
+  - The prefix keeps every derived name a plain identifier within 63 bytes.
+- **The lock.** The admin store records its backend in `_adm_settings` (`backend`, JSON text like the other settings) on first open, and refuses a store recorded for the other backend.
+- **Startup checks** (`cmd/abidata/backend.go`) run before anything is created.
+  - `ABIDATA_DB=postgres` with a data directory that holds a SQLite install is refused, with the migration command named.
+  - Otherwise the server and role are checked (`pgdb.CheckServer`): PostgreSQL 17 or later, the database's owner, `CREATEROLE`, and not a superuser. Then the server stops: until Phase 3 an install cannot be half on PostgreSQL, so `postgres` is checked but not run.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

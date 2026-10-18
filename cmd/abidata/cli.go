@@ -66,6 +66,9 @@ func userCmd(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := checkBackend(context.Background(), cfg); err != nil {
+		return err
+	}
 	lock, err := acquireLock(cfg.DataDir)
 	if err != nil {
 		return err

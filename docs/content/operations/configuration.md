@@ -41,6 +41,10 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `ABIDATA_ALLOWED_ORIGINS` | (none) | Comma-separated extra origins (`scheme://host[:port]`) allowed to change data, besides the public URL. See [below](#public-url) |
 | `ABIDATA_TRUSTED_PROXIES` | (none) | Comma-separated IP addresses or CIDR ranges of reverse proxies whose `X-Forwarded-For` header is trusted |
+| `ABIDATA_DB` | `sqlite` | The database backend: `sqlite` or `postgres`. PostgreSQL is not available yet. See [below](#database) |
+| `ABIDATA_POSTGRES_URL` | (none) | PostgreSQL connection string, required with `ABIDATA_DB=postgres`. It holds a password, so prefer `ABIDATA_POSTGRES_URL_FILE` |
+| `ABIDATA_POSTGRES_MAX_CONNS` | `20` | The most connections the server opens to PostgreSQL (1 or more) |
+| `ABIDATA_POSTGRES_SCHEMA_PREFIX` | `abd` | Prefix of every schema and role the server creates in the database: a lower-case letter, then up to 15 lower-case letters, digits or underscores |
 
 ## Notes {#notes}
 
@@ -79,6 +83,20 @@ Set this to about 75 to 80 percent of the memory you give the container. Scripts
 ### ABIDATA_DEBUG_ADDR {#debug}
 
 The profiler has no authentication. Leave it off, or bind it to `127.0.0.1` or a private network that only operators can reach. Never publish it.
+
+### ABIDATA_DB {#database}
+
+AbiData stores everything in SQLite files under the data directory. Running on PostgreSQL instead is in progress (ADR 0012). For now, `ABIDATA_DB=postgres` only checks the server and stops:
+
+- It connects with `ABIDATA_POSTGRES_URL` and checks three things: the server is PostgreSQL 17 or later; the role owns the database; and the role has `CREATEROLE` but is not a superuser.
+- It then stops with a message saying workspaces cannot run on PostgreSQL yet. It creates nothing.
+
+An install never mixes backends. The server refuses to start in these cases:
+
+- `ABIDATA_DB=postgres` with a data directory that already holds a SQLite install;
+- `ABIDATA_POSTGRES_URL` set while `ABIDATA_DB` is `sqlite`.
+
+The admin database also records which backend created it, and refuses to open under the other one.
 
 ### ABIDATA_TRUSTED_PROXIES {#trusted-proxies}
 

@@ -59,6 +59,10 @@ func Open(ctx context.Context, path string, synchronous string) (*Store, error) 
 		}
 		s.readers <- r
 	}
+	if err := s.lockBackend(ctx, "sqlite"); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -75,7 +79,12 @@ func OpenPostgres(ctx context.Context, cfg *pgxpool.Config, n pgdb.Names) (*Stor
 		pool.Close()
 		return nil, err
 	}
-	return &Store{path: n.Admin(), pg: pool}, nil
+	s := &Store{path: n.Admin(), pg: pool}
+	if err := s.lockBackend(ctx, "postgres"); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return s, nil
 }
 
 func (s *Store) migrate(ctx context.Context) error {

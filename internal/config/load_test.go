@@ -41,6 +41,9 @@ func TestDefaults(t *testing.T) {
 		LogLevel:          slog.LevelInfo,
 		DemoWorkspace:     true,
 		PublicApps:        true,
+		DB:                "sqlite",
+		PostgresMaxConns:  20,
+		PostgresPrefix:    "abd",
 	}
 	if !reflect.DeepEqual(c, want) {
 		t.Fatalf("got %+v want %+v", c, want)
@@ -236,5 +239,36 @@ func TestFromEnv(t *testing.T) {
 	}
 	if c.ListenAddr != ":9999" {
 		t.Fatalf("got %q", c.ListenAddr)
+	}
+}
+
+func TestPostgresSettings(t *testing.T) {
+	const url = "postgres://app:s3cret-value@db.internal:5432/abidata?sslmode=verify-full"
+	c, err := loadWith(map[string]string{"ABIDATA_DB": "postgres", "ABIDATA_POSTGRES_URL_FILE": "/run/secrets/pg",
+		"ABIDATA_POSTGRES_MAX_CONNS": "8", "ABIDATA_POSTGRES_SCHEMA_PREFIX": "acme_1"}, map[string]string{"/run/secrets/pg": url + "\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.DB != DBPostgres || c.PostgresURL != url || c.PostgresMaxConns != 8 || c.PostgresPrefix != "acme_1" {
+		t.Fatalf("got %+v", c)
+	}
+	for name, env := range map[string]map[string]string{
+		"unknown backend":    {"ABIDATA_DB": "mysql"},
+		"no URL":             {"ABIDATA_DB": "postgres"},
+		"URL without use":    {"ABIDATA_POSTGRES_URL": url},
+		"bad URL":            {"ABIDATA_DB": "postgres", "ABIDATA_POSTGRES_URL": "postgres://app:s3cret-value@db:notaport/x"},
+		"zero conns":         {"ABIDATA_DB": "postgres", "ABIDATA_POSTGRES_URL": url, "ABIDATA_POSTGRES_MAX_CONNS": "0"},
+		"upper-case prefix":  {"ABIDATA_DB": "postgres", "ABIDATA_POSTGRES_URL": url, "ABIDATA_POSTGRES_SCHEMA_PREFIX": "Abd"},
+		"long prefix":        {"ABIDATA_DB": "postgres", "ABIDATA_POSTGRES_URL": url, "ABIDATA_POSTGRES_SCHEMA_PREFIX": "a2345678901234567"},
+		"quoted-name prefix": {"ABIDATA_DB": "postgres", "ABIDATA_POSTGRES_URL": url, "ABIDATA_POSTGRES_SCHEMA_PREFIX": "a-b"},
+	} {
+		_, err := loadWith(env, nil)
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+			continue
+		}
+		if strings.Contains(err.Error(), "s3cret") {
+			t.Errorf("%s: the error shows the connection string: %v", name, err)
+		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"net/url"
 	"os"
 	"testing"
 
@@ -23,7 +24,20 @@ type Env struct {
 	Role     string
 	Prefix   string // a schema and role prefix unique to the test
 	url      string
+	pass     string
 	roles    []string
+}
+
+// AppURL is a connection string for the app role, as an operator would put
+// in ABIDATA_POSTGRES_URL.
+func (e *Env) AppURL() string {
+	u, err := url.Parse(e.url)
+	if err != nil {
+		return ""
+	}
+	u.User = url.UserPassword(e.Role, e.pass)
+	u.Path = "/" + e.Database
+	return u.String()
 }
 
 // DropRoles adds roles the test creates, to be dropped after the database.
@@ -62,6 +76,7 @@ func New(t testing.TB) *Env {
 	suffix := RandHex(4)
 	e := &Env{Database: "abd_test_" + suffix, Role: "abd_test_app_" + suffix, Prefix: "t" + suffix, url: url}
 	pass := RandHex(16)
+	e.pass = pass
 	for _, q := range []string{
 		`CREATE ROLE ` + Ident(e.Role) + ` LOGIN CREATEROLE PASSWORD '` + pass + `'`,
 		`CREATE DATABASE ` + Ident(e.Database) + ` OWNER ` + Ident(e.Role),

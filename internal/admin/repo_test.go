@@ -413,8 +413,8 @@ func TestSettings(t *testing.T) {
 	if _, err := s.GetSetting(ctx, "k"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("got %v", err)
 	}
-	if m, err := s.ListSettings(ctx); err != nil || len(m) != 0 {
-		t.Fatalf("empty list: %v %v", m, err)
+	if m, err := s.ListSettings(ctx); err != nil || len(m) != 1 || m[settingBackend] == "" {
+		t.Fatalf("a new store holds only its backend: %v %v", m, err)
 	}
 	if err := s.PutSetting(ctx, "k", `{"a":1}`); err != nil {
 		t.Fatal(err)
@@ -429,7 +429,7 @@ func TestSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := s.ListSettings(ctx)
-	if want := map[string]string{"k": `"two"`, "j": `true`}; err != nil || !reflect.DeepEqual(m, want) {
+	if want := map[string]string{"k": `"two"`, "j": `true`, settingBackend: m[settingBackend]}; err != nil || !reflect.DeepEqual(m, want) {
 		t.Fatalf("list = %v, %v", m, err)
 	}
 }
@@ -502,5 +502,33 @@ func TestReopenKeepsData(t *testing.T) {
 	}
 	if v, err := s.GetSetting(ctx, "k"); err != nil || v != "1" {
 		t.Fatalf("setting: %q %v", v, err)
+	}
+}
+
+// The store records its backend on first open and refuses to open as the
+// other one (ADR 0012 §1).
+func TestBackendLock(t *testing.T) {
+	ctx := context.Background()
+	open := storeOpener(t)
+	s, err := open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "sqlite"
+	if s.pg != nil {
+		want = "postgres"
+	}
+	if got, err := s.GetSetting(ctx, settingBackend); err != nil || got != `"`+want+`"` {
+		t.Fatalf("backend = %q, %v; want %q", got, err, want)
+	}
+	if err := s.PutSetting(ctx, settingBackend, `"elsewhere"`); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	if s, err := open(); !errors.Is(err, ErrBackendMismatch) {
+		if s != nil {
+			_ = s.Close()
+		}
+		t.Fatalf("reopen as %s of a store recorded for another backend: %v", want, err)
 	}
 }
