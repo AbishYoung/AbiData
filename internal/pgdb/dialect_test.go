@@ -8,6 +8,7 @@ package pgdb
 // numbers are double precision; dates and geometry are native on PostgreSQL.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -183,6 +184,10 @@ func sameWithin(lite, pg any, tol float64) (bool, string) {
 		}
 		return reflect.DeepEqual(lv, pg), ""
 	}
+	if b, ok := pg.([]byte); ok {
+		l, ok := lite.([]byte)
+		return ok && bytes.Equal(l, b), ""
+	}
 	switch pg.(type) {
 	case nil, bool, int64, int32, int16, float64, float32, string:
 	default:
@@ -314,6 +319,25 @@ var expressionCases = []string{
 	"json_remove(doc, '$.nested.x[1].y')", "json_remove(doc, '$.missing')", "json_remove(doc, '$')",
 	`json_patch(doc, '{"n":null,"z":{"w":1}}')`, `json_patch(doc, '[1]')`, `json_patch('{"a":{"b":1,"c":2}}', '{"a":{"b":null}}')`,
 	"json_extract(json_set(doc, '$.n', 7), '$.n') + 1", "json_array_length(json_array(qty, price))",
+	// numbers as text
+	"price || ''", "0.1 + 0.2 || ''", "price * 1e20 || ''", "price / 1e7 || ''", "CAST(price AS TEXT)", "1e15 || ''",
+	"1e14 || ''", "100.0 || ''", "-2.5 || ''", "price * 1.1 || ''", "qty * 1.0 || ''",
+	"(0.1 + 0.2) || ''", "(price * 1.1) || ''", "1e16 || ''", "1e17 || ''", "1e18 || ''", "12345678901234567.0 || ''", "123456789012345678.0 || ''",
+	"(price / 3) || ''", "1e-5 || ''", "0.0001 || ''", "name + 1", "note * 2", "due + 1", "at - 1", "doc + 0",
+	// storage classes and literals
+	"typeof(qty)", "typeof(price)", "typeof(name)", "typeof(active)", "typeof(due)", "typeof(at)", "typeof(NULL)",
+	"typeof(doc)", "typeof(pt)", "typeof(json_extract(doc, '$.n'))", "typeof(json_extract(doc, '$.price'))",
+	"typeof(json_extract(doc, '$.ok'))", "typeof(json_extract(doc, '$.tags'))", "typeof(unhex('41'))",
+	"typeof(qty * price)", "typeof(qty / 2)", "quote(qty)", "quote(price)", "quote(name)", "quote(note)", "quote(NULL)",
+	"quote(active)", "quote(due)", "quote(at)", "quote(0.1 + 0.2)", "quote(json_extract(doc, '$.colour'))",
+	"quote(json_extract(doc, '$.price'))", "quote(json_extract(doc, '$.tags'))", "quote(unhex('4142'))", "quote(1e20)",
+	"quote(price * 1.1)", "unhex('4142')", "unhex('41 42', ' ')", "unhex('4x')", "unhex('414')", "hex(unhex('00ff'))",
+	"length(unhex('0a0b0c'))", "unhex(NULL)", "unhex(note)",
+	// timediff
+	"timediff(at, due)", "timediff(due, at)", "timediff('2026-03-31', '2026-02-28')",
+	"timediff('2024-02-29 12:00:00', '2023-01-31')", "timediff(due, '2000-01-01')", "timediff('2000-01-01', due)",
+	"timediff(at, at)", "timediff(NULL, due)", "timediff('garbage', due)", "timediff('2026-01-31', '2026-03-01')",
+	"timediff('2026-03-01 00:00:00', '2026-01-31 23:59:59.5')",
 }
 
 // TestExpressionsAgree evaluates AbiData expressions on every row on both
@@ -351,8 +375,13 @@ func asText(e sqlgen.Expr, t sqlgen.Type) sqlgen.Expr {
 // disagree, each for a stated reason (ADR 0013 §9). A "stored " key is the
 // expression as a generated column.
 var knownDifferences = map[string][]int{
-	// A whole double as text: 3 on PostgreSQL, 3.0 on SQLite (the codecs'
-	// number formatting, ADR 0013 §3).
+	// Arithmetic with a text operand, or a json_extract value, has no fixed
+	// type: SQLite's result is an integer or a double depending on the value,
+	// PostgreSQL's a double. Stored as text, PostgreSQL writes that double in
+	// its own form (3, 5e+19).
+	"stored price * 1e20 || ''":               {2, 6, 7},
+	"stored price / 1e7 || ''":                {2, 6, 7},
+	"stored qty * 1.0 || ''":                  {1, 3, 4, 5, 6, 7},
 	"stored json_extract(doc, '$.price') * 2": {1},
 }
 

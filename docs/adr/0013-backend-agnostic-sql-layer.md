@@ -246,7 +246,7 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
 - **Differential tests** (`internal/pgdb/dialect_test.go`) run about 200 expressions, dates included, and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
   - The recorded differences:
     - The area of a 1 cm² polygon, which can differ by a relative 2e-8 depending on the C library's `sin`, because the spherical-excess sum cancels; it is compared with a looser tolerance.
-  - Number-to-text formatting also differs (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). The test data avoids that case, and part 2's codecs address it.
+  - Number-to-text formatting differed (PostgreSQL writes a whole `double` as `2`, SQLite as `2.0`). Part 5 renders SQLite's form instead.
 
 **Phase F, part 2 (as built): user-table DDL.**
 
@@ -294,6 +294,16 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
   
   The comparison tests compare JSON results as JSON values, since jsonb keeps neither key order nor number spelling.
 - **Still pending:** `json_error_position`, which needs a JSON scanner that reports SQLite's error positions.
+
+**Phase F, part 5 (as built): values as SQLite sees them.**
+
+- **Numbers as text.** A `number` used as text is written as SQLite writes a double (`abi_real_text`): 15 significant digits when they read back as the same double, otherwise 17, always with a decimal point (`2.0`), and with an exponent below 1e-4 or from 1e17.
+- **Text as a number.** Text (a date, JSON) in arithmetic is read as its leading number, as on SQLite; PostgreSQL rejected it before. Dates no longer do date arithmetic: `due + 1` is a year plus one, as on SQLite.
+- **`typeof` and `quote`** take the storage class from the logical type. `json_extract`'s class comes from the jsonb value. A value of no fixed type does not render.
+- **`unhex`** returns `bytea`.
+- **`timediff`** ports date.c's calendar arithmetic.
+- **Recorded difference:** arithmetic with a text operand, or with a `json_extract` value, gives an integer or a double on SQLite depending on the value, but always a double on PostgreSQL. Stored as text, that double is written in PostgreSQL's form.
+- **Still pending:** `printf`/`format` and `json_error_position`.
 
 Phases A–E are worth doing even if PostgreSQL is never built:
 - one typed path replaces the string-building in four packages;
