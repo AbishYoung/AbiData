@@ -84,14 +84,12 @@ func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
 		now := k.CreatedAt
 		cutoff := dbx.FormatTime(now.Add(-apiKeyRetention))
-		if _, err := tx.Exec(ctx, `DELETE FROM _adm_api_keys WHERE workspace_id = ?1 AND
-			((revoked_at IS NOT NULL AND revoked_at < ?2) OR (expires_at IS NOT NULL AND expires_at < ?2))`,
+		if _, err := tx.Exec(ctx, sqlCreateAPIKey.SQL,
 			string(k.WorkspaceID), cutoff); err != nil {
 			return err
 		}
 		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM _adm_api_keys WHERE workspace_id = ?1 AND revoked_at IS NULL
-			AND (expires_at IS NULL OR expires_at > ?2)`, string(k.WorkspaceID), dbx.FormatTime(now)).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, sqlCreateAPIKey2.SQL, string(k.WorkspaceID), dbx.FormatTime(now)).Scan(&n); err != nil {
 			return err
 		}
 		if n >= MaxActiveAPIKeys {
@@ -101,8 +99,7 @@ func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
 		if k.ExpiresAt != nil {
 			exp = dbx.FormatTime(*k.ExpiresAt)
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO _adm_api_keys (id, workspace_id, name, role, secret_hash, created_by, created_at, expires_at)
-			VALUES (?,?,?,?,?,?,?,?)`, k.ID, string(k.WorkspaceID), k.Name, string(k.Role), k.SecretHash, k.CreatedBy,
+		_, err := tx.Exec(ctx, sqlCreateAPIKey3.SQL, k.ID, string(k.WorkspaceID), k.Name, string(k.Role), k.SecretHash, k.CreatedBy,
 			dbx.FormatTime(k.CreatedAt), exp)
 		return wrapWrite(err, "create api key")
 	})
@@ -149,7 +146,7 @@ func (s *Store) ListAPIKeys(ctx context.Context, ws ids.WorkspaceID) ([]APIKey, 
 // and keeps the first revocation time; an unknown id is ErrNotFound.
 func (s *Store) RevokeAPIKey(ctx context.Context, id string, at time.Time) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_api_keys SET revoked_at = COALESCE(revoked_at, ?) WHERE id = ?`, dbx.FormatTime(at), id)
+		res, err := tx.Exec(ctx, sqlRevokeAPIKey.SQL, dbx.FormatTime(at), id)
 		if err != nil {
 			return err
 		}
@@ -160,7 +157,7 @@ func (s *Store) RevokeAPIKey(ctx context.Context, id string, at time.Time) error
 // TouchAPIKey records the last use of a key.
 func (s *Store) TouchAPIKey(ctx context.Context, id string, at time.Time) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE _adm_api_keys SET last_used_at = ? WHERE id = ?`, dbx.FormatTime(at), id)
+		_, err := tx.Exec(ctx, sqlTouchAPIKey.SQL, dbx.FormatTime(at), id)
 		return err
 	})
 }

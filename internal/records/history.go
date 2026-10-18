@@ -43,8 +43,7 @@ func (s *Service) History(ctx context.Context, l *workspace.Lease, tableID strin
 	}
 	out = []HistoryEntry{}
 	err = l.Read(ctx, func(q dbx.Querier) error {
-		rows, err := q.Query(ctx, `SELECT id, row_version, op, user_id, at, before, after FROM _sys_row_history
-			WHERE table_id = ? AND row_id = ? AND id < ? ORDER BY id DESC LIMIT ?`, t.ID, rowID, beforeID, limit+1)
+		rows, err := q.Query(ctx, sqlHistory.SQL, t.ID, rowID, beforeID, limit+1)
 		if err != nil {
 			return fault.Classify(err)
 		}

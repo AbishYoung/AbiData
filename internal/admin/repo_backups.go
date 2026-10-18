@@ -100,7 +100,7 @@ func (s *Store) ListBackups(ctx context.Context, ws ids.WorkspaceID) ([]Backup, 
 // DeleteBackup removes a backup record (the caller removes the files).
 func (s *Store) DeleteBackup(ctx context.Context, id string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `DELETE FROM _adm_backups WHERE id = ?`, id)
+		res, err := tx.Exec(ctx, sqlDeleteBackup.SQL, id)
 		if err != nil {
 			return err
 		}

@@ -9,9 +9,7 @@ import (
 
 func (s *Store) CreateSession(ctx context.Context, se Session) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO _adm_sessions
-			(id_hash, user_id, csrf_token, created_at, last_seen_at, expires_at, ip, user_agent)
-			VALUES (?,?,?,?,?,?,?,?)`,
+		_, err := tx.Exec(ctx, sqlCreateSession.SQL,
 			se.IDHash, se.UserID, se.CSRFToken, se.CreatedAt, se.LastSeenAt, se.ExpiresAt, se.IP, se.UserAgent)
 		return wrapWrite(err, "create session")
 	})
@@ -21,8 +19,7 @@ func (s *Store) GetSession(ctx context.Context, idHash string) (Session, error) 
 	var se Session
 	err := s.Read(ctx, func(c dbx.Querier) error {
 		var created, seen, expires string
-		if err := c.QueryRow(ctx, `SELECT id_hash, user_id, csrf_token, created_at, last_seen_at, expires_at, ip, user_agent
-			FROM _adm_sessions WHERE id_hash = ?`, idHash).
+		if err := c.QueryRow(ctx, sqlGetSession.SQL, idHash).
 			Scan(&se.IDHash, &se.UserID, &se.CSRFToken, &created, &seen, &expires, &se.IP, &se.UserAgent); err != nil {
 			return err
 		}
@@ -44,7 +41,7 @@ func (s *Store) GetSession(ctx context.Context, idHash string) (Session, error) 
 
 func (s *Store) TouchSession(ctx context.Context, idHash string, lastSeen time.Time) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_sessions SET last_seen_at = ? WHERE id_hash = ?`, lastSeen, idHash)
+		res, err := tx.Exec(ctx, sqlTouchSession.SQL, lastSeen, idHash)
 		if err != nil {
 			return err
 		}
@@ -54,7 +51,7 @@ func (s *Store) TouchSession(ctx context.Context, idHash string, lastSeen time.T
 
 func (s *Store) DeleteSession(ctx context.Context, idHash string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `DELETE FROM _adm_sessions WHERE id_hash = ?`, idHash)
+		res, err := tx.Exec(ctx, sqlDeleteSession.SQL, idHash)
 		if err != nil {
 			return err
 		}
@@ -64,7 +61,7 @@ func (s *Store) DeleteSession(ctx context.Context, idHash string) error {
 
 func (s *Store) DeleteUserSessions(ctx context.Context, userID string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _adm_sessions WHERE user_id = ?`, userID)
+		_, err := tx.Exec(ctx, sqlDeleteUserSessions.SQL, userID)
 		return err
 	})
 }
@@ -72,7 +69,7 @@ func (s *Store) DeleteUserSessions(ctx context.Context, userID string) error {
 func (s *Store) PurgeSessions(ctx context.Context, now time.Time, idle time.Duration) (int64, error) {
 	var n int64
 	err := s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `DELETE FROM _adm_sessions WHERE expires_at <= ? OR last_seen_at <= ?`,
+		res, err := tx.Exec(ctx, sqlPurgeSessions.SQL,
 			now, now.Add(-idle))
 		if err != nil {
 			return err
@@ -80,7 +77,7 @@ func (s *Store) PurgeSessions(ctx context.Context, now time.Time, idle time.Dura
 		n = res.Changes
 		// Throttle counters (sign-in and failed API-key attempts, one row per
 		// address) are dead after their window, which is at most 15 minutes.
-		_, err = tx.Exec(ctx, `DELETE FROM _adm_login_attempts WHERE window_start <= ?`, now.Add(-time.Hour))
+		_, err = tx.Exec(ctx, sqlPurgeSessions2.SQL, now.Add(-time.Hour))
 		return err
 	})
 	return n, err
@@ -102,7 +99,7 @@ func (s *Store) GetLoginAttempts(ctx context.Context, key string) (LoginAttempts
 func readAttempts(ctx context.Context, q dbx.Querier, key string) (LoginAttempts, error) {
 	la := LoginAttempts{Key: key}
 	var ws string
-	if err := q.QueryRow(ctx, `SELECT count, window_start FROM _adm_login_attempts WHERE key = ?`, key).
+	if err := q.QueryRow(ctx, sqlReadAttempts.SQL, key).
 		Scan(&la.Count, &ws); err != nil {
 		return LoginAttempts{}, err
 	}
@@ -123,8 +120,7 @@ func (s *Store) RecordLoginFailure(ctx context.Context, key string, now time.Tim
 		default:
 			out = LoginAttempts{Key: key, Count: cur.Count + 1, WindowStart: cur.WindowStart}
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO _adm_login_attempts (key, count, window_start) VALUES (?,?,?)
-			ON CONFLICT(key) DO UPDATE SET count = excluded.count, window_start = excluded.window_start`,
+		_, err = tx.Exec(ctx, sqlRecordLoginFailure.SQL,
 			key, out.Count, out.WindowStart)
 		return err
 	})
@@ -136,14 +132,14 @@ func (s *Store) RecordLoginFailure(ctx context.Context, key string, now time.Tim
 
 func (s *Store) ClearLoginAttemptsPrefix(ctx context.Context, prefix string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _adm_login_attempts WHERE substr(key, 1, ?) = ?`, len(prefix), prefix)
+		_, err := tx.Exec(ctx, sqlClearLoginAttemptsPrefix.SQL, len(prefix), prefix)
 		return err
 	})
 }
 
 func (s *Store) ClearLoginAttempts(ctx context.Context, key string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _adm_login_attempts WHERE key = ?`, key)
+		_, err := tx.Exec(ctx, sqlClearLoginAttempts.SQL, key)
 		return err
 	})
 }

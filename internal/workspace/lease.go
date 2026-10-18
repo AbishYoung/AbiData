@@ -139,10 +139,10 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 	}
 	w := l.h.writer
 	if opts.ForeignKeysOff {
-		if _, err := w.Exec(ctx, "PRAGMA foreign_keys=OFF"); err != nil {
+		if _, err := w.Exec(ctx, sqlLeaseWriteWith.SQL); err != nil {
 			return err
 		}
-		defer func() { _, _ = w.Exec(context.WithoutCancel(ctx), "PRAGMA foreign_keys=ON") }()
+		defer func() { _, _ = w.Exec(context.WithoutCancel(ctx), sqlLeaseWriteWith2.SQL) }()
 	}
 	if opts.Setup != nil {
 		cleanup, err := opts.Setup(w)

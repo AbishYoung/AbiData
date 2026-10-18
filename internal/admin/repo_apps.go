@@ -89,7 +89,7 @@ func scanApp(r scanner) (App, error) {
 func loadAppItems(ctx context.Context, c dbx.Querier, apps []App) error {
 	for i := range apps {
 		a := &apps[i]
-		rows, err := c.Query(ctx, `SELECT id, kind, object_id, title, fingerprint FROM _adm_app_items WHERE app_id = ? ORDER BY position`, a.ID)
+		rows, err := c.Query(ctx, sqlLoadAppItems.SQL, a.ID)
 		if err != nil {
 			return err
 		}
@@ -116,11 +116,11 @@ func writeAppItems(ctx context.Context, tx dbx.Tx, a App) error {
 	if len(a.Items) > MaxAppItems {
 		return errors.New("admin: too many app items")
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM _adm_app_items WHERE app_id = ?`, a.ID); err != nil {
+	if _, err := tx.Exec(ctx, sqlWriteAppItems.SQL, a.ID); err != nil {
 		return err
 	}
 	for i, it := range a.Items {
-		if _, err := tx.Exec(ctx, `INSERT INTO _adm_app_items (app_id, id, kind, object_id, title, position, fingerprint) VALUES (?,?,?,?,?,?,?)`,
+		if _, err := tx.Exec(ctx, sqlWriteAppItems2.SQL,
 			a.ID, it.ID, it.Kind, it.ObjectID, it.Title, i, it.Fingerprint); err != nil {
 			return wrapWrite(err, "app item")
 		}
@@ -133,14 +133,13 @@ func writeAppItems(ctx context.Context, tx dbx.Tx, a App) error {
 func (s *Store) CreateApp(ctx context.Context, a App) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
 		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM _adm_apps WHERE workspace_id = ?`, string(a.WorkspaceID)).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, sqlCreateApp.SQL, string(a.WorkspaceID)).Scan(&n); err != nil {
 			return err
 		}
 		if n >= MaxAppsPerWorkspace {
 			return ErrTooManyApps
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO _adm_apps (id, workspace_id, name, token, token_hash, start_item, enabled, created_by, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?)`, a.ID, string(a.WorkspaceID), a.Name, a.Token, a.TokenHash, a.StartItem, a.Enabled, a.CreatedBy,
+		_, err := tx.Exec(ctx, sqlCreateApp2.SQL, a.ID, string(a.WorkspaceID), a.Name, a.Token, a.TokenHash, a.StartItem, a.Enabled, a.CreatedBy,
 			dbx.FormatTime(a.CreatedAt), dbx.FormatTime(a.UpdatedAt))
 		if err != nil {
 			return wrapWrite(err, "create app")
@@ -210,7 +209,7 @@ func (s *Store) ListApps(ctx context.Context, ws ids.WorkspaceID) ([]App, error)
 // owner's edit cannot undo either.
 func (s *Store) UpdateApp(ctx context.Context, a App) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_apps SET name = ?, start_item = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+		res, err := tx.Exec(ctx, sqlUpdateApp.SQL,
 			a.Name, a.StartItem, a.Enabled, dbx.FormatTime(a.UpdatedAt), a.ID)
 		if err != nil {
 			return wrapWrite(err, "update app")
@@ -225,7 +224,7 @@ func (s *Store) UpdateApp(ctx context.Context, a App) error {
 // SetAppToken replaces an app's link; the old one stops working at once.
 func (s *Store) SetAppToken(ctx context.Context, id, token string, hash []byte, at time.Time) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_apps SET token = ?, token_hash = ?, updated_at = ? WHERE id = ?`, token, hash, dbx.FormatTime(at), id)
+		res, err := tx.Exec(ctx, sqlSetAppToken.SQL, token, hash, dbx.FormatTime(at), id)
 		if err != nil {
 			return wrapWrite(err, "rotate app link")
 		}
@@ -240,7 +239,7 @@ func (s *Store) SetAppTakenDown(ctx context.Context, id string, at *time.Time, b
 		if at != nil {
 			when, who = dbx.FormatTime(*at), by
 		}
-		res, err := tx.Exec(ctx, `UPDATE _adm_apps SET taken_down_at = ?, taken_down_by = ? WHERE id = ?`, when, who, id)
+		res, err := tx.Exec(ctx, sqlSetAppTakenDown.SQL, when, who, id)
 		if err != nil {
 			return err
 		}
@@ -251,7 +250,7 @@ func (s *Store) SetAppTakenDown(ctx context.Context, id string, at *time.Time, b
 // DeleteApp removes an app and its items.
 func (s *Store) DeleteApp(ctx context.Context, id string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `DELETE FROM _adm_apps WHERE id = ?`, id)
+		res, err := tx.Exec(ctx, sqlDeleteApp.SQL, id)
 		if err != nil {
 			return err
 		}

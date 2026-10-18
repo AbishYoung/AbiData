@@ -18,7 +18,7 @@ var ErrLastOwner = errors.New("admin: a workspace must keep at least one owner")
 func (s *Store) ChangeMembership(ctx context.Context, ws ids.WorkspaceID, userID string, role *Role) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
 		var cur string
-		err := tx.QueryRow(ctx, `SELECT role FROM _adm_memberships WHERE workspace_id = ? AND user_id = ?`, string(ws), userID).Scan(&cur)
+		err := tx.QueryRow(ctx, sqlChangeMembership.SQL, string(ws), userID).Scan(&cur)
 		if dbx.IsNoRows(err) {
 			return ErrNotFound
 		}
@@ -27,7 +27,7 @@ func (s *Store) ChangeMembership(ctx context.Context, ws ids.WorkspaceID, userID
 		}
 		if Role(cur) == RoleOwner && (role == nil || *role != RoleOwner) {
 			var owners int
-			if err := tx.QueryRow(ctx, `SELECT count(*) FROM _adm_memberships WHERE workspace_id = ? AND role = 'owner'`, string(ws)).Scan(&owners); err != nil {
+			if err := tx.QueryRow(ctx, sqlChangeMembership2.SQL, string(ws)).Scan(&owners); err != nil {
 				return err
 			}
 			if owners <= 1 {
@@ -35,9 +35,9 @@ func (s *Store) ChangeMembership(ctx context.Context, ws ids.WorkspaceID, userID
 			}
 		}
 		if role == nil {
-			_, err = tx.Exec(ctx, `DELETE FROM _adm_memberships WHERE workspace_id = ? AND user_id = ?`, string(ws), userID)
+			_, err = tx.Exec(ctx, sqlChangeMembership3.SQL, string(ws), userID)
 		} else {
-			_, err = tx.Exec(ctx, `UPDATE _adm_memberships SET role = ? WHERE workspace_id = ? AND user_id = ?`, string(*role), string(ws), userID)
+			_, err = tx.Exec(ctx, sqlChangeMembership4.SQL, string(*role), string(ws), userID)
 		}
 		return err
 	})

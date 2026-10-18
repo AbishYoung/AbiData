@@ -60,7 +60,7 @@ const maxNesting = 4
 
 // loadAll reads every saved query (inside a read or write transaction).
 func loadAll(ctx context.Context, q dbx.Querier) (map[string]*Saved, error) {
-	rows, err := q.Query(ctx, `SELECT id, name, kind, visual_model, sql_text, dialect, parameters, description, version, updated_at, updated_by FROM _sys_queries`)
+	rows, err := q.Query(ctx, sqlLoadAll.SQL)
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +200,12 @@ func fill(ctx context.Context, c dbx.Querier, sch *catalog.Schema, all map[strin
 }
 
 func writeDeps(ctx context.Context, tx dbx.Tx, id string, d Deps) error {
-	if _, err := tx.Exec(ctx, `DELETE FROM _sys_dependencies WHERE dependent_kind = 'query' AND dependent_id = ?`, id); err != nil {
+	if _, err := tx.Exec(ctx, sqlWriteDeps.SQL, id); err != nil {
 		return err
 	}
 	for kind, list := range map[string][]string{"table": d.Tables, "column": d.Columns, "query": d.Queries} {
 		for _, target := range list {
-			if _, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence)
-				VALUES ('query', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, id, kind, target); err != nil {
+			if _, err := tx.Exec(ctx, sqlWriteDeps2.SQL, id, kind, target); err != nil {
 				return err
 			}
 		}
@@ -230,10 +229,7 @@ func save(ctx context.Context, tx dbx.Tx, s *Saved) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO _sys_queries(id, name, kind, visual_model, sql_text, dialect, parameters, description, version, updated_at, updated_by)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind,
-		visual_model = excluded.visual_model, sql_text = excluded.sql_text, dialect = excluded.dialect, parameters = excluded.parameters,
-		description = excluded.description, version = excluded.version, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+	_, err = tx.Exec(ctx, sqlSave.SQL,
 		s.ID, s.Name, s.Kind, vis, s.SQL, s.Dialect, string(params), s.Description, s.Version, dbx.FormatTime(s.UpdatedAt), s.UpdatedBy)
 	if err != nil && fault.Classify(err).Code == fault.DuplicateValue {
 		return fault.Newf(fault.DuplicateValue, "A query named %q already exists.", s.Name)
@@ -255,7 +251,7 @@ func recompileDependents(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, al
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
-		rows, err := tx.Query(ctx, `SELECT dependent_id FROM _sys_dependencies WHERE dependent_kind = 'query' AND target_kind = 'query' AND target_id = ?`, cur)
+		rows, err := tx.Query(ctx, sqlRecompileDependents.SQL, cur)
 		if err != nil {
 			return err
 		}
@@ -405,7 +401,7 @@ func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expe
 func (svc *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
 	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var ver int64
-		if err := tx.QueryRow(ctx, `SELECT version FROM _sys_queries WHERE id = ?`, id).Scan(&ver); dbx.IsNoRows(err) {
+		if err := tx.QueryRow(ctx, sqlDelete.SQL, id).Scan(&ver); dbx.IsNoRows(err) {
 			return fault.E(fault.NotFound)
 		} else if err != nil {
 			return err
@@ -414,8 +410,7 @@ func (svc *Service) Delete(ctx context.Context, l *workspace.Lease, id string, e
 			return fault.E(fault.ConcurrentModification)
 		}
 		var users []string
-		rows, err := tx.Query(ctx, `SELECT q.name FROM _sys_dependencies d JOIN _sys_queries q ON q.id = d.dependent_id
-			WHERE d.dependent_kind = 'query' AND d.target_kind = 'query' AND d.target_id = ? ORDER BY q.name`, id)
+		rows, err := tx.Query(ctx, sqlDelete2.SQL, id)
 		if err != nil {
 			return err
 		}
@@ -528,10 +523,7 @@ type Usage struct {
 func Usages(ctx context.Context, l *workspace.Lease, kind, id string) ([]Usage, error) {
 	out := []Usage{}
 	err := l.Read(ctx, func(q dbx.Querier) error {
-		rows, err := q.Query(ctx, `SELECT d.dependent_kind, d.dependent_id, d.confidence,
-			coalesce((SELECT name FROM _sys_queries WHERE id = d.dependent_id), (SELECT name FROM _sys_forms WHERE id = d.dependent_id),
-			         (SELECT name FROM _sys_reports WHERE id = d.dependent_id), (SELECT name FROM _sys_scripts WHERE id = d.dependent_id), d.dependent_id)
-			FROM _sys_dependencies d WHERE d.target_kind = ? AND d.target_id = ? ORDER BY 1, 4`, kind, id)
+		rows, err := q.Query(ctx, sqlUsages.SQL, kind, id)
 		if err != nil {
 			return err
 		}
@@ -597,7 +589,7 @@ const CompilerVersion = "4"
 // no longer compile are left as they are; the designer reports them.
 func RefreshCompiled(ctx context.Context, c *sqlitex.Conn, sch *catalog.Schema) error {
 	var have string
-	err := c.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'query_compiler'`).Scan(&have)
+	err := c.QueryRow(ctx, sqlRefreshCompiled.SQL).Scan(&have)
 	if err == nil && have == CompilerVersion {
 		return nil
 	}
@@ -622,8 +614,7 @@ func RefreshCompiled(ctx context.Context, c *sqlitex.Conn, sch *catalog.Schema) 
 				}
 			}
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO _sys_meta(key, value) VALUES ('query_compiler', ?)
-			ON CONFLICT(key) DO UPDATE SET value = excluded.value`, CompilerVersion)
+		_, err = tx.Exec(ctx, sqlRefreshCompiled2.SQL, CompilerVersion)
 		return err
 	})
 }

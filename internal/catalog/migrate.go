@@ -31,10 +31,10 @@ func Version() int {
 // _sys_meta. It is safe to run on every open. Forward-only: a newer file is refused.
 func Migrate(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
 	var appID, version int
-	if err := c.QueryRow(ctx, "PRAGMA application_id").Scan(&appID); err != nil {
+	if err := c.QueryRow(ctx, sqlMigrate.SQL).Scan(&appID); err != nil {
 		return err
 	}
-	if err := c.QueryRow(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+	if err := c.QueryRow(ctx, sqlMigrate2.SQL).Scan(&version); err != nil {
 		return err
 	}
 	if appID != 0 && appID != ApplicationID {
@@ -62,7 +62,7 @@ func Migrate(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
 	return c.Immediate(ctx, func(tx *sqlitex.Tx) error {
 		for k, v := range map[string]string{"workspace_id": string(id), "timezone": "UTC", "locale": "en-US",
 			"created_at": dbx.Now(), "schema_version": "0"} {
-			if _, err := tx.Exec(ctx, `INSERT INTO _sys_meta(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING`, k, v); err != nil {
+			if _, err := tx.Exec(ctx, sqlMigrate3.SQL, k, v); err != nil {
 				return err
 			}
 		}

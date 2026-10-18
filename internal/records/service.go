@@ -341,7 +341,7 @@ func (s *Service) mutation(ctx context.Context, l *workspace.Lease, idem *Idempo
 	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		if hash != "" {
 			var user, h, resp string
-			err := tx.QueryRow(ctx, `SELECT user_id, request_hash, response FROM _sys_idempotency WHERE key = ?`, idem.Key).Scan(&user, &h, &resp)
+			err := tx.QueryRow(ctx, sqlMutation.SQL, idem.Key).Scan(&user, &h, &resp)
 			switch {
 			case err == nil && user == idem.UserID && h == hash:
 				out = json.RawMessage(resp)
@@ -362,7 +362,7 @@ func (s *Service) mutation(ctx context.Context, l *workspace.Lease, idem *Idempo
 		}
 		out, ch = b, c
 		if hash != "" {
-			if _, err := tx.Exec(ctx, `INSERT INTO _sys_idempotency(key, user_id, request_hash, status_code, response, created_at) VALUES (?,?,?,?,?,?)`,
+			if _, err := tx.Exec(ctx, sqlMutation2.SQL,
 				idem.Key, idem.UserID, hash, 200, string(b), dbx.FormatTime(s.now())); err != nil {
 				return err
 			}
@@ -472,7 +472,7 @@ func (s *Service) history(ctx context.Context, tx dbx.Tx, t *catalog.Table, rowI
 	if actor.UserID != "" {
 		user = actor.UserID
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO _sys_row_history(table_id, row_id, row_version, op, user_id, at, before, after) VALUES (?,?,?,?,?,?,?,?)`,
+	_, err := tx.Exec(ctx, sqlHistory2.SQL,
 		t.ID, rowID, version, op, user, dbx.FormatTime(s.now()), enc(before), enc(after))
 	return err
 }
@@ -742,7 +742,7 @@ func withIndex(err error, i int) error {
 // PurgeIdempotency deletes keys older than 24 h (janitor).
 func PurgeIdempotency(ctx context.Context, l *workspace.Lease, now time.Time) error {
 	return l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _sys_idempotency WHERE created_at < ?`, dbx.FormatTime(now.Add(-idempotencyTTL)))
+		_, err := tx.Exec(ctx, sqlPurgeIdempotency.SQL, dbx.FormatTime(now.Add(-idempotencyTTL)))
 		return err
 	})
 }

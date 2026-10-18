@@ -1,0 +1,155 @@
+admin.Audit	admin	portable	
+admin.ChangeMembership	admin	portable	role
+admin.ChangeMembership#2	admin	portable	count(*)
+admin.ChangeMembership#3	admin	portable	
+admin.ChangeMembership#4	admin	portable	
+admin.ClearLoginAttempts	admin	portable	
+admin.ClearLoginAttemptsPrefix	admin	portable	
+admin.Close	admin	sqlite	busy,log,checkpointed
+admin.CountUsers	admin	portable	count(*)
+admin.CreateAPIKey	admin	portable	
+admin.CreateAPIKey#2	admin	portable	count(*)
+admin.CreateAPIKey#3	admin	portable	
+admin.CreateApp	admin	portable	count(*)
+admin.CreateApp#2	admin	portable	
+admin.CreateSession	admin	portable	
+admin.CreateWorkspace	admin	portable	
+admin.CreateWorkspace#2	admin	portable	
+admin.DeleteApp	admin	portable	
+admin.DeleteBackup	admin	portable	
+admin.DeleteSession	admin	portable	
+admin.DeleteUserSessions	admin	portable	
+admin.DropWorkspace	admin	portable	
+admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_at,expires_at,ip,user_agent
+admin.GetSetting	admin	portable	value
+admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
+admin.ListMembers	admin	sqlite	id,email,display_name,role
+admin.ListSettings	admin	portable	key,value
+admin.Ping	admin	portable	1
+admin.PurgeSessions	admin	portable	
+admin.PurgeSessions#2	admin	portable	
+admin.PutSetting	admin	portable	
+admin.RecordLoginFailure	admin	portable	
+admin.RevokeAPIKey	admin	portable	
+admin.SetAppTakenDown	admin	portable	
+admin.SetAppToken	admin	portable	
+admin.SetMembership	admin	portable	
+admin.SetPasswordHash	admin	portable	
+admin.TouchAPIKey	admin	portable	
+admin.TouchLogin	admin	portable	
+admin.TouchSession	admin	portable	
+admin.UpdateApp	admin	portable	
+admin.UpdateUser	admin	portable	
+admin.UpdateWorkspace	admin	portable	
+admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
+admin.migrate	admin	sqlite	application_id
+admin.migrate#2	admin	sqlite	user_version
+admin.readAttempts	admin	portable	count,window_start
+admin.writeAppItems	admin	portable	
+admin.writeAppItems#2	admin	portable	
+backup.finish	workspace	sqlite	quick_check
+backup.inspect	workspace	sqlite	application_id
+backup.inspect#2	workspace	sqlite	user_version
+backup.inspect#3	workspace	sqlite	sqlite_version()
+backup.inspect#4	workspace	portable	value
+backup.inspect#5	workspace	sqlite	name
+backup.listFiles	workspace	sqlite	count(*)
+backup.listFiles#2	workspace	portable	sha256,MAX(size)
+backup.prepare	workspace	portable	
+backup.prepare#2	workspace	sqlite	journal_mode
+backup.snapshot	workspace	sqlite	
+catalog.Cache.Get	workspace	portable	value
+catalog.Load	workspace	sqlite	id,physical_name,display_name,description,track_history,version
+catalog.Load#2	workspace	portable	id,table_id,physical_name,display_name,field_type,type_options,is_required,default_sql,validation_sql,validation_text,lookup_relationship_id,lookup_display_column_id,description,ordinal,is_hidden
+catalog.Load#3	workspace	portable	id,table_id,physical_name,is_unique,column_ids
+catalog.Load#4	workspace	sqlite	id,name,parent_table_id,child_table_id,child_column_id,on_delete,enforce
+catalog.Migrate	workspace	sqlite	application_id
+catalog.Migrate#2	workspace	sqlite	user_version
+catalog.Migrate#3	workspace	portable	
+catalog.Reconcile	workspace	sqlite	name,hidden
+catalog.Reconcile#2	workspace	sqlite	count(*)
+catalog.Reconcile#3	workspace	sqlite	count(*)
+catalog.Reconcile#4	workspace	sqlite	name
+catalog.planner.alterColumn	workspace	portable	
+catalog.planner.checkSavedQueries	workspace	portable	id,name,sql_text
+catalog.planner.createIndex	workspace	portable	
+catalog.planner.createTable	workspace	portable	
+catalog.planner.dropColumn	workspace	portable	
+catalog.planner.dropColumn#2	workspace	portable	
+catalog.planner.dropColumn#3	workspace	portable	
+catalog.planner.dropColumn#4	workspace	portable	
+catalog.planner.dropColumn#5	workspace	portable	
+catalog.planner.dropTable	workspace	portable	
+catalog.planner.dropTable#2	workspace	portable	
+catalog.planner.finish	workspace	portable	
+catalog.planner.finish#2	workspace	portable	
+catalog.planner.finish#3	workspace	portable	
+catalog.planner.impact	workspace	sqlite	table,parent,count(*)
+catalog.planner.insertColumnMeta	workspace	portable	
+catalog.planner.insertOrUpdateRelationship	workspace	portable	
+catalog.planner.insertRelationship	workspace	portable	
+catalog.planner.physicalNameTaken	workspace	sqlite	count(*)
+catalog.planner.rebuild	workspace	sqlite	seq
+catalog.planner.rebuild#2	workspace	sqlite	
+catalog.planner.rebuild#3	workspace	sqlite	
+catalog.planner.renameTable	workspace	portable	
+catalog.planner.reorderColumns	workspace	portable	
+catalog.planner.setTableProps	workspace	portable	
+catalog.planner.updateColumnMeta	workspace	portable	
+files.Upload	workspace	portable	EXISTS (SELECT 1 FROM _sys_files WHERE sha256 = ?)
+files.Upload#2	workspace	portable	COALESCE(SUM(size), 0)
+files.Upload#3	workspace	portable	
+files.Usage	workspace	portable	count(*)
+files.sweepBatch	workspace	portable	
+files.sweepBatch#2	workspace	portable	id,sha256,state,size
+files.sweepBatch#3	workspace	portable	EXISTS (SELECT 1 FROM _sys_row_history WHERE at >= ? AND (before LIKE '%' || ? || '%' OR after LIKE '%' || ? || '%'))
+files.sweepBatch#4	workspace	portable	
+files.sweepOrphans	workspace	portable	sha256
+forms.Delete	workspace	portable	count(*)
+forms.Put	workspace	portable	count(*)
+forms.writeDeps	workspace	portable	
+forms.writeDeps#2	workspace	portable	
+httpapi.workspaceTZ	workspace	portable	value
+ingest.createStagingSchema	workspace	portable	
+ingest.readMeta	staging	portable	key,value
+ingest.saveMeta	staging	portable	
+ingest.setStatus	staging	portable	
+jobs.ByName	workspace	sqlite	id
+jobs.Delete	workspace	portable	
+jobs.Delete#2	workspace	portable	
+jobs.Put	workspace	portable	
+jobs.Put#2	workspace	portable	
+jobs.SQLStore.DeleteEntry	admin	portable	
+jobs.SQLStore.DeleteWorkspace	admin	portable	
+jobs.SQLStore.NextWake	admin	portable	min(t)
+jobs.conflictOrMissing	workspace	portable	count(*)
+jobs.readTZ	workspace	portable	value
+ops.Progress.Set	workspace	portable	
+ops.Reconcile	workspace	portable	id
+ops.Reconcile#2	workspace	portable	
+ops.Start	workspace	portable	
+ops.finish	workspace	portable	
+query.Delete	workspace	portable	version
+query.Delete#2	workspace	portable	name
+query.RefreshCompiled	workspace	portable	value
+query.RefreshCompiled#2	workspace	portable	
+query.Usages	workspace	portable	dependent_kind,dependent_id,confidence,coalesce((SELECT name FROM _sys_queries WHERE id = d.dependent_id), (SELECT name FROM _sys_forms WHERE id = d.dependent_id), (SELECT name FROM _sys_reports WHERE id = d.dependent_id), (SELECT name FROM _sys_scripts WHERE id = d.dependent_id), d.dependent_id)
+query.loadAll	workspace	portable	id,name,kind,visual_model,sql_text,dialect,parameters,description,version,updated_at,updated_by
+query.recompileDependents	workspace	portable	dependent_id
+query.save	workspace	portable	
+query.writeDeps	workspace	portable	
+query.writeDeps#2	workspace	portable	
+records.History	workspace	portable	id,row_version,op,user_id,at,before,after
+records.PurgeIdempotency	workspace	portable	
+records.history#2	workspace	portable	
+records.mutation	workspace	portable	user_id,request_hash,response
+records.mutation#2	workspace	portable	
+reports.Put	workspace	portable	
+reports.Put#2	workspace	portable	
+scripts.Delete	workspace	portable	count(*)
+scripts.Delete#2	workspace	portable	
+scripts.Loader	workspace	portable	source
+workspace.Lease.WriteWith	workspace	sqlite	
+workspace.Lease.WriteWith#2	workspace	sqlite	
+workspace.handle.closeConns	workspace	sqlite	optimize
+workspace.handle.closeConns#2	workspace	sqlite	busy,log,checkpointed

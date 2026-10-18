@@ -74,7 +74,7 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Job, 
 func (s *Service) ByName(ctx context.Context, l *workspace.Lease, name string) (Job, error) {
 	var id string
 	err := l.Read(ctx, func(q dbx.Querier) error {
-		return q.QueryRow(ctx, `SELECT id FROM _sys_jobs WHERE name = ? COLLATE NOCASE`, name).Scan(&id)
+		return q.QueryRow(ctx, sqlByName.SQL, name).Scan(&id)
 	})
 	if dbx.IsNoRows(err) {
 		return Job{}, fault.Newf(fault.NotFound, "There is no job named %q.", name)
@@ -147,7 +147,7 @@ func (s *Service) normalize(ctx context.Context, l *workspace.Lease, in JobInput
 func readTZ(ctx context.Context, l *workspace.Lease) string {
 	var name string
 	_ = l.Read(ctx, func(q dbx.Querier) error {
-		return q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'timezone'`).Scan(&name)
+		return q.QueryRow(ctx, sqlReadTZ.SQL).Scan(&name)
 	})
 	if name == "" {
 		return "UTC"
@@ -170,16 +170,12 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 		}
 		if id == "" {
 			id = ids.New()
-			_, err := tx.Exec(ctx, `INSERT INTO _sys_jobs (id, name, script_id, schedule, timezone, enabled, timeout_seconds,
-				overlap_policy, misfire_policy, max_retries, retry_backoff_seconds, args, version, updated_at, updated_by)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
+			_, err := tx.Exec(ctx, sqlPut.SQL,
 				id, in.Name, in.ScriptID, sched, in.Timezone, boolInt(enabled), in.TimeoutSeconds, in.OverlapPolicy,
 				in.MisfirePolicy, in.MaxRetries, in.RetryBackoff, args, now, user)
 			return err
 		}
-		res, err := tx.Exec(ctx, `UPDATE _sys_jobs SET name = ?, script_id = ?, schedule = ?, timezone = ?, enabled = ?,
-			timeout_seconds = ?, overlap_policy = ?, misfire_policy = ?, max_retries = ?, retry_backoff_seconds = ?, args = ?,
-			version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?`,
+		res, err := tx.Exec(ctx, sqlPut2.SQL,
 			in.Name, in.ScriptID, sched, in.Timezone, boolInt(enabled), in.TimeoutSeconds, in.OverlapPolicy, in.MisfirePolicy,
 			in.MaxRetries, in.RetryBackoff, args, now, user, id, expectedVersion)
 		if err != nil {
@@ -206,7 +202,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 
 func conflictOrMissing(ctx context.Context, tx dbx.Tx, id string) error {
 	var n int
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM _sys_jobs WHERE id = ?`, id).Scan(&n); err != nil {
+	if err := tx.QueryRow(ctx, sqlConflictOrMissing.SQL, id).Scan(&n); err != nil {
 		return err
 	}
 	if n == 0 {
@@ -218,14 +214,14 @@ func conflictOrMissing(ctx context.Context, tx dbx.Tx, id string) error {
 // Delete removes a job and its run history.
 func (s *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
 	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `DELETE FROM _sys_jobs WHERE id = ? AND version = ?`, id, expectedVersion)
+		res, err := tx.Exec(ctx, sqlDelete.SQL, id, expectedVersion)
 		if err != nil {
 			return err
 		}
 		if res.Changes == 0 {
 			return conflictOrMissing(ctx, tx, id)
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM _sys_job_runs WHERE job_id = ?`, id)
+		_, err = tx.Exec(ctx, sqlDelete2.SQL, id)
 		return err
 	})
 	if err != nil {

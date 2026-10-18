@@ -230,13 +230,13 @@ func (svc *Service) Delete(ctx context.Context, l *workspace.Lease, id string, e
 			return fault.E(fault.ConcurrentModification)
 		}
 		var jobs int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM _sys_jobs WHERE script_id = ?`, id).Scan(&jobs); err != nil {
+		if err := tx.QueryRow(ctx, sqlDelete.SQL, id).Scan(&jobs); err != nil {
 			return err
 		}
 		if jobs > 0 {
 			return fault.New(fault.LinkedRecords, "Jobs use this script. Delete or change those jobs first. Nothing was deleted.")
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM _sys_scripts WHERE id = ?`, id)
+		_, err = tx.Exec(ctx, sqlDelete2.SQL, id)
 		return err
 	})
 	if err == nil && svc.Events != nil {
@@ -272,7 +272,7 @@ func (svc *Service) Loader(ctx context.Context, l *workspace.Lease) script.Modul
 	return func(name string) (string, bool) {
 		var src string
 		err := l.Read(ctx, func(q dbx.Querier) error {
-			return q.QueryRow(ctx, `SELECT source FROM _sys_scripts WHERE kind = 'module' AND name = ?`, name).Scan(&src)
+			return q.QueryRow(ctx, sqlLoader.SQL, name).Scan(&src)
 		})
 		return src, err == nil
 	}

@@ -65,7 +65,7 @@ func (s *Service) setStatus(ctx context.Context, ws ids.WorkspaceID, id, status 
 		return
 	}
 	defer func() { _ = c.Close() }()
-	_, _ = c.Exec(ctx, `UPDATE meta SET value = ? WHERE key = 'status'`, `"`+status+`"`)
+	_, _ = c.Exec(ctx, sqlSetStatus.SQL, `"`+status+`"`)
 }
 
 func (s *Service) runImport(ctx context.Context, l *workspace.Lease, id, by string, prog *ops.Progress) (out any, err error) {

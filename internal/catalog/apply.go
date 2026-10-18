@@ -263,7 +263,7 @@ func (p *planner) table(id string) (*Table, error) {
 
 func (p *planner) physicalNameTaken(name string) (bool, error) {
 	var n int
-	err := p.tx.QueryRow(p.ctx, `SELECT count(*) FROM sqlite_schema WHERE name = ? COLLATE NOCASE`, name).Scan(&n)
+	err := p.tx.QueryRow(p.ctx, sqlPlannerPhysicalNameTaken.SQL, name).Scan(&n)
 	return n > 0, err
 }
 
@@ -380,8 +380,7 @@ func (p *planner) createTable(op Op) error {
 		return err
 	}
 	now := dbx.FormatTime(p.now())
-	if err := p.exec(`INSERT INTO _sys_tables(id, physical_name, display_name, description, track_history, version, created_at, updated_at)
-		VALUES (?,?,?,?,?,1,?,?)`, tp.ID, tp.PhysicalName, tp.DisplayName, tp.Description, tp.TrackHistory, now, now); err != nil {
+	if err := p.exec(sqlPlannerCreateTable.SQL, tp.ID, tp.PhysicalName, tp.DisplayName, tp.Description, tp.TrackHistory, now, now); err != nil {
 		return err
 	}
 	for _, r := range p.s.Relationships {
@@ -438,7 +437,7 @@ func (p *planner) renameTable(op Op) error {
 		t.PhysicalName = op.PhysicalName
 	}
 	p.touched[t.ID] = true
-	return p.exec(`UPDATE _sys_tables SET display_name = ?, physical_name = ? WHERE id = ?`, t.DisplayName, t.PhysicalName, t.ID)
+	return p.exec(sqlPlannerRenameTable.SQL, t.DisplayName, t.PhysicalName, t.ID)
 }
 
 func (p *planner) dropTable(op Op) error {
@@ -467,7 +466,7 @@ func (p *planner) dropTable(op Op) error {
 	if err := p.execStmt(&sqlgen.DropTable{Name: t.PhysicalName}); err != nil {
 		return ddlError(err)
 	}
-	if err := p.exec(`DELETE FROM _sys_file_refs WHERE table_id = ?`, t.ID); err != nil {
+	if err := p.exec(sqlPlannerDropTable.SQL, t.ID); err != nil {
 		return err
 	}
 	// foreign_keys is OFF during schema changes, so _sys_* cascades do not fire:
@@ -486,7 +485,7 @@ func (p *planner) dropTable(op Op) error {
 			return err
 		}
 	}
-	if err := p.exec(`DELETE FROM _sys_row_history WHERE table_id = ?`, t.ID); err != nil {
+	if err := p.exec(sqlPlannerDropTable2.SQL, t.ID); err != nil {
 		return err
 	}
 	// Lookup display columns elsewhere cannot point here (blocked above), so only
@@ -533,7 +532,7 @@ func (p *planner) setTableProps(op Op) error {
 		t.TrackHistory = *op.Props.TrackHistory
 	}
 	p.touched[t.ID] = true
-	return p.exec(`UPDATE _sys_tables SET description = ?, track_history = ? WHERE id = ?`, t.Description, t.TrackHistory, t.ID)
+	return p.exec(sqlPlannerSetTableProps.SQL, t.Description, t.TrackHistory, t.ID)
 }
 
 // ---- columns ---------------------------------------------------------------
@@ -863,7 +862,7 @@ func (p *planner) alterColumn(op Op) error {
 	if oldCol.Type == Lookup && nc.Type != Lookup && oldCol.LookupRelationshipID != "" {
 		// The lookup's relationship goes away with it.
 		p.removeRelationship(oldCol.LookupRelationshipID)
-		if err := p.exec(`DELETE FROM _sys_relationships WHERE id = ?`, oldCol.LookupRelationshipID); err != nil {
+		if err := p.exec(sqlPlannerAlterColumn.SQL, oldCol.LookupRelationshipID); err != nil {
 			return err
 		}
 	}
@@ -963,7 +962,7 @@ func (p *planner) dropColumn(op Op) error {
 			uses = uses || id == c.ID
 		}
 		if uses {
-			if err := p.exec(`DELETE FROM _sys_indexes WHERE id = ?`, x.ID); err != nil {
+			if err := p.exec(sqlPlannerDropColumn.SQL, x.ID); err != nil {
 				return err
 			}
 			continue
@@ -986,20 +985,20 @@ func (p *planner) dropColumn(op Op) error {
 	for _, x := range p.s.Tables {
 		for _, xc := range x.Columns {
 			if xc.LookupDisplayColumnID == op.ColumnID {
-				if err := p.exec(`UPDATE _sys_columns SET lookup_display_column_id = NULL WHERE id = ?`, xc.ID); err != nil {
+				if err := p.exec(sqlPlannerDropColumn2.SQL, xc.ID); err != nil {
 					return err
 				}
 			}
 		}
 	}
-	if err := p.exec(`DELETE FROM _sys_relationships WHERE child_column_id = ?`, op.ColumnID); err != nil {
+	if err := p.exec(sqlPlannerDropColumn3.SQL, op.ColumnID); err != nil {
 		return err
 	}
-	if err := p.exec(`DELETE FROM _sys_file_refs WHERE column_id = ?`, op.ColumnID); err != nil {
+	if err := p.exec(sqlPlannerDropColumn4.SQL, op.ColumnID); err != nil {
 		return err
 	}
 	p.touched[t.ID] = true
-	return p.exec(`DELETE FROM _sys_columns WHERE id = ?`, op.ColumnID)
+	return p.exec(sqlPlannerDropColumn5.SQL, op.ColumnID)
 }
 
 func (p *planner) reorderColumns(op Op) error {
@@ -1018,7 +1017,7 @@ func (p *planner) reorderColumns(op Op) error {
 		}
 		seen[id] = true
 		c.Ordinal = i
-		if err := p.exec(`UPDATE _sys_columns SET ordinal = ? WHERE id = ?`, i, id); err != nil {
+		if err := p.exec(sqlPlannerReorderColumns.SQL, i, id); err != nil {
 			return err
 		}
 	}
@@ -1092,7 +1091,7 @@ func (p *planner) createIndex(op Op) error {
 	cols, _ := json.Marshal(x.ColumnIDs)
 	p.touched[t.ID] = true
 	p.created["index:"+x.PhysicalName] = x.ID
-	return p.exec(`INSERT INTO _sys_indexes(id, table_id, physical_name, is_unique, column_ids) VALUES (?,?,?,?,?)`,
+	return p.exec(sqlPlannerCreateIndex.SQL,
 		x.ID, x.TableID, x.PhysicalName, x.Unique, string(cols))
 }
 
@@ -1108,7 +1107,7 @@ func (p *planner) dropIndex(op Op) error {
 			}
 			t.Indexes = append(t.Indexes[:i:i], t.Indexes[i+1:]...)
 			p.touched[t.ID] = true
-			return p.exec(`DELETE FROM _sys_indexes WHERE id = ?`, x.ID)
+			return p.exec(sqlPlannerDropColumn.SQL, x.ID)
 		}
 	}
 	return badf("Index %s does not exist.", op.IndexID)
@@ -1195,7 +1194,7 @@ func (p *planner) dropRelationship(op Op) error {
 		}
 	}
 	p.touched[child.ID] = true
-	return p.exec(`DELETE FROM _sys_relationships WHERE id = ?`, op.RelationshipID)
+	return p.exec(sqlPlannerAlterColumn.SQL, op.RelationshipID)
 }
 
 func (p *planner) removeRelationship(id string) {
@@ -1303,7 +1302,7 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 				total-res.Changes, after.DisplayName, strings.Join(ids, ", "))})
 	}
 	var seq *int64
-	if err := p.tx.QueryRow(p.ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, before.PhysicalName).Scan(&seq); err != nil && !dbx.IsNoRows(err) {
+	if err := p.tx.QueryRow(p.ctx, sqlPlannerRebuild.SQL, before.PhysicalName).Scan(&seq); err != nil && !dbx.IsNoRows(err) {
 		return err
 	}
 	if err := p.execStmt(&sqlgen.DropTable{Name: before.PhysicalName}); err != nil {
@@ -1314,10 +1313,10 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 	}
 	if seq != nil {
 		// Keep AUTOINCREMENT from reusing IDs of rows deleted before the rebuild.
-		if err := p.exec(`UPDATE sqlite_sequence SET seq = max(seq, ?) WHERE name = ?`, *seq, after.PhysicalName); err != nil {
+		if err := p.exec(sqlPlannerRebuild2.SQL, *seq, after.PhysicalName); err != nil {
 			return err
 		}
-		if err := p.exec(`INSERT INTO sqlite_sequence(name, seq) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = ?)`,
+		if err := p.exec(sqlPlannerRebuild3.SQL,
 			after.PhysicalName, *seq, after.PhysicalName); err != nil {
 			return err
 		}
@@ -1454,7 +1453,7 @@ func registerConvertFuncs(c *sqlitex.Conn) (func(), error) {
 // ---- impact & finish -------------------------------------------------------
 
 func (p *planner) impact(validators []Validator) error {
-	rows, err := p.tx.Query(p.ctx, `SELECT "table", parent, count(*) FROM pragma_foreign_key_check GROUP BY 1, 2`)
+	rows, err := p.tx.Query(p.ctx, sqlPlannerImpact.SQL)
 	if err != nil {
 		return err
 	}
@@ -1536,7 +1535,7 @@ func (p *planner) dropPreexisting(baseline map[string]bool) {
 }
 
 func (p *planner) checkSavedQueries() error {
-	rows, err := p.tx.Query(p.ctx, `SELECT id, name, sql_text FROM _sys_queries ORDER BY name`)
+	rows, err := p.tx.Query(p.ctx, sqlPlannerCheckSavedQueries.SQL)
 	if err != nil {
 		return err
 	}
@@ -1574,11 +1573,11 @@ func (p *planner) checkSavedQueries() error {
 func (p *planner) finish(ops []Op) error {
 	now := dbx.FormatTime(p.now())
 	for id := range p.touched {
-		if err := p.exec(`UPDATE _sys_tables SET version = version + 1, updated_at = ? WHERE id = ?`, now, id); err != nil {
+		if err := p.exec(sqlPlannerFinish.SQL, now, id); err != nil {
 			return err
 		}
 	}
-	if err := p.exec(`UPDATE _sys_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'schema_version'`); err != nil {
+	if err := p.exec(sqlPlannerFinish2.SQL); err != nil {
 		return err
 	}
 	details, err := json.Marshal(map[string]any{"ops": ops})
@@ -1589,7 +1588,7 @@ func (p *planner) finish(ops []Op) error {
 	if p.user != "" {
 		user = p.user
 	}
-	return p.exec(`INSERT INTO _sys_audit(at, user_id, action, object_kind, object_id, details) VALUES (?, ?, 'schema.apply', 'schema', NULL, ?)`,
+	return p.exec(sqlPlannerFinish3.SQL,
 		now, user, string(details))
 }
 
@@ -1600,9 +1599,7 @@ func (p *planner) insertColumnMeta(c Column) error {
 	if err != nil {
 		return err
 	}
-	return p.exec(`INSERT INTO _sys_columns(id, table_id, physical_name, display_name, field_type, type_options, is_required,
-		default_sql, validation_sql, validation_text, lookup_relationship_id, lookup_display_column_id, description, ordinal, is_hidden)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	return p.exec(sqlPlannerInsertColumnMeta.SQL,
 		c.ID, c.TableID, c.PhysicalName, c.DisplayName, string(c.Type), string(opts), c.Required,
 		nullable(c.DefaultSQL), nullable(c.ValidationSQL), nullable(c.ValidationText), nullable(c.LookupRelationshipID),
 		nullable(c.LookupDisplayColumnID), c.Description, c.Ordinal, c.Hidden)
@@ -1613,21 +1610,17 @@ func (p *planner) updateColumnMeta(c Column) error {
 	if err != nil {
 		return err
 	}
-	return p.exec(`UPDATE _sys_columns SET physical_name = ?, display_name = ?, field_type = ?, type_options = ?, is_required = ?,
-		default_sql = ?, validation_sql = ?, validation_text = ?, lookup_relationship_id = ?, lookup_display_column_id = ?,
-		description = ?, ordinal = ?, is_hidden = ? WHERE id = ?`,
+	return p.exec(sqlPlannerUpdateColumnMeta.SQL,
 		c.PhysicalName, c.DisplayName, string(c.Type), string(opts), c.Required, nullable(c.DefaultSQL), nullable(c.ValidationSQL),
 		nullable(c.ValidationText), nullable(c.LookupRelationshipID), nullable(c.LookupDisplayColumnID), c.Description, c.Ordinal, c.Hidden, c.ID)
 }
 
 func (p *planner) insertRelationship(r Relationship) error {
-	return p.exec(`INSERT INTO _sys_relationships(id, name, parent_table_id, child_table_id, child_column_id, on_delete, enforce)
-		VALUES (?,?,?,?,?,?,?)`, r.ID, r.Name, r.ParentTableID, r.ChildTableID, r.ChildColumnID, string(r.OnDelete), r.Enforce)
+	return p.exec(sqlPlannerInsertRelationship.SQL, r.ID, r.Name, r.ParentTableID, r.ChildTableID, r.ChildColumnID, string(r.OnDelete), r.Enforce)
 }
 
 func (p *planner) insertOrUpdateRelationship(r Relationship) error {
-	return p.exec(`INSERT INTO _sys_relationships(id, name, parent_table_id, child_table_id, child_column_id, on_delete, enforce)
-		VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET on_delete = excluded.on_delete, enforce = excluded.enforce`,
+	return p.exec(sqlPlannerInsertOrUpdateRelationship.SQL,
 		r.ID, r.Name, r.ParentTableID, r.ChildTableID, r.ChildColumnID, string(r.OnDelete), r.Enforce)
 }
 

@@ -207,7 +207,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		exists := func(fid string) bool {
 			var n int
-			_ = tx.QueryRow(ctx, `SELECT count(*) FROM _sys_forms WHERE id = ?`, fid).Scan(&n)
+			_ = tx.QueryRow(ctx, sqlPut.SQL, fid).Scan(&n)
 			return n > 0 || fid == f.ID
 		}
 		var moduleID string
@@ -267,11 +267,11 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 }
 
 func writeDeps(ctx context.Context, tx dbx.Tx, f Form) error {
-	if _, err := tx.Exec(ctx, `DELETE FROM _sys_dependencies WHERE dependent_kind = 'form' AND dependent_id = ?`, f.ID); err != nil {
+	if _, err := tx.Exec(ctx, sqlWriteDeps.SQL, f.ID); err != nil {
 		return err
 	}
 	add := func(kind, target string) error {
-		_, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('form', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, f.ID, kind, target)
+		_, err := tx.Exec(ctx, sqlWriteDeps2.SQL, f.ID, kind, target)
 		return err
 	}
 	if f.SourceID != "" {
@@ -312,7 +312,7 @@ func (s *Service) Delete(ctx context.Context, l *workspace.Lease, id string, exp
 			return fault.E(fault.ConcurrentModification)
 		}
 		var users int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM _sys_dependencies WHERE dependent_kind = 'form' AND target_kind = 'form' AND target_id = ?`, id).Scan(&users); err != nil {
+		if err := tx.QueryRow(ctx, sqlDelete.SQL, id).Scan(&users); err != nil {
 			return err
 		}
 		if users > 0 {

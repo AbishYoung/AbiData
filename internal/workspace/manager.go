@@ -383,9 +383,9 @@ func (h *handle) closeConns(optimize bool) {
 	if h.writer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if optimize {
-			_, _ = h.writer.Exec(ctx, "PRAGMA optimize")
+			_, _ = h.writer.Exec(ctx, sqlHandleCloseConns.SQL)
 		}
-		_, _ = h.writer.Exec(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
+		_, _ = h.writer.Exec(ctx, sqlHandleCloseConns2.SQL)
 		cancel()
 		_ = h.writer.Close()
 		h.writer = nil

@@ -56,7 +56,7 @@ func createStagingSchema(ctx context.Context, c *sqlitex.Conn, cols []string) er
 		b.WriteString(", " + catalog.Quote(name))
 	}
 	b.WriteString(")")
-	if err := c.ExecScript(ctx, `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`); err != nil {
+	if _, err := c.Exec(ctx, sqlCreateStagingSchema.SQL); err != nil {
 		return err
 	}
 	return c.ExecScript(ctx, b.String())
@@ -73,7 +73,7 @@ func saveMeta(ctx context.Context, c *sqlitex.Conn, m ImportMeta) error {
 		if err != nil {
 			return err
 		}
-		if _, err := c.Exec(ctx, `INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, k, string(b)); err != nil {
+		if _, err := c.Exec(ctx, sqlSaveMeta.SQL, k, string(b)); err != nil {
 			return err
 		}
 	}
@@ -81,7 +81,7 @@ func saveMeta(ctx context.Context, c *sqlitex.Conn, m ImportMeta) error {
 }
 
 func readMeta(ctx context.Context, c *sqlitex.Conn) (ImportMeta, error) {
-	rows, err := c.Query(ctx, `SELECT key, value FROM meta`)
+	rows, err := c.Query(ctx, sqlReadMeta.SQL)
 	if err != nil {
 		return ImportMeta{}, err
 	}
