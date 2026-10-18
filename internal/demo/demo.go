@@ -1,11 +1,12 @@
-// Package demo builds the "Northwind Traders" sample workspace: tables with
-// realistic rows, saved queries, forms, reports, a job script and a
-// scheduled job. It also carries a biosecurity (invasive species) scenario that
-// shows geographic fields and file attachments: suppliers with a map location,
-// species, pest sightings with GPS positions and photos, quarantine zones
-// (polygons, one with a hole), spatial queries, a sighting form with a map, and
-// a report with maps and images. It drives the same services the HTTP handlers use, so
-// validation, audit and row history behave exactly as they do for a user.
+// Package demo builds the two sample workspaces. "Northwind Traders" has
+// tables with realistic rows, saved queries, a form, a report, a job script and
+// a scheduled job. "Northwind Invasives" is a biosecurity (invasive species)
+// scenario that shows geographic fields and file attachments: suppliers with a
+// map location, species, pest sightings with GPS positions and photos,
+// quarantine zones (polygons, one with a hole), spatial queries, a sighting form
+// with a map, and a report with maps and images. Both drive the same services
+// the HTTP handlers use, so validation, audit and row history behave exactly as
+// they do for a user.
 //
 // Content is deterministic (fixed random seed); dates are relative to the
 // install time so the data always looks current. No script in the demo uses the
@@ -38,12 +39,44 @@ import (
 	"abidata/internal/workspace"
 )
 
-// WorkspaceName is the name of the sample workspace; Create does nothing when a
-// workspace with this name already exists. That includes workspaces created by
-// an earlier version: there is no upgrade path, so only new installs (or a
-// workspace deleted and recreated with `abidata demo`) get the biosecurity
-// scenario. Existing workspaces are never modified.
-const WorkspaceName = "Northwind Traders"
+// Kind is one of the sample workspaces.
+type Kind string
+
+const (
+	// Traders is the order-processing sample: customers, orders, products.
+	Traders Kind = "traders"
+	// Invasives is the biosecurity sample: maps, areas and photos.
+	Invasives Kind = "invasives"
+)
+
+// Kinds lists every sample workspace in the order they are created.
+var Kinds = []Kind{Traders, Invasives}
+
+// Workspace names. Create does nothing when a workspace with the kind's name
+// already exists, and existing workspaces are never modified. A "Northwind
+// Traders" made before the samples were split also carries the invasive
+// species tables.
+const (
+	WorkspaceName = "Northwind Traders"
+	InvasivesName = "Northwind Invasives"
+)
+
+// ParseKind accepts "traders" or "invasives" (any case).
+func ParseKind(s string) (Kind, error) {
+	k := Kind(strings.ToLower(strings.TrimSpace(s)))
+	if k != Traders && k != Invasives {
+		return "", fmt.Errorf("unknown demo %q: use traders or invasives", s)
+	}
+	return k, nil
+}
+
+// Name is the workspace name of the kind's shared sample.
+func (k Kind) Name() string {
+	if k == Invasives {
+		return InvasivesName
+	}
+	return WorkspaceName
+}
 
 // Builder holds the services the demo is built with. Every field is required.
 type Builder struct {
@@ -94,25 +127,28 @@ type Result struct {
 	Created     bool // false: a workspace with the demo's name already existed
 }
 
-// Create builds the demo workspace owned by ownerID. When a workspace named
-// "Northwind Traders" already exists it returns that workspace and Created is
+// Create builds the kind's sample workspace owned by ownerID. When a workspace
+// with the kind's name already exists it returns that workspace and Created is
 // false. If building fails part-way the half-built workspace is retired
 // (marked deleted and renamed) so a retry starts clean.
-func (b *Builder) Create(ctx context.Context, ownerID string) (Result, error) {
+func (b *Builder) Create(ctx context.Context, kind Kind, ownerID string) (Result, error) {
+	if _, err := ParseKind(string(kind)); err != nil {
+		return Result{}, err
+	}
 	existing, err := b.Admin.ListWorkspaces(ctx)
 	if err != nil {
 		return Result{}, err
 	}
 	for _, w := range existing {
-		if strings.EqualFold(w.Name, WorkspaceName) {
+		if strings.EqualFold(w.Name, kind.Name()) {
 			return Result{WorkspaceID: w.ID}, nil
 		}
 	}
-	return b.createNamed(ctx, ownerID, WorkspaceName)
+	return b.createNamed(ctx, kind, ownerID, kind.Name())
 }
 
-// createNamed builds a demo workspace called name, owned by ownerID.
-func (b *Builder) createNamed(ctx context.Context, ownerID, name string) (Result, error) {
+// createNamed builds a sample workspace of the kind called name, owned by ownerID.
+func (b *Builder) createNamed(ctx context.Context, kind Kind, ownerID, name string) (Result, error) {
 	now := time.Now()
 	if b.Now != nil {
 		now = b.Now()
@@ -128,12 +164,12 @@ func (b *Builder) createNamed(ctx context.Context, ownerID, name string) (Result
 		}
 		return Result{}, err
 	}
-	if err := b.build(ctx, w.ID, ownerID, now); err != nil {
+	if err := b.build(ctx, kind, w.ID, ownerID, now); err != nil {
 		b.retire(ctx, w.ID, name)
 		return Result{}, fmt.Errorf("build demo workspace: %w", err)
 	}
 	if err := b.Admin.Audit(ctx, admin.AuditEntry{At: time.Now(), UserID: ownerID, Action: "workspace.create",
-		ObjectKind: "workspace", ObjectID: string(w.ID), Details: map[string]any{"name": name, "owner": ownerID, "demo": true}}); err != nil && b.Log != nil {
+		ObjectKind: "workspace", ObjectID: string(w.ID), Details: map[string]any{"name": name, "owner": ownerID, "demo": string(kind)}}); err != nil && b.Log != nil {
 		b.Log.Warn("audit write failed", "err", err)
 	}
 	return Result{WorkspaceID: w.ID, Created: true}, nil
@@ -204,7 +240,7 @@ func lookup(name string, parent tbl, display string) catalog.ColumnSpec {
 
 func required(c catalog.ColumnSpec) catalog.ColumnSpec { c.Required = true; return c }
 
-func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, now time.Time) error {
+func (b *Builder) build(ctx context.Context, kind Kind, id ids.WorkspaceID, owner string, now time.Time) error {
 	l, err := b.Workspaces.Acquire(ctx, id)
 	if err != nil {
 		return err
@@ -225,6 +261,34 @@ func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, n
 			}
 		}
 		panic("demo: no table " + display)
+	}
+
+	actor := records.Actor{UserID: owner}
+	insert := func(t tbl, rows []map[string]any) ([]int64, error) {
+		var out []int64
+		for len(rows) > 0 {
+			n := min(len(rows), records.MaxBatch)
+			ops := make([]records.BatchOp, n)
+			for i := range ops {
+				ops[i] = records.BatchOp{Op: "insert", Fields: rows[i]}
+			}
+			res, err := b.Records.Batch(ctx, l, t.id(), ops, actor, nil)
+			if err != nil {
+				return nil, fmt.Errorf("insert into %s: %w", t.t.DisplayName, err)
+			}
+			for _, r := range res {
+				out = append(out, r.ID)
+			}
+			rows = rows[n:]
+		}
+		return out, nil
+	}
+	if kind == Invasives {
+		kit := &bioKit{b: b, ctx: ctx, l: l, owner: owner, now: now, apply: apply, table: table, insert: insert}
+		if err := kit.run(); err != nil {
+			return fmt.Errorf("invasive species: %w", err)
+		}
+		return nil
 	}
 
 	// ---- tables -------------------------------------------------------
@@ -263,26 +327,6 @@ func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, n
 	// the previous snapshot would be stale.
 	emp, cust, prod, ord = table(sch, "Employees"), table(sch, "Customers"), table(sch, "Products"), table(sch, "Orders")
 
-	actor := records.Actor{UserID: owner}
-	insert := func(t tbl, rows []map[string]any) ([]int64, error) {
-		var out []int64
-		for len(rows) > 0 {
-			n := min(len(rows), records.MaxBatch)
-			ops := make([]records.BatchOp, n)
-			for i := range ops {
-				ops[i] = records.BatchOp{Op: "insert", Fields: rows[i]}
-			}
-			res, err := b.Records.Batch(ctx, l, t.id(), ops, actor, nil)
-			if err != nil {
-				return nil, fmt.Errorf("insert into %s: %w", t.t.DisplayName, err)
-			}
-			for _, r := range res {
-				out = append(out, r.ID)
-			}
-			rows = rows[n:]
-		}
-		return out, nil
-	}
 	day := func(t time.Time) string { return t.Format("2006-01-02") }
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
@@ -462,12 +506,6 @@ func (b *Builder) build(ctx context.Context, id ids.WorkspaceID, owner string, n
 	// ---- report -------------------------------------------------------
 	if _, err := b.Reports.Put(ctx, l, "", 0, productReport(prod), owner); err != nil {
 		return fmt.Errorf("create report: %w", err)
-	}
-
-	// ---- biosecurity: geographic fields and attachments ---------------
-	kit := &bioKit{b: b, ctx: ctx, l: l, owner: owner, now: now, apply: apply, table: table, insert: insert}
-	if err := kit.run(); err != nil {
-		return fmt.Errorf("biosecurity: %w", err)
 	}
 
 	// ---- job script and job -------------------------------------------

@@ -40,6 +40,7 @@ func TestDefaults(t *testing.T) {
 		Synchronous:       "NORMAL",
 		LogLevel:          slog.LevelInfo,
 		DemoWorkspace:     true,
+		PublicApps:        true,
 	}
 	if !reflect.DeepEqual(c, want) {
 		t.Fatalf("got %+v want %+v", c, want)

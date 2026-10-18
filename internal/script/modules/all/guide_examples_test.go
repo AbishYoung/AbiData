@@ -203,7 +203,7 @@ func newNorthwind(t *testing.T) *northwindRig {
 		Reports: &reports.Service{Schemas: schemas, Records: rec, Queries: qs, Scripts: ss, Runner: rn},
 		Jobs:    &jobs.Service{Scripts: ss, Scheduler: sched},
 	}
-	res, err := b.Create(ctx, owner)
+	res, err := b.Create(ctx, demo.Traders, owner)
 	if err != nil {
 		t.Fatal(err)
 	}

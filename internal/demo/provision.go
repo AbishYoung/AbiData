@@ -23,20 +23,24 @@ type ProvisionError struct {
 	Err   error
 }
 
-// IsDemoName reports whether a workspace name is the sample workspace's: the
-// shared "Northwind Traders" or a personal "Northwind Traders (…)" copy.
-func IsDemoName(name string) bool {
-	return strings.EqualFold(name, WorkspaceName) || (len(name) > len(WorkspaceName)+3 &&
-		strings.EqualFold(name[:len(WorkspaceName)+2], WorkspaceName+" (") && strings.HasSuffix(name, ")"))
+// IsDemoName reports whether a workspace name is one of the kind's samples:
+// the shared name (say "Northwind Traders") or a personal "Northwind Traders (…)" copy.
+func (k Kind) IsDemoName(name string) bool {
+	base := k.Name()
+	return strings.EqualFold(name, base) || (len(name) > len(base)+3 &&
+		strings.EqualFold(name[:len(base)+2], base+" (") && strings.HasSuffix(name, ")"))
 }
 
 // ProvisionAll gives every active user, administrators included, a personal
-// demo workspace that they own, named "Northwind Traders (<display name>)".
-// A user who already owns a demo workspace (shared or personal) is skipped,
-// so running it again only fills in users added since. One user's failure
-// does not stop the others.
-func (b *Builder) ProvisionAll(ctx context.Context) (Provisioned, error) {
+// copy of the kind's sample that they own, named for example "Northwind
+// Traders (<display name>)". A user who already owns that sample (shared or
+// personal) is skipped, so running it again only fills in users added since.
+// One user's failure does not stop the others.
+func (b *Builder) ProvisionAll(ctx context.Context, kind Kind) (Provisioned, error) {
 	var out Provisioned
+	if _, err := ParseKind(string(kind)); err != nil {
+		return out, err
+	}
 	users, err := b.Admin.ListUsers(ctx)
 	if err != nil {
 		return out, err
@@ -51,7 +55,7 @@ func (b *Builder) ProvisionAll(ctx context.Context) (Provisioned, error) {
 		}
 		owns := false
 		for _, a := range access {
-			if a.Role == admin.RoleOwner && IsDemoName(a.Workspace.Name) {
+			if a.Role == admin.RoleOwner && kind.IsDemoName(a.Workspace.Name) {
 				owns = true
 				break
 			}
@@ -60,7 +64,7 @@ func (b *Builder) ProvisionAll(ctx context.Context) (Provisioned, error) {
 			out.Skipped = append(out.Skipped, u.Email)
 			continue
 		}
-		if err := b.createPersonal(ctx, u); err != nil {
+		if err := b.createPersonal(ctx, kind, u); err != nil {
 			out.Failed = append(out.Failed, ProvisionError{Email: u.Email, Err: err})
 			continue
 		}
@@ -71,30 +75,30 @@ func (b *Builder) ProvisionAll(ctx context.Context) (Provisioned, error) {
 
 // createPersonal builds a user's copy, falling back to their email and then a
 // numbered name when another workspace already has the name.
-func (b *Builder) createPersonal(ctx context.Context, u admin.User) error {
+func (b *Builder) createPersonal(ctx context.Context, kind Kind, u admin.User) error {
 	label := strings.TrimSpace(u.DisplayName)
 	if label == "" {
 		label = u.Email
 	}
-	candidates := []string{personalName(label), personalName(u.Email)}
+	candidates := []string{personalName(kind, label), personalName(kind, u.Email)}
 	for i := 2; i <= 5; i++ {
-		candidates = append(candidates, personalName(fmt.Sprintf("%s %d", label, i)))
+		candidates = append(candidates, personalName(kind, fmt.Sprintf("%s %d", label, i)))
 	}
 	var err error
 	for _, name := range candidates {
-		if _, err = b.createNamed(ctx, u.ID, name); !errors.Is(err, admin.ErrConflict) {
+		if _, err = b.createNamed(ctx, kind, u.ID, name); !errors.Is(err, admin.ErrConflict) {
 			return err
 		}
 	}
 	return err
 }
 
-// personalName fits "Northwind Traders (label)" into a workspace name's 100 characters.
-func personalName(label string) string {
+// personalName fits "<sample name> (label)" into a workspace name's 100 characters.
+func personalName(kind Kind, label string) string {
 	const maxName = 100
-	room := maxName - utf8.RuneCountInString(WorkspaceName) - 3
+	room := maxName - utf8.RuneCountInString(kind.Name()) - 3
 	if r := []rune(label); len(r) > room {
 		label = strings.TrimSpace(string(r[:room-1])) + "…"
 	}
-	return WorkspaceName + " (" + label + ")"
+	return kind.Name() + " (" + label + ")"
 }

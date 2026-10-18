@@ -194,7 +194,14 @@ func TestCalcErrorsAndValidation(t *testing.T) {
 	}
 }
 
+// raceEnabled is set by race_on_test.go: race builds run several times slower,
+// so the wall-clock budget below only holds without the detector.
+var raceEnabled = false
+
 func TestTenThousandRowsUnderFiveSeconds(t *testing.T) {
+	if testing.Short() || raceEnabled {
+		t.Skip("timing budget is measured without -race and -short")
+	}
 	f := setup(t)
 	if err := f.l.Write(f.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 10000)

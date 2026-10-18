@@ -13,6 +13,7 @@ You can do most work from the keyboard. The full list of shortcuts, with Mac and
 - `Mod+K` opens the command palette (see [The command palette](#palette)). Type to search, use the arrow keys to move, `Enter` to run and `Esc` to close.
 - `?` opens this documentation when you are not typing in a field. The help button in the top bar, labelled **Open documentation**, does the same.
 - `Mod+S` saves the design you are editing: a table design, a query, a form, a report, a script or a job.
+- `Shift+F10`, or the context-menu key, opens the menu you would get from a right-click. This works in the navigation pane, document tabs, datasheets, query results and designers.
 - `Esc` closes dialogs and panels. In the documentation panel, the first `Esc` clears the search and the next one closes the panel.
 
 AbiData never uses `F1` or `Ctrl`/`Cmd` with `N`, `T`, `W`, `E`, `L` or `P`, so your browser's own shortcuts keep working.

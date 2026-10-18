@@ -31,14 +31,16 @@ export function FieldGrid(props: FieldGridProps) {
   ];
 
   return (
-    <table className="w-full border-collapse bg-surface text-sm">
+    // A floor on the width: in a narrow pane the grid scrolls sideways instead of squeezing the
+    // field names down to a letter or two.
+    <table className="w-full min-w-[42rem] border-collapse bg-surface text-sm">
       <caption className="sr-only">Fields of this table</caption>
       <thead>
         <tr className="sticky top-0 z-10 bg-surface-2 text-left text-xs font-semibold text-fg-muted">
           <th scope="col" className="w-10 border-b border-border px-1 py-2">
             <span className="sr-only">Reorder</span>
           </th>
-          <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Field name</th>
+          <th scope="col" className="w-[30%] min-w-48 border-b border-border px-2 py-2.5 font-semibold">Field name</th>
           <th scope="col" className="w-48 border-b border-border px-2 py-2.5 font-semibold">Data type</th>
           <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Description</th>
           <th scope="col" className="w-28 border-b border-border px-1 py-2">

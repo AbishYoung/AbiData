@@ -13,7 +13,7 @@ import { ReportWsContext } from "./BandView";
 import { prefetchOverlays } from "./mapOverlays";
 import { paginate, type ReportInstance } from "./paginate";
 import { ReportViewer } from "./ReportViewer";
-import { runReport, useReport } from "./reportsApi";
+import { runReport, useReport, type Report } from "./reportsApi";
 import { assembleMeasured, growIndexes } from "./viewerLogic";
 
 const ReportDesigner = lazy(() => import("./designer/ReportDesigner").then((m) => ({ default: m.ReportDesigner })));
@@ -41,13 +41,71 @@ export function ReportTab({ ws, reportId, tabKey, view }: { ws: string; reportId
     );
   }
   if (reportId === null) return <EmptyState kind="report" title="No report selected" hint="Open a report from the navigation pane." />;
-  return <ReportRun ws={ws} reportId={reportId} />;
+  // Keyed by report: a run (phase, rows, pages) belongs to one report.
+  return <ReportRun key={reportId} ws={ws} reportId={reportId} />;
 }
 
 export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
   const report = useReport(ws, reportId);
   const def = report.data;
   const sourceQuery = useSavedQuery(ws, def?.source_kind === "query" ? def.source_id : null);
+  const declared = useMemo(() => {
+    const q = sourceQuery.data;
+    return q ? effectiveParams(q.parameters ?? [], q.sql_text) : [];
+  }, [sourceQuery.data]);
+  const sourceReady = def !== undefined && (def.source_kind !== "query" || !sourceQuery.isPending);
+  const run = useCallback(
+    async (values: Params, signal: AbortSignal, tick: (n: number) => void) => {
+      const got = await runReport(ws, reportId, values, signal, tick);
+      if (signal.aborted) return got;
+      // Map overlays load before layout so the first paint (and print) already shows them.
+      await prefetchOverlays(ws, def?.layout);
+      return got;
+    },
+    [ws, reportId, def?.layout],
+  );
+  return (
+    <FilesWorkspaceProvider ws={ws}>
+      <ReportWsContext.Provider value={ws}>
+        <ReportRunView
+          def={def}
+          loadError={report.isError ? report.error : null}
+          sourceReady={sourceReady}
+          declared={declared}
+          memoryKey={`report:${ws}:${reportId}`}
+          run={run}
+        />
+      </ReportWsContext.Provider>
+    </FilesWorkspaceProvider>
+  );
+}
+
+/** What the viewer needs of a report definition. */
+export interface RunnableReport {
+  layout: Report["layout"];
+  page_setup: Report["page_setup"];
+}
+
+/**
+ * Runs a report and shows its pages: asks for parameters, streams the rows, measures growing
+ * bands, paginates. Where the definition and rows come from is the caller's business (the
+ * workspace, or a public app).
+ */
+export function ReportRunView({
+  def,
+  loadError,
+  sourceReady,
+  declared,
+  memoryKey,
+  run,
+}: {
+  def: RunnableReport | undefined;
+  loadError: unknown;
+  sourceReady: boolean;
+  declared: { name: string; type: ParamType }[];
+  memoryKey: string;
+  run: (values: Params, signal: AbortSignal, tick: (n: number) => void) => Promise<ReportInstance[]>;
+}) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [count, setCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -57,17 +115,10 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
   const abort = useRef<AbortController | null>(null);
   const last = useRef<Params | null>(null);
   const started = useRef(false);
-  const memoryKey = `report:${ws}:${reportId}`;
   const layoutRef = useRef(def?.layout);
   useEffect(() => {
     layoutRef.current = def?.layout;
   });
-
-  const declared = useMemo(() => {
-    const q = sourceQuery.data;
-    return q ? effectiveParams(q.parameters ?? [], q.sql_text) : [];
-  }, [sourceQuery.data]);
-  const sourceReady = def !== undefined && (def.source_kind !== "query" || !sourceQuery.isPending);
 
   const execute = useCallback(
     async (values: Params): Promise<void> => {
@@ -88,10 +139,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         }, 100);
       };
       try {
-        const got = await runReport(ws, reportId, values, ctl.signal, tick);
-        if (ctl.signal.aborted) return;
-        // Map overlays load before layout so the first paint (and print) already shows them.
-        await prefetchOverlays(ws, layoutRef.current);
+        const got = await run(values, ctl.signal, tick);
         if (ctl.signal.aborted) return;
         setCount(got.length);
         setInstances(got);
@@ -119,7 +167,7 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         if (timer) clearTimeout(timer);
       }
     },
-    [ws, reportId, declared],
+    [run, declared],
   );
 
   const start = useCallback((): void => {
@@ -150,18 +198,16 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
     [def, layout, phase, measured, instances],
   );
 
-  if (report.isError) {
+  if (loadError) {
     return (
       <div role="alert" className={`${alertBox} m-4`}>
-        {errorText(report.error)}
+        {errorText(loadError)}
       </div>
     );
   }
   if (!def || !layout) return <SkeletonLines rows={6} label="Loading report…" />;
 
   return (
-    <FilesWorkspaceProvider ws={ws}>
-    <ReportWsContext.Provider value={ws}>
     <div className="flex min-h-0 flex-1 flex-col" data-testid="report-viewer">
       {phase === "prompt" && asking && (
         <ParameterDialog
@@ -225,7 +271,5 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
         />
       )}
     </div>
-    </ReportWsContext.Provider>
-    </FilesWorkspaceProvider>
   );
 }

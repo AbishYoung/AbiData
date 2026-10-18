@@ -24,6 +24,7 @@ type Config struct {
 	ManifestKey         []byte         // ABIDATA_MANIFEST_KEY: same format as SessionKey
 	BootstrapAdminEmail string         // ABIDATA_BOOTSTRAP_ADMIN_EMAIL
 	DemoWorkspace       bool           // ABIDATA_DEMO_WORKSPACE, default true; "false"/"0" disables the Northwind Traders sample workspace created at first-run setup
+	PublicApps          bool           // ABIDATA_PUBLIC_APPS, default true; "false"/"0" turns public apps (ADR 0014) off for good, whatever the admin setting says
 	DebugAddr           string         // ABIDATA_DEBUG_ADDR, default "" (pprof off)
 	MetricsAddr         string         // ABIDATA_METRICS_ADDR, default "" (metrics only at /metrics for admins); unauthenticated, bind to a private interface
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info

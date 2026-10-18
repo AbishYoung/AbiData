@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -94,7 +95,7 @@ func count(t *testing.T, r *rig, l *workspace.Lease, sql string) int {
 
 func TestCreateBuildsNorthwind(t *testing.T) {
 	r := newRig(t)
-	res, err := r.b.Create(r.ctx, r.owner)
+	res, err := r.b.Create(r.ctx, demo.Traders, r.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,6 +111,11 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Release()
+
+	// The invasive species sample is a workspace of its own.
+	if n := count(t, r, l, `SELECT count(*) FROM _sys_tables WHERE display_name IN ('Suppliers', 'Species', 'Pest sightings', 'Quarantine zones')`); n != 0 {
+		t.Errorf("Northwind Traders has %d invasive-species tables, want none", n)
+	}
 
 	want := map[string][2]int{"Employees": {6, 6}, "Customers": {25, 25}, "Products": {20, 20}, "Orders": {60, 60}}
 	for name, w := range want {
@@ -191,11 +197,11 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 		t.Errorf("query kinds: %v (the sample mixes visual and SQL queries)", kinds)
 	}
 	fl, err := r.b.Forms.List(r.ctx, l)
-	if err != nil || len(fl) != 3 {
+	if err != nil || len(fl) != 1 || fl[0].Name != "Customer details" {
 		t.Fatalf("forms: %v %v", fl, err)
 	}
 	rl, err := r.b.Reports.List(r.ctx, l)
-	if err != nil || len(rl) != 2 {
+	if err != nil || len(rl) != 1 {
 		t.Fatalf("reports: %v %v", rl, err)
 	}
 	// Group and report footer totals carry captions.
@@ -226,7 +232,7 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 
 func TestJobScriptValidAndRuns(t *testing.T) {
 	r := newRig(t)
-	res, err := r.b.Create(r.ctx, r.owner)
+	res, err := r.b.Create(r.ctx, demo.Traders, r.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,11 +296,11 @@ func TestJobScriptValidAndRuns(t *testing.T) {
 
 func TestCreateIsIdempotent(t *testing.T) {
 	r := newRig(t)
-	first, err := r.b.Create(r.ctx, r.owner)
+	first, err := r.b.Create(r.ctx, demo.Traders, r.owner)
 	if err != nil || !first.Created {
 		t.Fatalf("first: %+v %v", first, err)
 	}
-	second, err := r.b.Create(r.ctx, r.owner)
+	second, err := r.b.Create(r.ctx, demo.Traders, r.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,13 +313,68 @@ func TestCreateIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestInvasivesIsItsOwnWorkspace: the biosecurity sample is a separate
+// workspace with only its own tables, and both samples can live side by side.
+func TestInvasivesIsItsOwnWorkspace(t *testing.T) {
+	r := newRig(t)
+	traders, err := r.b.Create(r.ctx, demo.Traders, r.owner)
+	if err != nil || !traders.Created {
+		t.Fatalf("traders: %+v %v", traders, err)
+	}
+	inv, err := r.b.Create(r.ctx, demo.Invasives, r.owner)
+	if err != nil || !inv.Created || inv.WorkspaceID == traders.WorkspaceID {
+		t.Fatalf("invasives: %+v %v", inv, err)
+	}
+	access, err := r.adm.ListWorkspacesForUser(r.ctx, r.owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, a := range access {
+		names = append(names, a.Workspace.Name)
+	}
+	slices.Sort(names)
+	if !slices.Equal(names, []string{demo.InvasivesName, demo.WorkspaceName}) {
+		t.Fatalf("workspaces = %q", names)
+	}
+	l, err := r.wm.Acquire(r.ctx, inv.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Release()
+	var tables []string
+	if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+		rows, err := q.Query(r.ctx, `SELECT display_name FROM _sys_tables ORDER BY display_name`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err != nil {
+				return err
+			}
+			tables = append(tables, n)
+		}
+		return rows.Err()
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Pest sightings", "Quarantine zones", "Species", "Suppliers"}; !slices.Equal(tables, want) {
+		t.Fatalf("Northwind Invasives tables = %q, want %q", tables, want)
+	}
+	if _, err := r.b.Create(r.ctx, demo.Kind("nope"), r.owner); err == nil {
+		t.Error("an unknown kind must be refused")
+	}
+}
+
 func TestDeterministicContent(t *testing.T) {
 	fixed := func() time.Time { return time.Date(2026, 10, 11, 9, 0, 0, 0, time.UTC) }
 	var sums [2]string
 	for i := range sums {
 		r := newRig(t)
 		r.b.Now = fixed
-		res, err := r.b.Create(r.ctx, r.owner)
+		res, err := r.b.Create(r.ctx, demo.Traders, r.owner)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -330,11 +391,11 @@ func TestDeterministicContent(t *testing.T) {
 	}
 }
 
-// bioRig builds the demo and opens its workspace.
+// bioRig builds the Northwind Invasives sample and opens its workspace.
 func bioRig(t *testing.T) (*rig, *workspace.Lease, *catalog.Schema) {
 	t.Helper()
 	r := newRig(t)
-	res, err := r.b.Create(r.ctx, r.owner)
+	res, err := r.b.Create(r.ctx, demo.Invasives, r.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -677,8 +738,8 @@ func TestBiosecurityFormsAndReport(t *testing.T) {
 	if m := ctrls(zone, "map")[0]; m.Map == nil || m.Map.OverlayQueryID != savedByName(t, r, l, "Sighting locations").ID {
 		t.Errorf("the zone map should overlay the sightings: %+v", m.Map)
 	}
-	if byName["Customer details"].ID == "" {
-		t.Error("the Customer details form is gone")
+	if len(byName) != 2 {
+		t.Errorf("Northwind Invasives forms: %d, want Record a sighting and Quarantine zone", len(byName))
 	}
 
 	rl, err := r.b.Reports.List(r.ctx, l)
@@ -739,7 +800,7 @@ func TestBiosecurityFormsAndReport(t *testing.T) {
 func TestWithoutFileServiceSkipsPhotos(t *testing.T) {
 	r := newRig(t)
 	r.b.Files = nil
-	res, err := r.b.Create(r.ctx, r.owner)
+	res, err := r.b.Create(r.ctx, demo.Invasives, r.owner)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"abidata/internal/admin"
+	"abidata/internal/apps"
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
@@ -94,11 +95,13 @@ type Server struct {
 	cspValue atomic.Pointer[string]
 	// demoRun is held while a demo provisioning run is in progress.
 	demoRun sync.Mutex
+	// appLimits throttles public app visitors (ADR 0014).
+	appLimits *apps.Limiter
 }
 
 // DemoProvisioner gives every active user their own demo workspace.
 type DemoProvisioner interface {
-	ProvisionAll(ctx context.Context) (demo.Provisioned, error)
+	ProvisionAll(ctx context.Context, kind demo.Kind) (demo.Provisioned, error)
 }
 
 // New builds the server and registers every route.
@@ -108,7 +111,7 @@ func New(deps Deps) *Server {
 		log = slog.New(slog.DiscardHandler)
 	}
 	installHumaErrors(log)
-	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now()}
+	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now(), appLimits: apps.NewLimiter()}
 	r := chi.NewMux()
 	r.Use(s.requestID, s.securityHeaders, s.accessLog)
 
@@ -148,6 +151,7 @@ func New(deps Deps) *Server {
 	s.registerBackups(api)
 	s.registerFiles(api)
 	s.registerAPIKeys(api)
+	s.registerApps(api)
 	s.registerDocs(api)
 
 	r.NotFound(s.notFound)

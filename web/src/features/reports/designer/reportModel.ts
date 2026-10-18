@@ -544,6 +544,98 @@ export function addField(s: ReportState, col: SourceColumn, band: BandId = "deta
   return { state: r.state, ids };
 }
 
+// ---- starting layouts ------------------------------------------------------------------------
+
+/**
+ * How a new report starts: empty, "tabular" (one row per record under column headings, like a
+ * datasheet) or "columnar" (one block per record, each field's label beside its value, like a form).
+ */
+export type StarterLayout = "blank" | "tabular" | "columnar";
+
+export const STARTER_LABEL: Readonly<Record<StarterLayout, string>> = {
+  blank: "Blank",
+  tabular: "Tabular: one row per record",
+  columnar: "Columnar: one block per record",
+};
+
+const LABEL_WIDTH = 144;
+const ROW = 24;
+
+/** The report header's title and the page footer's page number, shared by both layouts. */
+function frame(s: ReportState, title: string): ReportState {
+  const width = contentWidth(s.page);
+  let next = s;
+  const add = (c: Omit<DesignControl, "id" | "name">, nameBase: string) => {
+    next = place(next, { ...c, id: newControlId(), name: uniqueName(nameBase, names(next)) } as DesignControl).state;
+  };
+  add({ type: "label", band: "report_header", x: 0, y: 8, w: width, h: 32, caption: title, style: { bold: "true", font_size: "18" } }, "Title");
+  add({ type: "now", band: "page_footer", x: 0, y: 8, w: 192, h: ROW }, "Printed");
+  add({ type: "page_number", band: "page_footer", x: Math.max(0, snap(width - 56)), y: 8, w: 56, h: ROW, style: { align: "right" } }, "PageNumber");
+  return next;
+}
+
+/** A control showing one field's value: images for attachments, a map for places, text otherwise. */
+function valueControl(col: SourceColumn, band: BandId, x: number, y: number, w: number, alignNumbers: boolean): Omit<DesignControl, "id" | "name"> {
+  const bind = { column_id: col.id };
+  if (col.fieldType === "attachments") return { type: "image", band, x, y, w: Math.min(w, 160), h: 96, bind, max_images: 3 };
+  if (col.fieldType === "geo_point" || col.fieldType === "geo_area") return { type: "map", band, x, y, w: Math.min(w, 320), h: 160, bind };
+  // In a column of values numbers line up on the right; beside a label they stay next to it.
+  const numeric = alignNumbers && ["integer", "number", "currency", "autonumber"].includes(col.fieldType);
+  return { type: "textbox", band, x, y, w, h: ROW, bind, ...(numeric ? { style: { align: "right" } } : {}) };
+}
+
+/**
+ * Lays out every field of the source in a new report. Tabular puts a heading per field in the page
+ * header and the values in a row beneath (wrapping onto further rows when they do not fit the
+ * width). Columnar stacks the fields in the detail band with their names beside them. Either way
+ * the detail band can grow, so long text wraps instead of being cut off.
+ */
+export function applyStarter(s: ReportState, layout: StarterLayout, columns: readonly SourceColumn[]): ReportState {
+  if (layout === "blank") return s;
+  const fields = columns.filter((c) => c.fieldType !== "autonumber" || columns.length === 1);
+  const width = contentWidth(s.page);
+  let next = frame(s, s.name);
+  const add = (c: Omit<DesignControl, "id" | "name">, nameBase: string) => {
+    next = place(next, { ...c, id: newControlId(), name: uniqueName(nameBase, names(next)) } as DesignControl).state;
+  };
+  if (layout === "columnar") {
+    const valueX = LABEL_WIDTH + GRID;
+    const valueW = Math.max(MIN_SIZE * 8, width - valueX);
+    let y = GRID;
+    for (const col of fields) {
+      const value = valueControl(col, "detail", valueX, y, valueW, false);
+      add({ type: "label", band: "detail", x: 0, y, w: LABEL_WIDTH, h: ROW, caption: col.name, style: { bold: "true" } }, `${col.name}_Label`);
+      add(value, col.name);
+      y += value.h + GRID;
+    }
+    add({ type: "line", band: "detail", x: 0, y, w: width, h: GRID }, "Separator");
+    next = setBandProps(next, "detail", { height: Math.min(MAX_BAND_HEIGHT, snap(y + 2 * GRID)), can_grow: true, keep_together: true });
+    return next;
+  }
+  // Tabular.
+  const perRow = Math.max(1, Math.min(fields.length, Math.floor((width + GRID) / (96 + GRID))));
+  const colW = Math.max(MIN_SIZE * 8, Math.floor((width - (perRow - 1) * GRID) / perRow / GRID) * GRID);
+  let headerY = GRID;
+  let detailY = 0;
+  for (let i = 0; i < fields.length; i += perRow) {
+    const row = fields.slice(i, i + perRow);
+    let tallest = ROW;
+    row.forEach((col, k) => {
+      const x = k * (colW + GRID);
+      const value = valueControl(col, "detail", x, detailY, colW, true);
+      add({ type: "label", band: "page_header", x, y: headerY, w: colW, h: ROW, caption: col.name, style: { bold: "true", ...value.style } }, `${col.name}_Label`);
+      add(value, col.name);
+      tallest = Math.max(tallest, value.h);
+    });
+    headerY += ROW;
+    detailY += tallest + GRID;
+  }
+  add({ type: "line", band: "page_header", x: 0, y: headerY + 4, w: width, h: GRID }, "HeaderLine");
+  next = setBandProps(next, "page_header", { height: Math.min(MAX_BAND_HEIGHT, snap(headerY + 2 * GRID)) });
+  next = setBandProps(next, "detail", { height: Math.min(MAX_BAND_HEIGHT, Math.max(ROW + GRID, snap(detailY))), can_grow: true });
+  return next;
+}
+
 // ---- keyboard selection order ----------------------------------------------------------------
 
 /** Controls in reading order: band, then top-to-bottom, left-to-right. */

@@ -57,27 +57,45 @@ func TestSecReviewReportRunHeap(t *testing.T) {
 }
 
 func TestReportRunSlots(t *testing.T) {
-	ws := ids.NewWorkspaceID()
-	var rel []func()
-	for range MaxRunsPerWorkspace {
+	// slots is process-wide, so every slot taken here is handed back even when the test fails;
+	// a leaked slot makes every later Run in this binary (and later -count iterations) fail
+	// with WORKSPACE_BUSY. MaxRuns depends on GOMAXPROCS (it equals MaxRunsPerWorkspace on a
+	// 2-CPU host), so it is pinned above the per-workspace cap for the cross-workspace check.
+	defer func(old int) { MaxRuns = old }(MaxRuns)
+	MaxRuns = MaxRunsPerWorkspace + 1
+	var held []func()
+	releaseAll := func() {
+		for _, r := range held {
+			r()
+		}
+		held = nil
+	}
+	defer releaseAll()
+	take := func(ws ids.WorkspaceID) error {
 		r, err := slots.acquire(ws)
-		if err != nil {
+		if err == nil {
+			held = append(held, r)
+		}
+		return err
+	}
+
+	ws := ids.NewWorkspaceID()
+	for range MaxRunsPerWorkspace {
+		if err := take(ws); err != nil {
 			t.Fatal(err)
 		}
-		rel = append(rel, r)
 	}
-	if _, err := slots.acquire(ws); err == nil {
+	if err := take(ws); err == nil {
 		t.Fatal("a workspace exceeded its concurrent report runs")
 	}
-	r, err := slots.acquire(ids.NewWorkspaceID())
-	if err != nil {
+	if err := take(ids.NewWorkspaceID()); err != nil {
 		t.Fatalf("another workspace was refused: %v", err)
 	}
-	r()
-	for _, r := range rel {
-		r()
+	if err := take(ids.NewWorkspaceID()); err == nil {
+		t.Fatal("the process exceeded its concurrent report runs")
 	}
-	if _, err := slots.acquire(ws); err != nil {
+	releaseAll()
+	if err := take(ws); err != nil {
 		t.Fatalf("slots were not released: %v", err)
 	}
 }
