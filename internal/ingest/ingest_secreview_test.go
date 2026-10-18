@@ -21,6 +21,7 @@ import (
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/query"
+	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -142,20 +143,42 @@ func TestSecReview_StagingQueryMemoryCapLooserThanReaders(t *testing.T) {
 	if err := rs.Insert(context.Background(), h, []any{"x"}); err != nil {
 		t.Fatal(err)
 	}
-	// ~100+ MiB of sorter data, all of it in memory (temp_store=MEMORY).
-	const q = `WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100000)
-		SELECT count(*) AS n FROM (SELECT x, randomblob(1024) AS b FROM c ORDER BY b)`
+	// 72 MiB of sorter data, an eighth over the reader cap. Few wide rows keep
+	// the sort (and its temp-file I/O under -race) well inside queryTimeout.
+	const sortRows, sortRowBytes = 2304, 32 << 10
+	if sortRows*sortRowBytes <= sqlitex.ReaderMaxMemory {
+		t.Fatal("sort data must exceed the reader memory cap")
+	}
+	q := fmt.Sprintf(`WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < %d)
+		SELECT count(*) AS n FROM (SELECT x, randomblob(%d) AS b FROM c ORDER BY b)`, sortRows, sortRowBytes)
+	// Control: the same sort held in memory (temp_store=MEMORY) on a connection
+	// with the same cap is refused, so the staging sort below succeeds only
+	// because it spills.
+	mem, err := sqlitex.Open(context.Background(), filepath.Join(t.TempDir(), "mem.db"), sqlitex.Options{Kind: sqlitex.Staging})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mem.Close()
+	if _, err := mem.Exec(context.Background(), "PRAGMA temp_store=MEMORY"); err != nil {
+		t.Fatal(err)
+	}
+	var n int64
+	if err := mem.QueryRow(context.Background(), q).Scan(&n); err == nil || fault.Classify(err).Code != fault.QuotaExceeded {
+		t.Fatalf("in-memory sort: expected QUOTA_EXCEEDED, got %v", err)
+	}
 	// Staging now has the reader's memory cap but sorts spill to a temp file
 	// (temp_store=FILE), so the large sort succeeds without pinning memory.
 	_, rows, err := rs.Query(context.Background(), h, q, nil)
 	if err != nil {
 		t.Fatalf("staging sort: %v", err)
 	}
-	t.Logf("staging query sorted %v rows of 1 KiB via temp files", rows[0][0])
-	// A query that must hold more than the cap in memory is refused.
-	_, _, err = rs.Query(context.Background(), h, `SELECT length(group_concat(randomblob(1048576))) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100) SELECT x FROM c)`, nil)
-	if err == nil {
-		t.Fatal("staging connection had no memory cap")
+	t.Logf("staging query sorted %v rows of %d KiB via temp files", rows[0][0], sortRowBytes>>10)
+	// A query that must hold more than the cap in memory is refused: one row of
+	// five blobs, each under SQLITE_LIMIT_LENGTH, 75 MiB in all.
+	blob := fmt.Sprintf("randomblob(%d)", sqlitex.MaxValueLength-1<<20)
+	_, _, err = rs.Query(context.Background(), h, "SELECT "+strings.Repeat(blob+", ", 4)+blob, nil)
+	if err == nil || fault.Classify(err).Code != fault.QuotaExceeded {
+		t.Fatalf("staging connection had no memory cap: %v", err)
 	}
 }
 
