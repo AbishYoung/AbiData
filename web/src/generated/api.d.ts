@@ -48,8 +48,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Give every active user their own Northwind Traders demo workspace
-         * @description Creates a personal demo workspace, owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own a demo are skipped.
+         * Give every active user their own copy of a demo workspace
+         * @description Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.
          */
         post: operations["adminProvisionDemos"];
         delete?: never;
@@ -1495,6 +1495,13 @@ export interface components {
             series: components["schemas"]["OverviewSeries"];
             stats: components["schemas"]["AdminStats"];
             workspaces: components["schemas"]["OverviewWorkspace"][] | null;
+        };
+        AdminProvisionDemosRequest: {
+            /**
+             * @description Which sample: traders (Northwind Traders) or invasives (Northwind Invasives).
+             * @enum {string}
+             */
+            kind: "traders" | "invasives";
         };
         AdminResetUserPasswordRequest: {
             new_password: string;
@@ -3081,7 +3088,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminProvisionDemosRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -3090,6 +3101,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoProvisionDTO"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Unauthorized */
@@ -3112,6 +3132,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

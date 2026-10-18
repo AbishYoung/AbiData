@@ -41,6 +41,8 @@ function styleOf(c: DesignControl): CSSProperties {
   if (s.align === "left" || s.align === "center" || s.align === "right" || s.align === "justify") css.textAlign = s.align;
   if (s.bold === "true") css.fontWeight = 700;
   if (s.italic === "true") css.fontStyle = "italic";
+  const size = Number(s.font_size);
+  if (Number.isFinite(size) && size >= 6 && size <= 96) css.fontSize = size;
   return css;
 }
 
@@ -57,18 +59,20 @@ export function controlText(c: DesignControl, columnName: (id: string) => string
 }
 
 function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: string) => string }) {
-  const clip = "block h-full w-full overflow-hidden text-ellipsis whitespace-nowrap px-1.5 text-sm leading-6";
+  // The same font, size and wrapping as the printed report (reportViewer.css .rv-ctl), so text
+  // that fits on the canvas fits on the page and the other way round.
+  const clip = "block h-full w-full overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere] text-[12px] leading-[1.25]";
   const st = styleOf(c);
   switch (c.type) {
     case "label":
       return (
-        <span className={`${clip} font-medium`} style={st}>
+        <span className={clip} style={st} title={c.caption ?? ""}>
           {c.caption ?? ""}
         </span>
       );
     case "textbox":
       return (
-        <span className={`${clip} rounded border border-border-strong/50 bg-surface text-fg-muted`} style={st}>
+        <span className={`${clip} rounded-sm outline outline-1 -outline-offset-1 outline-border-strong/50 bg-surface text-fg-muted`} style={st} title={controlText(c, columnName)}>
           {controlText(c, columnName)}
         </span>
       );

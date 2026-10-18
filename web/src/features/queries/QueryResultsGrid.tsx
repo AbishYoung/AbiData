@@ -1,6 +1,9 @@
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check } from "lucide-react";
+import { Check, Copy, Rows3, Table2 } from "lucide-react";
+import { toast } from "@/components/AppToasts";
+import { ContextArea, type MenuEntry } from "@/components/ContextArea";
+import { copyText } from "@/lib/clipboard";
 import { formatCurrency, formatDateTime } from "@/features/datasheet/values";
 import type { QueryResult } from "./savedQueries";
 import { formatGeoValue } from "@/lib/geo/format";
@@ -56,6 +59,13 @@ export function formatCell(v: unknown, type?: string): string {
   return String(v);
 }
 
+/** Rows as tab-separated text (what spreadsheets paste as cells), with an optional header line. */
+export function toTsv(columns: readonly string[] | null, rows: readonly (readonly string[])[]): string {
+  const clean = (s: string) => s.replace(/[\t\r\n]+/g, " ");
+  const lines = rows.map((r) => r.map(clean).join("\t"));
+  return (columns ? [columns.map(clean).join("\t"), ...lines] : lines).join("\n");
+}
+
 export function truncationNotice(n: number): string {
   return `Showing ${n.toLocaleString("en-US")} rows (truncated at 50,000)`;
 }
@@ -83,8 +93,35 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
   const template = `repeat(${Math.max(1, columns.length)}, ${COL_WIDTH}px)`;
   const cellId = (r: number, c: number) => `${gridId}-r${r}-c${c}`;
 
+  const cellText = (r: number, c: number) => formatCell(rows[r]?.[c], result.types?.[c]);
+  const rowText = (r: number) => columns.map((_, c) => cellText(r, c));
+  async function copy(t: string) {
+    if (!(await copyText(t))) toast("error", "The text could not be copied.");
+  }
+  const menuCell = useRef<{ row: number; col: number } | null>(null);
+  function onMenu(e: MouseEvent) {
+    const cellEl = (e.target as Element).closest('[role="gridcell"]');
+    const m = cellEl?.id.match(/-r(\d+)-c(\d+)$/);
+    menuCell.current = m ? { row: Number(m[1]), col: Number(m[2]) } : rows.length > 0 ? active : null;
+    if (menuCell.current) setActive(menuCell.current);
+  }
+  function menu(): MenuEntry[] {
+    const at = menuCell.current;
+    if (!at || rows.length === 0 || columns.length === 0) return [];
+    return [
+      { id: "copy", label: "Copy", icon: Copy, shortcut: "Mod+C", run: () => void copy(cellText(at.row, at.col)) },
+      { id: "row", label: "Copy row", icon: Rows3, run: () => void copy(toTsv(null, [rowText(at.row)])) },
+      { id: "all", label: `Copy all ${rows.length.toLocaleString("en-US")} rows with headings`, icon: Table2, run: () => void copy(toTsv(columns, rows.map((_, r) => rowText(r)))) },
+    ];
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (rows.length === 0 || columns.length === 0) return;
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c" && window.getSelection()?.isCollapsed !== false) {
+      e.preventDefault();
+      void copy(cellText(active.row, active.col));
+      return;
+    }
     let { row, col } = active;
     switch (e.key) {
       case "ArrowDown":
@@ -126,6 +163,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
       <p className="m-0 border-b border-border bg-surface px-3 py-1.5 text-xs text-fg-muted" aria-live="polite">
         {result.truncated ? truncationNotice(rows.length) : `${rows.length.toLocaleString("en-US")} ${rows.length === 1 ? "row" : "rows"}`}
       </p>
+      <ContextArea label={`${label} actions`} onOpen={onMenu} entries={menu}>
       <div
         ref={scrollRef}
         role="grid"
@@ -199,6 +237,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
           })}
         </div>
       </div>
+      </ContextArea>
     </div>
   );
 }

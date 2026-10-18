@@ -41,7 +41,8 @@ export function ReportTab({ ws, reportId, tabKey, view }: { ws: string; reportId
     );
   }
   if (reportId === null) return <EmptyState kind="report" title="No report selected" hint="Open a report from the navigation pane." />;
-  return <ReportRun ws={ws} reportId={reportId} />;
+  // Keyed by report: a run (phase, rows, pages) belongs to one report.
+  return <ReportRun key={reportId} ws={ws} reportId={reportId} />;
 }
 
 export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {

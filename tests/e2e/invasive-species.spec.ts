@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { expectNoAxeViolations, signIn } from "./helpers";
 import { nav, workspaceId } from "./tabledesign-helpers";
 
-// The Northwind Traders sample workspace's biosecurity scenario (invasive species): geographic
+// The Northwind Invasives sample workspace's biosecurity scenario (invasive species): geographic
 // fields (ADR 0010) and file attachments (ADR 0011) in the seeded forms, queries and report.
 // The sample workspace comes from the second server that playwright.config.ts starts
 // (E2E_WITH_DEMO, see server.mjs); the other specs run against an empty install.
@@ -10,9 +10,9 @@ import { nav, workspaceId } from "./tabledesign-helpers";
 test.describe.configure({ mode: "serial" });
 test.use({ baseURL: process.env.E2E_DEMO_BASE_URL });
 
-async function openNorthwind(page: Page): Promise<void> {
+async function openInvasives(page: Page): Promise<void> {
   await signIn(page);
-  await page.getByRole("link", { name: /Northwind Traders/ }).click();
+  await page.getByRole("link", { name: /Northwind Invasives/ }).click();
   await expect(page).toHaveURL(/\/w\//);
   // On a phone the navigation pane is a drawer behind a button.
   const drawer = page.getByRole("button", { name: "Open navigation" });
@@ -29,7 +29,7 @@ async function openForm(page: Page, name: string): Promise<Locator> {
 }
 
 test("the sample workspace has the biosecurity tables, queries, forms and report", async ({ page }) => {
-  await openNorthwind(page);
+  await openInvasives(page);
   const ws = workspaceId(page);
   const schema: { tables: { display_name: string; columns: { display_name: string; field_type: string }[] }[] } = await (
     await page.request.get(`/api/v1/w/${ws}/schema`)
@@ -51,7 +51,7 @@ test("the sample workspace has the biosecurity tables, queries, forms and report
 });
 
 test("Record a sighting shows the zones on the map and the photos of a record", async ({ page }) => {
-  await openNorthwind(page);
+  await openInvasives(page);
   const form = await openForm(page, "Record a sighting");
 
   const map = form.getByRole("application", { name: "Location map" });
@@ -89,7 +89,7 @@ test("on a phone the form stacks, with Use my location and Take photo within rea
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 51.2704, longitude: 0.5227, accuracy: 7 });
-  await openNorthwind(page);
+  await openInvasives(page);
   await nav(page).getByRole("button", { name: "Record a sighting", exact: true }).click();
   const form = page.getByRole("group", { name: "Record a sighting", exact: true });
   await expect(form.getByRole("application", { name: "Location map" })).toBeVisible();
@@ -104,7 +104,7 @@ test("on a phone the form stacks, with Use my location and Take photo within rea
 });
 
 test("the zone editor draws a boundary on a map that shows the sightings", async ({ page }) => {
-  await openNorthwind(page);
+  await openInvasives(page);
   const form = await openForm(page, "Quarantine zone");
   const map = form.getByRole("application", { name: /map/ });
   await expect(map).toBeVisible();
@@ -119,7 +119,7 @@ test("the zone editor draws a boundary on a map that shows the sightings", async
 });
 
 test("the spatial query lists the sightings inside quarantine zones", async ({ page }) => {
-  await openNorthwind(page);
+  await openInvasives(page);
   const ws = workspaceId(page);
   const list: { items: { id: string; name: string }[] } = await (await page.request.get(`/api/v1/w/${ws}/queries`)).json();
   const id = list.items.find((q) => q.name === "Sightings inside quarantine zones")?.id;
@@ -144,7 +144,7 @@ test("the spatial query lists the sightings inside quarantine zones", async ({ p
 });
 
 test("the report renders a map and a photo for each sighting", async ({ page }) => {
-  await openNorthwind(page);
+  await openInvasives(page);
   await nav(page).getByRole("button", { name: "Biosecurity sightings report", exact: true }).click();
   await expect(page.getByTestId("report-page-of")).toBeVisible();
   const first = page.locator('.rv-page[data-page="1"]');

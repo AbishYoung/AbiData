@@ -14,7 +14,7 @@ import (
 func TestProvisionAllGivesEveryActiveUserTheirOwnDemo(t *testing.T) {
 	r := newRig(t)
 	// The setup administrator already owns the shared demo.
-	if _, err := r.b.Create(r.ctx, r.owner); err != nil {
+	if _, err := r.b.Create(r.ctx, demo.Traders, r.owner); err != nil {
 		t.Fatal(err)
 	}
 	users := map[string]admin.User{}
@@ -35,7 +35,7 @@ func TestProvisionAllGivesEveryActiveUserTheirOwnDemo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := r.b.ProvisionAll(r.ctx)
+	got, err := r.b.ProvisionAll(r.ctx, demo.Traders)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,14 +68,14 @@ func TestProvisionAllGivesEveryActiveUserTheirOwnDemo(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if n := count(t, r, l, `SELECT count(*) FROM _sys_tables`); n < 8 {
+		if n := count(t, r, l, `SELECT count(*) FROM _sys_tables`); n < 5 {
 			t.Errorf("%s has %d tables, want the full demo", w.Name, n)
 		}
 		l.Release()
 	}
 
 	// Running again changes nothing.
-	again, err := r.b.ProvisionAll(r.ctx)
+	again, err := r.b.ProvisionAll(r.ctx, demo.Traders)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestProvisionAllFallsBackWhenTheNameIsTaken(t *testing.T) {
 	if err := r.adm.CreateWorkspace(r.ctx, taken, other.ID); err != nil {
 		t.Fatal(err)
 	}
-	got, err := r.b.ProvisionAll(r.ctx)
+	got, err := r.b.ProvisionAll(r.ctx, demo.Traders)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,10 +123,40 @@ func TestIsDemoName(t *testing.T) {
 		"Northwind Traders Ltd":          false,
 		"Northwind Traders ()":           false,
 		"My Northwind Traders":           false,
+		"Northwind Invasives (Ada)":      false,
 	} {
-		if got := demo.IsDemoName(name); got != want {
-			t.Errorf("IsDemoName(%q) = %v, want %v", name, got, want)
+		if got := demo.Traders.IsDemoName(name); got != want {
+			t.Errorf("Traders.IsDemoName(%q) = %v, want %v", name, got, want)
 		}
+	}
+	if !demo.Invasives.IsDemoName("Northwind Invasives (Ada)") || demo.Invasives.IsDemoName("Northwind Traders (Ada)") {
+		t.Error("Invasives.IsDemoName must match only Northwind Invasives copies")
+	}
+}
+
+// TestProvisionAllIsPerSample: owning one sample does not count as owning the
+// other, and each sample's copies get that sample's name.
+func TestProvisionAllIsPerSample(t *testing.T) {
+	r := newRig(t)
+	if _, err := r.b.Create(r.ctx, demo.Traders, r.owner); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.b.ProvisionAll(r.ctx, demo.Invasives)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got.Created, []string{"owner@example.com"}) || len(got.Skipped) != 0 {
+		t.Fatalf("ProvisionAll(invasives) = %+v, want the Traders owner to get an Invasives copy", got)
+	}
+	found := false
+	for _, w := range mustList(t, r) {
+		found = found || w.Name == "Northwind Invasives (Owner)"
+	}
+	if !found {
+		t.Error(`want a workspace named "Northwind Invasives (Owner)"`)
+	}
+	if _, err := r.b.ProvisionAll(r.ctx, demo.Kind("")); err == nil {
+		t.Error("an empty kind must be refused")
 	}
 }
 

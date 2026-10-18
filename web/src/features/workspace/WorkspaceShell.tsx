@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog } from "radix-ui";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
@@ -31,6 +31,7 @@ import { KindIcon } from "@/components/objectKinds";
 import { LogoMark } from "@/components/brand/Logo";
 import { usePalette } from "@/features/palette/commands";
 import { detectPlatform, formatKeys } from "@/lib/shortcuts";
+import { ContextArea, type MenuEntry } from "@/components/ContextArea";
 
 const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form", report: "Report" } as const;
 const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
@@ -85,6 +86,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   const close = useTabs((s) => s.close);
   const setView = useTabs((s) => s.setView);
   const current = tabs.find((t) => t.key === active);
+  const menuKey = useRef<string | null>(null);
 
   function onClose(t: Tab) {
     if (t.dirty && !window.confirm(`“${t.title}” has unsaved changes. Close it and discard them?`)) return;
@@ -97,8 +99,38 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
   const views = current ? viewsFor(current, sqlIds) : [];
   const shown = current ? shownView(current, views) : "datasheet";
 
+  // Right-click on a tab: close it or its neighbours, or switch its view.
+  function closeMany(list: readonly Tab[]) {
+    for (const t of list) onClose(t);
+  }
+  function tabMenu(): MenuEntry[] {
+    const i = tabs.findIndex((t) => t.key === menuKey.current);
+    const t = tabs[i];
+    if (!t) return [];
+    const tViews = t.objectId && canDesign(role) ? viewsFor(t, sqlIds) : [];
+    const tShown = shownView(t, tViews);
+    return [
+      ...tViews.map((v): MenuEntry => ({ id: `view-${v}`, label: `${VIEW_LABEL[v]} view`, disabled: tShown === v, run: () => {
+        activate(ws, t.key);
+        setView(ws, t.key, v);
+      } })),
+      { id: "s1", separator: true },
+      { id: "close", label: "Close", icon: X, shortcut: "Delete", run: () => onClose(t) },
+      { id: "others", label: "Close other tabs", disabled: tabs.length < 2, run: () => closeMany(tabs.filter((x) => x.key !== t.key)) },
+      { id: "right", label: "Close tabs to the right", disabled: i === tabs.length - 1, run: () => closeMany(tabs.slice(i + 1)) },
+      { id: "all", label: "Close all tabs", run: () => closeMany(tabs) },
+    ];
+  }
+
   return (
     <div className="flex h-10 items-stretch border-b border-border bg-surface-2/70">
+      <ContextArea
+        label="Tab actions"
+        onOpen={(e) => {
+          menuKey.current = (e.target as Element).closest("[data-tab-key]")?.getAttribute("data-tab-key") ?? null;
+        }}
+        entries={tabMenu}
+      >
       <div role="tablist" aria-label="Open objects" className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-2 pt-1.5">
         {tabs.map((t) => {
           const on = t.key === active;
@@ -107,6 +139,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
               <button
                 type="button"
                 role="tab"
+                data-tab-key={t.key}
                 aria-selected={on}
                 aria-controls="document-panel"
                 onClick={() => activate(ws, t.key)}
@@ -139,6 +172,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
           );
         })}
       </div>
+      </ContextArea>
       {current && (
         <div className="flex items-center gap-2 px-2">
           {current.objectId && canDesign(role) && views.length > 0 && (
@@ -316,9 +350,11 @@ function TabContent({ ws, role, onOpenNav }: { ws: string; role: WorkspaceRole |
       </>
     );
   }
+  // Keyed by tab: two tabs of the same kind (two reports, two tables) never share component state,
+  // such as a report's run or a datasheet's scroll position.
   return (
     <div ref={panelRef} id="document-panel" role="tabpanel" aria-label={tab.title} className="flex min-h-0 flex-1 flex-col">
-      {content}
+      <Fragment key={tab.key}>{content}</Fragment>
     </div>
   );
 }

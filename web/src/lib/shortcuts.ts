@@ -36,6 +36,9 @@ export type ShortcutId =
   | "grid.select"
   | "grid.toggle"
   | "grid.resize"
+  | "grid.copy"
+  | "grid.paste"
+  | "menu.open"
   | "query.results.move"
   | "query.results.page"
   | "query.results.edge"
@@ -126,6 +129,7 @@ export interface Shortcut {
 export const SHORTCUTS: readonly Shortcut[] = [
   { id: "palette", area: "Global", action: "Open the command palette", keys: "Mod+K", scope: "Everywhere" },
   { id: "docs", area: "Global", action: "Open the documentation", keys: "?", scope: "Everywhere, except in text fields, editors and datasheets" },
+  { id: "menu.open", area: "Global", action: "Open the context menu of the focused item (the same as a right-click)", keys: "Shift+F10", scope: "Navigation pane, document tabs, datasheets, query results and designers" },
   { id: "design.save", area: "Global", action: "Save the design", keys: "Mod+S", scope: "Table design, queries, forms, reports, scripts, jobs" },
 
   { id: "tab.close", area: "Navigation", action: "Close the focused tab", keys: "Delete", scope: "Tab strip" },
@@ -152,6 +156,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "grid.select", area: "Datasheet", action: "Select or deselect the current record", keys: "Shift+Space", scope: "Datasheet" },
   { id: "grid.toggle", area: "Datasheet", action: "Toggle a Yes/No cell", keys: "Space", scope: "Datasheet" },
   { id: "grid.resize", area: "Datasheet", action: "Resize a column (Alt+Left: narrower, Alt+Right: wider)", keys: "Alt+Right", scope: "Datasheet column header" },
+  { id: "grid.copy", area: "Datasheet", action: "Copy the current cell", keys: "Mod+C", scope: "Datasheet and query results" },
+  { id: "grid.paste", area: "Datasheet", action: "Paste into the current cell (opens it for editing with the pasted text)", keys: "Mod+V", scope: "Datasheet" },
 
   { id: "query.results.move", area: "Queries", action: "Move between result cells", keys: "Arrows", scope: "Query results" },
   { id: "query.results.page", area: "Queries", action: "Move one page up (PageDown: one page down)", keys: "PageUp", scope: "Query results" },
