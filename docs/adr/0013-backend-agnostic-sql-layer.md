@@ -237,7 +237,9 @@ All phases deliver value on SQLite alone, before any PostgreSQL code exists, and
     - They accept the same point and area inputs and validation, and work on text or native `jsonb` columns.
     - Their output is canonical GeoJSON, byte for byte. A native geometry column used as text is written in that same canonical form.
     - One gap: SQLite parses a constant area once per statement, but PostgreSQL parses it again for every row.
-  - The JSON functions, `timediff`, `printf`/`format`, `quote`, `typeof` and `unhex` are listed as pending. They fail to render rather than render wrongly, and a test keeps that list exact.
+  - The JSON functions, `timediff`, `printf`/`format`, `quote`, `typeof` and `unhex` are listed as pending.
+    - The JSON ones wait on a model change, not on library code. SQLite's `json_extract` returns an integer, a real, text or 0/1 depending on the document, but a PostgreSQL function has one result type.
+    - A portable form needs typed extraction in the catalog (for example a text, number or yes/no extraction), chosen by the expression's context. They fail to render rather than render wrongly, and a test keeps that list exact.
 - **Differential tests** (`internal/pgdb/dialect_test.go`) run about 200 expressions, dates included, and the grouping, sorting, matching and paging cases on mirrored SQLite and PostgreSQL tables. They pass on PostgreSQL 18.6; CI runs 17 and 18.
   - The recorded differences:
     - `lower`/`upper` on non-ASCII letters: SQLite changes ASCII only.
