@@ -66,13 +66,13 @@ function ControlBody({ c, columnName }: { c: DesignControl; columnName: (id: str
   switch (c.type) {
     case "label":
       return (
-        <span className={clip} style={st} title={c.caption ?? ""}>
+        <span className={clip} style={st}>
           {c.caption ?? ""}
         </span>
       );
     case "textbox":
       return (
-        <span className={`${clip} rounded-sm outline outline-1 -outline-offset-1 outline-border-strong/50 bg-surface text-fg-muted`} style={st} title={controlText(c, columnName)}>
+        <span className={`${clip} rounded-sm outline outline-1 -outline-offset-1 outline-border-strong/50 bg-surface text-fg-muted`} style={st}>
           {controlText(c, columnName)}
         </span>
       );

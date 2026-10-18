@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ToggleGroup } from "radix-ui";
 import {
@@ -57,6 +57,7 @@ import {
   thRight,
 } from "./dashboardParts";
 import { ErrorBox } from "./ui";
+import { Tip } from "@/components/Tip";
 
 const REFRESH_MS: Record<OverviewRange, number> = { "1h": 10_000, "24h": 60_000 };
 const RANGE_LABEL: Record<OverviewRange, string> = { "1h": "last hour", "24h": "last 24 hours" };
@@ -428,8 +429,8 @@ function StorageTable({ rows, nowMs }: { rows: NonNullable<AdminOverview["worksp
                   <td className={tdRight}>{formatBytes(r.db_bytes)}</td>
                   <td className={tdRight}>{formatBytes(r.wal_bytes)}</td>
                   <td className={tdRight}>{formatBytes(r.db_bytes + r.wal_bytes)}</td>
-                  <td className={tdRight} title={r.last_activity ? new Date(r.last_activity).toLocaleString() : undefined}>
-                    {relativeTime(r.last_activity, nowMs)}
+                  <td className={tdRight}>
+                    <Stamp iso={r.last_activity}>{relativeTime(r.last_activity, nowMs)}</Stamp>
                   </td>
                 </tr>
               ))}
@@ -471,8 +472,8 @@ function FailuresTable({ rows, nowMs }: { rows: NonNullable<AdminOverview["failu
             <tbody>
               {rows.map((f, i) => (
                 <tr key={`${f.at}-${i}`} className={trHover}>
-                  <td className={`${td} whitespace-nowrap text-fg-muted`} title={new Date(f.at).toLocaleString()}>
-                    {relativeTime(f.at, nowMs)}
+                  <td className={`${td} whitespace-nowrap text-fg-muted`}>
+                    <Stamp iso={f.at}>{relativeTime(f.at, nowMs)}</Stamp>
                   </td>
                   <td className={td}>
                     <div className="flex items-center gap-1.5 font-medium">
@@ -483,9 +484,9 @@ function FailuresTable({ rows, nowMs }: { rows: NonNullable<AdminOverview["failu
                     <div className="text-xs text-fg-muted">{f.workspace_name || f.workspace_id}</div>
                   </td>
                   <td className={`${td} max-w-xs`}>
-                    <span className="line-clamp-2 break-words text-xs text-fg-muted" title={f.message}>
+                    <Clamped text={f.message} className="line-clamp-2 break-words text-xs text-fg-muted">
                       {f.message || "No error message recorded."}
-                    </span>
+                    </Clamped>
                   </td>
                 </tr>
               ))}
@@ -561,13 +562,13 @@ function BackupsTable({
                     <td className={td}>
                       <ToneBadge tone={s.tone}>{s.label}</ToneBadge>
                       {b.status === "failed" && b.last_failure_message && (
-                        <div className="mt-1 line-clamp-2 max-w-48 break-words text-xs text-fg-muted" title={b.last_failure_message}>
+                        <Clamped text={b.last_failure_message} className="mt-1 line-clamp-2 block max-w-48 break-words text-xs text-fg-muted">
                           {b.last_failure_message}
-                        </div>
+                        </Clamped>
                       )}
                     </td>
-                    <td className={tdRight} title={b.last_at ? new Date(b.last_at).toLocaleString() : undefined}>
-                      {relativeTime(b.last_at, nowMs)}
+                    <td className={tdRight}>
+                      <Stamp iso={b.last_at}>{relativeTime(b.last_at, nowMs)}</Stamp>
                       {b.last_kind && <div className="text-xs text-fg-muted">{b.last_kind.replace("_", " ")}</div>}
                     </td>
                     <td className={tdRight}>{b.last_bytes ? formatBytes(b.last_bytes) : "–"}</td>
@@ -611,8 +612,8 @@ function AuditTable({ rows, nowMs }: { rows: NonNullable<AdminOverview["audit"]>
             <tbody>
               {rows.map((a, i) => (
                 <tr key={`${a.at}-${i}`} className={trHover}>
-                  <td className={`${tdNum} whitespace-nowrap text-fg-muted`} title={new Date(a.at).toLocaleString()}>
-                    {relativeTime(a.at, nowMs)}
+                  <td className={`${tdNum} whitespace-nowrap text-fg-muted`}>
+                    <Stamp iso={a.at}>{relativeTime(a.at, nowMs)}</Stamp>
                   </td>
                   <td className={td}>{a.actor}</td>
                   <td className={td}>
@@ -627,4 +628,20 @@ function AuditTable({ rows, nowMs }: { rows: NonNullable<AdminOverview["audit"]>
       )}
     </Panel>
   );
+}
+
+/** A relative time with the full date and time as its machine value and tooltip. */
+function Stamp({ iso, children }: { iso: string | null | undefined; children: ReactNode }) {
+  if (!iso) return <>{children}</>;
+  return (
+    <Tip label={new Date(iso).toLocaleString()}>
+      <time dateTime={iso}>{children}</time>
+    </Tip>
+  );
+}
+
+/** Text cut to a few lines, with the whole of it in a tooltip. */
+function Clamped({ text, className, children }: { text: string | null | undefined; className: string; children: ReactNode }) {
+  const span = <span className={className}>{children}</span>;
+  return text ? <Tip label={text}>{span}</Tip> : span;
 }

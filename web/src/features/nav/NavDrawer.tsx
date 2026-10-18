@@ -78,7 +78,7 @@ export function NavDrawer({
       {createPortal(children, host)}
       <Dialog.Root open={open} onOpenChange={onOpenChange}>
         <Dialog.Portal>
-          <Dialog.Overlay className="ui-overlay fixed inset-0 z-40 bg-black/45" />
+          <Dialog.Overlay className="ui-overlay fixed inset-0 z-40 bg-scrim/45" />
           <Dialog.Content
             aria-describedby={undefined}
             data-presentation="drawer"

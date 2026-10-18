@@ -45,8 +45,8 @@ describe("controlCss", () => {
     expect(controlCss(box({}), true).height).toBeUndefined();
   });
   it("draws lines and rects", () => {
-    expect(controlCss(box({ type: "line", w: 50, h: 1 }), false)).toMatchObject({ height: 0, borderTop: "1px solid #000" });
-    expect(controlCss(box({ type: "rect" }), false)).toMatchObject({ border: "1px solid #000" });
+    expect(controlCss(box({ type: "line", w: 50, h: 1 }), false)).toMatchObject({ height: 0, borderTop: "1px solid var(--paper-ink)" });
+    expect(controlCss(box({ type: "rect" }), false)).toMatchObject({ border: "1px solid var(--paper-ink)" });
   });
 });
 

@@ -29,7 +29,7 @@ The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/compo
    - It has a tinted icon (`KindIcon size="lg"` or an icon in a `surface-3` circle), a one-line title, one sentence of guidance and, when the user can act, a primary button.
    - Loading uses skeleton bars (`animate-pulse rounded bg-surface-3`) rather than bare "Loading…" text wherever the layout is known. Keep an `aria-live`/`role="status"` text for screen readers.
 8. **Motion.** Keep it subtle: `transition-colors`/`transition-shadow` at 150 ms, and a small fade/scale for dialogs and menus. Nothing moves when `prefers-reduced-motion` is set; the tokens handle that.
-9. **Dark and light are equal citizens.** Check both. Never hard-code colours; use the tokens (`bg-surface`, `text-fg-muted` …). The only literal colour allowed is white text on a solid brand, kind or accent fill.
+9. **Dark and light are equal citizens.** Check both. Never hard-code colours; use the tokens (`bg-surface`, `text-fg-muted` …). Colours that are the same in both themes are tokens too: `--scrim` (`bg-scrim/40` behind dialogs), `--avatar-1…7`, and the `--paper*` colours of report pages and their maps (paper is white with black ink in either theme). The documented exceptions are white text or marks on a solid brand, kind, accent or avatar fill (logo, sign-in panel, avatar initials), the photo viewer's dark overlay, and the hex fallbacks Monaco needs; each carries an `eslint-disable` comment with the reason.
 10. **Accessibility is non-negotiable.**
     - Use visible focus (the global `:focus-visible` ring, or `focus:ring-3 focus:ring-accent/20` on inputs).
     - Meet AA contrast for text, and 3:1 for input borders and icons that carry meaning.
@@ -76,7 +76,11 @@ The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/compo
   - Every icon-only button gets a `Tip` with the same text as its `aria-label`, plus the keyboard shortcut when one exists.
   - Truncated text and terse controls (badges, status dots, abbreviated column headers) may get one that spells them out.
   - Tooltips are hints only: never put the only copy of important information or an interactive element in one. Touch devices do not show them.
-  - Prefer `Tip` over the native `title` attribute.
+  - Use `Tip`, never the native `title` attribute. `disabled` keeps the tree stable where a tooltip only sometimes applies (grid cells).
+  - Dialog and sheet close buttons have no tooltip: focus lands on them, and a tooltip opened by focus takes the first Escape.
+
+## Lint guards
+`eslint.config.js` enforces the rules above (ADR 0015): no `title=` on intrinsic elements, no `confirm`/`alert`/`prompt` (use `askToConfirm` or `ConfirmDialog`), and no Tailwind palette classes (`bg-gray-…`, `text-white` …) or hex colours outside `tokens.css`. Tests are exempt.
 
 ## Mobile
 "Compact" means a viewport up to 767px wide, or a touch device (`pointer: coarse`) up to 1023px. It is defined once in `lib/useMediaQuery.ts` (`useIsCompact`) and mirrored by the Tailwind `compact:` variant (tokens.css) and the media query in `styles/mobile.css`. Desktop layouts are never changed by it.

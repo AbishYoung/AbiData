@@ -37,9 +37,9 @@ export function controlCss(c: ReportControl, grow: boolean): CSSProperties {
   const s = c.style ?? {};
   const css: CSSProperties = { left: c.x, top: c.y, width: c.w };
   if (c.type === "line") {
-    return c.w >= c.h ? { ...css, height: 0, borderTop: "1px solid #000" } : { ...css, width: 0, height: c.h, borderLeft: "1px solid #000" };
+    return c.w >= c.h ? { ...css, height: 0, borderTop: "1px solid var(--paper-ink)" } : { ...css, width: 0, height: c.h, borderLeft: "1px solid var(--paper-ink)" };
   }
-  if (c.type === "rect") return { ...css, height: c.h, border: "1px solid #000", boxSizing: "border-box" };
+  if (c.type === "rect") return { ...css, height: c.h, border: "1px solid var(--paper-ink)", boxSizing: "border-box" };
   if (grow && c.type !== "page_number" && c.type !== "page_count" && c.type !== "now" && c.type !== "image") css.minHeight = c.h;
   else css.height = c.h;
   const align = s.align ?? s.text_align ?? s["text-align"];
@@ -53,7 +53,7 @@ export function controlCss(c: ReportControl, grow: boolean): CSSProperties {
   if (color && SAFE_COLOR.test(color)) css.color = color;
   const bg = s.background ?? s.fill;
   if (bg && SAFE_COLOR.test(bg)) css.backgroundColor = bg;
-  if (truthy(s.border)) css.border = "1px solid #000";
+  if (truthy(s.border)) css.border = "1px solid var(--paper-ink)";
   return css;
 }
 

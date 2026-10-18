@@ -41,6 +41,7 @@
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-focus: var(--focus);
+  --color-scrim: var(--scrim);
   /* Object kinds: icon colour and its tinted chip background. */
   --color-kind-table: var(--kind-table);
   --color-kind-table-soft: var(--kind-table-soft);
@@ -100,6 +101,27 @@
   --shadow-color-2: rgb(16 24 40 / 0.08);
   --shadow-color-3: rgb(16 24 40 / 0.18);
   color-scheme: light;
+}
+
+/* The same in both themes (ADR 0015: no literal colours outside this file). */
+:root {
+  /* Dims the page behind dialogs and drawers. */
+  --scrim: #000;
+  /* Workspace avatars: deep fills that keep white initials at AA contrast (4.5:1) in both themes. */
+  --avatar-1: #1d4ed8; --avatar-2: #6d28d9; --avatar-3: #047857; --avatar-4: #b45309;
+  --avatar-5: #0e7490; --avatar-6: #be185d; --avatar-7: #4338ca;
+  /* Report pages are paper: white with black ink in either theme, and so are their maps. */
+  --paper: #fff;
+  --paper-ink: #000;
+  --paper-shadow: rgb(0 0 0 / 0.35);
+  --paper-map-bg: #f8fafc;
+  --paper-map-edge: #cbd5e1;
+  --paper-map-grid: #94a3b8;
+  --paper-map-label: #475569;
+  --paper-map-credit: #333;
+  --paper-map-value: #1d4ed8;
+  --paper-map-overlay: #b45309;
+  --paper-map-overlay-label: #78350f;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- documented exception (DESIGN.md): Monaco takes hex colours; these are fallbacks for when the tokens cannot be read. */
 // Loaded only from the lazily imported MonacoEditor chunk. Monaco is bundled locally (no CDN: the
 // CSP is script-src 'self'; worker-src 'self' blob:); only the editor worker and the Lua grammar ship.
 import * as monaco from "monaco-editor/editor/editor.api";

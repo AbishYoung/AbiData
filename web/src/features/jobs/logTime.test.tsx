@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { LogViewer } from "./LogViewer";
@@ -40,11 +41,12 @@ describe("log times", () => {
     expect(p.filter((x) => x.match === 0).map((x) => x.text).join("")).toBe(l.text.slice(9, 17));
   });
 
-  it("LogViewer renders local times with the UTC instant on hover", () => {
+  it("LogViewer renders local times with the UTC instant on hover", async () => {
     render(<LogViewer log={log} startedAt={startedAt} />);
     const t = screen.getByText("09:57:37.123");
     expect(t.tagName).toBe("TIME");
-    expect(t).toHaveAttribute("title", expect.stringContaining("13:57:37.123 UTC"));
+    await userEvent.hover(t);
+    expect(await screen.findByRole("tooltip", {}, { timeout: 2000 })).toHaveTextContent("13:57:37.123 UTC");
     expect(screen.getByText(/Times are in your local time \(UTC-04:00\)/)).toBeInTheDocument();
     expect(screen.queryByText("13:57:37.123")).toBeNull();
   });

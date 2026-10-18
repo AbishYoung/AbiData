@@ -75,11 +75,11 @@ export const menuItem =
 export const menuSeparator = "my-1 h-px bg-border";
 
 /** Dialog surfaces (Radix). */
-export const overlay = "fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]";
+export const overlay = "fixed inset-0 z-40 bg-scrim/40 backdrop-blur-[2px]";
 export const dialog = "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl border border-border bg-surface shadow-lg";
 
 /** Dialog chrome (DESIGN.md "Dialogs"). Pair `dialogOverlay` with `dialogPanel` and give the content `p-5`. */
-export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]";
+export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-scrim/45 backdrop-blur-[2px]";
 /** Centered dialog surface; set the width with a `w-[min(26rem,calc(100vw-2rem))]` class. */
 export const dialogPanel =
   "ui-dialog fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface text-fg shadow-lg";

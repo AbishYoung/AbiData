@@ -13,17 +13,20 @@ export function Tip({
   label,
   shortcut,
   side = "top",
+  disabled = false,
   children,
 }: {
   label: ReactNode;
   /** Shown as key caps after the label, e.g. "Mod+S" (Mod = ⌘ on Apple, Ctrl elsewhere). */
   shortcut?: string;
   side?: "top" | "right" | "bottom" | "left";
+  /** Never opens; keeps the element tree the same when a tooltip only sometimes applies. */
+  disabled?: boolean;
   children: ReactElement;
 }) {
   return (
     <Tooltip.Provider delayDuration={400} skipDelayDuration={200}>
-      <Tooltip.Root>
+      <Tooltip.Root open={disabled ? false : undefined}>
         <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content

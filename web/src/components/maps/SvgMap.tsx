@@ -27,12 +27,12 @@ function pathOf(g: Geometry, p: Projection): string {
 }
 
 function Shape({ g, p, kind }: { g: Geometry; p: Projection; kind: "main" | "overlay" }) {
-  const stroke = kind === "main" ? "#1d4ed8" : "#b45309";
+  const stroke = kind === "main" ? "var(--paper-map-value)" : "var(--paper-map-overlay)";
   if (g.type === "Point") {
     const [x, y] = p.project(g.coordinates[0] as number, g.coordinates[1] as number);
     return kind === "main" ? (
       <g>
-        <circle cx={x} cy={y} r={7} fill="#1d4ed8" stroke="#fff" strokeWidth={2.5} />
+        <circle cx={x} cy={y} r={7} fill="var(--paper-map-value)" stroke="var(--paper)" strokeWidth={2.5} />
       </g>
     ) : (
       <circle cx={x} cy={y} r={3.5} fill={stroke} fillOpacity={0.7} />
@@ -70,7 +70,7 @@ function Tiles({ p, tiles, width, height }: { p: Projection; tiles: MapTiles; wi
   return (
     <g className="rv-screen-only" aria-hidden="true">
       {out}
-      <text x={width - 4} y={height - 4} textAnchor="end" fontSize={9} fill="#333" stroke="#fff" strokeWidth={2} paintOrder="stroke">
+      <text x={width - 4} y={height - 4} textAnchor="end" fontSize={9} fill="var(--paper-map-credit)" stroke="var(--paper)" strokeWidth={2} paintOrder="stroke">
         {tiles.attribution}
       </text>
     </g>
@@ -97,7 +97,7 @@ export function SvgMap({ width, height, geometry, overlay, tiles, label }: { wid
       viewBox={`0 0 ${width} ${height}`}
       className="rv-map"
       data-testid="report-map"
-      style={{ display: "block", background: "#f8fafc", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
+      style={{ display: "block", background: "var(--paper-map-bg)", border: "1px solid var(--paper-map-edge)", boxSizing: "border-box" }}
     >
       <title>{`${label}: ${description}`}</title>
       <defs>
@@ -107,7 +107,7 @@ export function SvgMap({ width, height, geometry, overlay, tiles, label }: { wid
       </defs>
       <g clipPath={`url(#${clip})`}>
         {tiles && <Tiles p={p} tiles={tiles} width={width} height={height} />}
-        <g stroke="#94a3b8" strokeWidth={0.6} strokeOpacity={0.8}>
+        <g stroke="var(--paper-map-grid)" strokeWidth={0.6} strokeOpacity={0.8}>
           {g.lons.map((lon) => {
             const [x] = p.project(lon, 0);
             return <line key={`x${lon}`} x1={x} y1={0} x2={x} y2={height} />;
@@ -117,7 +117,7 @@ export function SvgMap({ width, height, geometry, overlay, tiles, label }: { wid
             return <line key={`y${lat}`} x1={0} y1={y} x2={width} y2={y} />;
           })}
         </g>
-        <g fontSize={9} fill="#475569">
+        <g fontSize={9} fill="var(--paper-map-label)">
           {g.lons.map((lon) => {
             const [x] = p.project(lon, 0);
             return (
@@ -143,7 +143,7 @@ export function SvgMap({ width, height, geometry, overlay, tiles, label }: { wid
           const at = s.geometry.type === "Point" ? { lon: s.geometry.coordinates[0] as number, lat: s.geometry.coordinates[1] as number } : labelPoint(s.geometry);
           const [x, y] = p.project(at.lon, at.lat);
           return (
-            <text key={`t${i}`} x={x} y={y} textAnchor="middle" fontSize={10} fontWeight={600} fill="#78350f" stroke="#fff" strokeWidth={2.5} paintOrder="stroke">
+            <text key={`t${i}`} x={x} y={y} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--paper-map-overlay-label)" stroke="var(--paper)" strokeWidth={2.5} paintOrder="stroke">
               {s.label}
             </text>
           );

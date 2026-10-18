@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- documented exception (DESIGN.md): white text and strokes on the solid brand panel. */
 import type { ReactNode } from "react";
 import { Database, History, ShieldCheck, Table2 } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
@@ -150,7 +151,7 @@ export function AuthLayout({
       <div className="bg-brand relative isolate overflow-hidden text-white">
         <div
           aria-hidden="true"
-          className="absolute inset-0 -z-10 bg-black/40"
+          className="absolute inset-0 -z-10 bg-scrim/40"
         />
         <div className="flex flex-col gap-10 px-6 py-5 lg:min-h-full lg:justify-between lg:p-12">
           <div className="flex items-center gap-3">
