@@ -8,10 +8,7 @@ package pgdb
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"abidata/internal/dbx"
+	"abidata/internal/pgtest"
 )
 
 type env struct {
@@ -29,72 +27,18 @@ type env struct {
 	a, b Names
 }
 
-func randHex(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-// requirePostgres skips, saying why, when no test server is configured.
-func requirePostgres(t *testing.T) string {
-	t.Helper()
-	url := os.Getenv("ABIDATA_TEST_POSTGRES_URL")
-	if url == "" {
-		t.Skip("PostgreSQL-only: set ABIDATA_TEST_POSTGRES_URL to run")
-	}
-	return url
-}
-
 func setup(t *testing.T) *env {
 	t.Helper()
-	url := requirePostgres(t)
 	ctx := context.Background()
-	su, err := pgx.Connect(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer su.Close(ctx)
-	suffix := randHex(4)
-	db, role, pass := "abd_test_"+suffix, "abd_test_app_"+suffix, randHex(16)
-	prefix := "t" + suffix
-	for _, q := range []string{
-		`CREATE ROLE ` + ident(role) + ` LOGIN CREATEROLE PASSWORD '` + pass + `'`,
-		`CREATE DATABASE ` + ident(db) + ` OWNER ` + ident(role),
-	} {
-		if _, err := su.Exec(ctx, q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	cfg, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.ConnConfig.Database, cfg.ConnConfig.User, cfg.ConnConfig.Password = db, role, pass
-	app, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	pe := pgtest.New(t)
+	app, db, prefix := pe.App, pe.Database, pe.Prefix
 	e := &env{app: app, sb: NewSandbox(app),
 		a: Names{Prefix: prefix, Workspace: "01J0000000000000000000000A"},
 		b: Names{Prefix: prefix, Workspace: "01J0000000000000000000000B"}}
-	t.Cleanup(func() {
-		e.sb.Close()
-		app.Close()
-		ctx := context.Background()
-		su, err := pgx.Connect(ctx, url)
-		if err != nil {
-			t.Log(err)
-			return
-		}
-		defer su.Close(ctx)
-		_, _ = su.Exec(ctx, `DROP DATABASE IF EXISTS `+ident(db)+` WITH (FORCE)`)
-		for _, n := range []Names{e.a, e.b} {
-			for _, r := range []string{n.ReadLogin(), n.WriteLogin(), n.WriteRole(), n.ReadRole()} {
-				_, _ = su.Exec(ctx, `DROP ROLE IF EXISTS `+ident(r))
-			}
-		}
-		_, _ = su.Exec(ctx, `DROP ROLE IF EXISTS `+ident(role))
-	})
+	for _, n := range []Names{e.a, e.b} {
+		pe.DropRoles(n.ReadLogin(), n.WriteLogin(), n.WriteRole(), n.ReadRole())
+	}
+	t.Cleanup(e.sb.Close)
 
 	d := Pool(app)
 	var super bool

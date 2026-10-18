@@ -275,6 +275,21 @@ Each phase merges on its own, keeps SQLite green, and has an exit criterion.
 
 Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everything after it.
 
+**Phase 2, part 1 (as built): the admin schema.**
+
+- **Migrations.** `internal/admin/migrations/postgres` keeps SQLite's numbering. It creates the same tables in `<prefix>_admin`:
+  - text timestamps and 0/1 integer flags, as §4 keeps them for system tables;
+  - binary text;
+  - `<prefix>_lib`'s `abi_ci` where SQLite says NOCASE (email, workspace name);
+  - `abi_json_valid` for the JSON checks;
+  - an identity column for the audit log's id.
+- **Running them.** `admin.MigratePostgres` installs `<prefix>_lib` first, then runs each migration as one transaction with its version step. The version lives in `_adm_schema`, which stands in for `user_version` and `application_id`.
+- **Shared statements.** With email's collation set on the column, `admin.ListMembers` became portable, so every admin statement is now in the shared subset apart from the PRAGMAs of the SQLite store itself.
+- **Tests** (`internal/admin/postgres_test.go`):
+  - both migration sets give the same columns, order, nullability, storage class and indexes;
+  - every portable admin statement prepares on PostgreSQL with SQLite's result columns.
+- **Test setup.** `internal/pgtest` gives tests a throwaway database owned by a non-superuser app role. `make test-postgres` runs the `pgdb` and `admin` packages.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

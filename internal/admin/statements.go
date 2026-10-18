@@ -70,9 +70,10 @@ var (
 			WHERE id = :id`)
 	sqlSetMembership = sqlgen.Register("admin.SetMembership", `INSERT INTO _adm_memberships (workspace_id, user_id, role) VALUES (?,?,?)
 			ON CONFLICT(workspace_id, user_id) DO UPDATE SET role = excluded.role`)
-	sqlListMembers = sqlgen.RegisterSQLiteOnly("admin.ListMembers", `SELECT u.id, u.email, u.display_name, m.role FROM _adm_memberships m
+	// email's column collation (NOCASE, abi_ci on PostgreSQL) orders it.
+	sqlListMembers = sqlgen.Register("admin.ListMembers", `SELECT u.id, u.email, u.display_name, m.role FROM _adm_memberships m
 			JOIN _adm_users u ON u.id = m.user_id WHERE m.workspace_id = ?
-			ORDER BY u.email COLLATE NOCASE, u.id`)
+			ORDER BY u.email, u.id`)
 	sqlMigrate  = sqlgen.RegisterSQLiteOnly("admin.migrate", "PRAGMA application_id")
 	sqlMigrate2 = sqlgen.RegisterSQLiteOnly("admin.migrate#2", "PRAGMA user_version")
 	sqlPing     = sqlgen.Register("admin.Ping", "SELECT 1")
