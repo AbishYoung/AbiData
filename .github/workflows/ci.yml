@@ -1,14 +1,63 @@
 name: ci
 
+# Layered and change-aware (ADR 0016). The plan job maps the changed paths to the layers they
+# can affect with tools/testplan, the same selection `make test-changed` makes locally; each
+# job below runs only when the plan needs it. Pushes to main, the nightly run and manual runs
+# select everything.
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      go: ${{ steps.plan.outputs.go }}
+      go_packages: ${{ steps.plan.outputs.go_packages }}
+      go_lint: ${{ steps.plan.outputs.go_lint }}
+      web: ${{ steps.plan.outputs.web }}
+      web_static: ${{ steps.plan.outputs.web_static }}
+      e2e: ${{ steps.plan.outputs.e2e }}
+      e2e_areas: ${{ steps.plan.outputs.e2e_areas }}
+      image: ${{ steps.plan.outputs.image }}
+      postgres: ${{ steps.plan.outputs.postgres }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - id: plan
+        name: Select the layers
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            args="-base origin/$BASE_REF"
+          elif [ "$EVENT" = push ] && [ "$REF" != refs/heads/main ]; then
+            args="-base origin/main"
+          else
+            args="-full"
+          fi
+          go run ./tools/testplan plan $args -github-output "$GITHUB_OUTPUT"
+
   go:
+    needs: plan
+    if: needs.plan.outputs.go == 'true' || needs.plan.outputs.go_lint == 'true' || needs.plan.outputs.web_static == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,12 +78,19 @@ jobs:
           make gen
           git diff --exit-code -- internal/httpapi/openapi.json web/src/generated docs/content/reference/shortcuts.md docs/content/reference/expressions.md
       - name: Test
-        run: go test -race ./...
+        if: needs.plan.outputs.go == 'true'
+        env:
+          PACKAGES: ${{ needs.plan.outputs.go_packages }}
+        # Never -short here: the heavy tests the fast local layer skips run in CI.
+        run: go test -race $PACKAGES
       - uses: golangci/golangci-lint-action@v8
+        if: needs.plan.outputs.go_lint == 'true'
         with:
           version: v2.14.0
 
   web:
+    needs: plan
+    if: needs.plan.outputs.web == 'true' || needs.plan.outputs.web_static == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,10 +102,104 @@ jobs:
       - run: npm --prefix web ci
       - run: npm --prefix web run typecheck
       - run: npm --prefix web run lint
+      # Every web test whenever web changes: the whole run takes seconds.
       - run: npm --prefix web test
       - run: npm --prefix web run build
 
+  e2e-build:
+    # Builds the web app and the binary once for every e2e area.
+    needs: plan
+    if: needs.plan.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+          go build -o tests/e2e/.bin/abidata ./cmd/abidata
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e2e-binary
+          path: tests/e2e/.bin/abidata
+          retention-days: 1
+
+  e2e:
+    needs: [plan, e2e-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ${{ fromJSON(needs.plan.outputs.e2e_areas) }}
+    name: e2e (${{ matrix.area }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: e2e-binary
+          path: tests/e2e/.bin
+      - run: chmod +x tests/e2e/.bin/abidata
+      - run: npm --prefix tests/e2e ci
+      - id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/package-lock.json') }}
+      - name: Install Chromium
+        working-directory: tests/e2e
+        run: |
+          if [ "${{ steps.browsers.outputs.cache-hit }}" = true ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - name: Playwright (${{ matrix.area }})
+        env:
+          E2E_SKIP_BUILD: "1"
+        run: go run ./tools/testplan e2e ${{ matrix.area }}
+      - name: Upload traces and server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.area }}-traces
+          path: |
+            tests/e2e/test-results
+            tests/e2e/.servers
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  postgres:
+    # The PostgreSQL backend tests (ADR 0012) against throwaway servers in Docker.
+    needs: plan
+    if: needs.plan.outputs.postgres == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make test-postgres
+
   docker:
+    needs: plan
+    if: needs.plan.outputs.image == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +216,8 @@ jobs:
   container-smoke:
     # Builds the linux/amd64 image, brings it up with compose from a clean volume, bootstraps via the
     # logged setup token and runs tests/e2e/smoke.spec.ts against it (same script as local runs).
-    needs: [go, web]
+    needs: [plan, go, web]
+    if: ${{ !cancelled() && needs.plan.outputs.image == 'true' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -84,3 +235,16 @@ jobs:
           name: container-smoke-traces
           path: tests/e2e/test-results
           if-no-files-found: ignore
+
+  ci-ok:
+    # One check for branch protection: fails if any selected job failed or was cancelled;
+    # skipped jobs (not needed by this change) pass.
+    needs: [plan, go, web, e2e-build, e2e, postgres, docker, container-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac
