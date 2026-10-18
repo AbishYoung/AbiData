@@ -79,7 +79,7 @@ var postgresPaths = []string{"scripts/test-postgres.sh", "internal/pgdb/", "inte
 
 // postgresPackages have tests that run against PostgreSQL; keep them in step
 // with the packages scripts/test-postgres.sh runs by default.
-var postgresPackages = []string{"abidata/internal/pgdb", "abidata/internal/admin"}
+var postgresPackages = []string{"abidata/internal/pgdb", "abidata/internal/admin", "abidata/internal/auth"}
 
 // inert paths are documentation and tests: they never change what is built or shipped.
 func inert(p string) bool {

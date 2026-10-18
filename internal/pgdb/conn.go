@@ -31,6 +31,34 @@ func Wrap(q pgxQuerier) DB { return DB{q: q} }
 // Pool adapts a pool.
 func Pool(p *pgxpool.Pool) DB { return DB{q: p} }
 
+// Tx is a dbx.Tx over a pgx transaction.
+type Tx struct {
+	DB
+	tx pgx.Tx
+}
+
+// WrapTx adapts a transaction.
+func WrapTx(tx pgx.Tx) Tx { return Tx{DB: Wrap(tx), tx: tx} }
+
+var _ dbx.Tx = Tx{}
+
+// Savepoint runs fn in a savepoint, rolled back alone when fn fails.
+func (t Tx) Savepoint(ctx context.Context, fn func() error) (err error) {
+	sp, err := t.tx.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = sp.Rollback(ctx)
+		}
+	}()
+	if err = fn(); err != nil {
+		return err
+	}
+	return sp.Commit(ctx)
+}
+
 var (
 	_ dbx.Execer = DB{}
 	_ dbx.Rows   = rows{}
@@ -44,6 +72,7 @@ func (d DB) Exec(ctx context.Context, sql string, args ...any) (dbx.Result, erro
 	if err != nil {
 		return dbx.Result{}, err
 	}
+	args = encodeArgs(args)
 	tag, err := d.q.Exec(ctx, sql, args...)
 	if err != nil {
 		return dbx.Result{}, err
@@ -57,6 +86,7 @@ func (d DB) Query(ctx context.Context, sql string, args ...any) (dbx.Rows, error
 	if err != nil {
 		return nil, err
 	}
+	args = encodeArgs(args)
 	r, err := d.q.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -69,6 +99,7 @@ func (d DB) QueryRow(ctx context.Context, sql string, args ...any) dbx.Row {
 	if err != nil {
 		return errRow{err}
 	}
+	args = encodeArgs(args)
 	return row{d.q.QueryRow(ctx, sql, args...)}
 }
 
@@ -77,7 +108,7 @@ type rows struct{ r pgx.Rows }
 func (r rows) Next() bool             { return r.r.Next() }
 func (r rows) Err() error             { return r.r.Err() }
 func (r rows) Close()                 { r.r.Close() }
-func (r rows) Scan(dest ...any) error { return r.r.Scan(dest...) }
+func (r rows) Scan(dest ...any) error { return r.r.Scan(scanDests(dest)...) }
 
 func (r rows) Columns() []string {
 	fs := r.r.FieldDescriptions()
@@ -99,7 +130,7 @@ func (r rows) Values() []any {
 type row struct{ r pgx.Row }
 
 func (r row) Scan(dest ...any) error {
-	err := r.r.Scan(dest...)
+	err := r.r.Scan(scanDests(dest)...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return dbx.ErrNoRows
 	}
@@ -109,3 +140,10 @@ func (r row) Scan(dest ...any) error {
 type errRow struct{ err error }
 
 func (r errRow) Scan(...any) error { return r.err }
+
+// IsUniqueViolation reports whether err is a unique or primary-key
+// violation (SQLSTATE 23505).
+func IsUniqueViolation(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && pe.Code == "23505"
+}
