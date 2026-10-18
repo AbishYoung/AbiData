@@ -31,8 +31,7 @@ func (s *Store) Audit(ctx context.Context, e AuditEntry) error {
 		at = time.Now()
 	}
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO _adm_audit (at, user_id, action, object_kind, object_id, details)
-			VALUES (?,?,?,?,?,?)`, at, nullIfEmpty(e.UserID), e.Action, nullIfEmpty(e.ObjectKind),
+		_, err := tx.Exec(ctx, sqlAudit.SQL, at, nullIfEmpty(e.UserID), e.Action, nullIfEmpty(e.ObjectKind),
 			nullIfEmpty(e.ObjectID), details)
 		return err
 	})
@@ -45,8 +44,7 @@ func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) 
 	}
 	var out []AuditEntry
 	err := s.Read(ctx, func(c dbx.Querier) error {
-		rows, err := c.Query(ctx, `SELECT at, user_id, action, object_kind, object_id, details
-			FROM _adm_audit ORDER BY at DESC, id DESC LIMIT ?`, limit)
+		rows, err := c.Query(ctx, sqlListAudit.SQL, limit)
 		if err != nil {
 			return err
 		}

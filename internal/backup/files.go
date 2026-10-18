@@ -57,10 +57,10 @@ func listFiles(ctx context.Context, dbPath string) ([]ManifestFile, error) {
 	}
 	defer func() { _ = c.Close() }()
 	var n int
-	if err := c.QueryRow(ctx, `SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = '_sys_files'`).Scan(&n); err != nil || n == 0 {
+	if err := c.QueryRow(ctx, sqlListFiles.SQL).Scan(&n); err != nil || n == 0 {
 		return nil, err
 	}
-	rows, err := c.Query(ctx, `SELECT sha256, MAX(size) FROM _sys_files GROUP BY sha256 ORDER BY sha256`)
+	rows, err := c.Query(ctx, sqlListFiles2.SQL)
 	if err != nil {
 		return nil, err
 	}

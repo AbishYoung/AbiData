@@ -13,7 +13,7 @@ import (
 func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) {
 	var drift []string
 	for _, t := range s.Tables {
-		rows, err := q.Query(ctx, `SELECT name, hidden FROM pragma_table_xinfo(?)`, t.PhysicalName)
+		rows, err := q.Query(ctx, sqlReconcile.SQL, t.PhysicalName)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +55,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 			}
 		}
 		var trig int
-		if err := q.QueryRow(ctx, `SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name = ?`, occTriggerName(&t)).Scan(&trig); err != nil {
+		if err := q.QueryRow(ctx, sqlReconcile2.SQL, occTriggerName(&t)).Scan(&trig); err != nil {
 			return nil, err
 		}
 		if trig == 0 {
@@ -64,7 +64,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 		if HasAttachTriggers(&t) {
 			for _, name := range attachTriggerNames(&t) {
 				var n int
-				if err := q.QueryRow(ctx, `SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name = ?`, name).Scan(&n); err != nil {
+				if err := q.QueryRow(ctx, sqlReconcile2.SQL, name).Scan(&n); err != nil {
 					return nil, err
 				}
 				if n == 0 {
@@ -74,7 +74,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 		}
 		for _, x := range t.Indexes {
 			var n int
-			if err := q.QueryRow(ctx, `SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = ?`, x.PhysicalName).Scan(&n); err != nil {
+			if err := q.QueryRow(ctx, sqlReconcile3.SQL, x.PhysicalName).Scan(&n); err != nil {
 				return nil, err
 			}
 			if n == 0 {
@@ -83,8 +83,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 		}
 	}
 	// User tables that exist physically but not in the catalog.
-	rows, err := q.Query(ctx, `SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
-		AND name NOT LIKE '\_sys\_%' ESCAPE '\'`)
+	rows, err := q.Query(ctx, sqlReconcile4.SQL)
 	if err != nil {
 		return nil, err
 	}

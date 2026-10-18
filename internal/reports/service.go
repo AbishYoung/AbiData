@@ -209,7 +209,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 			return err
 		}
 		r.ModuleID, r.ModuleSource, r.ModuleVersion = mod.ID, mod.Source, mod.Version
-		if _, err := tx.Exec(ctx, `DELETE FROM _sys_dependencies WHERE dependent_kind = 'report' AND dependent_id = ?`, r.ID); err != nil {
+		if _, err := tx.Exec(ctx, sqlPut.SQL, r.ID); err != nil {
 			return err
 		}
 		targets := map[string]string{in.SourceKind: in.SourceID}
@@ -228,7 +228,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 			if pre, _, ok := strings.Cut(k, ":"); ok {
 				kind = pre
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO _sys_dependencies(dependent_kind, dependent_id, target_kind, target_id, confidence) VALUES ('report', ?, ?, ?, 'exact') ON CONFLICT DO NOTHING`, r.ID, kind, v); err != nil {
+			if _, err := tx.Exec(ctx, sqlPut2.SQL, r.ID, kind, v); err != nil {
 				return err
 			}
 		}

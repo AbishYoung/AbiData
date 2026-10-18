@@ -79,9 +79,7 @@ func (s *SQLStore) Due(ctx context.Context, now time.Time) ([]IndexEntry, error)
 func (s *SQLStore) NextWake(ctx context.Context) (time.Time, bool, error) {
 	var v *string
 	err := s.Admin.Read(ctx, func(c dbx.Querier) error {
-		return c.QueryRow(ctx, `SELECT min(t) FROM (
-			SELECT min(next_run_at) AS t FROM _adm_job_index WHERE enabled = 1
-			UNION ALL SELECT min(retry_at) FROM _adm_job_index WHERE enabled = 1)`).Scan(&v)
+		return c.QueryRow(ctx, sqlSQLStoreNextWake.SQL).Scan(&v)
 	})
 	if err != nil {
 		return time.Time{}, false, err
@@ -131,7 +129,7 @@ func boolInt(b bool) int {
 
 func (s *SQLStore) DeleteEntry(ctx context.Context, ws ids.WorkspaceID, jobID string) error {
 	return s.Admin.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _adm_job_index WHERE workspace_id = ? AND job_id = ?`, string(ws), jobID)
+		_, err := tx.Exec(ctx, sqlSQLStoreDeleteEntry.SQL, string(ws), jobID)
 		return err
 	})
 }
@@ -139,7 +137,7 @@ func (s *SQLStore) DeleteEntry(ctx context.Context, ws ids.WorkspaceID, jobID st
 // DeleteWorkspace drops a workspace's index rows (workspace deletion).
 func (s *SQLStore) DeleteWorkspace(ctx context.Context, ws ids.WorkspaceID) error {
 	return s.Admin.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM _adm_job_index WHERE workspace_id = ?`, string(ws))
+		_, err := tx.Exec(ctx, sqlSQLStoreDeleteWorkspace.SQL, string(ws))
 		return err
 	})
 }

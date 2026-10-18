@@ -271,12 +271,12 @@ func (s *Service) Upload(ctx context.Context, l *workspace.Lease, actor, name st
 	// being adopted by a new row.
 	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var exists bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM _sys_files WHERE sha256 = ?)`, m.SHA256).Scan(&exists); err != nil {
+		if err := tx.QueryRow(ctx, sqlUpload.SQL, m.SHA256).Scan(&exists); err != nil {
 			return err
 		}
 		if !exists {
 			var used int64
-			if err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(size), 0) FROM (SELECT size FROM _sys_files GROUP BY sha256)`).Scan(&used); err != nil {
+			if err := tx.QueryRow(ctx, sqlUpload2.SQL).Scan(&used); err != nil {
 				return err
 			}
 			if q := s.quota(l.ID()); used+m.Size > q {
@@ -296,8 +296,7 @@ func (s *Service) Upload(ctx context.Context, l *workspace.Lease, actor, name st
 		if actor != "" {
 			by = actor
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO _sys_files(id, sha256, size, name, content_type, width, height, created_at, created_by, state)
-			VALUES (?,?,?,?,?,?,?,?,?, 'pending')`, m.ID, m.SHA256, m.Size, m.Name, m.ContentType, w, hh, dbx.FormatTime(m.CreatedAt), by); err != nil {
+		if _, err := tx.Exec(ctx, sqlUpload3.SQL, m.ID, m.SHA256, m.Size, m.Name, m.ContentType, w, hh, dbx.FormatTime(m.CreatedAt), by); err != nil {
 			if created {
 				_ = bk.Remove(m.SHA256)
 			}
@@ -495,10 +494,10 @@ func writeAtomic(path string, data []byte) error {
 // Usage reports the distinct bytes and the number of file rows in a workspace.
 func (s *Service) Usage(ctx context.Context, l *workspace.Lease) (bytes int64, count int64, err error) {
 	err = l.Read(ctx, func(q dbx.Querier) error {
-		if err := q.QueryRow(ctx, `SELECT COALESCE(SUM(size), 0) FROM (SELECT size FROM _sys_files GROUP BY sha256)`).Scan(&bytes); err != nil {
+		if err := q.QueryRow(ctx, sqlUpload2.SQL).Scan(&bytes); err != nil {
 			return err
 		}
-		return q.QueryRow(ctx, `SELECT count(*) FROM _sys_files`).Scan(&count)
+		return q.QueryRow(ctx, sqlUsage.SQL).Scan(&count)
 	})
 	return bytes, count, err
 }

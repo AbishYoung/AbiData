@@ -101,15 +101,10 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 		defer lock.Unlock()
 		// Files that lost their last reference without the trigger noticing
 		// (should not happen) start their grace period now.
-		if _, err := tx.Exec(ctx, `UPDATE _sys_files SET last_unreferenced_at = ? WHERE state = 'attached' AND last_unreferenced_at IS NULL
-			AND NOT EXISTS (SELECT 1 FROM _sys_file_refs r WHERE r.file_id = _sys_files.id)`, nowS); err != nil {
+		if _, err := tx.Exec(ctx, sqlSweepBatch.SQL, nowS); err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, `SELECT id, sha256, state, size FROM _sys_files
-			WHERE (state = 'pending' AND created_at < ? AND NOT EXISTS (SELECT 1 FROM _sys_file_refs r WHERE r.file_id = _sys_files.id))
-			   OR (state = 'attached' AND last_unreferenced_at IS NOT NULL AND last_unreferenced_at < ?
-			       AND NOT EXISTS (SELECT 1 FROM _sys_file_refs r WHERE r.file_id = _sys_files.id))
-			ORDER BY created_at LIMIT ?`, pendingCut, graceCut, sweepBatch)
+		rows, err := tx.Query(ctx, sqlSweepBatch2.SQL, pendingCut, graceCut, sweepBatch)
 		if err != nil {
 			return err
 		}
@@ -132,8 +127,7 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 			if !c.pending {
 				var named bool
 				// ULIDs are unique, so a substring match on the JSON snapshots is exact.
-				if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM _sys_row_history WHERE at >= ?
-					AND (before LIKE '%' || ? || '%' OR after LIKE '%' || ? || '%'))`, graceCut, c.id, c.id).Scan(&named); err != nil {
+				if err := tx.QueryRow(ctx, sqlSweepBatch3.SQL, graceCut, c.id, c.id).Scan(&named); err != nil {
 					return err
 				}
 				if named {
@@ -141,7 +135,7 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 					continue
 				}
 			}
-			if _, err := tx.Exec(ctx, `DELETE FROM _sys_files WHERE id = ?`, c.id); err != nil {
+			if _, err := tx.Exec(ctx, sqlSweepBatch4.SQL, c.id); err != nil {
 				return err
 			}
 			gone = append(gone, c)
@@ -164,7 +158,7 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 			}
 			done[c.sha] = true
 			var shared bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM _sys_files WHERE sha256 = ?)`, c.sha).Scan(&shared); err != nil {
+			if err := tx.QueryRow(ctx, sqlUpload.SQL, c.sha).Scan(&shared); err != nil {
 				return err
 			}
 			if shared {
@@ -185,7 +179,7 @@ func (s *Service) sweepBatch(ctx context.Context, l *workspace.Lease, bk Bucket,
 func (s *Service) sweepOrphans(ctx context.Context, l *workspace.Lease, bk Bucket, now time.Time) (n int, freed int64, err error) {
 	known := map[string]bool{}
 	err = l.Read(ctx, func(q dbx.Querier) error {
-		rows, err := q.Query(ctx, `SELECT DISTINCT sha256 FROM _sys_files`)
+		rows, err := q.Query(ctx, sqlSweepOrphans.SQL)
 		if err != nil {
 			return err
 		}
@@ -223,7 +217,7 @@ func (s *Service) sweepOrphans(ctx context.Context, l *workspace.Lease, bk Bucke
 		for _, o := range orphans {
 			// Re-check on the writer: a row may have adopted the blob meanwhile.
 			var exists bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM _sys_files WHERE sha256 = ?)`, o.SHA).Scan(&exists); err != nil {
+			if err := tx.QueryRow(ctx, sqlUpload.SQL, o.SHA).Scan(&exists); err != nil {
 				return err
 			}
 			if exists {

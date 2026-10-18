@@ -26,7 +26,7 @@ func (c *Cache) Get(ctx context.Context, l *workspace.Lease) (*Schema, error) {
 	var s *Schema
 	err := l.Read(ctx, func(q dbx.Querier) error {
 		var v string
-		if err := q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'schema_version'`).Scan(&v); err != nil {
+		if err := q.QueryRow(ctx, sqlCacheGet.SQL).Scan(&v); err != nil {
 			return err
 		}
 		ver, _ := strconv.ParseInt(v, 10, 64)

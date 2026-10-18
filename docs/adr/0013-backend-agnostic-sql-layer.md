@@ -153,6 +153,20 @@ Most system-table SQL is short, static and the same on both engines once ADR 001
 - **Exceptions.** A statement that genuinely differs is registered with one variant per dialect and a comment saying why. Those variants are the full list of hand-maintained dialect differences, and they are visible in one place.
 - **Enforcement.** A lint rule forbids string literals passed directly to `Exec`/`Query`/`QueryRow` outside `sqlgen` and the two drivers.
 
+**As built (Phase E):**
+
+- **Registration.** Each package declares its statements in `statements.go`, using `sqlgen.Register(name, sql)`, which returns a `*sqlgen.Static`.
+  - The name is `package.Func`, with `#n` added for a function's later statements. Call sites pass `handle.SQL`.
+  - Registration panics on a duplicate name. It also panics on portable SQL that uses a construct only SQLite knows, such as PRAGMA, `INSERT OR`, `json_*`, `COLLATE NOCASE` or the date functions.
+  - `sqlgen.RegisterSQLiteOnly` marks the rest: 30 of 155 at the time of writing. Their PostgreSQL variants are the counted remainder for ADR 0012 Phase 3. That replaces the per-dialect variants described above until a second dialect exists.
+- **Conformance test.** `internal/statements` prepares every statement on SQLite against a migrated admin database, a workspace database and an import staging database.
+  - It records which database each statement runs on, its dialect and its result columns in a golden file.
+  - The PostgreSQL leg arrives with ADR 0012 Phase 1.
+  - Parameter counts are not yet recorded: SQLite reports none for numbered or named placeholders in a way that would add anything.
+- **Lint rule.** This is a Go test, not a linter plugin: an AST walk over `internal/` and `cmd/` that refuses a SQL string literal passed to `Exec`, `Query`, `QueryRow` or a package's `exec` helper.
+  - Not covered: SQL assembled at run time, which is 42 call sites that quote identifiers into the text, and migration scripts (`ExecScript`).
+  - The run-time SQL is left to the models in Phase F.
+
 ### 8. A neutral query API for Lua
 
 Add a builder to the `db` module that produces the same `sqlgen.Select`/`Insert`/`Update`/`Delete` models:

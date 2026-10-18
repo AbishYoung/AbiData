@@ -248,7 +248,7 @@ func (s *Service) snapshot(ctx context.Context, l *workspace.Lease, kind, by str
 	stage := filepath.Join(dir, "bk-"+id+".db")
 	defer func() { _ = os.Remove(stage) }()
 	if err := l.Maintenance(ctx, func(c *sqlitex.Conn) error {
-		_, err := c.Exec(ctx, `VACUUM INTO ?`, stage)
+		_, err := c.Exec(ctx, sqlSnapshot.SQL, stage)
 		return err
 	}); err != nil {
 		return admin.Backup{}, fmt.Errorf("backup: snapshot: %w", err)
@@ -288,23 +288,23 @@ func inspect(ctx context.Context, path string) (inspection, error) {
 		return in, fault.Newf(fault.BackupInvalid, "The database failed %s: %s", check, res)
 	}
 	var appID int64
-	if err := c.QueryRow(ctx, `PRAGMA application_id`).Scan(&appID); err != nil {
+	if err := c.QueryRow(ctx, sqlInspect.SQL).Scan(&appID); err != nil {
 		return in, err
 	}
 	if appID != catalog.ApplicationID {
 		return in, fault.New(fault.BackupInvalid, "The file is not an AbiData workspace.")
 	}
-	if err := c.QueryRow(ctx, `PRAGMA user_version`).Scan(&in.userVersion); err != nil {
+	if err := c.QueryRow(ctx, sqlInspect2.SQL).Scan(&in.userVersion); err != nil {
 		return in, err
 	}
-	if err := c.QueryRow(ctx, `SELECT sqlite_version()`).Scan(&in.sqliteVersion); err != nil {
+	if err := c.QueryRow(ctx, sqlInspect3.SQL).Scan(&in.sqliteVersion); err != nil {
 		return in, err
 	}
 	var v string
-	if err := c.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'schema_version'`).Scan(&v); err == nil {
+	if err := c.QueryRow(ctx, sqlInspect4.SQL).Scan(&v); err == nil {
 		_, _ = fmt.Sscan(v, &in.catalogVersion)
 	}
-	rows, err := c.Query(ctx, `SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\_%' ESCAPE '\' ORDER BY name`)
+	rows, err := c.Query(ctx, sqlInspect5.SQL)
 	if err != nil {
 		return in, err
 	}
@@ -604,11 +604,11 @@ func (s *Service) prepare(ctx context.Context, b admin.Backup, target ids.Worksp
 		err = catalog.Migrate(ctx, target, c)
 	}
 	if err == nil {
-		_, err = c.Exec(ctx, `UPDATE _sys_meta SET value = ? WHERE key = 'workspace_id'`, string(target))
+		_, err = c.Exec(ctx, sqlPrepare.SQL, string(target))
 	}
 	if err == nil {
 		// Leave a self-contained rollback-journal file: no -wal may travel with it.
-		_, err = c.Exec(ctx, `PRAGMA journal_mode = DELETE`)
+		_, err = c.Exec(ctx, sqlPrepare2.SQL)
 	}
 	if cerr := c.Close(); err == nil {
 		err = cerr
@@ -852,7 +852,7 @@ func (s *Service) finish(ctx context.Context, ws ids.WorkspaceID, j journal) err
 	if err == nil {
 		err = l.Maintenance(ctx, func(c *sqlitex.Conn) error {
 			var res string
-			if err := c.QueryRow(ctx, `PRAGMA quick_check`).Scan(&res); err != nil {
+			if err := c.QueryRow(ctx, sqlFinish.SQL).Scan(&res); err != nil {
 				return err
 			}
 			if res != "ok" {
@@ -905,7 +905,7 @@ func (s *Service) keepAside(ctx context.Context, ws ids.WorkspaceID, j journal) 
 	stage := filepath.Join(j.AsideDir, "snapshot.db")
 	c, err := sqlitex.Open(ctx, db, sqlitex.Options{Kind: sqlitex.Maintenance})
 	if err == nil {
-		_, err = c.Exec(ctx, `VACUUM INTO ?`, stage)
+		_, err = c.Exec(ctx, sqlSnapshot.SQL, stage)
 		_ = c.Close()
 	}
 	if err == nil {

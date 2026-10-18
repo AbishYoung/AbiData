@@ -26,7 +26,7 @@ func (s *Server) caller(ctx context.Context, l *workspace.Lease) forms.Caller {
 func workspaceTZ(ctx context.Context, l *workspace.Lease) *time.Location {
 	var name string
 	_ = l.Read(ctx, func(q dbx.Querier) error {
-		return q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'timezone'`).Scan(&name)
+		return q.QueryRow(ctx, sqlWorkspaceTZ.SQL).Scan(&name)
 	})
 	if loc, err := time.LoadLocation(name); err == nil && name != "" {
 		return loc

@@ -57,10 +57,10 @@ func Open(ctx context.Context, path string, synchronous string) (*Store, error) 
 
 func (s *Store) migrate(ctx context.Context) error {
 	var appID, version int
-	if err := s.writer.QueryRow(ctx, "PRAGMA application_id").Scan(&appID); err != nil {
+	if err := s.writer.QueryRow(ctx, sqlMigrate.SQL).Scan(&appID); err != nil {
 		return err
 	}
-	if err := s.writer.QueryRow(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+	if err := s.writer.QueryRow(ctx, sqlMigrate2.SQL).Scan(&version); err != nil {
 		return err
 	}
 	if appID != 0 && appID != ApplicationID {
@@ -118,7 +118,7 @@ func (s *Store) Write(ctx context.Context, fn func(tx dbx.Tx) error) error {
 func (s *Store) Ping(ctx context.Context) error {
 	return s.Read(ctx, func(c dbx.Querier) error {
 		var one int
-		return c.QueryRow(ctx, "SELECT 1").Scan(&one)
+		return c.QueryRow(ctx, sqlPing.SQL).Scan(&one)
 	})
 }
 
@@ -131,7 +131,7 @@ func (s *Store) Close() error {
 		_ = r.Close()
 	}
 	if s.writer != nil {
-		_, _ = s.writer.Exec(context.Background(), "PRAGMA wal_checkpoint(TRUNCATE)")
+		_, _ = s.writer.Exec(context.Background(), sqlClose.SQL)
 		err := s.writer.Close()
 		s.writer = nil
 		return err

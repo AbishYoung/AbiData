@@ -116,7 +116,7 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 
 	op := Op{ID: ids.New(), Kind: kind, Status: Running, CreatedBy: by, CreatedAt: time.Now().UTC()}
 	if err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO _sys_operations (id, kind, status, progress, created_by, created_at) VALUES (?,?,?,0,?,?)`,
+		_, err := tx.Exec(ctx, sqlStart.SQL,
 			op.ID, kind, Running, by, dbx.FormatTime(op.CreatedAt))
 		return err
 	}); err != nil {
@@ -198,7 +198,7 @@ func (s *Service) finish(l *workspace.Lease, op *Op, r *running, res any, err er
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if werr := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE _sys_operations SET status = ?, progress = ?, result = ?, error_code = ?, error_message = ?, finished_at = ? WHERE id = ?`,
+		_, err := tx.Exec(ctx, sqlFinish.SQL,
 			op.Status, op.Progress, result, nullStr(op.ErrorCode), nullStr(op.ErrorMessage), dbx.FormatTime(now), op.ID)
 		return err
 	}); werr != nil {
@@ -261,7 +261,7 @@ func (p *Progress) Set(fraction float64, msg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = p.l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE _sys_operations SET progress = ? WHERE id = ?`, op.Progress, op.ID)
+		_, err := tx.Exec(ctx, sqlProgressSet.SQL, op.Progress, op.ID)
 		return err
 	})
 	p.s.publish(p.l.ID(), op)
@@ -387,7 +387,7 @@ func (s *Service) Reconcile(ctx context.Context, l *workspace.Lease) error {
 	}
 	s.mu.Unlock()
 	return l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT id FROM _sys_operations WHERE status IN ('queued','running')`)
+		rows, err := tx.Query(ctx, sqlReconcile.SQL)
 		if err != nil {
 			return err
 		}
@@ -412,8 +412,7 @@ func (s *Service) Reconcile(ctx context.Context, l *workspace.Lease) error {
 			return err
 		}
 		for _, id := range stale {
-			if _, err := tx.Exec(ctx, `UPDATE _sys_operations SET status = 'failed', error_code = 'INTERRUPTED',
-				error_message = 'The server stopped while this operation was running.', finished_at = ? WHERE id = ?`, dbx.Now(), id); err != nil {
+			if _, err := tx.Exec(ctx, sqlReconcile2.SQL, dbx.Now(), id); err != nil {
 				return err
 			}
 		}

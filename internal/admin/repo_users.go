@@ -138,7 +138,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
 	err := s.Read(ctx, func(c dbx.Querier) error {
-		return c.QueryRow(ctx, `SELECT count(*) FROM _adm_users`).Scan(&n)
+		return c.QueryRow(ctx, sqlCountUsers.SQL).Scan(&n)
 	})
 	return n, err
 }
@@ -155,11 +155,7 @@ func (s *Store) UpdateUser(ctx context.Context, id string, p UserPatch) error {
 		disabled = *p.Disabled
 	}
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_users SET
-			display_name = COALESCE(:dn, display_name),
-			is_platform_admin = COALESCE(:admin, is_platform_admin),
-			disabled = COALESCE(:disabled, disabled)
-			WHERE id = :id`,
+		res, err := tx.Exec(ctx, sqlUpdateUser.SQL,
 			dbx.Named{Name: "dn", Value: dn}, dbx.Named{Name: "admin", Value: admin},
 			dbx.Named{Name: "disabled", Value: disabled}, dbx.Named{Name: "id", Value: id})
 		if err != nil {
@@ -171,7 +167,7 @@ func (s *Store) UpdateUser(ctx context.Context, id string, p UserPatch) error {
 
 func (s *Store) SetPasswordHash(ctx context.Context, id, hash string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_users SET password_hash = ? WHERE id = ?`, hash, id)
+		res, err := tx.Exec(ctx, sqlSetPasswordHash.SQL, hash, id)
 		if err != nil {
 			return err
 		}
@@ -181,7 +177,7 @@ func (s *Store) SetPasswordHash(ctx context.Context, id, hash string) error {
 
 func (s *Store) TouchLogin(ctx context.Context, id string, at time.Time) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_users SET last_login_at = ? WHERE id = ?`, at, id)
+		res, err := tx.Exec(ctx, sqlTouchLogin.SQL, at, id)
 		if err != nil {
 			return err
 		}

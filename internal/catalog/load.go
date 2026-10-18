@@ -14,13 +14,12 @@ import (
 func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 	s := &Schema{}
 	var ver string
-	if err := q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'schema_version'`).Scan(&ver); err != nil && !dbx.IsNoRows(err) {
+	if err := q.QueryRow(ctx, sqlCacheGet.SQL).Scan(&ver); err != nil && !dbx.IsNoRows(err) {
 		return nil, err
 	}
 	s.Version, _ = strconv.ParseInt(ver, 10, 64)
 
-	rows, err := q.Query(ctx, `SELECT id, physical_name, display_name, description, track_history, version
-		FROM _sys_tables ORDER BY display_name COLLATE NOCASE, id`)
+	rows, err := q.Query(ctx, sqlLoad.SQL)
 	if err != nil {
 		return nil, err
 	}
@@ -38,9 +37,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 		return nil, err
 	}
 
-	rows, err = q.Query(ctx, `SELECT id, table_id, physical_name, display_name, field_type, type_options, is_required,
-		default_sql, validation_sql, validation_text, lookup_relationship_id, lookup_display_column_id, description,
-		ordinal, is_hidden FROM _sys_columns ORDER BY table_id, ordinal, id`)
+	rows, err = q.Query(ctx, sqlLoad2.SQL)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +66,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 		return nil, err
 	}
 
-	rows, err = q.Query(ctx, `SELECT id, table_id, physical_name, is_unique, column_ids FROM _sys_indexes ORDER BY physical_name`)
+	rows, err = q.Query(ctx, sqlLoad3.SQL)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +89,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 		return nil, err
 	}
 
-	rows, err = q.Query(ctx, `SELECT id, name, parent_table_id, child_table_id, child_column_id, on_delete, enforce
-		FROM _sys_relationships ORDER BY name COLLATE NOCASE`)
+	rows, err = q.Query(ctx, sqlLoad4.SQL)
 	if err != nil {
 		return nil, err
 	}

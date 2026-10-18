@@ -9,7 +9,7 @@ import (
 func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
 	var v string
 	err := s.Read(ctx, func(c dbx.Querier) error {
-		return c.QueryRow(ctx, `SELECT value FROM _adm_settings WHERE key = ?`, key).Scan(&v)
+		return c.QueryRow(ctx, sqlGetSetting.SQL, key).Scan(&v)
 	})
 	if err != nil {
 		return "", notFoundIfNoRows(err, "setting "+key)
@@ -19,8 +19,7 @@ func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
 
 func (s *Store) PutSetting(ctx context.Context, key, value string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO _adm_settings (key, value) VALUES (?,?)
-			ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+		_, err := tx.Exec(ctx, sqlPutSetting.SQL, key, value)
 		return err
 	})
 }
@@ -28,7 +27,7 @@ func (s *Store) PutSetting(ctx context.Context, key, value string) error {
 func (s *Store) ListSettings(ctx context.Context) (map[string]string, error) {
 	out := map[string]string{}
 	err := s.Read(ctx, func(c dbx.Querier) error {
-		rows, err := c.Query(ctx, `SELECT key, value FROM _adm_settings`)
+		rows, err := c.Query(ctx, sqlListSettings.SQL)
 		if err != nil {
 			return err
 		}
