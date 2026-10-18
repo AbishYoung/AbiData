@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 ABIDATA_BOOTSTRAP_ADMIN_EMAIL ?= admin@example.com
 
-.PHONY: dev dev-web test test-changed test-plan test-go test-go-unit test-go-integration test-web test-e2e test-postgres lint gen build docker docker-local e2e screenshots web-deps web-build clean
+.PHONY: dev dev-web test test-changed test-plan test-go test-go-unit test-go-integration test-web test-e2e test-postgres lint gen build docker docker-local e2e screenshots screenshots-review web-deps web-build clean
 
 web/node_modules: web/package-lock.json
 	npm --prefix web ci
@@ -98,6 +98,10 @@ e2e:
 # Regenerates docs/images/*. Needs `npm --prefix tests/e2e ci` and `npx playwright install chromium` once.
 screenshots:
 	node scripts/screenshots.mjs
+
+# The UI review inventory (ADR 0015): every main screen in both themes and widths, with axe results.
+screenshots-review:
+	node scripts/screenshots.mjs --review
 
 clean:
 	rm -rf bin .data web/node_modules

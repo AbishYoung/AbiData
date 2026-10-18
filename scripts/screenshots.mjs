@@ -1,6 +1,7 @@
 // Regenerates the README / docs screenshots in docs/images/ from a throwaway server.
 //
 //   make screenshots            (or: node scripts/screenshots.mjs [--only=name,name] [--keep])
+//   make screenshots-review     (or: node scripts/screenshots.mjs --review [--out=dir] [--only=…] [--variants=desktop-light,…])
 //
 // It builds the web app and the server binary, starts the server on a free port with a fresh temp
 // data directory and the two sample workspaces, completes first-run setup through the
@@ -8,7 +9,9 @@
 // activity, drives headless Chromium through the main screens and writes the images. The server and
 // the temp directory are removed at the end. Playwright comes from tests/e2e/node_modules (run
 // `npm ci` there and `npx playwright install chromium` once). The screens themselves are in
-// scripts/screenshots/shots.mjs.
+// scripts/screenshots/shots.mjs. The review mode (ADR 0015) captures every main screen in both themes
+// at desktop and compact widths, with an axe scan of each, into docs/reviews/web-ui-2026-10/; see
+// scripts/screenshots/review.mjs.
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -18,11 +21,16 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { shoot } from "./screenshots/shots.mjs";
+import { review } from "./screenshots/review.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const out = join(root, "docs", "images");
 const args = process.argv.slice(2);
+const reviewMode = args.includes("--review");
+const outArg = args.find((a) => a.startsWith("--out="))?.slice(6);
+const out = outArg ? resolve(outArg) : reviewMode ? join(root, "docs", "reviews", "web-ui-2026-10") : join(root, "docs", "images");
+const variantsArg = args.find((a) => a.startsWith("--variants="))?.slice(11);
+const variants = variantsArg ? new Set(variantsArg.split(",")) : null;
 const keep = args.includes("--keep");
 const onlyArg = args.find((a) => a.startsWith("--only="))?.slice(7);
 const only = onlyArg ? new Set(onlyArg.split(",")) : null;
@@ -111,7 +119,8 @@ async function main() {
 
     browser = await playwright.chromium.launch();
     mkdirSync(out, { recursive: true });
-    await shoot({ playwright, browser, base, out, email, password, displayName, token, only, keep });
+    const ctx = { playwright, browser, base, out, root, email, password, displayName, token, only, keep, variants };
+    await (reviewMode ? review(ctx) : shoot(ctx));
     console.log("done");
     if (keep) {
       console.log(`--keep: server running at ${base} (${email} / ${password}); Ctrl-C to stop`);
