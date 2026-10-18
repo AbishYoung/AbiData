@@ -62,6 +62,10 @@ const (
 	OpMul
 	OpDiv
 	OpConcat
+	OpMod  // %
+	OpIs   // null-safe "equal": IS (SQLite) / IS NOT DISTINCT FROM (PostgreSQL)
+	OpLike // L LIKE R, with the dialect's default case rules and no ESCAPE
+	OpGlob // L GLOB R (SQLite's case-sensitive Unix-style pattern match)
 )
 
 // Binary applies Op to L and R.
@@ -79,6 +83,10 @@ type Or []Expr
 
 // Not negates X.
 type Not struct{ X Expr }
+
+// Neg is arithmetic negation. It always renders in parentheses, so a negated
+// negation can never read as a comment (--).
+type Neg struct{ X Expr }
 
 // IsNull tests X for NULL (or NOT NULL when Negate).
 type IsNull struct {
@@ -174,6 +182,7 @@ func (Binary) isExpr()   {}
 func (And) isExpr()      {}
 func (Or) isExpr()       {}
 func (Not) isExpr()      {}
+func (Neg) isExpr()      {}
 func (IsNull) isExpr()   {}
 func (In) isExpr()       {}
 func (Between) isExpr()  {}

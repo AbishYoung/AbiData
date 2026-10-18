@@ -448,6 +448,10 @@ func (r *renderer) expr(e Expr) {
 	case Not:
 		r.w("NOT ")
 		r.operand(e.X)
+	case Neg:
+		r.w("(-")
+		r.operand(e.X)
+		r.w(")")
 	case IsNull:
 		r.operand(e.X)
 		if e.Negate {
@@ -557,6 +561,14 @@ func binOp(op BinOp, r *renderer) string {
 		return "/"
 	case OpConcat:
 		return "||"
+	case OpMod:
+		return "%"
+	case OpIs:
+		return "IS"
+	case OpLike:
+		return "LIKE"
+	case OpGlob:
+		return "GLOB"
 	}
 	r.fail("unknown operator %d", op)
 	return "?"
