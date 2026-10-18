@@ -1,0 +1,736 @@
+[
+  {
+    "name": "char",
+    "signature": "char(code, …)",
+    "summary": "The text made of the given Unicode code points.",
+    "stored": true,
+    "group": "Text",
+    "example": "char(65, 66) is 'AB'"
+  },
+  {
+    "name": "concat",
+    "signature": "concat(value, …)",
+    "summary": "Joins the values as text, skipping NULLs.",
+    "stored": true,
+    "group": "Text",
+    "example": "concat(First, ' ', Last)"
+  },
+  {
+    "name": "concat_ws",
+    "signature": "concat_ws(separator, value, …)",
+    "summary": "Joins the values with the separator, skipping NULLs.",
+    "stored": true,
+    "group": "Text",
+    "example": "concat_ws(', ', City, Country)"
+  },
+  {
+    "name": "format",
+    "signature": "format(pattern, value, …)",
+    "summary": "Formats values like printf.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "glob",
+    "signature": "glob(pattern, text)",
+    "summary": "Case-sensitive match with * and ?, like text GLOB pattern.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "hex",
+    "signature": "hex(value)",
+    "summary": "The value's bytes as upper-case hexadecimal.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "instr",
+    "signature": "instr(text, find)",
+    "summary": "The position of the first occurrence of find (from 1), or 0.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "length",
+    "signature": "length(text)",
+    "summary": "The number of characters.",
+    "stored": true,
+    "group": "Text",
+    "example": "length(Code) \u003e 0"
+  },
+  {
+    "name": "like",
+    "signature": "like(pattern, text [, escape])",
+    "summary": "Case-insensitive match with % and _, like text LIKE pattern.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "lower",
+    "signature": "lower(text)",
+    "summary": "The text in lower case (ASCII letters).",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "ltrim",
+    "signature": "ltrim(text [, chars])",
+    "summary": "Removes spaces (or the given characters) from the start.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "octet_length",
+    "signature": "octet_length(text)",
+    "summary": "The number of bytes.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "printf",
+    "signature": "printf(pattern, value, …)",
+    "summary": "Formats values: %d, %f, %s, %.2f, %05d and the other printf patterns.",
+    "stored": true,
+    "group": "Text",
+    "example": "printf('%.2f', Price)"
+  },
+  {
+    "name": "quote",
+    "signature": "quote(value)",
+    "summary": "The value written as a SQL literal.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "replace",
+    "signature": "replace(text, find, with)",
+    "summary": "Replaces every occurrence of find.",
+    "stored": true,
+    "group": "Text",
+    "example": "replace(Phone, ' ', '')"
+  },
+  {
+    "name": "rtrim",
+    "signature": "rtrim(text [, chars])",
+    "summary": "Removes spaces (or the given characters) from the end.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "substr",
+    "signature": "substr(text, start [, length])",
+    "summary": "Part of the text; start counts from 1, a negative start from the end.",
+    "stored": true,
+    "group": "Text",
+    "example": "substr(Code, 1, 3)"
+  },
+  {
+    "name": "substring",
+    "signature": "substring(text, start [, length])",
+    "summary": "The same as substr.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "trim",
+    "signature": "trim(text [, chars])",
+    "summary": "Removes spaces (or the given characters) from both ends.",
+    "stored": true,
+    "group": "Text",
+    "example": "trim(Code)"
+  },
+  {
+    "name": "typeof",
+    "signature": "typeof(value)",
+    "summary": "The storage class: 'null', 'integer', 'real', 'text' or 'blob'.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "unhex",
+    "signature": "unhex(text [, ignore])",
+    "summary": "The bytes the hexadecimal text stands for.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "unicode",
+    "signature": "unicode(text)",
+    "summary": "The code point of the first character.",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "upper",
+    "signature": "upper(text)",
+    "summary": "The text in upper case (ASCII letters).",
+    "stored": true,
+    "group": "Text"
+  },
+  {
+    "name": "abs",
+    "signature": "abs(number)",
+    "summary": "The number without its sign.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "acos",
+    "signature": "acos(number)",
+    "summary": "Arccosine, in radians.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "acosh",
+    "signature": "acosh(number)",
+    "summary": "Inverse hyperbolic cosine.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "asin",
+    "signature": "asin(number)",
+    "summary": "Arcsine, in radians.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "asinh",
+    "signature": "asinh(number)",
+    "summary": "Inverse hyperbolic sine.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "atan",
+    "signature": "atan(number)",
+    "summary": "Arctangent, in radians.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "atan2",
+    "signature": "atan2(y, x)",
+    "summary": "The angle of the point (x, y), in radians.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "atanh",
+    "signature": "atanh(number)",
+    "summary": "Inverse hyperbolic tangent.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "ceil",
+    "signature": "ceil(number)",
+    "summary": "The smallest whole number not below it.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "ceiling",
+    "signature": "ceiling(number)",
+    "summary": "The same as ceil.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "cos",
+    "signature": "cos(radians)",
+    "summary": "Cosine.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "cosh",
+    "signature": "cosh(number)",
+    "summary": "Hyperbolic cosine.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "degrees",
+    "signature": "degrees(radians)",
+    "summary": "Converts radians to degrees.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "exp",
+    "signature": "exp(number)",
+    "summary": "e raised to the number.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "floor",
+    "signature": "floor(number)",
+    "summary": "The largest whole number not above it.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "ln",
+    "signature": "ln(number)",
+    "summary": "The natural logarithm.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "log",
+    "signature": "log([base,] number)",
+    "summary": "The base-10 logarithm, or the logarithm in the given base.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "log10",
+    "signature": "log10(number)",
+    "summary": "The base-10 logarithm.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "log2",
+    "signature": "log2(number)",
+    "summary": "The base-2 logarithm.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "mod",
+    "signature": "mod(a, b)",
+    "summary": "The remainder of a divided by b, as a real number.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "pi",
+    "signature": "pi()",
+    "summary": "π.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "pow",
+    "signature": "pow(base, exponent)",
+    "summary": "base raised to exponent.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "power",
+    "signature": "power(base, exponent)",
+    "summary": "The same as pow.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "radians",
+    "signature": "radians(degrees)",
+    "summary": "Converts degrees to radians.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "random",
+    "signature": "random()",
+    "summary": "A random integer. Queries only.",
+    "stored": false,
+    "group": "Numbers"
+  },
+  {
+    "name": "round",
+    "signature": "round(number [, digits])",
+    "summary": "Rounded to the given number of decimal places (default 0).",
+    "stored": true,
+    "group": "Numbers",
+    "example": "round(Price * 1.2, 2)"
+  },
+  {
+    "name": "sign",
+    "signature": "sign(number)",
+    "summary": "-1, 0 or 1.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "sin",
+    "signature": "sin(radians)",
+    "summary": "Sine.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "sinh",
+    "signature": "sinh(number)",
+    "summary": "Hyperbolic sine.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "sqrt",
+    "signature": "sqrt(number)",
+    "summary": "The square root.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "tan",
+    "signature": "tan(radians)",
+    "summary": "Tangent.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "tanh",
+    "signature": "tanh(number)",
+    "summary": "Hyperbolic tangent.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "trunc",
+    "signature": "trunc(number)",
+    "summary": "The whole part, towards zero.",
+    "stored": true,
+    "group": "Numbers"
+  },
+  {
+    "name": "coalesce",
+    "signature": "coalesce(a, b, …)",
+    "summary": "The first value that is not NULL.",
+    "stored": true,
+    "group": "Choices",
+    "example": "coalesce(Discount, 0)"
+  },
+  {
+    "name": "if",
+    "signature": "if(condition, then [, else …])",
+    "summary": "The same as iif; more condition and value pairs may follow.",
+    "stored": true,
+    "group": "Choices"
+  },
+  {
+    "name": "ifnull",
+    "signature": "ifnull(a, b)",
+    "summary": "a, or b when a is NULL.",
+    "stored": true,
+    "group": "Choices",
+    "example": "ifnull(Nickname, Name)"
+  },
+  {
+    "name": "iif",
+    "signature": "iif(condition, then, else)",
+    "summary": "then when the condition is true, otherwise else.",
+    "stored": true,
+    "group": "Choices",
+    "example": "iif(Qty \u003e 10, 'bulk', 'single')"
+  },
+  {
+    "name": "likelihood",
+    "signature": "likelihood(value, probability)",
+    "summary": "The value; a hint for the query planner.",
+    "stored": true,
+    "group": "Choices"
+  },
+  {
+    "name": "likely",
+    "signature": "likely(value)",
+    "summary": "The value; a hint for the query planner.",
+    "stored": true,
+    "group": "Choices"
+  },
+  {
+    "name": "max",
+    "signature": "max(a, b, …)",
+    "summary": "The largest of the values (NULL if any is NULL). In a query, max(column) is the largest value in the group.",
+    "stored": true,
+    "group": "Choices"
+  },
+  {
+    "name": "max",
+    "signature": "max(a, b, …)",
+    "summary": "The largest of the values (NULL if any is NULL). In a query, max(column) is the largest value in the group.",
+    "stored": false,
+    "group": "Choices"
+  },
+  {
+    "name": "min",
+    "signature": "min(a, b, …)",
+    "summary": "The smallest of the values (NULL if any is NULL). In a query, min(column) is the smallest value in the group.",
+    "stored": true,
+    "group": "Choices"
+  },
+  {
+    "name": "min",
+    "signature": "min(a, b, …)",
+    "summary": "The smallest of the values (NULL if any is NULL). In a query, min(column) is the smallest value in the group.",
+    "stored": false,
+    "group": "Choices"
+  },
+  {
+    "name": "nullif",
+    "signature": "nullif(a, b)",
+    "summary": "NULL when a equals b, otherwise a.",
+    "stored": true,
+    "group": "Choices",
+    "example": "Total / nullif(Count, 0)"
+  },
+  {
+    "name": "unlikely",
+    "signature": "unlikely(value)",
+    "summary": "The value; a hint for the query planner.",
+    "stored": true,
+    "group": "Choices"
+  },
+  {
+    "name": "date",
+    "signature": "date(time [, modifier …])",
+    "summary": "The date as YYYY-MM-DD. Modifiers such as '+1 day', 'start of month'. date('now') is today (defaults only).",
+    "stored": true,
+    "group": "Dates",
+    "example": "date(Ordered, '+30 days')"
+  },
+  {
+    "name": "datetime",
+    "signature": "datetime(time [, modifier …])",
+    "summary": "The date and time as YYYY-MM-DD HH:MM:SS.",
+    "stored": true,
+    "group": "Dates"
+  },
+  {
+    "name": "julianday",
+    "signature": "julianday(time [, modifier …])",
+    "summary": "The Julian day number; subtract two to get the days between dates.",
+    "stored": true,
+    "group": "Dates",
+    "example": "julianday(Shipped) - julianday(Ordered)"
+  },
+  {
+    "name": "strftime",
+    "signature": "strftime(pattern, time [, modifier …])",
+    "summary": "Formats a date: %Y year, %m month, %d day, %H:%M:%S time, %W week, %w weekday.",
+    "stored": true,
+    "group": "Dates",
+    "example": "strftime('%Y-%m', Ordered)"
+  },
+  {
+    "name": "time",
+    "signature": "time(time [, modifier …])",
+    "summary": "The time as HH:MM:SS.",
+    "stored": true,
+    "group": "Dates"
+  },
+  {
+    "name": "timediff",
+    "signature": "timediff(a, b)",
+    "summary": "The time from b to a, as ±YYYY-MM-DD HH:MM:SS.SSS.",
+    "stored": true,
+    "group": "Dates"
+  },
+  {
+    "name": "unixepoch",
+    "signature": "unixepoch(time [, modifier …])",
+    "summary": "Seconds since 1970-01-01.",
+    "stored": true,
+    "group": "Dates"
+  },
+  {
+    "name": "json",
+    "signature": "json(text)",
+    "summary": "The JSON text, minified; an error if it is not JSON.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_array",
+    "signature": "json_array(value, …)",
+    "summary": "A JSON array of the values.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_array_length",
+    "signature": "json_array_length(json [, path])",
+    "summary": "The number of elements in the array.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_error_position",
+    "signature": "json_error_position(text)",
+    "summary": "0 for valid JSON, otherwise the position of the first error.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_extract",
+    "signature": "json_extract(json, path, …)",
+    "summary": "The value at the path, such as '$.items[0].name'.",
+    "stored": true,
+    "group": "JSON",
+    "example": "json_extract(Data, '$.colour')"
+  },
+  {
+    "name": "json_insert",
+    "signature": "json_insert(json, path, value, …)",
+    "summary": "Adds values where the paths don't exist yet.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_object",
+    "signature": "json_object(key, value, …)",
+    "summary": "A JSON object of the key and value pairs.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_patch",
+    "signature": "json_patch(target, patch)",
+    "summary": "Applies an RFC 7396 merge patch.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_quote",
+    "signature": "json_quote(value)",
+    "summary": "The value as a JSON value.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_remove",
+    "signature": "json_remove(json, path, …)",
+    "summary": "Removes the values at the paths.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_replace",
+    "signature": "json_replace(json, path, value, …)",
+    "summary": "Replaces values where the paths exist.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_set",
+    "signature": "json_set(json, path, value, …)",
+    "summary": "Sets values, adding or replacing.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_type",
+    "signature": "json_type(json [, path])",
+    "summary": "The JSON type at the path: 'object', 'array', 'text', 'integer', 'real', 'true', 'false' or 'null'.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "json_valid",
+    "signature": "json_valid(text [, flags])",
+    "summary": "1 when the text is valid JSON.",
+    "stored": true,
+    "group": "JSON"
+  },
+  {
+    "name": "geo_area_m2",
+    "signature": "geo_area_m2(area)",
+    "summary": "The area's size in square metres.",
+    "stored": true,
+    "group": "Locations",
+    "example": "geo_area_m2(Fence)"
+  },
+  {
+    "name": "geo_bbox",
+    "signature": "geo_bbox(area)",
+    "summary": "The area's bounding box, as [west, south, east, north].",
+    "stored": true,
+    "group": "Locations"
+  },
+  {
+    "name": "geo_centroid",
+    "signature": "geo_centroid(area)",
+    "summary": "The area's centre.",
+    "stored": true,
+    "group": "Locations"
+  },
+  {
+    "name": "geo_distance_m",
+    "signature": "geo_distance_m(a, b)",
+    "summary": "The distance between two locations, in metres.",
+    "stored": true,
+    "group": "Locations",
+    "example": "geo_distance_m(Spot, Depot) \u003c 500"
+  },
+  {
+    "name": "geo_lat",
+    "signature": "geo_lat(point)",
+    "summary": "The latitude of a location.",
+    "stored": true,
+    "group": "Locations"
+  },
+  {
+    "name": "geo_lon",
+    "signature": "geo_lon(point)",
+    "summary": "The longitude of a location.",
+    "stored": true,
+    "group": "Locations"
+  },
+  {
+    "name": "geo_point",
+    "signature": "geo_point(lat, lon)",
+    "summary": "A location from latitude and longitude.",
+    "stored": true,
+    "group": "Locations"
+  },
+  {
+    "name": "geo_within",
+    "signature": "geo_within(point, area)",
+    "summary": "1 when the location is inside the area.",
+    "stored": true,
+    "group": "Locations",
+    "example": "geo_within(Spot, Zone)"
+  },
+  {
+    "name": "avg",
+    "signature": "avg(number)",
+    "summary": "The average of the group's values. Queries only.",
+    "stored": false,
+    "group": "Totals"
+  },
+  {
+    "name": "count",
+    "signature": "count(value) / count(*) / count(DISTINCT value)",
+    "summary": "The number of values (or rows) in the group. Queries only.",
+    "stored": false,
+    "group": "Totals"
+  },
+  {
+    "name": "group_concat",
+    "signature": "group_concat(value [, separator])",
+    "summary": "The group's values joined with commas (or the separator). Queries only.",
+    "stored": false,
+    "group": "Totals"
+  },
+  {
+    "name": "sum",
+    "signature": "sum(number)",
+    "summary": "The sum of the group's values. Queries only.",
+    "stored": false,
+    "group": "Totals"
+  },
+  {
+    "name": "total",
+    "signature": "total(number)",
+    "summary": "The sum of the group's values, 0.0 when there are none. Queries only.",
+    "stored": false,
+    "group": "Totals"
+  }
+]

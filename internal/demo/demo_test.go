@@ -813,3 +813,38 @@ func TestWithoutFileServiceSkipsPhotos(t *testing.T) {
 		t.Errorf("%d sightings", n)
 	}
 }
+
+// Every expression in both samples is inside the expression language
+// (ADR 0013 Phase D), so nothing in them needs attention.
+func TestSampleExpressionsParse(t *testing.T) {
+	r := newRig(t)
+	for _, kind := range []demo.Kind{demo.Traders, demo.Invasives} {
+		res, err := r.b.Create(r.ctx, kind, r.owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := r.wm.Acquire(r.ctx, res.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sch, err := r.b.Schemas.Get(r.ctx, l)
+		l.Release()
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, tb := range sch.Tables {
+			for _, c := range tb.Columns {
+				if c.DefaultSQL != "" || c.ValidationSQL != "" || c.Options.Expression != "" {
+					n++
+				}
+				if c.ExprIssues != nil {
+					t.Errorf("%v %s.%s: %v", kind, tb.PhysicalName, c.PhysicalName, c.ExprIssues)
+				}
+			}
+		}
+		if n == 0 {
+			t.Errorf("%v has no expressions to check", kind)
+		}
+	}
+}

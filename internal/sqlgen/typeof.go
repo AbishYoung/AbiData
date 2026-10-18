@@ -16,6 +16,8 @@ func typeOf(e Expr) Type {
 		return e.Type
 	case Binary:
 		return binaryType(e)
+	case Neg:
+		return typeOf(e.X)
 	case And, Or, Not, IsNull, In, Between, Match:
 		return Boolean
 	case Func:
@@ -56,7 +58,7 @@ func typeOf(e Expr) Type {
 
 func binaryType(b Binary) Type {
 	switch b.Op {
-	case OpEq, OpNe, OpIsNot, OpLt, OpLe, OpGt, OpGe:
+	case OpEq, OpNe, OpIs, OpIsNot, OpLt, OpLe, OpGt, OpGe, OpLike, OpGlob:
 		return Boolean
 	case OpConcat:
 		return Text

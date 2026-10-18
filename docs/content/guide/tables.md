@@ -114,8 +114,8 @@ A calculated field that uses these functions cannot be read by stock SQLite tool
 ## Required fields, defaults and validation {#validation}
 
 - **Required** rejects empty values. Saving a record without one fails with [REQUIRED_FIELD](/docs/reference/errors#required-field).
-- **Default value** is a fixed SQL value such as `0` or `'New'`. It fills the field in new records.
-- **Validation rule** is a SQL condition every row must satisfy, for example `Qty > 0`.
+- **Default value** is a fixed value such as `0` or `'New'`, or an [expression](/docs/reference/expressions) without fields, such as `CURRENT_DATE`. It fills the field in new records.
+- **Validation rule** is an [expression](/docs/reference/expressions) every row must satisfy, for example `Qty > 0`.
 - **Validation text** is the message shown when the rule fails ([VALIDATION_FAILED](/docs/reference/errors#validation-failed)).
 
 Tick **Hidden in the datasheet** to hide a field from the datasheet. Hidden fields still exist and still appear in queries.
@@ -144,7 +144,9 @@ In the datasheet, a lookup cell is a combobox that searches the parent table as 
 
 ## Calculated fields {#calculated}
 
-A calculated field holds an SQL **Expression** over the other fields in the same table, such as `Quantity * Unit_price`. Choose a **Result type**: **Text**, **Integer**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. The expression may use built-in deterministic SQL functions only. Calculated fields cannot be edited in the datasheet.
+A calculated field holds an [expression](/docs/reference/expressions) over the other fields in the same table, such as `Quantity * Unit_price`. Choose a **Result type**: **Text**, **Integer**, **Number**, **Currency**, **Yes/No**, **Date** or **Date and time**. The expression must give the same answer every time, so it cannot read the clock or use random numbers. Calculated fields cannot be edited in the datasheet.
+
+An expression saved by an earlier version that falls outside the expression language still works, and the designer marks it **needs attention** with the reason. Rewrite it when you next edit the field.
 
 ## Files and photos {#attachments}
 

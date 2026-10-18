@@ -1132,6 +1132,13 @@
           "display_name": {
             "type": "string"
           },
+          "expression_issues": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Expressions written before the expression language that fall outside it, keyed expression, validation_sql or default_sql, with the reason. They keep working on SQLite but need rewriting before the workspace can move to another backend (ADR 0013).",
+            "type": "object"
+          },
           "field_type": {
             "type": "string"
           },

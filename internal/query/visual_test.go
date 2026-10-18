@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"abidata/internal/catalog"
@@ -168,5 +169,47 @@ func TestCurrencyParamIsScaledAndCountCriteriaAreNotTyped(t *testing.T) {
 	r, err := Run(f.ctx, f.l, Policy{}, c.SQL, nil, 0)
 	if err != nil || len(r.Rows) != 1 || r.Rows[0][1] != int64(2) {
 		t.Fatalf("count criterion: %+v %v (%s)", r, err, c.SQL)
+	}
+}
+
+func TestExpressionColumnsAreParsed(t *testing.T) {
+	_, sch := shopSchema(t)
+	cust := []Source{{Alias: "c", TableID: "01J00000000000000000000C01"}}
+	c, err := Compile(sch, Model{Sources: cust, Fields: []Field{{ExprSQL: "upper(name) || ', ' || c.City", OutputName: "Label"}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(c.SQL, `(upper("c"."Name") || ', ') || "c"."City"`) {
+		t.Fatalf("sql %s", c.SQL)
+	}
+	if !slices.Contains(c.Deps.Columns, "01J00000000000000000000C02") || !slices.Contains(c.Deps.Columns, "01J00000000000000000000C03") {
+		t.Fatalf("deps %v", c.Deps.Columns)
+	}
+	for expr, want := range map[string]string{
+		"Nme":                      `did you mean "Name"?`,
+		"(SELECT 1)":               "subqueries are not allowed",
+		"load_extension('x')":      "is not a function",
+		"1); DROP TABLE Items; --": "';' is not allowed",
+	} {
+		_, err := Compile(sch, Model{Sources: cust, Fields: []Field{{ExprSQL: expr}}}, nil)
+		if msg := fault.Classify(err).DisplayMessage(); fault.Classify(err).Code != fault.BadRequest || !contains(msg, want) {
+			t.Errorf("%s: %v, want %q", expr, err, want)
+		}
+	}
+	// An aggregate expression cannot be totalled again.
+	if _, err := Compile(sch, Model{Sources: cust, Fields: []Field{{ExprSQL: "count(*)", Group: "sum"}}}, nil); fault.Classify(err).Code != fault.BadRequest {
+		t.Fatalf("total of an aggregate: %v", err)
+	}
+	if _, err := Compile(sch, Model{Sources: cust, Fields: []Field{{ExprSQL: "count(*) + 1"}}}, nil); err != nil {
+		t.Fatalf("aggregate expression: %v", err)
+	}
+	// An expression saved before the grammar stays as written when legacy.
+	old := "CAST(c.Name AS NUMERIC)"
+	if _, err := Compile(sch, Model{Sources: cust, Fields: []Field{{ExprSQL: old}}}, nil); err == nil {
+		t.Fatal("legacy expression accepted as new")
+	}
+	c, err = CompileWith(sch, Model{Sources: cust, Fields: []Field{{ExprSQL: old}}}, nil, func(e string) bool { return e == old })
+	if err != nil || !contains(c.SQL, "("+old+")") {
+		t.Fatalf("legacy: %s %v", c.SQL, err)
 	}
 }

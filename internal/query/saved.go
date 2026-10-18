@@ -96,6 +96,23 @@ type resolver struct {
 	stack []string
 }
 
+// legacy reports an expression column already saved in some visual query:
+// one written before the expression language may stay as it is (see
+// CompileWith); a new one must parse.
+func (r *resolver) legacy(expr string) bool {
+	for _, s := range r.all {
+		if s.Visual == nil {
+			continue
+		}
+		for _, f := range s.Visual.Fields {
+			if f.ExprSQL == expr {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (r *resolver) resolve(id string) (SavedQuery, bool) {
 	s, ok := r.all[id]
 	if !ok || len(r.stack) >= maxNesting {
@@ -111,7 +128,7 @@ func (r *resolver) resolve(id string) (SavedQuery, bool) {
 	}
 	r.stack = append(r.stack, id)
 	defer func() { r.stack = r.stack[:len(r.stack)-1] }()
-	c, err := Compile(r.sch, *s.Visual, r.resolve)
+	c, err := CompileWith(r.sch, *s.Visual, r.resolve, r.legacy)
 	if err != nil {
 		return SavedQuery{}, false
 	}
@@ -159,7 +176,7 @@ func fill(ctx context.Context, c dbx.Querier, sch *catalog.Schema, all map[strin
 			return Deps{}, fault.New(fault.BadRequest, "A visual query needs a model.")
 		}
 		r := &resolver{sch: sch, all: all, stack: []string{s.ID}}
-		comp, err := Compile(sch, *s.Visual, r.resolve)
+		comp, err := CompileWith(sch, *s.Visual, r.resolve, r.legacy)
 		if err != nil {
 			return Deps{}, err
 		}
@@ -442,7 +459,7 @@ func (svc *Service) CompileModel(ctx context.Context, l *workspace.Lease, m Mode
 			return err
 		}
 		r := &resolver{sch: sch, all: all}
-		out, err = Compile(sch, m, r.resolve)
+		out, err = CompileWith(sch, m, r.resolve, r.legacy)
 		return err
 	})
 	return out, err
@@ -560,7 +577,7 @@ func SchemaValidator(ctx context.Context, tx dbx.Tx, sch *catalog.Schema) (break
 			continue
 		}
 		r := &resolver{sch: sch, all: all, stack: []string{s.ID}}
-		if _, err := Compile(sch, *s.Visual, r.resolve); err != nil {
+		if _, err := CompileWith(sch, *s.Visual, r.resolve, r.legacy); err != nil {
 			breaking = append(breaking, catalog.Issue{Kind: "query_invalid", Object: "query", ID: s.ID,
 				Message: fmt.Sprintf("Saved query %q would stop working: %s", s.Name, fault.Classify(err).DisplayMessage())})
 		}
@@ -571,7 +588,8 @@ func SchemaValidator(ctx context.Context, tx dbx.Tx, sch *catalog.Schema) (break
 // CompilerVersion changes whenever the visual query compiler starts producing
 // different SQL for the same model (for example scaling currency parameters).
 // 3: generated through internal/sqlgen (ADR 0013).
-const CompilerVersion = "3"
+// 4: expression columns parsed as AbiData expressions (ADR 0013 Phase D).
+const CompilerVersion = "4"
 
 // RefreshCompiled recompiles every visual query's stored SQL once per
 // compiler version, so consumers of the stored SQL (reports, exports) get the
