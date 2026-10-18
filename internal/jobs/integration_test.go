@@ -13,6 +13,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/jobs"
@@ -20,7 +21,6 @@ import (
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -146,7 +146,7 @@ func TestJobRunEndToEnd(t *testing.T) {
 		t.Fatalf("log:\n%s", got.Log)
 	}
 	var body, by string
-	if err := e.l.Read(e.ctx, func(q sqlitex.Querier) error {
+	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(e.ctx, `SELECT Body, coalesce((SELECT updated_by FROM _sys_jobs LIMIT 1), '') FROM Notes`).Scan(&body, &by)
 	}); err != nil || body != "from job "+run.ID {
 		t.Fatalf("row %q %v", body, err)

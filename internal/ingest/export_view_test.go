@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/query"
 	"abidata/internal/records"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -21,7 +21,7 @@ func (e *env) seedCities(names ...string) *catalog.Table {
 	e.t.Helper()
 	tb := e.table("Cities", catalog.ColumnSpec{DisplayName: "Name", Type: catalog.ShortText})
 	phys := catalog.Quote(col2(e.t, tb, "Name").PhysicalName)
-	if err := e.l.Write(e.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := e.l.Write(e.ctx, workspace.Background, func(tx dbx.Tx) error {
 		for _, n := range names {
 			if _, err := tx.Exec(e.ctx, `INSERT INTO `+catalog.Quote(tb.PhysicalName)+`(`+phys+`) VALUES (?)`, n); err != nil {
 				return err

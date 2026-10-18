@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -39,7 +39,7 @@ func geoFixture(t *testing.T) (*fx, *catalog.Schema) {
 	}, catalog.Apply, catalog.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO Sightings(Species, Spot) VALUES ('inside', geo_point(5,5)), ('outside', geo_point(20,20)), ('in east', geo_point(5,25)), ('nowhere', NULL)`); err != nil {
 			return err
 		}

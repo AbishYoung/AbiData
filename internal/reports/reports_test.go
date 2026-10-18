@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -61,7 +61,7 @@ func col(t *catalog.Table, phys string) string {
 
 func (f *fx) seed(t *testing.T, rows [][5]string) {
 	t.Helper()
-	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		for _, r := range rows {
 			if _, err := tx.Exec(f.ctx, `INSERT INTO Sales(Region, Rep, Amount, Qty, Day) VALUES (?, ?, CAST(round(? * 10000) AS INTEGER), ?, ?)`,
 				r[0], r[1], r[2], r[3], r[4]); err != nil {
@@ -196,7 +196,7 @@ func TestCalcErrorsAndValidation(t *testing.T) {
 
 func TestTenThousandRowsUnderFiveSeconds(t *testing.T) {
 	f := setup(t)
-	if err := f.l.Write(f.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(f.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 10000)
 			INSERT INTO Sales(Region, Rep, Amount, Qty, Day) SELECT 'R' || (i % 20), 'Rep' || i, i * 1234, i % 7, '2026-01-01' FROM n`)
 		return err

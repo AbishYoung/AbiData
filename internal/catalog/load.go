@@ -7,14 +7,14 @@ import (
 	"sort"
 	"strconv"
 
-	"abidata/internal/sqlitex"
+	"abidata/internal/dbx"
 )
 
 // Load reads the full catalog snapshot.
-func Load(ctx context.Context, q sqlitex.Querier) (*Schema, error) {
+func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 	s := &Schema{}
 	var ver string
-	if err := q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'schema_version'`).Scan(&ver); err != nil && !sqlitex.IsNoRows(err) {
+	if err := q.QueryRow(ctx, `SELECT value FROM _sys_meta WHERE key = 'schema_version'`).Scan(&ver); err != nil && !dbx.IsNoRows(err) {
 		return nil, err
 	}
 	s.Version, _ = strconv.ParseInt(ver, 10, 64)

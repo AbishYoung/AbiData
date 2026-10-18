@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"abidata/internal/dbx"
 	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 )
@@ -33,7 +34,7 @@ func testDB(t *testing.T) *sqlitex.Conn {
 	return c
 }
 
-func run(t *testing.T, c *sqlitex.Conn, s sqlgen.Stmt, named ...sqlitex.Named) [][]any {
+func run(t *testing.T, c *sqlitex.Conn, s sqlgen.Stmt, named ...dbx.Named) [][]any {
 	t.Helper()
 	r, err := sqlgen.Render(sqlgen.SQLite, s)
 	if err != nil {
@@ -126,7 +127,7 @@ func TestExecPredicatesAndParams(t *testing.T) {
 		sqlgen.And{sqlgen.In{X: qty, List: []sqlgen.Expr{sqlgen.Arg{Value: int64(3)}, sqlgen.Arg{Value: int64(10)}}}},
 		sqlgen.And{sqlgen.Between{X: qty, Lo: sqlgen.Param{Name: "lo"}, Hi: sqlgen.Param{Name: "hi"}}, sqlgen.Binary{Op: sqlgen.OpIsNot, L: name, R: sqlgen.Lit{Value: "x"}}},
 	}
-	got := ids(run(t, c, selectIDs(where), sqlitex.Named{Name: ":lo", Value: int64(6)}, sqlitex.Named{Name: ":hi", Value: int64(8)}))
+	got := ids(run(t, c, selectIDs(where), dbx.Named{Name: ":lo", Value: int64(6)}, dbx.Named{Name: ":hi", Value: int64(8)}))
 	if want := []int64{1, 3, 4}; !reflect.DeepEqual(got, want) {
 		t.Errorf("ids %v, want %v", got, want)
 	}

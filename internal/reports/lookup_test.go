@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -74,7 +75,7 @@ func TestLookupGroupShowsDisplayTextAndCountIsNotMoney(t *testing.T) {
 
 func (f *fx) f2seed(t *testing.T, sql string) {
 	t.Helper()
-	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error { return tx.ExecScript(f.ctx, sql) }); err != nil {
+	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error { return tx.(*sqlitex.Tx).ExecScript(f.ctx, sql) }); err != nil {
 		t.Fatal(err)
 	}
 }

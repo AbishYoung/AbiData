@@ -2,10 +2,12 @@ package catalog
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/ncruces/go-sqlite3"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
@@ -120,9 +122,15 @@ var deterministicFuncs = func() map[string]bool {
 
 // ValidateExpr checks expr for use in table (physical name). For ExprDefault the
 // table may be empty. Returns a BAD_REQUEST fault describing the problem.
-func ValidateExpr(ctx context.Context, c *sqlitex.Conn, kind ExprKind, table, expr string) error {
+func ValidateExpr(ctx context.Context, q dbx.Querier, kind ExprKind, table, expr string) error {
 	if err := lexCheck(expr); err != nil {
 		return err
+	}
+	// dialect: sqlite. The semantic check prepares the expression under the
+	// SQLite authorizer; ADR 0013 Phase D replaces it with the parser.
+	c, ok := sqlitex.ConnOf(q)
+	if !ok {
+		return fmt.Errorf("catalog: expression check needs a SQLite connection, got %T", q)
 	}
 	from := ""
 	if kind != ExprDefault {

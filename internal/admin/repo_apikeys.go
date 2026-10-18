@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 )
 
 // ErrTooManyKeys is returned when a workspace already has the maximum number of
@@ -81,9 +81,9 @@ func scanAPIKey(r scanner) (APIKey, error) {
 // MaxActiveAPIKeys active keys. The count and the insert share one transaction.
 // Keys revoked or expired more than 90 days ago are purged first.
 func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		now := k.CreatedAt
-		cutoff := sqlitex.FormatTime(now.Add(-apiKeyRetention))
+		cutoff := dbx.FormatTime(now.Add(-apiKeyRetention))
 		if _, err := tx.Exec(ctx, `DELETE FROM _adm_api_keys WHERE workspace_id = ?1 AND
 			((revoked_at IS NOT NULL AND revoked_at < ?2) OR (expires_at IS NOT NULL AND expires_at < ?2))`,
 			string(k.WorkspaceID), cutoff); err != nil {
@@ -91,7 +91,7 @@ func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
 		}
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM _adm_api_keys WHERE workspace_id = ?1 AND revoked_at IS NULL
-			AND (expires_at IS NULL OR expires_at > ?2)`, string(k.WorkspaceID), sqlitex.FormatTime(now)).Scan(&n); err != nil {
+			AND (expires_at IS NULL OR expires_at > ?2)`, string(k.WorkspaceID), dbx.FormatTime(now)).Scan(&n); err != nil {
 			return err
 		}
 		if n >= MaxActiveAPIKeys {
@@ -99,11 +99,11 @@ func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
 		}
 		var exp any
 		if k.ExpiresAt != nil {
-			exp = sqlitex.FormatTime(*k.ExpiresAt)
+			exp = dbx.FormatTime(*k.ExpiresAt)
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO _adm_api_keys (id, workspace_id, name, role, secret_hash, created_by, created_at, expires_at)
 			VALUES (?,?,?,?,?,?,?,?)`, k.ID, string(k.WorkspaceID), k.Name, string(k.Role), k.SecretHash, k.CreatedBy,
-			sqlitex.FormatTime(k.CreatedAt), exp)
+			dbx.FormatTime(k.CreatedAt), exp)
 		return wrapWrite(err, "create api key")
 	})
 }
@@ -111,7 +111,7 @@ func (s *Store) CreateAPIKey(ctx context.Context, k APIKey) error {
 // GetAPIKey returns one key (including its hash) by id.
 func (s *Store) GetAPIKey(ctx context.Context, id string) (APIKey, error) {
 	var out APIKey
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		var err error
 		out, err = scanAPIKey(c.QueryRow(ctx, `SELECT `+apiKeyCols+apiKeyFrom+`WHERE k.id = ?`, id))
 		return err
@@ -126,7 +126,7 @@ func (s *Store) GetAPIKey(ctx context.Context, id string) (APIKey, error) {
 // workspace's keys. The result carries the hash: callers must not expose it.
 func (s *Store) ListAPIKeys(ctx context.Context, ws ids.WorkspaceID) ([]APIKey, error) {
 	out := []APIKey{}
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT `+apiKeyCols+apiKeyFrom+`WHERE ?1 = '' OR k.workspace_id = ?1
 			ORDER BY k.created_at DESC, k.id DESC LIMIT 1000`, string(ws))
 		if err != nil {
@@ -148,8 +148,8 @@ func (s *Store) ListAPIKeys(ctx context.Context, ws ids.WorkspaceID) ([]APIKey, 
 // RevokeAPIKey marks a key revoked. Revoking an already revoked key succeeds
 // and keeps the first revocation time; an unknown id is ErrNotFound.
 func (s *Store) RevokeAPIKey(ctx context.Context, id string, at time.Time) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
-		res, err := tx.Exec(ctx, `UPDATE _adm_api_keys SET revoked_at = COALESCE(revoked_at, ?) WHERE id = ?`, sqlitex.FormatTime(at), id)
+	return s.Write(ctx, func(tx dbx.Tx) error {
+		res, err := tx.Exec(ctx, `UPDATE _adm_api_keys SET revoked_at = COALESCE(revoked_at, ?) WHERE id = ?`, dbx.FormatTime(at), id)
 		if err != nil {
 			return err
 		}
@@ -159,8 +159,8 @@ func (s *Store) RevokeAPIKey(ctx context.Context, id string, at time.Time) error
 
 // TouchAPIKey records the last use of a key.
 func (s *Store) TouchAPIKey(ctx context.Context, id string, at time.Time) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE _adm_api_keys SET last_used_at = ? WHERE id = ?`, sqlitex.FormatTime(at), id)
+	return s.Write(ctx, func(tx dbx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE _adm_api_keys SET last_used_at = ? WHERE id = ?`, dbx.FormatTime(at), id)
 		return err
 	})
 }

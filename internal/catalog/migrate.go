@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
 )
@@ -60,7 +61,7 @@ func Migrate(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
 	}
 	return c.Immediate(ctx, func(tx *sqlitex.Tx) error {
 		for k, v := range map[string]string{"workspace_id": string(id), "timezone": "UTC", "locale": "en-US",
-			"created_at": sqlitex.Now(), "schema_version": "0"} {
+			"created_at": dbx.Now(), "schema_version": "0"} {
 			if _, err := tx.Exec(ctx, `INSERT INTO _sys_meta(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING`, k, v); err != nil {
 				return err
 			}

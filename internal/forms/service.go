@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/files"
@@ -16,7 +17,6 @@ import (
 	"abidata/internal/records"
 	"abidata/internal/script"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -73,7 +73,7 @@ type Service struct {
 
 const formCols = `id, name, source_kind, source_id, default_view, allow_edits, allow_additions, allow_deletions, layout, version, updated_at, updated_by`
 
-func scanForm(rows *sqlitex.Rows) (Form, error) {
+func scanForm(rows dbx.Rows) (Form, error) {
 	var f Form
 	var src *string
 	var layout, at string
@@ -87,11 +87,11 @@ func scanForm(rows *sqlitex.Rows) (Form, error) {
 	if err := json.Unmarshal([]byte(layout), &f.Layout); err != nil {
 		return f, fmt.Errorf("form %s layout: %w", f.ID, err)
 	}
-	f.UpdatedAt, _ = sqlitex.ParseTime(at)
+	f.UpdatedAt, _ = dbx.ParseTime(at)
 	return f, nil
 }
 
-func loadForm(ctx context.Context, q sqlitex.Querier, id string) (Form, error) {
+func loadForm(ctx context.Context, q dbx.Querier, id string) (Form, error) {
 	rows, err := q.Query(ctx, `SELECT `+formCols+` FROM _sys_forms WHERE id = ?`, id)
 	if err != nil {
 		return Form{}, err
@@ -121,7 +121,7 @@ func loadForm(ctx context.Context, q sqlitex.Querier, id string) (Form, error) {
 // List returns form summaries (no module source) ordered by name.
 func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Form, error) {
 	out := []Form{}
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT `+formCols+` FROM _sys_forms ORDER BY name COLLATE NOCASE`)
 		if err != nil {
 			return err
@@ -142,7 +142,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Form, error) 
 // Get returns a form with its module.
 func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Form, error) {
 	var f Form
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var err error
 		f, err = loadForm(ctx, q, id)
 		return err
@@ -204,7 +204,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 	if _, err := script.Compile(in.ModuleSource, "form module"); err != nil {
 		return Form{}, &fault.Error{Code: fault.ScriptError, Message: "The form module has a syntax error: " + fault.Classify(err).DisplayMessage()}
 	}
-	err = l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		exists := func(fid string) bool {
 			var n int
 			_ = tx.QueryRow(ctx, `SELECT count(*) FROM _sys_forms WHERE id = ?`, fid).Scan(&n)
@@ -243,7 +243,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 			allow_deletions = excluded.allow_deletions, layout = excluded.layout, version = excluded.version,
 			updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
 			f.ID, f.Name, f.SourceKind, srcID, f.DefaultView, f.AllowEdits, f.AllowAdditions, f.AllowDeletions, string(layout),
-			f.Version, sqlitex.FormatTime(f.UpdatedAt), f.UpdatedBy)
+			f.Version, dbx.FormatTime(f.UpdatedAt), f.UpdatedBy)
 		if err != nil {
 			if fault.Classify(err).Code == fault.DuplicateValue {
 				return fault.Newf(fault.DuplicateValue, "A form named %q already exists.", f.Name)
@@ -266,7 +266,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 	return f, nil
 }
 
-func writeDeps(ctx context.Context, tx *sqlitex.Tx, f Form) error {
+func writeDeps(ctx context.Context, tx dbx.Tx, f Form) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM _sys_dependencies WHERE dependent_kind = 'form' AND dependent_id = ?`, f.ID); err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func writeDeps(ctx context.Context, tx *sqlitex.Tx, f Form) error {
 
 // Delete removes a form and its module unless other forms embed it.
 func (s *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		cur, err := loadForm(ctx, tx, id)
 		if err != nil {
 			return err
@@ -333,7 +333,7 @@ func (s *Service) Delete(ctx context.Context, l *workspace.Lease, id string, exp
 }
 
 // SchemaValidator reports forms whose bindings a schema change would break.
-func SchemaValidator(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema) ([]catalog.Issue, []catalog.Issue, error) {
+func SchemaValidator(ctx context.Context, tx dbx.Tx, sch *catalog.Schema) ([]catalog.Issue, []catalog.Issue, error) {
 	rows, err := tx.Query(ctx, `SELECT `+formCols+` FROM _sys_forms`)
 	if err != nil {
 		return nil, nil, err

@@ -16,6 +16,7 @@ import (
 	"github.com/ncruces/go-sqlite3"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/query"
@@ -334,7 +335,7 @@ func stageArgs(names []string, params any) ([]any, error) {
 		if strings.HasPrefix(n, "?") {
 			args = append(args, sv)
 		} else {
-			args = append(args, sqlitex.Named{Name: n, Value: sv})
+			args = append(args, dbx.Named{Name: n, Value: sv})
 		}
 	}
 	return args, nil

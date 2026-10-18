@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"abidata/internal/dbx"
 	"abidata/internal/sqlitex"
 )
 
@@ -88,7 +89,7 @@ func (s *Store) migrate(ctx context.Context) error {
 }
 
 // Read runs fn on a reader connection.
-func (s *Store) Read(ctx context.Context, fn func(c *sqlitex.Conn) error) error {
+func (s *Store) Read(ctx context.Context, fn func(q dbx.Querier) error) error {
 	select {
 	case c := <-s.readers:
 		defer func() {
@@ -107,15 +108,15 @@ func (s *Store) Read(ctx context.Context, fn func(c *sqlitex.Conn) error) error 
 }
 
 // Write runs fn in a BEGIN IMMEDIATE transaction on the writer.
-func (s *Store) Write(ctx context.Context, fn func(tx *sqlitex.Tx) error) error {
+func (s *Store) Write(ctx context.Context, fn func(tx dbx.Tx) error) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	return s.writer.Immediate(ctx, fn)
+	return s.writer.Immediate(ctx, func(tx *sqlitex.Tx) error { return fn(tx) })
 }
 
 // Ping verifies the DB answers (readyz).
 func (s *Store) Ping(ctx context.Context) error {
-	return s.Read(ctx, func(c *sqlitex.Conn) error {
+	return s.Read(ctx, func(c dbx.Querier) error {
 		var one int
 		return c.QueryRow(ctx, "SELECT 1").Scan(&one)
 	})

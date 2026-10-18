@@ -13,6 +13,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/demo"
 	"abidata/internal/files"
 	"abidata/internal/forms"
@@ -25,7 +26,6 @@ import (
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -86,7 +86,7 @@ func newRig(t *testing.T) *rig {
 func count(t *testing.T, r *rig, l *workspace.Lease, sql string) int {
 	t.Helper()
 	var n int
-	if err := l.Read(r.ctx, func(q sqlitex.Querier) error { return q.QueryRow(r.ctx, sql).Scan(&n) }); err != nil {
+	if err := l.Read(r.ctx, func(q dbx.Querier) error { return q.QueryRow(r.ctx, sql).Scan(&n) }); err != nil {
 		t.Fatalf("%s: %v", sql, err)
 	}
 	return n
@@ -127,7 +127,7 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 	}
 	// Dates are relative to now: the newest order is recent, the oldest within ~6 months.
 	var newest, oldest string
-	if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(r.ctx, `SELECT max("Order_date"), min("Order_date") FROM "Orders"`).Scan(&newest, &oldest)
 	}); err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestJobScriptValidAndRuns(t *testing.T) {
 	}
 
 	// Corrupt the flag, run the job, and see it repaired.
-	if err := l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(r.ctx, `UPDATE "Products" SET "Low_stock" = 0`)
 		return err
 	}); err != nil {
@@ -318,7 +318,7 @@ func TestDeterministicContent(t *testing.T) {
 			t.Fatal(err)
 		}
 		l, _ := r.wm.Acquire(r.ctx, res.WorkspaceID)
-		if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+		if err := l.Read(r.ctx, func(q dbx.Querier) error {
 			return q.QueryRow(r.ctx, `SELECT group_concat("Order_ref" || "Order_date" || "Total" || "Status", ',') FROM (SELECT * FROM "Orders" ORDER BY id)`).Scan(&sums[i])
 		}); err != nil {
 			t.Fatal(err)
@@ -425,7 +425,7 @@ func TestBiosecurityTablesAndData(t *testing.T) {
 	}
 	// Dates spread over about six months before the (real) seed time, none in the future.
 	var oldest, newest string
-	if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(r.ctx, `SELECT min("Observed_at"), max("Observed_at") FROM "Pest_sightings"`).Scan(&oldest, &newest)
 	}); err != nil {
 		t.Fatal(err)
@@ -449,14 +449,14 @@ func TestBiosecurityTablesAndData(t *testing.T) {
 		t.Errorf("%d history rows for sightings", n)
 	}
 	// The observed-at default stamps new rows with the current time.
-	if err := l.Write(r.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(r.ctx, `INSERT INTO "Pest_sightings"("Species") VALUES (1)`)
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var stamp string
-	if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(r.ctx, `SELECT "Observed_at" FROM "Pest_sightings" ORDER BY id DESC LIMIT 1`).Scan(&stamp)
 	}); err != nil {
 		t.Fatal(err)
@@ -571,7 +571,7 @@ func TestBiosecurityPhotos(t *testing.T) {
 		t.Errorf("%d sample photos left pending", n)
 	}
 	var ids []string
-	if err := l.Read(r.ctx, func(q sqlitex.Querier) error {
+	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(r.ctx, `SELECT id FROM _sys_files ORDER BY id`)
 		if err != nil {
 			return err

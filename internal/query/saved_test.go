@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -94,7 +95,7 @@ func TestRefreshCompiledRewritesStaleSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Simulate SQL stored by an older compiler, and a workspace never refreshed.
-	if err := f.l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		if _, err := tx.Exec(ctx, `UPDATE _sys_queries SET sql_text = 'SELECT 1' WHERE id = ?`, q.ID); err != nil {
 			return err
 		}
@@ -118,7 +119,7 @@ func TestRefreshCompiledRewritesStaleSQL(t *testing.T) {
 	stored := func() string {
 		t.Helper()
 		var sql string
-		if err := f.l.Read(ctx, func(r sqlitex.Querier) error {
+		if err := f.l.Read(ctx, func(r dbx.Querier) error {
 			return r.QueryRow(ctx, `SELECT sql_text FROM _sys_queries WHERE id = ?`, q.ID).Scan(&sql)
 		}); err != nil {
 			t.Fatal(err)
@@ -130,7 +131,7 @@ func TestRefreshCompiledRewritesStaleSQL(t *testing.T) {
 		t.Fatalf("stale SQL not refreshed: %q want %q", got, q.SQL)
 	}
 	// Once the version is recorded, a refresh leaves stored SQL alone.
-	if err := f.l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `UPDATE _sys_queries SET sql_text = 'SELECT 2' WHERE id = ?`, q.ID)
 		return err
 	}); err != nil {

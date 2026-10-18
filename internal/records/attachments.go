@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 )
 
 // Attachments cells (ADR 0011) are stored as a JSON array of file ids in TEXT
@@ -90,7 +90,7 @@ func encodeAttachments(v any) any {
 // written to an attachments column exists in this workspace (a field never
 // points anywhere else). The reference triggers re-assert this with a foreign
 // key for writes that bypass the row API; this gives the readable error.
-func checkAttachments(ctx context.Context, q sqlitex.Querier, cols []catalog.Column, vals []any) error {
+func checkAttachments(ctx context.Context, q dbx.Querier, cols []catalog.Column, vals []any) error {
 	for i, c := range cols {
 		if c.Type != catalog.Attachments || vals[i] == nil {
 			continue

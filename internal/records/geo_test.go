@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
-	"abidata/internal/sqlitex"
 )
 
 const zoneJSON = `{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]],[[4,4],[6,4],[6,6],[4,6],[4,4]]]}`
@@ -97,7 +97,7 @@ func TestGeoFieldAreaAndCalculated(t *testing.T) {
 	}
 	// History stores the geometry as an object, not an escaped string.
 	var after string
-	if err := g.l.Read(g.ctx, func(q sqlitex.Querier) error {
+	if err := g.l.Read(g.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(g.ctx, `SELECT after FROM _sys_row_history WHERE row_id = ?`, r.ID).Scan(&after)
 	}); err != nil {
 		t.Fatal(err)

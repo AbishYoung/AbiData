@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 )
 
 const wsCols = "w.id, w.name, w.status, w.quota_json, w.created_at, w.created_by"
@@ -37,7 +37,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, w Workspace, owner string) 
 	if status == "" {
 		status = StatusActive
 	}
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO _adm_workspaces (id, name, status, quota_json, created_at, created_by)
 			VALUES (?,?,?,?,?,?)`, string(w.ID), w.Name, string(status), string(q), w.CreatedAt, w.CreatedBy); err != nil {
 			return wrapWrite(err, "create workspace")
@@ -51,7 +51,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, w Workspace, owner string) 
 // DropWorkspace deletes a workspace row outright (with its memberships). Only
 // for a workspace whose creation failed before it was ever used.
 func (s *Store) DropWorkspace(ctx context.Context, id ids.WorkspaceID) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `DELETE FROM _adm_workspaces WHERE id = ?`, string(id))
 		return wrapWrite(err, "drop workspace")
 	})
@@ -59,7 +59,7 @@ func (s *Store) DropWorkspace(ctx context.Context, id ids.WorkspaceID) error {
 
 func (s *Store) GetWorkspace(ctx context.Context, id ids.WorkspaceID) (Workspace, error) {
 	var w Workspace
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		var err error
 		w, err = scanWorkspace(c.QueryRow(ctx, `SELECT `+wsCols+` FROM _adm_workspaces w WHERE w.id = ?`, string(id)))
 		return err
@@ -72,7 +72,7 @@ func (s *Store) GetWorkspace(ctx context.Context, id ids.WorkspaceID) (Workspace
 
 func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 	var out []Workspace
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT `+wsCols+` FROM _adm_workspaces w WHERE w.status <> 'deleted'
 			ORDER BY w.name COLLATE NOCASE, w.id`)
 		if err != nil {
@@ -93,7 +93,7 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 
 func (s *Store) ListWorkspacesForUser(ctx context.Context, userID string) ([]WorkspaceAccess, error) {
 	var out []WorkspaceAccess
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT `+wsCols+`, m.role FROM _adm_workspaces w
 			JOIN _adm_memberships m ON m.workspace_id = w.id
 			WHERE m.user_id = ? AND w.status <> 'deleted'
@@ -130,14 +130,14 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id ids.WorkspaceID, p Works
 		}
 		quota = string(b)
 	}
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		res, err := tx.Exec(ctx, `UPDATE _adm_workspaces SET
 			name = COALESCE(:name, name),
 			status = COALESCE(:status, status),
 			quota_json = COALESCE(:quota, quota_json)
 			WHERE id = :id`,
-			sqlitex.Named{Name: "name", Value: name}, sqlitex.Named{Name: "status", Value: status},
-			sqlitex.Named{Name: "quota", Value: quota}, sqlitex.Named{Name: "id", Value: string(id)})
+			dbx.Named{Name: "name", Value: name}, dbx.Named{Name: "status", Value: status},
+			dbx.Named{Name: "quota", Value: quota}, dbx.Named{Name: "id", Value: string(id)})
 		if err != nil {
 			return wrapWrite(err, "update workspace")
 		}
@@ -147,7 +147,7 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id ids.WorkspaceID, p Works
 
 func (s *Store) GetRole(ctx context.Context, ws ids.WorkspaceID, userID string) (Role, error) {
 	var role string
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		return c.QueryRow(ctx, `SELECT role FROM _adm_memberships WHERE workspace_id = ? AND user_id = ?`,
 			string(ws), userID).Scan(&role)
 	})
@@ -158,7 +158,7 @@ func (s *Store) GetRole(ctx context.Context, ws ids.WorkspaceID, userID string) 
 }
 
 func (s *Store) SetMembership(ctx context.Context, m Membership) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO _adm_memberships (workspace_id, user_id, role) VALUES (?,?,?)
 			ON CONFLICT(workspace_id, user_id) DO UPDATE SET role = excluded.role`,
 			string(m.WorkspaceID), m.UserID, string(m.Role))
@@ -167,7 +167,7 @@ func (s *Store) SetMembership(ctx context.Context, m Membership) error {
 }
 
 func (s *Store) DeleteMembership(ctx context.Context, ws ids.WorkspaceID, userID string) error {
-	return s.Write(ctx, func(tx *sqlitex.Tx) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
 		res, err := tx.Exec(ctx, `DELETE FROM _adm_memberships WHERE workspace_id = ? AND user_id = ?`, string(ws), userID)
 		if err != nil {
 			return err
@@ -178,7 +178,7 @@ func (s *Store) DeleteMembership(ctx context.Context, ws ids.WorkspaceID, userID
 
 func (s *Store) ListMembers(ctx context.Context, ws ids.WorkspaceID) ([]Member, error) {
 	var out []Member
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		rows, err := c.Query(ctx, `SELECT u.id, u.email, u.display_name, m.role FROM _adm_memberships m
 			JOIN _adm_users u ON u.id = m.user_id WHERE m.workspace_id = ?
 			ORDER BY u.email COLLATE NOCASE, u.id`, string(ws))
@@ -202,7 +202,7 @@ func (s *Store) ListMembers(ctx context.Context, ws ids.WorkspaceID) ([]Member, 
 
 func (s *Store) CountOwners(ctx context.Context, ws ids.WorkspaceID) (int, error) {
 	var n int
-	err := s.Read(ctx, func(c *sqlitex.Conn) error {
+	err := s.Read(ctx, func(c dbx.Querier) error {
 		return c.QueryRow(ctx, `SELECT count(*) FROM _adm_memberships WHERE workspace_id = ? AND role = 'owner'`,
 			string(ws)).Scan(&n)
 	})

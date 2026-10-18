@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -18,7 +18,7 @@ import (
 // the node's memory for every tenant.
 func TestSecReviewReportRunHeap(t *testing.T) {
 	f := setup(t)
-	if err := f.l.Write(f.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(f.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 190000)
 			INSERT INTO Sales(Region, Rep, Amount, Qty, Day) SELECT 'R' || (i % 20), printf('%.240c', 'x') || i, i, i % 7, '2026-01-01' FROM n`)
 		return err
@@ -100,7 +100,7 @@ func TestFoldCompare(t *testing.T) {
 // thousand rows burns CPU long after the 30 s Lua budget has ended.
 func TestSecReviewLuaGroupSortCPU(t *testing.T) {
 	f := setup(t)
-	if err := f.l.Write(f.ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(f.ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 1000)
 			INSERT INTO Sales(Region, Rep, Amount, Qty, Day) SELECT 'R', 'r' || i, i, i, '2026-01-01' FROM n`)
 		return err

@@ -13,13 +13,13 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/ops"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/sqlgen"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -360,7 +360,7 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 	}
 	sql := page.SQL
 	var total, last int64
-	if err := l.Read(ctx, func(q sqlitex.Querier) error {
+	if err := l.Read(ctx, func(q dbx.Querier) error {
 		return q.QueryRow(ctx, count.SQL).Scan(&total)
 	}); err != nil {
 		return 0, err
@@ -371,7 +371,7 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 			return n, err
 		}
 		var page [][]any
-		err := l.Read(ctx, func(q sqlitex.Querier) error {
+		err := l.Read(ctx, func(q dbx.Querier) error {
 			rows, err := q.Query(ctx, sql, last, ExportPage)
 			if err != nil {
 				return err

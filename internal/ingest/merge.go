@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/records"
 	"abidata/internal/sqlgen"
@@ -97,7 +98,7 @@ func newApplier(p *plan, strict bool) (*applier, error) {
 	return a, nil
 }
 
-func (a *applier) apply(ctx context.Context, tx *sqlitex.Tx, res *MergeResult, n int64, vals []any) error {
+func (a *applier) apply(ctx context.Context, tx dbx.Tx, res *MergeResult, n int64, vals []any) error {
 	var err error
 	if a.p.Mode == ModeUpsert {
 		if vals[a.keyIdx] == nil {
@@ -211,7 +212,7 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 	var done int64
 	if oneTx {
 		var local MergeResult
-		err := l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+		err := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 			local = MergeResult{Errors: []RowError{}}
 			if p.Mode == ModeReplace {
 				if _, err := tx.Exec(ctx, del); err != nil {
@@ -262,7 +263,7 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 			good = append(good, ok{r.n, vals})
 		}
 		var local MergeResult
-		err := l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+		err := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 			local = MergeResult{}
 			if first && p.Mode == ModeReplace {
 				if _, err := tx.Exec(ctx, del); err != nil {

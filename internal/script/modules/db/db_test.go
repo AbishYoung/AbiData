@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/records"
@@ -15,7 +16,6 @@ import (
 	_ "abidata/internal/script/modules/db"
 	_ "abidata/internal/script/modules/decimal" // as in production: currency values are decimals, not strings
 	_ "abidata/internal/script/modules/records"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -180,7 +180,7 @@ func TestRecordsModuleTypedAndErrors(t *testing.T) {
 	}
 	// Row history recorded for script edits through records.
 	var n int
-	_ = f.l.Read(f.ctx, func(q sqlitex.Querier) error {
+	_ = f.l.Read(f.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(f.ctx, `SELECT count(*) FROM _sys_row_history`).Scan(&n)
 	})
 	if n != 2 {

@@ -12,6 +12,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/files"
@@ -20,7 +21,6 @@ import (
 	"abidata/internal/records"
 	"abidata/internal/script"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -65,7 +65,7 @@ type Service struct {
 
 const cols = `id, name, source_kind, source_id, layout, page_setup, version, updated_at, updated_by`
 
-func scanReport(rows *sqlitex.Rows) (Report, error) {
+func scanReport(rows dbx.Rows) (Report, error) {
 	var r Report
 	var layout, ps, at string
 	if err := rows.Scan(&r.ID, &r.Name, &r.SourceKind, &r.SourceID, &layout, &ps, &r.Version, &at, &r.UpdatedBy); err != nil {
@@ -77,11 +77,11 @@ func scanReport(rows *sqlitex.Rows) (Report, error) {
 	if err := json.Unmarshal([]byte(ps), &r.PageSetup); err != nil {
 		return r, err
 	}
-	r.UpdatedAt, _ = sqlitex.ParseTime(at)
+	r.UpdatedAt, _ = dbx.ParseTime(at)
 	return r, nil
 }
 
-func load(ctx context.Context, q sqlitex.Querier, id string) (Report, error) {
+func load(ctx context.Context, q dbx.Querier, id string) (Report, error) {
 	rows, err := q.Query(ctx, `SELECT `+cols+` FROM _sys_reports WHERE id = ?`, id)
 	if err != nil {
 		return Report{}, err
@@ -111,7 +111,7 @@ func load(ctx context.Context, q sqlitex.Querier, id string) (Report, error) {
 // List returns reports ordered by name.
 func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Report, error) {
 	out := []Report{}
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT `+cols+` FROM _sys_reports ORDER BY name COLLATE NOCASE`)
 		if err != nil {
 			return err
@@ -132,7 +132,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Report, error
 // Get returns one report.
 func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Report, error) {
 	var r Report
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var err error
 		r, err = load(ctx, q, id)
 		return err
@@ -175,7 +175,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 		return Report{}, &fault.Error{Code: fault.ScriptError, Message: "The report module has a syntax error: " + fault.Classify(err).DisplayMessage()}
 	}
 	r := Report{Name: name, SourceKind: in.SourceKind, SourceID: in.SourceID, ReportLayout: in.ReportLayout, PageSetup: in.PageSetup, UpdatedAt: time.Now(), UpdatedBy: user}
-	err = l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var modID string
 		var modVer int64
 		if id == "" {
@@ -197,7 +197,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 			ON CONFLICT(id) DO UPDATE SET name = excluded.name, source_kind = excluded.source_kind, source_id = excluded.source_id,
 			layout = excluded.layout, page_setup = excluded.page_setup, version = excluded.version, updated_at = excluded.updated_at,
 			updated_by = excluded.updated_by`, r.ID, r.Name, r.SourceKind, r.SourceID, string(layout), string(ps), r.Version,
-			sqlitex.FormatTime(r.UpdatedAt), r.UpdatedBy)
+			dbx.FormatTime(r.UpdatedAt), r.UpdatedBy)
 		if err != nil {
 			if fault.Classify(err).Code == fault.DuplicateValue {
 				return fault.Newf(fault.DuplicateValue, "A report named %q already exists.", r.Name)
@@ -245,7 +245,7 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 
 // Delete removes a report and its module.
 func (s *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		cur, err := load(ctx, tx, id)
 		if err != nil {
 			return err
@@ -416,7 +416,7 @@ func thousands(s string) string {
 }
 
 // SchemaValidator reports reports whose bindings a schema change would break.
-func SchemaValidator(ctx context.Context, tx *sqlitex.Tx, sch *catalog.Schema) ([]catalog.Issue, []catalog.Issue, error) {
+func SchemaValidator(ctx context.Context, tx dbx.Tx, sch *catalog.Schema) ([]catalog.Issue, []catalog.Issue, error) {
 	rows, err := tx.Query(ctx, `SELECT `+cols+` FROM _sys_reports WHERE source_kind = 'table'`)
 	if err != nil {
 		return nil, nil, err

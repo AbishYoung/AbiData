@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
@@ -61,7 +62,7 @@ func (l *Lease) Bind(ctx context.Context) (context.Context, context.CancelFunc) 
 }
 
 // Read runs fn on a pooled query_only connection.
-func (l *Lease) Read(ctx context.Context, fn func(q sqlitex.Querier) error) error {
+func (l *Lease) Read(ctx context.Context, fn func(q dbx.Querier) error) error {
 	return l.ReadConn(ctx, func(c *sqlitex.Conn) error { return fn(c) })
 }
 
@@ -85,7 +86,7 @@ func (l *Lease) ReadConn(ctx context.Context, fn func(c *sqlitex.Conn) error) er
 // Write runs fn in a BEGIN IMMEDIATE transaction on the workspace's single
 // writer, after waiting for the priority gate. Interactive waits are capped by
 // GateTimeout (→ WORKSPACE_BUSY). Re-entry returns ErrNestedWrite.
-func (l *Lease) Write(ctx context.Context, p Priority, fn func(tx *sqlitex.Tx) error) error {
+func (l *Lease) Write(ctx context.Context, p Priority, fn func(tx dbx.Tx) error) error {
 	return l.WriteWith(ctx, p, WriteOptions{}, fn)
 }
 
@@ -101,7 +102,7 @@ type WriteOptions struct {
 }
 
 // WriteWith is Write with connection options.
-func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn func(tx *sqlitex.Tx) error) error {
+func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn func(tx dbx.Tx) error) error {
 	if ctx.Value(writeKey{l.h.id}) != nil || !l.writing.CompareAndSwap(false, true) {
 		return ErrNestedWrite
 	}
@@ -152,7 +153,7 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 			defer cleanup()
 		}
 	}
-	err := w.Immediate(context.WithValue(ctx, writeKey{l.h.id}, true), fn)
+	err := w.Immediate(context.WithValue(ctx, writeKey{l.h.id}, true), func(tx *sqlitex.Tx) error { return fn(tx) })
 	if opts.ForeignKeysOff || opts.Setup != nil {
 		w.ClearStmtCache() // DDL may have changed what cached statements refer to
 	}

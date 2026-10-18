@@ -14,6 +14,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/demo"
 	"abidata/internal/forms"
 	"abidata/internal/ids"
@@ -25,7 +26,6 @@ import (
 	"abidata/internal/script/host"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -229,7 +229,7 @@ func (n *northwindRig) run(t *testing.T, code, name, entry string) (script.ExecR
 func (n *northwindRig) count(t *testing.T, sql string) int {
 	t.Helper()
 	var c int
-	if err := n.l.Read(n.ctx, func(q sqlitex.Querier) error { return q.QueryRow(n.ctx, sql).Scan(&c) }); err != nil {
+	if err := n.l.Read(n.ctx, func(q dbx.Querier) error { return q.QueryRow(n.ctx, sql).Scan(&c) }); err != nil {
 		t.Fatalf("%s: %v", sql, err)
 	}
 	return c

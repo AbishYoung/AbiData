@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 )
 
 // Gate 6: exceeding max_page_count → QUOTA_EXCEEDED, nothing partial is
@@ -27,7 +27,7 @@ func TestQuotaExceededStaysUsable(t *testing.T) {
 	}
 	defer l.Release()
 	write := func(sql string, args ...any) error {
-		return l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+		return l.Write(ctx, Interactive, func(tx dbx.Tx) error {
 			_, err := tx.Exec(ctx, sql, args...)
 			return err
 		})
@@ -39,7 +39,7 @@ func TestQuotaExceededStaysUsable(t *testing.T) {
 		t.Fatal(err)
 	}
 	// One transaction that would grow the file past the quota.
-	err = l.Write(ctx, Interactive, func(tx *sqlitex.Tx) error {
+	err = l.Write(ctx, Interactive, func(tx dbx.Tx) error {
 		for range 20 {
 			if _, err := tx.Exec(ctx, `INSERT INTO blobs (b) VALUES (?)`, strings.Repeat("b", 100<<10)); err != nil {
 				return err
@@ -52,7 +52,7 @@ func TestQuotaExceededStaysUsable(t *testing.T) {
 	}
 	count := func() int64 {
 		var n int64
-		if err := l.Read(ctx, func(q sqlitex.Querier) error {
+		if err := l.Read(ctx, func(q dbx.Querier) error {
 			return q.QueryRow(ctx, `SELECT count(*) FROM blobs`).Scan(&n)
 		}); err != nil {
 			t.Fatal(err)

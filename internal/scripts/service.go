@@ -11,11 +11,11 @@ import (
 
 	lua "github.com/yuin/gopher-lua"
 
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/script"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -64,7 +64,7 @@ type cached struct {
 
 const cols = `id, name, kind, owner_id, source, version, updated_at, updated_by`
 
-func scan(rows *sqlitex.Rows) (Script, error) {
+func scan(rows dbx.Rows) (Script, error) {
 	var s Script
 	var owner *string
 	var at string
@@ -74,14 +74,14 @@ func scan(rows *sqlitex.Rows) (Script, error) {
 	if owner != nil {
 		s.OwnerID = *owner
 	}
-	s.UpdatedAt, _ = sqlitex.ParseTime(at)
+	s.UpdatedAt, _ = dbx.ParseTime(at)
 	return s, nil
 }
 
 // List returns scripts (optionally of one kind), ordered by name.
 func (svc *Service) List(ctx context.Context, l *workspace.Lease, kind string) ([]Script, error) {
 	out := []Script{}
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		sql := `SELECT ` + cols + ` FROM _sys_scripts`
 		var args []any
 		if kind != "" {
@@ -105,7 +105,7 @@ func (svc *Service) List(ctx context.Context, l *workspace.Lease, kind string) (
 	return out, err
 }
 
-func getQ(ctx context.Context, q sqlitex.Querier, where string, arg any) (Script, error) {
+func getQ(ctx context.Context, q dbx.Querier, where string, arg any) (Script, error) {
 	rows, err := q.Query(ctx, `SELECT `+cols+` FROM _sys_scripts WHERE `+where, arg)
 	if err != nil {
 		return Script{}, err
@@ -123,7 +123,7 @@ func getQ(ctx context.Context, q sqlitex.Querier, where string, arg any) (Script
 // Get returns one script.
 func (svc *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Script, error) {
 	var s Script
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		var err error
 		s, err = getQ(ctx, q, `id = ?`, id)
 		return err
@@ -132,7 +132,7 @@ func (svc *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Scr
 }
 
 // ByOwner returns the module script of a form or report, if any.
-func ByOwner(ctx context.Context, q sqlitex.Querier, ownerID string) (Script, bool, error) {
+func ByOwner(ctx context.Context, q dbx.Querier, ownerID string) (Script, bool, error) {
 	s, err := getQ(ctx, q, `owner_id = ?`, ownerID)
 	if err != nil {
 		if fault.Classify(err).Code == fault.NotFound {
@@ -167,7 +167,7 @@ func validate(in ScriptInput) error {
 }
 
 // PutTx creates (id == "") or replaces a script inside a caller's transaction.
-func (svc *Service) PutTx(ctx context.Context, tx *sqlitex.Tx, id string, expectedVersion int64, in ScriptInput, user string) (Script, error) {
+func (svc *Service) PutTx(ctx context.Context, tx dbx.Tx, id string, expectedVersion int64, in ScriptInput, user string) (Script, error) {
 	if err := validate(in); err != nil {
 		return Script{}, err
 	}
@@ -195,7 +195,7 @@ func (svc *Service) PutTx(ctx context.Context, tx *sqlitex.Tx, id string, expect
 	_, err := tx.Exec(ctx, `INSERT INTO _sys_scripts(`+cols+`) VALUES (?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind, owner_id = excluded.owner_id,
 		source = excluded.source, version = excluded.version, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-		s.ID, s.Name, s.Kind, owner, s.Source, s.Version, sqlitex.FormatTime(s.UpdatedAt), s.UpdatedBy)
+		s.ID, s.Name, s.Kind, owner, s.Source, s.Version, dbx.FormatTime(s.UpdatedAt), s.UpdatedBy)
 	if err != nil {
 		if fault.Classify(err).Code == fault.DuplicateValue {
 			return Script{}, fault.Newf(fault.DuplicateValue, "A script named %q already exists.", s.Name)
@@ -208,7 +208,7 @@ func (svc *Service) PutTx(ctx context.Context, tx *sqlitex.Tx, id string, expect
 // Put creates or replaces a script.
 func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in ScriptInput, user string) (Script, error) {
 	var out Script
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		var err error
 		out, err = svc.PutTx(ctx, tx, id, expectedVersion, in, user)
 		return err
@@ -221,7 +221,7 @@ func (svc *Service) Put(ctx context.Context, l *workspace.Lease, id string, expe
 
 // Delete removes a script (form/report modules are deleted with their owner).
 func (svc *Service) Delete(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64) error {
-	err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		cur, err := getQ(ctx, tx, `id = ?`, id)
 		if err != nil {
 			return err
@@ -271,7 +271,7 @@ func (svc *Service) Proto(ws ids.WorkspaceID, s Script) (*lua.FunctionProto, err
 func (svc *Service) Loader(ctx context.Context, l *workspace.Lease) script.ModuleLoader {
 	return func(name string) (string, bool) {
 		var src string
-		err := l.Read(ctx, func(q sqlitex.Querier) error {
+		err := l.Read(ctx, func(q dbx.Querier) error {
 			return q.QueryRow(ctx, `SELECT source FROM _sys_scripts WHERE kind = 'module' AND name = ?`, name).Scan(&src)
 		})
 		return src, err == nil

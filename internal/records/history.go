@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -42,7 +42,7 @@ func (s *Service) History(ctx context.Context, l *workspace.Lease, tableID strin
 		beforeID = 1<<63 - 1
 	}
 	out = []HistoryEntry{}
-	err = l.Read(ctx, func(q sqlitex.Querier) error {
+	err = l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT id, row_version, op, user_id, at, before, after FROM _sys_row_history
 			WHERE table_id = ? AND row_id = ? AND id < ? ORDER BY id DESC LIMIT ?`, t.ID, rowID, beforeID, limit+1)
 		if err != nil {
@@ -63,7 +63,7 @@ func (s *Service) History(ctx context.Context, l *workspace.Lease, tableID strin
 			if user != nil {
 				e.UserID = *user
 			}
-			if e.At, err = sqlitex.ParseTime(at); err != nil {
+			if e.At, err = dbx.ParseTime(at); err != nil {
 				return err
 			}
 			for _, p := range []struct {

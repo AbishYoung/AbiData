@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
@@ -72,7 +73,7 @@ func (f *fixture) apply(ops ...Op) ImpactReport {
 func (f *fixture) schema() *Schema {
 	f.t.Helper()
 	var s *Schema
-	if err := f.l.Read(f.ctx, func(q sqlitex.Querier) error {
+	if err := f.l.Read(f.ctx, func(q dbx.Querier) error {
 		var err error
 		s, err = Load(f.ctx, q)
 		return err
@@ -84,7 +85,7 @@ func (f *fixture) schema() *Schema {
 
 func (f *fixture) exec(sql string, args ...any) {
 	f.t.Helper()
-	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, sql, args...)
 		return err
 	}); err != nil {
@@ -95,7 +96,7 @@ func (f *fixture) exec(sql string, args ...any) {
 func (f *fixture) query(sql string, args ...any) [][]any {
 	f.t.Helper()
 	var out [][]any
-	if err := f.l.Read(f.ctx, func(q sqlitex.Querier) error {
+	if err := f.l.Read(f.ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(f.ctx, sql, args...)
 		if err != nil {
 			return err
@@ -170,13 +171,13 @@ func TestCreateTableAllTypes(t *testing.T) {
 		`INSERT INTO Customers(Name, Website) VALUES ('B', 'ftp://x')`,
 		`INSERT INTO Customers(Name, Active) VALUES ('B', 2)`,
 	} {
-		err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error { _, err := tx.Exec(f.ctx, bad); return err })
+		err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error { _, err := tx.Exec(f.ctx, bad); return err })
 		if err == nil {
 			t.Errorf("accepted: %s", bad)
 		}
 	}
 	// The validation constraint name maps back to the column.
-	err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `INSERT INTO Customers(Name, Visits) VALUES ('B', -1)`)
 		return err
 	})
@@ -297,7 +298,7 @@ func TestRenameColumnBreaksSavedQuery(t *testing.T) {
 	tb, _ := f.schema().TableByPhysical("People")
 	first, _ := tb.ColumnByPhysical("Forename")
 	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By first', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`,
-		ids.New(), sqlitex.Now())
+		ids.New(), dbx.Now())
 	op := Op{Kind: OpRenameColumn, TableID: tb.ID, ColumnID: first.ID, PhysicalName: "GivenName"}
 	r, err := f.run(Preview, ApplyOptions{}, op)
 	if err != nil {
@@ -324,8 +325,8 @@ func TestAlreadyBrokenQueryDoesNotBlockUnrelatedChanges(t *testing.T) {
 	tb, _ := f.schema().TableByPhysical("People")
 	fn, _ := tb.ColumnByPhysical("Forename")
 	broken, other := ids.New(), ids.New()
-	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By forename', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`, broken, sqlitex.Now())
-	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'All people', 'sql', 'SELECT id FROM "People"', ?, 'u')`, other, sqlitex.Now())
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'By forename', 'sql', 'SELECT "Forename" FROM "People"', ?, 'u')`, broken, dbx.Now())
+	f.exec(`INSERT INTO _sys_queries(id, name, kind, sql_text, updated_at, updated_by) VALUES (?, 'All people', 'sql', 'SELECT id FROM "People"', ?, 'u')`, other, dbx.Now())
 
 	// Dropping the field breaks "By forename" only; the builder confirms.
 	drop := Op{Kind: OpDropColumn, TableID: tb.ID, ColumnID: fn.ID}
@@ -382,7 +383,7 @@ func TestRebuildPreservesDataSequenceAndConstraints(t *testing.T) {
 	}
 }
 
-func mustReader(f *fixture) sqlitex.Querier {
+func mustReader(f *fixture) dbx.Querier {
 	var conn *sqlitex.Conn
 	_ = f.l.ReadConn(f.ctx, func(c *sqlitex.Conn) error { conn = c; return nil })
 	return conn
@@ -400,14 +401,14 @@ func TestLookupRelationshipAndFKCheck(t *testing.T) {
 	}
 	f.exec(`INSERT INTO Customers(Name) VALUES ('Ada')`)
 	f.exec(`INSERT INTO Orders(Customer) VALUES (1)`)
-	err := f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(f.ctx, `INSERT INTO Orders(Customer) VALUES (99)`)
 		return err
 	})
 	if fault.Classify(err).Code != fault.LinkedRecords {
 		t.Fatalf("FK not enforced: %v", err)
 	}
-	err = f.l.Write(f.ctx, workspace.Interactive, func(tx *sqlitex.Tx) error { _, err := tx.Exec(f.ctx, `DELETE FROM Customers WHERE id = 1`); return err })
+	err = f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error { _, err := tx.Exec(f.ctx, `DELETE FROM Customers WHERE id = 1`); return err })
 	if fault.Classify(err).Code != fault.LinkedRecords {
 		t.Fatalf("RESTRICT not enforced: %v", err)
 	}

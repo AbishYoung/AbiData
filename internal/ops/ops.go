@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -115,9 +115,9 @@ func (s *Service) Start(ctx context.Context, l *workspace.Lease, kind, by string
 	}
 
 	op := Op{ID: ids.New(), Kind: kind, Status: Running, CreatedBy: by, CreatedAt: time.Now().UTC()}
-	if err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error {
+	if err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO _sys_operations (id, kind, status, progress, created_by, created_at) VALUES (?,?,?,0,?,?)`,
-			op.ID, kind, Running, by, sqlitex.FormatTime(op.CreatedAt))
+			op.ID, kind, Running, by, dbx.FormatTime(op.CreatedAt))
 		return err
 	}); err != nil {
 		unreserve()
@@ -195,9 +195,9 @@ func (s *Service) finish(l *workspace.Lease, op *Op, r *running, res any, err er
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if werr := l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	if werr := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `UPDATE _sys_operations SET status = ?, progress = ?, result = ?, error_code = ?, error_message = ?, finished_at = ? WHERE id = ?`,
-			op.Status, op.Progress, result, nullStr(op.ErrorCode), nullStr(op.ErrorMessage), sqlitex.FormatTime(now), op.ID)
+			op.Status, op.Progress, result, nullStr(op.ErrorCode), nullStr(op.ErrorMessage), dbx.FormatTime(now), op.ID)
 		return err
 	}); werr != nil {
 		s.log().Error("operation finish", "subsystem", "ops", "op", op.ID, "err", werr)
@@ -258,7 +258,7 @@ func (p *Progress) Set(fraction float64, msg string) {
 	p.s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = p.l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	_ = p.l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 		_, err := tx.Exec(ctx, `UPDATE _sys_operations SET progress = ? WHERE id = ?`, op.Progress, op.ID)
 		return err
 	})
@@ -271,7 +271,7 @@ func (p *Progress) ID() string { return p.op.ID }
 // Get returns an operation.
 func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Op, error) {
 	var op Op
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT `+cols+` FROM _sys_operations WHERE id = ?`, id)
 		if err != nil {
 			return err
@@ -303,7 +303,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, createdBy string
 		limit = 50
 	}
 	out := []Op{}
-	err := l.Read(ctx, func(q sqlitex.Querier) error {
+	err := l.Read(ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(ctx, `SELECT `+cols+` FROM _sys_operations WHERE ?1 = '' OR created_by = ?1 ORDER BY created_at DESC, id DESC LIMIT ?2`, createdBy, limit)
 		if err != nil {
 			return err
@@ -321,7 +321,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, createdBy string
 	return out, err
 }
 
-func scan(rows *sqlitex.Rows) (Op, error) {
+func scan(rows dbx.Rows) (Op, error) {
 	var op Op
 	var result, code, msg, finished *string
 	var created string
@@ -337,9 +337,9 @@ func scan(rows *sqlitex.Rows) (Op, error) {
 	if msg != nil {
 		op.ErrorMessage = *msg
 	}
-	op.CreatedAt, _ = sqlitex.ParseTime(created)
+	op.CreatedAt, _ = dbx.ParseTime(created)
 	if finished != nil {
-		if t, err := sqlitex.ParseTime(*finished); err == nil {
+		if t, err := dbx.ParseTime(*finished); err == nil {
 			op.FinishedAt = &t
 		}
 	}
@@ -384,7 +384,7 @@ func (s *Service) Reconcile(ctx context.Context, l *workspace.Lease) error {
 		}
 	}
 	s.mu.Unlock()
-	return l.Write(ctx, workspace.Background, func(tx *sqlitex.Tx) error {
+	return l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT id FROM _sys_operations WHERE status IN ('queued','running')`)
 		if err != nil {
 			return err
@@ -411,7 +411,7 @@ func (s *Service) Reconcile(ctx context.Context, l *workspace.Lease) error {
 		}
 		for _, id := range stale {
 			if _, err := tx.Exec(ctx, `UPDATE _sys_operations SET status = 'failed', error_code = 'INTERRUPTED',
-				error_message = 'The server stopped while this operation was running.', finished_at = ? WHERE id = ?`, sqlitex.Now(), id); err != nil {
+				error_message = 'The server stopped while this operation was running.', finished_at = ? WHERE id = ?`, dbx.Now(), id); err != nil {
 				return err
 			}
 		}

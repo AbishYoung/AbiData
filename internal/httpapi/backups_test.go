@@ -7,9 +7,9 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"abidata/internal/dbx"
 	"abidata/internal/docsrv"
 	"abidata/internal/ids"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -25,7 +25,7 @@ func TestBackupRoutes(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer l.Release()
-		if err := l.Write(ctx, workspace.Interactive, func(tx *sqlitex.Tx) error { _, err := tx.Exec(ctx, sql); return err }); err != nil {
+		if err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error { _, err := tx.Exec(ctx, sql); return err }); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -36,7 +36,7 @@ func TestBackupRoutes(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer l.Release()
-		if err := l.Read(ctx, func(q sqlitex.Querier) error { return q.QueryRow(ctx, `SELECT count(*) FROM t`).Scan(&n) }); err != nil {
+		if err := l.Read(ctx, func(q dbx.Querier) error { return q.QueryRow(ctx, `SELECT count(*) FROM t`).Scan(&n) }); err != nil {
 			t.Fatal(err)
 		}
 		return n

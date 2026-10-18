@@ -11,6 +11,7 @@ import (
 
 	"github.com/ncruces/go-sqlite3"
 
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlgen"
@@ -41,7 +42,7 @@ type ApplyOptions struct {
 
 // Validator inspects the changed schema inside the transaction (saved queries,
 // forms, reports, Lua references) and returns breaking issues and warnings.
-type Validator func(ctx context.Context, tx *sqlitex.Tx, s *Schema) (breaking, warnings []Issue, err error)
+type Validator func(ctx context.Context, tx dbx.Tx, s *Schema) (breaking, warnings []Issue, err error)
 
 // Engine runs schema changes (D3). Hooks are optional.
 type Engine struct {
@@ -79,7 +80,7 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 	var report ImpactReport
 	var final *Schema
 	err := l.WriteWith(ctx, workspace.Interactive, workspace.WriteOptions{ForeignKeysOff: true, Setup: registerConvertFuncs},
-		func(tx *sqlitex.Tx) error {
+		func(tx dbx.Tx) error {
 			report = ImpactReport{RestorePointRequired: destructive}
 			s, err := Load(ctx, tx)
 			if err != nil {
@@ -181,7 +182,7 @@ func opError(i int, op Op, err error) error {
 
 type planner struct {
 	ctx        context.Context
-	tx         *sqlitex.Tx
+	tx         dbx.Tx
 	s          *Schema
 	report     *ImpactReport
 	now        func() time.Time
@@ -378,7 +379,7 @@ func (p *planner) createTable(op Op) error {
 	if err := p.validateTableExprs(tp); err != nil {
 		return err
 	}
-	now := sqlitex.FormatTime(p.now())
+	now := dbx.FormatTime(p.now())
 	if err := p.exec(`INSERT INTO _sys_tables(id, physical_name, display_name, description, track_history, version, created_at, updated_at)
 		VALUES (?,?,?,?,?,1,?,?)`, tp.ID, tp.PhysicalName, tp.DisplayName, tp.Description, tp.TrackHistory, now, now); err != nil {
 		return err
@@ -699,7 +700,7 @@ func (p *planner) validateTableExprs(t *Table) error {
 			if ch.expr == "" {
 				continue
 			}
-			if err := ValidateExpr(p.ctx, p.tx.Conn, ch.kind, t.PhysicalName, ch.expr); err != nil {
+			if err := ValidateExpr(p.ctx, p.tx, ch.kind, t.PhysicalName, ch.expr); err != nil {
 				return badf("Field %q: %s", c.DisplayName, fault.Classify(err).DisplayMessage())
 			}
 		}
@@ -1304,7 +1305,7 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 				total-res.Changes, after.DisplayName, strings.Join(ids, ", "))})
 	}
 	var seq *int64
-	if err := p.tx.QueryRow(p.ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, before.PhysicalName).Scan(&seq); err != nil && !sqlitex.IsNoRows(err) {
+	if err := p.tx.QueryRow(p.ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, before.PhysicalName).Scan(&seq); err != nil && !dbx.IsNoRows(err) {
 		return err
 	}
 	if err := p.execStmt(&sqlgen.DropTable{Name: before.PhysicalName}); err != nil {
@@ -1504,7 +1505,7 @@ func (p *planner) checkObjects(validators []Validator) error {
 func issueKey(i Issue) string { return i.Kind + "|" + i.Object + "|" + i.ID }
 
 // baselineBreakage returns the objects that are already broken in schema s, before any change.
-func baselineBreakage(ctx context.Context, tx *sqlitex.Tx, s *Schema, validators []Validator) (map[string]bool, error) {
+func baselineBreakage(ctx context.Context, tx dbx.Tx, s *Schema, validators []Validator) (map[string]bool, error) {
 	bp := &planner{ctx: ctx, tx: tx, s: s, report: &ImpactReport{}}
 	if err := bp.checkObjects(validators); err != nil {
 		return nil, err
@@ -1564,7 +1565,7 @@ func (p *planner) checkSavedQueries() error {
 		if flagged[x.id] {
 			continue
 		}
-		if _, err := p.tx.Prepare(p.ctx, x.sql); err != nil {
+		if _, err := p.tx.(dbx.Preparer).Prepare(p.ctx, x.sql); err != nil {
 			p.report.Breaking = append(p.report.Breaking, Issue{Kind: "query_invalid", Object: "query", ID: x.id,
 				Message: fmt.Sprintf("Saved query %q would stop working: %s", x.name, sqliteMessage(err))})
 		}
@@ -1573,7 +1574,7 @@ func (p *planner) checkSavedQueries() error {
 }
 
 func (p *planner) finish(ops []Op) error {
-	now := sqlitex.FormatTime(p.now())
+	now := dbx.FormatTime(p.now())
 	for id := range p.touched {
 		if err := p.exec(`UPDATE _sys_tables SET version = version + 1, updated_at = ? WHERE id = ?`, now, id); err != nil {
 			return err
