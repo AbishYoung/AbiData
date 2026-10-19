@@ -79,7 +79,9 @@ type Deps struct {
 	// action; nil: that route answers NOT_FOUND.
 	Demo DemoProvisioner
 	// Blogs gives each user a blog workspace (ADR 0017); nil: users get none.
-	Blogs   *blogs.Provisioner
+	Blogs *blogs.Provisioner
+	// BlogAPI is the blog authoring API; nil: those routes answer NOT_FOUND.
+	BlogAPI *blogs.Service
 	Version string
 	SPA     fs.FS // contents of web/dist; nil serves nothing
 }
@@ -155,6 +157,7 @@ func New(deps Deps) *Server {
 	s.registerFiles(api)
 	s.registerAPIKeys(api)
 	s.registerApps(api)
+	s.registerBlog(api)
 	s.registerDocs(api)
 
 	r.NotFound(s.notFound)

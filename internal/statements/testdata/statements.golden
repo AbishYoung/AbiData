@@ -77,6 +77,7 @@ backup.prepare	workspace	portable
 backup.prepare#2	workspace	sqlite	journal_mode
 backup.snapshot	workspace	sqlite	
 blogs.ReadPins	workspace	portable	value
+blogs.lastEdited	workspace	portable	row_id,max(at)
 blogs.writePins	workspace	portable	
 catalog.Cache.Get	workspace	portable	value
 catalog.Load	workspace	variant	id,physical_name,display_name,description,track_history,version
