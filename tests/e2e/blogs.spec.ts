@@ -76,7 +76,7 @@ test("the blog is switched on in settings and opens as a workspace", async ({ pa
   await signInAsBlogger(page);
   await page.goto("/blog");
   await page.getByRole("navigation", { name: "Blog" }).getByRole("link", { name: "Settings" }).click();
-  // Public blogs are off on this server until phase 4's install switch is turned on.
+  // Public blogs are off on a new server until an administrator turns them on.
   await expect(page.getByText(/Public blogs are turned off on this server/)).toBeVisible();
   await page.getByRole("switch", { name: "Blog is published" }).click();
   await page.getByRole("alertdialog", { name: "Turn your blog on?" }).getByRole("button", { name: "Turn on" }).click();
@@ -88,4 +88,43 @@ test("the blog is switched on in settings and opens as a workspace", async ({ pa
   await expect(page.getByText("This is your blog's workspace.")).toBeVisible();
   await page.getByRole("link", { name: "blog editor" }).click();
   await expect(page.getByRole("link", { name: TITLE })).toBeVisible();
+});
+
+async function setPublicBlogs(page: Page, enabled: boolean): Promise<void> {
+  const me: { csrf_token: string } = await (await page.request.get("/api/v1/auth/me")).json();
+  const res = await page.request.put("/api/v1/admin/settings/public-blogs", {
+    data: { enabled },
+    headers: { "X-CSRF-Token": me.csrf_token, Origin: new URL(page.url()).origin },
+  });
+  expect(res.ok(), await res.text()).toBeTruthy();
+}
+
+test("the published post is public once the server allows blogs", async ({ page, browser, baseURL }) => {
+  await signInAsBlogger(page);
+  const me: { user: { username: string } } = await (await page.request.get("/api/v1/auth/me")).json();
+  const address = `/b/${me.user.username}/hello-from-${RUN}`;
+  // A stranger sees nothing until an administrator turns public blogs on.
+  const stranger = await browser.newContext({ baseURL: baseURL ?? "" });
+  const visitor = await stranger.newPage();
+  expect((await visitor.goto(address))?.status()).toBe(404);
+
+  const adminContext = await browser.newContext({ baseURL: baseURL ?? "" });
+  const admin = await adminContext.newPage();
+  await signIn(admin);
+  await setPublicBlogs(admin, true);
+  try {
+    const res = await visitor.goto(address);
+    expect(res?.status()).toBe(200);
+    expect(res?.headers()["content-security-policy"]).toContain("default-src 'none'");
+    await expect(visitor.getByRole("heading", { level: 1, name: TITLE })).toBeVisible();
+    await expect(visitor.locator("strong")).toHaveText("bold");
+    await expect(visitor.locator("script")).toHaveCount(0);
+    await expectNoAxeViolations(visitor);
+    await visitor.getByRole("link", { name: /More from/ }).click();
+    await expect(visitor.getByRole("link", { name: TITLE })).toBeVisible();
+  } finally {
+    await setPublicBlogs(admin, false);
+    await adminContext.close();
+    await stranger.close();
+  }
 });
