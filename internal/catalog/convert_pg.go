@@ -51,7 +51,7 @@ func (p *planner) pgConvert(t *Table, old, nc Column) error {
 			rows.Close()
 			return fmt.Errorf("catalog: %s.id is %T", t.PhysicalName, v[0])
 		}
-		vals = append(vals, value{id, storageForm(old.Type, v[1])})
+		vals = append(vals, value{id, StorageForm(old.Type, v[1])})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -126,9 +126,10 @@ func (c *pgConversion) expr(src string) sqlgen.Expr {
 		` c WHERE c.id = ` + Quote(src) + `."id")`}
 }
 
-// storageForm turns a value as pgx reads it into the form SQLite stores and
-// ConvertValue takes: 0/1 for yes_no, text for dates and times.
-func storageForm(t FieldType, v any) any {
+// StorageForm turns a value as pgx reads it into the form SQLite stores, which
+// ConvertValue and the records codec take: 0/1 for yes_no, text for dates and
+// times, JSON text for jsonb. Values SQLite returns pass through unchanged.
+func StorageForm(t FieldType, v any) any {
 	switch x := v.(type) {
 	case bool:
 		if x {

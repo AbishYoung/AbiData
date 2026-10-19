@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"abidata/internal/dbx"
+	"abidata/internal/pgdb"
 )
 
 // Load reads the full catalog snapshot.
@@ -19,7 +20,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 	}
 	s.Version, _ = strconv.ParseInt(ver, 10, 64)
 
-	rows, err := q.Query(ctx, sqlLoad.For(dialectOf(q)))
+	rows, err := q.Query(ctx, sqlLoad.For(pgdb.DialectOf(q)))
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func Load(ctx context.Context, q dbx.Querier) (*Schema, error) {
 		return nil, err
 	}
 
-	rows, err = q.Query(ctx, sqlLoad4.For(dialectOf(q)))
+	rows, err = q.Query(ctx, sqlLoad4.For(pgdb.DialectOf(q)))
 	if err != nil {
 		return nil, err
 	}

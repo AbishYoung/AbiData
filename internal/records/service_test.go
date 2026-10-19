@@ -10,8 +10,8 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
-	"abidata/internal/ids"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type capture struct {
@@ -43,14 +43,9 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	m, err := workspace.NewManager(workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := ids.NewWorkspaceID()
-	if err := m.Create(ctx, id); err != nil {
-		t.Fatal(err)
-	}
+	w := wstest.New(t)
+	m := w.Manager
+	id := w.Create(t)
 	l, err := m.Acquire(ctx, id)
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +136,7 @@ func TestOCCConcurrentUpdates(t *testing.T) {
 	}
 	// A raw UPDATE without a version bump still increments _version (safety-net trigger).
 	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
-		_, err := tx.Exec(e.ctx, `UPDATE Customers SET Name = 'raw' WHERE id = ?`, r.ID)
+		_, err := tx.Exec(e.ctx, `UPDATE "Customers" SET "Name" = 'raw' WHERE id = ?`, r.ID)
 		return err
 	}); err != nil {
 		t.Fatal(err)

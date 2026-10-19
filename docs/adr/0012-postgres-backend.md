@@ -352,6 +352,16 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **Conversions.** SQLite converts in the rebuild's copy through Go functions registered on the connection. PostgreSQL has no such functions, so the same Go rules (`catalog.ConvertValue`) run over every row's old value, read in SQLite's storage forms (0/1, text dates). The results wait in a temporary table dropped at commit, and the copy casts them into the new column. Both backends therefore report the same failures and samples, and unconvertible values become empty, or No for yes/no.
 - **Statement caching.** pgx caches prepared statements per connection, by their text. A cached statement fails once its result types change ("cached plan must not change result type"): after a column changes type, or when the same text runs in another workspace's schema on a pooled connection. Workspace transactions therefore key their statements with a comment naming the schema and a per-workspace schema version (`pgdb.DB.Keyed`). A write marked `WriteOptions.SchemaChange`, as every catalog change is, prepares nothing and bumps the version.
 
+**Phase 3, part 5 (as built): records.**
+
+- **Dialect.** The records service renders its statements for the lease's dialect, or for the transaction it is given (`pgdb.DialectOf`).
+- **Values.** The codec keeps working on SQLite's storage forms.
+  - Reads pass through `catalog.StorageForm`, which turns PostgreSQL's booleans, dates, times and jsonb into 0/1, text and JSON text.
+  - Attachments and geo columns are read through `abi_json_min`, so their text is SQLite's compact form rather than a re-encoded Go map.
+  - Writes and filter values bind yes/no as boolean. Dates, times and JSON go as text, which the server parses for the column's type.
+- **Errors.** `fault.Classify` maps PostgreSQL's SQLSTATEs to the same codes and details as SQLite's errors: unique (the columns, from the error detail), foreign key and restrict, check (the constraint name), not null (the column), lock and serialization failures, cancellation, privileges and data exceptions. The records layer's messages are therefore the same on both.
+- **Tests.** `internal/workspace/wstest` opens a manager on the backend `ABIDATA_TEST_DB` selects. The records suite runs on both backends, including a test of every field type through inserts, filters, sorting and error messages.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):
