@@ -12,6 +12,7 @@ import (
 // capped. (Workspace names stay platform-unique, so a conflict still tells an
 // owner a name is taken: accepted, see ADR 0012.)
 func TestSecReview_OwnerCreatesUnlimitedWorkspacesViaRestoreAsNew(t *testing.T) {
+	backupsOnSQLite(t)
 	e := newEnv(t)
 	ws, _, owner, _, _, _ := roles(t, e)
 	base := "/api/v1/w/" + ws + "/backups"
@@ -34,6 +35,7 @@ func TestSecReview_OwnerCreatesUnlimitedWorkspacesViaRestoreAsNew(t *testing.T) 
 }
 
 func TestDeleteManualBackup(t *testing.T) {
+	backupsOnSQLite(t)
 	e := newEnv(t)
 	ws, _, owner, b, _, _ := roles(t, e)
 	base := "/api/v1/w/" + ws + "/backups"

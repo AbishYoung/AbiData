@@ -14,6 +14,7 @@ import (
 )
 
 func TestBackupRoutes(t *testing.T) {
+	backupsOnSQLite(t)
 	e := newEnv(t)
 	ws, root, o, b, _, _ := roles(t, e)
 	ctx := context.Background()

@@ -98,7 +98,8 @@ func readPosts(ctx context.Context, db dbx.Querier, s *catalog.Schema, pins Pins
 	var out []Post
 	for rows.Next() {
 		var p Post
-		var title, slug, summary, status, published, body *string
+		var title, slug, summary, status, body *string
+		var published any // RFC 3339 text on SQLite, a time on PostgreSQL
 		var size *int64
 		dest := []any{&p.ID, &p.Version, &title, &slug, &summary, &status, &published, &size}
 		if q.withBody {
@@ -111,8 +112,12 @@ func readPosts(ctx context.Context, db dbx.Querier, s *catalog.Schema, pins Pins
 		if size != nil {
 			p.BodyBytes = *size
 		}
-		if published != nil {
-			if t, err := dbx.ParseTime(*published); err == nil {
+		switch v := published.(type) {
+		case time.Time:
+			t := v.UTC()
+			p.PublishedAt = &t
+		case string:
+			if t, err := dbx.ParseTime(v); err == nil {
 				p.PublishedAt = &t
 			}
 		}

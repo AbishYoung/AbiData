@@ -404,6 +404,12 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **SQLite idioms in typed SQL.** `<prefix>_lib` overloads `substr` for dates and times, and `round(double precision, integer)`, answering as SQLite does. pg_catalog has no such signatures, so no builtin call changes meaning. Comparing yes/no with 0 or 1 still fails on PostgreSQL. `NOT "Flag"` and `"Flag"` are the portable spellings.
 - **Cleanup.** `pgtest` drops every role under the test's prefix, including those of workspaces a test did not create itself.
 
+**Phase 3, part 10 (as built): the HTTP API.**
+
+- **The httpapi suite** runs on both backends (`wstest.NewWith` takes the server's manager settings). Backup and restore tests skip on PostgreSQL: they are Phase 4.
+- **Found and fixed:** publishing a blog post scanned `published_at` into a string. PostgreSQL returns it as a time.
+- **Not yet on PostgreSQL:** the size quota (`MaxPageCount` is SQLite's), and the blogs package's own tests.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):
