@@ -176,6 +176,15 @@ func pgOIDType(oid uint32) string {
 // read-only check does. User SQL runs as a subquery, where an INSERT or a
 // DELETE would only be a syntax error.
 func pgReadsOnly(sql string) error {
+	if StartsAsQuery(sql) {
+		return nil
+	}
+	return fault.New(fault.SQLNotAllowed, "Only statements that read data are allowed here.")
+}
+
+// StartsAsQuery reports whether sql's first keyword, past comments and
+// parentheses, starts a query: SELECT, WITH, VALUES or TABLE.
+func StartsAsQuery(sql string) bool {
 	s := sql
 	for {
 		s = strings.TrimLeft(s, " \t\r\n(")
@@ -201,9 +210,9 @@ func pgReadsOnly(sql string) error {
 	}
 	switch strings.ToUpper(s[:end]) {
 	case "SELECT", "WITH", "VALUES", "TABLE", "":
-		return nil
+		return true
 	}
-	return fault.New(fault.SQLNotAllowed, "Only statements that read data are allowed here.")
+	return false
 }
 
 // PostgresError turns the server's errors on user SQL into what wrapAuth gives

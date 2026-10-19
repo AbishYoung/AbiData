@@ -9,7 +9,6 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
-	"abidata/internal/ids"
 	"abidata/internal/records"
 	"abidata/internal/script"
 	"abidata/internal/script/host"
@@ -17,6 +16,7 @@ import (
 	_ "abidata/internal/script/modules/decimal" // as in production: currency values are decimals, not strings
 	_ "abidata/internal/script/modules/records"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type fx struct {
@@ -29,19 +29,12 @@ type fx struct {
 func setup(t *testing.T) *fx {
 	t.Helper()
 	ctx := context.Background()
-	m, err := workspace.NewManager(workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate})
+	w := wstest.New(t)
+	l, err := w.Acquire(ctx, w.Create(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := ids.NewWorkspaceID()
-	if err := m.Create(ctx, id); err != nil {
-		t.Fatal(err)
-	}
-	l, err := m.Acquire(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { l.Release(); _ = m.Shutdown(ctx) })
+	t.Cleanup(l.Release)
 	e := &catalog.Engine{}
 	if _, err := e.Run(ctx, l, []catalog.Op{{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: "Items", TrackHistory: true,
 		Columns: []catalog.ColumnSpec{
@@ -67,6 +60,15 @@ func (f *fx) run(t *testing.T, kind script.Context, src string) ([]any, error) {
 	return res.Values, err
 }
 
+// sqliteOnly skips a test written in SQLite's SQL: unquoted names, which
+// PostgreSQL folds to lower case, and the authorizer's refusals.
+func sqliteOnly(t *testing.T) {
+	t.Helper()
+	if wstest.Postgres() {
+		t.Skip("SQLite SQL; portable_test.go covers PostgreSQL")
+	}
+}
+
 func code(err error) fault.Code {
 	var fe *fault.Error
 	if errors.As(err, &fe) {
@@ -80,6 +82,7 @@ func code(err error) fault.Code {
 }
 
 func TestDBQueryExecNullAndBigInts(t *testing.T) {
+	sqliteOnly(t)
 	f := setup(t)
 	vals, err := f.run(t, script.UIEvent, `
 		local r = db.exec("INSERT INTO Items(Name, Qty, Note) VALUES (:n, :q, :note)", {n = "a", q = 2, note = db.NULL})
@@ -94,6 +97,7 @@ func TestDBQueryExecNullAndBigInts(t *testing.T) {
 }
 
 func TestDBDenials(t *testing.T) {
+	sqliteOnly(t)
 	f := setup(t)
 	for _, src := range []string{
 		`db.exec("CREATE TABLE evil(x)")`,
@@ -119,6 +123,7 @@ func TestDBDenials(t *testing.T) {
 }
 
 func TestTransactionAtomicAndBudget(t *testing.T) {
+	sqliteOnly(t)
 	f := setup(t)
 	_, err := f.run(t, script.Job, `
 		db.transaction(function()
@@ -189,6 +194,7 @@ func TestRecordsModuleTypedAndErrors(t *testing.T) {
 }
 
 func TestDLookupFamily(t *testing.T) {
+	sqliteOnly(t)
 	f := setup(t)
 	vals, err := f.run(t, script.Job, `
 		for i = 1, 4 do records.insert("Items", {Name = "n" .. i, Qty = i}) end

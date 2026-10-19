@@ -27,12 +27,16 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 RETURN to_timestamp((@lib.abi_dt_parse(t) - 210866760000000) / 1000.0);
 
 -- abi_occ_bump is the optimistic-concurrency safety net (ADR 0012 §4): an
--- UPDATE that leaves "_version" unchanged bumps it.
+-- UPDATE that leaves "_version" unchanged bumps it. Any other change than a
+-- bump by one is refused: the app only ever bumps, and SQLite's authorizer
+-- keeps sandboxed writes (Lua db.exec) from setting it at all.
 CREATE OR REPLACE FUNCTION @lib.abi_occ_bump() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
 	IF NEW."_version" = OLD."_version" THEN
 		NEW."_version" := OLD."_version" + 1;
+	ELSIF NEW."_version" IS DISTINCT FROM OLD."_version" + 1 THEN
+		RAISE EXCEPTION '_version is managed by the system' USING ERRCODE = 'insufficient_privilege';
 	END IF;
 	RETURN NEW;
 END $$;

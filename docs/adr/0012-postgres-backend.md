@@ -380,6 +380,17 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **NULL order.** Generated SQL on PostgreSQL now states SQLite's NULL order wherever the sort leaves it unset (`sqlgen.NullsDefault`), as ADR 0013 §9 requires. That covers the datasheet, visual queries and everything else built through sqlgen. Before, NULLs sorted last ascending there.
 - **Fix.** `DescribeIn` binds NULL for each parameter when it plans, so SQL with parameters can be checked.
 
+**Phase 3, part 8 (as built): Lua `db`.**
+
+- **Reads.** `db.query`, `query_one`, `query_value` and `iter` run in the read sandbox, as console SQL does. `db.lookup` and its family run there too.
+- **Writes.** `db.exec` runs on the `_sqlw` login as the write role (`Sandbox.Exec`), inside `Lease.Write`, so it holds the writer lock and is serialised with every other write. It commits on its own.
+  - Only INSERT, UPDATE and DELETE are kept; anything else is rolled back.
+  - `last_id` is `lastval()`, so the write role has USAGE on each table's identity sequence. That lets it call `nextval`, which can only skip IDs.
+- **`_version`.** `abi_occ_bump` now refuses any change to `_version` other than a bump by one: the app only ever bumps. SQLite's authorizer refuses `SET "_version" = …` outright. PostgreSQL cannot tell a no-op assignment from leaving the column alone, so it bumps it, as any update does.
+- **Inside `db.transaction`.** The sandbox logins cannot join the transaction, and user SQL must not run on the app's login (§3). So only generated SQL runs there: `records.*`, and `db.lookup` and its family without a WHERE fragment, as the read role. SQL text, including WHERE fragments, is refused with SQL_NOT_ALLOWED. A WHERE fragment is vetted only lexically (`catalog.CheckExprAllowParams`); SQLite's authorizer does the rest. On PostgreSQL it is therefore user SQL, and `set_config` would pass the check.
+- **Dialect.** Raw SQL is the backend's own dialect. Unquoted names fold to lower case on PostgreSQL, so scripts written for SQLite with unquoted mixed-case names need their names quoted (§8 import report). ADR 0013 §8's builder is the portable path, and the next part.
+- **Tests.** A portable suite (quoted SQL) runs on both backends: query, exec, iter, lookups, denials (including the escalations of spike finding 1 on PostgreSQL) and transactions. The SQLite-dialect suites stay SQLite only.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

@@ -6,7 +6,7 @@ import "abidata/internal/sqlgen"
 // conformance test prepares each against the migrated schema.
 var (
 	sqlUpload  = sqlgen.Register("files.Upload", `SELECT EXISTS (SELECT 1 FROM _sys_files WHERE sha256 = ?)`)
-	sqlUpload2 = sqlgen.Register("files.Upload#2", `SELECT COALESCE(SUM(size), 0) FROM (SELECT size FROM _sys_files GROUP BY sha256)`)
+	sqlUpload2 = sqlgen.Register("files.Upload#2", `SELECT COALESCE(SUM(size), 0) FROM (SELECT MAX(size) AS size FROM _sys_files GROUP BY sha256) AS blobs`)
 	sqlUpload3 = sqlgen.Register("files.Upload#3", `INSERT INTO _sys_files(id, sha256, size, name, content_type, width, height, created_at, created_by, state)
 			VALUES (?,?,?,?,?,?,?,?,?, 'pending')`)
 	sqlUsage      = sqlgen.Register("files.Usage", `SELECT count(*) FROM _sys_files`)

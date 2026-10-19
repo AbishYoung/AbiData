@@ -233,6 +233,24 @@ func (l *Lease) UserQuery(ctx context.Context, sql string, args []any, lim pgdb.
 	return l.m.pg().Sandbox.Query(ctx, l.m.Names(l.h.id), sql, args, lim)
 }
 
+// UserExec runs one INSERT, UPDATE or DELETE typed by a person (Lua
+// db.exec), as the workspace's write role on its own login (ADR 0012 §3). It
+// holds the workspace's writer lock while it runs, so it is serialised with
+// every other write, but it commits on its own: it cannot join a write
+// transaction.
+func (l *Lease) UserExec(ctx context.Context, p Priority, sql string, args []any, timeout time.Duration) (pgdb.ExecResult, error) {
+	if l.m.pg() == nil {
+		return pgdb.ExecResult{}, errors.New("workspace: UserExec is for PostgreSQL workspaces")
+	}
+	var res pgdb.ExecResult
+	err := l.Write(ctx, p, func(dbx.Tx) error {
+		var err error
+		res, err = l.m.pg().Sandbox.Exec(ctx, l.m.Names(l.h.id), sql, args, timeout)
+		return err
+	})
+	return res, err
+}
+
 // DescribeUserQuery checks a statement typed by a person as UserQuery would
 // run it, without running it, and returns its columns.
 func (l *Lease) DescribeUserQuery(ctx context.Context, sql string) ([]string, []pgdb.Origin, error) {
