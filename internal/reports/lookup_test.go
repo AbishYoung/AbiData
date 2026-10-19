@@ -8,7 +8,6 @@ import (
 
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
-	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
 
@@ -30,8 +29,8 @@ func TestLookupGroupShowsDisplayTextAndCountIsNotMoney(t *testing.T) {
 		{DisplayName: "Amount", Type: catalog.Currency}}}}}, catalog.Apply, catalog.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	f.f2seed(t, `INSERT INTO Reps(Name) VALUES ('Zed'), ('amy');
-		INSERT INTO Deals(Rep, Amount) VALUES (1, 100000), (2, 50000), (1, 25000), (NULL, 10000)`)
+	f.f2seed(t, `INSERT INTO "Reps"("Name") VALUES ('Zed'), ('amy')`,
+		`INSERT INTO "Deals"("Rep", "Amount") VALUES (1, 100000), (2, 50000), (1, 25000), (NULL, 10000)`)
 	sch, _ = f.svc.Schemas.Get(ctx, f.l)
 	deals, _ := sch.TableByPhysical("Deals")
 
@@ -73,9 +72,16 @@ func TestLookupGroupShowsDisplayTextAndCountIsNotMoney(t *testing.T) {
 	}
 }
 
-func (f *fx) f2seed(t *testing.T, sql string) {
+func (f *fx) f2seed(t *testing.T, stmts ...string) {
 	t.Helper()
-	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error { return tx.(*sqlitex.Tx).ExecScript(f.ctx, sql) }); err != nil {
+	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		for _, s := range stmts {
+			if _, err := tx.Exec(f.ctx, s); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
 }

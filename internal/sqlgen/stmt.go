@@ -52,8 +52,10 @@ type Column struct {
 	As   string
 }
 
-// Nulls places NULLs in an ordering. NullsDefault leaves it to the database,
-// which differs between dialects (ADR 0013 §9).
+// Nulls places NULLs in an ordering. NullsDefault is SQLite's order, NULL
+// as the smallest value: first ascending, last descending. SQLite needs no
+// clause for it; PostgreSQL, which puts NULL last ascending, gets one stated
+// (ADR 0013 §9).
 type Nulls int
 
 const (

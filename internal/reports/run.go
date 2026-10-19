@@ -22,6 +22,7 @@ import (
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	recmod "abidata/internal/script/modules/records"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -349,19 +350,29 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 	}
 	// order returns the ORDER BY terms for a column. A lookup sorts by its display text and then by
 	// ID, so parents that share a name stay apart.
+	pg := in.Lease.Dialect() != sqlgen.SQLite
+	ci := " COLLATE NOCASE"
+	if pg {
+		ci = ` COLLATE "abi_ci"`
+	}
 	order := func(colID string, desc bool, nocase bool) []string {
 		var terms []string
 		if expr, ok := keyExpr[displayKey(colID)]; ok {
-			terms = append(terms, expr+" COLLATE NOCASE")
+			terms = append(terms, expr+ci)
 		}
 		k := keyExpr[colID]
 		if nocase && textKey[colID] {
-			k += " COLLATE NOCASE"
+			k += ci
 		}
 		terms = append(terms, k)
-		if desc {
-			for i := range terms {
+		for i := range terms {
+			switch {
+			case desc && pg:
+				terms[i] += " DESC NULLS LAST" // SQLite sorts NULL as the smallest value
+			case desc:
 				terms[i] += " DESC"
+			case pg:
+				terms[i] += " NULLS FIRST"
 			}
 		}
 		return terms
@@ -386,6 +397,10 @@ func (s *Service) fetch(ctx context.Context, in RunInput) ([]field, []*row, erro
 		sqlText += " ORDER BY " + strings.Join(orderKeys, ", ")
 	}
 	sqlText += fmt.Sprintf(" LIMIT %d", MaxRows+1)
+	if pg {
+		rows, err := pgSource(ctx, in.Lease, sqlText, args, fields)
+		return fields, rows, err
+	}
 	var rows []*row
 	var denial query.Denial
 	err := in.Lease.ReadConn(ctx, func(c *sqlitex.Conn) error {

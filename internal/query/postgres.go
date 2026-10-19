@@ -37,7 +37,7 @@ func pgDescribe(ctx context.Context, q dbx.Querier, sql string) ([]string, error
 	}
 	cols, _, err := pgdb.DescribeIn(ctx, tx, pgdb.ReadRoleOf(schema), sql)
 	if err != nil {
-		return nil, pgUserErr(err)
+		return nil, PostgresError(err)
 	}
 	return cols, nil
 }
@@ -57,7 +57,7 @@ func runPG(ctx context.Context, l *workspace.Lease, sch *catalog.Schema, hints [
 	}
 	r, err := l.UserQuery(ctx, sql, args, pgdb.Limits{Timeout: MaxDuration, MaxRows: maxRows})
 	if err != nil {
-		return Result{}, pgUserErr(err)
+		return Result{}, PostgresError(err)
 	}
 	res := Result{Columns: r.Columns, Types: make([]string, len(r.Columns)), Rows: [][]any{}, Truncated: r.Truncated}
 	origin, err := pgOriginTypes(ctx, l, sch, r.Origins)
@@ -206,10 +206,10 @@ func pgReadsOnly(sql string) error {
 	return fault.New(fault.SQLNotAllowed, "Only statements that read data are allowed here.")
 }
 
-// pgUserErr turns the server's errors on user SQL into what wrapAuth gives
+// PostgresError turns the server's errors on user SQL into what wrapAuth gives
 // on SQLite: SQL_NOT_ALLOWED for what the roles forbid, BAD_REQUEST with the
 // server's message for mistakes in the SQL.
-func pgUserErr(err error) error {
+func PostgresError(err error) error {
 	if errors.Is(err, pgdb.ErrMultipleStatements) {
 		return fault.New(fault.SQLNotAllowed, "Only one statement can run at a time.")
 	}

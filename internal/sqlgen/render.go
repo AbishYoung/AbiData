@@ -215,7 +215,14 @@ func (r *renderer) order(o Order) {
 	} else {
 		r.w(" ASC")
 	}
-	switch o.Nulls {
+	nulls := o.Nulls
+	if nulls == NullsDefault && r.pg() {
+		nulls = NullsFirst
+		if o.Desc {
+			nulls = NullsLast
+		}
+	}
+	switch nulls {
 	case NullsFirst:
 		r.w(" NULLS FIRST")
 	case NullsLast:

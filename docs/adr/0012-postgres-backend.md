@@ -366,10 +366,19 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 
 - **Running.** Console SQL and saved queries run in the sandbox (`Lease.UserQuery`): the workspace's `_sqlr` login, a READ ONLY transaction, a cursor and the row and time limits. Result columns are typed from the columns they read, as SQLite's column origins type them, then by the server's types.
 - **Checks.** Saving a query or changing the schema checks SQL without running it (`pgdb.DescribeIn`): inside the caller's transaction, as the read role, the SQL is prepared and planned with `EXPLAIN (GENERIC_PLAN)`. Preparing alone checks no privileges.
+  - This is the one place user-typed SQL reaches the app's login, which §3 otherwise forbids, because a schema change must be checked against its own uncommitted DDL. It is safe because the SQL is only prepared and planned, never run. The planner folds only immutable and stable functions, and none of those runs SQL text or sets the role. In `<prefix>_lib`, only trigger functions and `abi_copy_rows` (revoked from PUBLIC) run dynamic SQL. New lib functions must keep it that way. `TestDescribeInRunsNothing` tries the escalations of spike finding 1 through a check.
 - **What is refused.** The roles stand in for SQLite's authorizer. System tables and other workspaces are SQL_NOT_ALLOWED (insufficient privilege), as are several statements at once and anything that does not start as a query. Builders' read access to `_sys_*` is not available on PostgreSQL yet.
 - **Visual queries** compile for the lease's dialect. Yes/no criteria are inlined as booleans.
 - **Not yet:** positional `?` parameters in SQL queries (only `:name`), and yes/no parameters given as 0 or 1.
 - **Tests.** A parity test runs the same visual queries and console SQL on a SQLite and a PostgreSQL workspace and compares columns, types and rows.
+
+**Phase 3, part 7 (as built): reports.**
+
+- **Source rows.** A report reads its source rows in the sandbox, as console SQL does, with the report's row and time limits.
+- **Values.** Numeric results (a sum of integers, for example) come back as int64 or float64, as SQLite gives them. Dates and yes/no pass through `catalog.StorageForm`.
+- **Sorting.** Case-insensitive sorts use the `abi_ci` collation. NULLs sort first in ascending order and last in descending order, as on SQLite.
+- **NULL order.** Generated SQL on PostgreSQL now states SQLite's NULL order wherever the sort leaves it unset (`sqlgen.NullsDefault`), as ADR 0013 §9 requires. That covers the datasheet, visual queries and everything else built through sqlgen. Before, NULLs sorted last ascending there.
+- **Fix.** `DescribeIn` binds NULL for each parameter when it plans, so SQL with parameters can be checked.
 
 ## Consequences
 

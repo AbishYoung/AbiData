@@ -10,13 +10,13 @@ import (
 
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
-	"abidata/internal/ids"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type fx struct {
@@ -29,17 +29,12 @@ type fx struct {
 func setup(t *testing.T) *fx {
 	t.Helper()
 	ctx := context.Background()
-	m, err := workspace.NewManager(workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate})
+	w := wstest.New(t)
+	l, err := w.Acquire(ctx, w.Create(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := ids.NewWorkspaceID()
-	_ = m.Create(ctx, id)
-	l, err := m.Acquire(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { l.Release(); _ = m.Shutdown(ctx) })
+	t.Cleanup(l.Release)
 	cache := catalog.NewCache()
 	if _, err := (&catalog.Engine{}).Run(ctx, l, []catalog.Op{{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: "Sales", Columns: []catalog.ColumnSpec{
 		{DisplayName: "Region", Type: catalog.ShortText}, {DisplayName: "Rep", Type: catalog.ShortText},
@@ -61,16 +56,21 @@ func col(t *catalog.Table, phys string) string {
 
 func (f *fx) seed(t *testing.T, rows [][5]string) {
 	t.Helper()
-	if err := f.l.Write(f.ctx, workspace.Interactive, func(tx dbx.Tx) error {
-		for _, r := range rows {
-			if _, err := tx.Exec(f.ctx, `INSERT INTO Sales(Region, Rep, Amount, Qty, Day) VALUES (?, ?, CAST(round(? * 10000) AS INTEGER), ?, ?)`,
-				r[0], r[1], r[2], r[3], r[4]); err != nil {
-				return err
-			}
+	for _, r := range rows {
+		if _, err := f.svc.Records.Insert(f.ctx, f.l, f.sales.ID, map[string]any{
+			col(f.sales, "Region"): r[0], col(f.sales, "Rep"): r[1], col(f.sales, "Amount"): r[2],
+			col(f.sales, "Qty"): json.Number(r[3]), col(f.sales, "Day"): r[4],
+		}, records.Actor{UserID: "u"}, nil); err != nil {
+			t.Fatal(err)
 		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
+	}
+}
+
+// sqliteOnly skips a test whose fixture is written in SQLite's SQL.
+func sqliteOnly(t *testing.T) {
+	t.Helper()
+	if wstest.Postgres() {
+		t.Skip("the fixture is SQLite SQL")
 	}
 }
 
@@ -199,6 +199,7 @@ func TestCalcErrorsAndValidation(t *testing.T) {
 var raceEnabled = false
 
 func TestTenThousandRowsUnderFiveSeconds(t *testing.T) {
+	sqliteOnly(t)
 	if testing.Short() || raceEnabled {
 		t.Skip("timing budget is measured without -race and -short")
 	}
@@ -217,5 +218,40 @@ func TestTenThousandRowsUnderFiveSeconds(t *testing.T) {
 	t.Logf("10k-row report: %d instances, %d KiB NDJSON, %v", len(insts), len(b)>>10, el)
 	if el > 5*time.Second {
 		t.Fatalf("took %v", el)
+	}
+}
+
+// A report on a saved SQL query passes its parameters and prints the query's
+// columns, dates included, the same on both backends.
+func TestQuerySourceWithParameter(t *testing.T) {
+	f := setup(t)
+	f.seed(t, [][5]string{{"North", "Ann", "10", "1", "2026-03-01"}, {"South", "Bob", "20", "2", "2026-03-02"}, {"North", "Cat", "5", "3", "2026-03-03"}})
+	q, err := f.svc.Queries.Put(f.ctx, f.l, "", 0, query.SavedInput{Name: "North", Kind: "sql",
+		SQL: `SELECT "Rep", "Qty", "Day" FROM "Sales" WHERE "Region" = :region`}, "u")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lay := ReportLayout{Width: 600, Bands: Bands{Detail: Band{Height: 20, Controls: []ReportControl{
+		{ID: "rep", Name: "Rep", Type: "textbox", W: 100, H: 20, Bind: &Bind{ColumnID: "Rep"}},
+		{ID: "day", Name: "Day", Type: "textbox", X: 110, W: 100, H: 20, Bind: &Bind{ColumnID: "Day"}},
+	}}}, Sorts: []ReportSort{{ColumnID: "Qty", Desc: true}}}
+	rep, err := f.svc.Put(f.ctx, f.l, "", 0, ReportInput{Name: "N", SourceKind: "query", SourceID: q.ID, ReportLayout: lay,
+		PageSetup: PageSetup{Paper: "letter", Orientation: "portrait", MarginTop: 48, MarginBot: 48, MarginLeft: 48, MarginRight: 48}}, "u")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sch, _ := f.svc.Schemas.Get(f.ctx, f.l)
+	var got []string
+	if err := f.svc.Run(f.ctx, RunInput{Lease: f.l, Schema: sch, Report: rep, Params: query.Params{"region": "North"}, Caller: Caller{TZ: time.UTC},
+		Emit: func(i Instance) error {
+			if i.Band == "detail" {
+				got = append(got, fmt.Sprintf("%v %v", i.Values["rep"], i.Values["day"]))
+			}
+			return nil
+		}}); err != nil {
+		t.Fatal(err)
+	}
+	if g := strings.Join(got, ", "); g != "Cat 2026-03-03, Ann 2026-03-01" {
+		t.Fatalf("got %s", g)
 	}
 }

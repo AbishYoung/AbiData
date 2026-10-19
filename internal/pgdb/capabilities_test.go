@@ -311,3 +311,62 @@ func TestKnownLeakSandboxCanNotify(t *testing.T) {
 		t.Fatalf("pg_notify is denied now; update ADR 0012's findings: %v", err)
 	}
 }
+
+// DescribeIn checks user SQL on the app's own transaction, as the read role,
+// which ADR 0012 §3 otherwise forbids: the escalation of
+// TestSandboxCannotChangeRole would work there. It is safe only because the
+// SQL is prepared and planned, never run: the planner folds immutable and
+// stable functions alone, and nothing that runs SQL text or sets the role is
+// either. The statements below would fail, or escalate, if any of it ran.
+func TestDescribeInRunsNothing(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	var app string
+	if err := Pool(e.app).QueryRow(ctx, `SELECT current_user`).Scan(&app); err != nil {
+		t.Fatal(err)
+	}
+	escalate := `set_config(''role'', ''` + app + `'', true)`
+	for _, sql := range []string{
+		`SELECT * FROM "Orders" WHERE item = query_to_xml('select 1/0', true, false, '')::text`,
+		`SELECT * FROM "Orders" WHERE item > query_to_xml('select 1/0', true, false, '')::text AND id = 1`,
+		`SELECT query_to_xml('select 1/0', true, false, '')`,
+		`SELECT * FROM "Orders" o JOIN generate_series(1, length(query_to_xml('select 1/0', true, false, '')::text)) g ON g = o.id`,
+		`SELECT * FROM "Orders" WHERE item = (SELECT set_config('role', '` + app + `', true))`,
+		`SELECT * FROM "Orders" WHERE item = query_to_xml('select ` + escalate + `', true, false, '')::text`,
+		`SELECT * FROM ts_stat('select to_tsvector(` + escalate + `)')`,
+	} {
+		tx, err := e.app.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wt := WrapTx(tx)
+		if _, err := wt.Exec(ctx, `SET LOCAL search_path = `+ident(e.a.Schema())); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := DescribeIn(ctx, wt, e.a.ReadRole(), sql); err != nil {
+			t.Errorf("%s: %v", sql, err)
+		}
+		var role string
+		if err := wt.QueryRow(ctx, `SELECT current_setting('role')`).Scan(&role); err != nil || role != "none" {
+			t.Errorf("%s: role is %q after the check (%v)", sql, role, err)
+		}
+		_ = tx.Rollback(ctx)
+	}
+	// What the read role may not see is still refused. Immutable expressions
+	// are folded: why no lib function that is immutable or stable may run SQL
+	// text (only triggers and the revoked abi_copy_rows do).
+	for _, sql := range []string{`SELECT * FROM _sys_meta`, `SELECT * FROM ` + ident(e.b.Schema()) + `."Orders"`, `SELECT 1/0`} {
+		tx, err := e.app.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wt := WrapTx(tx)
+		if _, err := wt.Exec(ctx, `SET LOCAL search_path = `+ident(e.a.Schema())); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := DescribeIn(ctx, wt, e.a.ReadRole(), sql); err == nil || !strings.Contains(err.Error(), "permission denied") && !strings.Contains(err.Error(), "division by zero") {
+			t.Errorf("%s: %v", sql, err)
+		}
+		_ = tx.Rollback(ctx)
+	}
+}

@@ -5,7 +5,9 @@ package records
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"abidata/internal/catalog"
@@ -132,6 +134,53 @@ func TestAllTypesFiltersAndErrors(t *testing.T) {
 		_, err := svc.Insert(ctx, l, tb.ID, c.fields, Actor{}, nil)
 		if fe := fault.Classify(err); fe.Code != c.code || fe.DisplayMessage() != c.msg {
 			t.Errorf("%v: %s %q, want %s %q", c.fields, fe.Code, fe.DisplayMessage(), c.code, c.msg)
+		}
+	}
+}
+
+// NULL sorts as the smallest value on both backends: first ascending, last
+// descending (ADR 0013 §9).
+func TestSortPlacesNullsAsSQLite(t *testing.T) {
+	ctx := context.Background()
+	w := wstest.New(t)
+	l, err := w.Acquire(ctx, w.Create(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Release()
+	if _, err := (&catalog.Engine{}).Run(ctx, l, []catalog.Op{{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: "Bins", Columns: []catalog.ColumnSpec{
+		{DisplayName: "Label", Type: catalog.ShortText}, {DisplayName: "Qty", Type: catalog.Integer}}}}}, catalog.Apply, catalog.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	svc := &Service{Schemas: catalog.NewCache()}
+	sch, _ := svc.Schemas.Get(ctx, l)
+	tb, _ := sch.TableByPhysical("Bins")
+	qty, _ := tb.ColumnByPhysical("Qty")
+	label, _ := tb.ColumnByPhysical("Label")
+	for _, f := range []map[string]any{{qty.ID: json.Number("2")}, {label.ID: "b"}, {qty.ID: json.Number("1"), label.ID: "a"}} {
+		if _, err := svc.Insert(ctx, l, tb.ID, f, Actor{UserID: "u"}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []struct {
+		sort []Sort
+		want string
+	}{
+		{[]Sort{{Col: qty.ID}}, "2 3 1"},
+		{[]Sort{{Col: qty.ID, Desc: true}}, "1 3 2"},
+		{[]Sort{{Col: label.ID}}, "1 3 2"},
+		{[]Sort{{Col: label.ID, Desc: true}}, "2 3 1"},
+	} {
+		rows, _, err := svc.List(ctx, l, tb.ID, ListQuery{Sort: c.sort, Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, r := range rows {
+			got = append(got, fmt.Sprint(r.ID))
+		}
+		if g := strings.Join(got, " "); g != c.want {
+			t.Errorf("%+v: got %s, want %s", c.sort, g, c.want)
 		}
 	}
 }
