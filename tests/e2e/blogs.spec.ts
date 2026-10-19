@@ -198,7 +198,7 @@ test("on a phone in dark mode: a cover, the feed, and axe on every blog screen",
 
   // The cover needs alt text, and is saved with the post.
   await page.getByRole("link", { name: TITLE }).click();
-  await page.locator('input[type="file"]').setInputFiles({ name: "cover.png", mimeType: "image/png", buffer: PIXEL });
+  await page.getByRole("group", { name: "Cover image" }).locator('input[type="file"]').setInputFiles({ name: "cover.png", mimeType: "image/png", buffer: PIXEL });
   await expect(page.getByRole("button", { name: "Remove cover" })).toBeVisible();
   await page.getByRole("button", { name: "Update" }).click();
   await expect(page.getByText("Describe the cover image for readers who cannot see it.")).toBeVisible();

@@ -192,6 +192,25 @@ describe("PostEditor", () => {
     const frame = await screen.findByTitle("Preview");
     expect(frame.getAttribute("sandbox")).toBe("allow-same-origin");
   });
+
+  it("uploads an inline image into the body and formats with keyboard shortcuts", async () => {
+    const user = userEvent.setup();
+    api.getPost.mockResolvedValue(post({ body_md: "Hello world" }));
+    uploadFile.mockReturnValue({ promise: Promise.resolve({ id: "01JINLINE00000000000000000", content_type: "image/png" }), abort: vi.fn() });
+    wrap(<PostEditor ws="w1" info={info} id={7} />);
+    const body = await screen.findByLabelText("Body");
+    expect(screen.getByText(/2 words · ~1 min read/)).toBeInTheDocument();
+
+    body.focus();
+    (body as HTMLTextAreaElement).setSelectionRange(0, 5);
+    await user.keyboard("{Control>}b{/Control}");
+    expect(body).toHaveValue("**Hello** world");
+
+    (body as HTMLTextAreaElement).setSelectionRange(15, 15);
+    const inlineInput = screen.getByTestId("inline-image-input");
+    await user.upload(inlineInput, new File(["png"], "chart-q4.png", { type: "image/png" }));
+    await waitFor(() => expect((body as HTMLTextAreaElement).value).toContain("![chart q4](attachment:01JINLINE00000000000000000)"));
+  });
 });
 
 describe("PostList", () => {

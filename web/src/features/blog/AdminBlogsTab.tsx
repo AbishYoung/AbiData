@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search } from "lucide-react";
 import { SkeletonLines } from "@/components/EditorParts";
 import { Badge, Button, Card, Dialog, Field, Input, Select, Textarea } from "@/components/ui";
-import { warningBox } from "@/components/styles";
+import { trHover, warningBox } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { ErrorBox, td, th } from "@/features/admin/ui";
 import { absoluteTime } from "@/features/backups/backupLogic";
@@ -62,10 +63,13 @@ export function AdminBlogsTab() {
         {status}
       </div>
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Search usernames" className="w-64">
-          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Field label="Search usernames" className="w-full sm:w-64">
+          <div className="relative">
+            <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+            <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by @username…" className="pl-8" />
+          </div>
         </Field>
-        <Field label="Show" className="w-48">
+        <Field label="Show" className="w-full sm:w-48">
           <Select value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="">All blogs</option>
             <option value="taken_down">Taken down</option>
@@ -76,7 +80,7 @@ export function AdminBlogsTab() {
       {blogs.isError && <ErrorBox error={blogs.error} onRetry={() => void blogs.refetch()} />}
       {blogs.isPending && <SkeletonLines rows={3} label="Loading blogs…" />}
       {blogs.data && (
-        <div className="scroll-shadow overflow-x-auto rounded-lg border border-border">
+        <div className="scroll-shadow overflow-x-auto rounded-lg border border-border bg-surface">
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">Blogs on this server</caption>
             <thead>
@@ -104,7 +108,7 @@ export function AdminBlogsTab() {
                 </tr>
               )}
               {blogs.data.map((b) => (
-                <tr key={b.id} className="border-t border-border">
+                <tr key={b.id} className={`border-t border-border ${trHover} ${selected === b.id ? "bg-accent-subtle" : ""}`}>
                   <th scope="row" className={`${td} text-left font-medium`}>
                     @{b.username}
                     {b.title && <span className="block text-xs font-normal text-fg-muted">{b.title}</span>}
@@ -113,10 +117,13 @@ export function AdminBlogsTab() {
                     <Badge tone={b.published ? "success" : "neutral"}>{b.published ? "Published" : "Off"}</Badge>
                   </td>
                   <td className={td}>
-                    {b.active_takedowns > 0 && <Badge tone="danger">Taken down</Badge>}{" "}
-                    {b.open_reports > 0 && <Badge tone="warning">{b.open_reports === 1 ? "1 report" : `${b.open_reports} reports`}</Badge>}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {b.active_takedowns > 0 && <Badge tone="danger">Taken down</Badge>}
+                      {b.open_reports > 0 && <Badge tone="warning">{b.open_reports === 1 ? "1 report" : `${b.open_reports} reports`}</Badge>}
+                      {b.active_takedowns === 0 && b.open_reports === 0 && <span className="text-xs text-fg-subtle">—</span>}
+                    </div>
                   </td>
-                  <td className={td}>
+                  <td className={`${td} text-right`}>
                     <Button size="sm" onClick={() => setSelected(b.id)} aria-label={`Open @${b.username}`}>
                       Open
                     </Button>
@@ -312,7 +319,7 @@ function TakeDownDialog({ blogID, target, onClose, onDone }: { blogID: string; t
           ))}
         </Select>
       </Field>
-      <Field label="Note to the owner" hint="Shown to the owner with the reason. Say what to change and who to contact.">
+      <Field label="Note to the owner" hint={`Shown to the owner with the reason. Say what to change and who to contact. ${note.length} / 1000`}>
         <Textarea value={note} maxLength={1000} rows={3} onChange={(e) => setNote(e.target.value)} />
       </Field>
       {go.isError && (

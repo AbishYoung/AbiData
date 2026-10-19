@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionsFor, applyMarkdown, bodySizeNote, editSlug, followTitle, initialSlug, MAX_BODY_BYTES, slugify, targetStatus } from "./postModel";
+import { actionsFor, applyMarkdown, bodySizeNote, editSlug, followTitle, initialSlug, insertUploadedImage, MAX_BODY_BYTES, readingStats, slugify, targetStatus } from "./postModel";
 
 describe("slugify", () => {
   it.each([
@@ -56,6 +56,15 @@ describe("bodySizeNote", () => {
   });
 });
 
+describe("readingStats", () => {
+  it("counts words and estimates reading time", () => {
+    expect(readingStats("   ")).toBeNull();
+    expect(readingStats("one")).toBe("1 word · ~1 min read");
+    expect(readingStats("one two three")).toBe("3 words · ~1 min read");
+    expect(readingStats("word ".repeat(450))).toBe("450 words · ~2 min read");
+  });
+});
+
 describe("applyMarkdown", () => {
   it("wraps the selection", () => {
     expect(applyMarkdown("bold", "a word here", 2, 6)).toEqual({ text: "a **word** here", selStart: 4, selEnd: 8 });
@@ -76,5 +85,10 @@ describe("applyMarkdown", () => {
   });
   it("fences multi-line code", () => {
     expect(applyMarkdown("code", "a\nb", 0, 3).text).toBe("```\na\nb\n```");
+  });
+  it("inserts an uploaded image with the alt text selected", () => {
+    const u = insertUploadedImage("intro ", 6, 6, "01J000", "harbour_view-2.png");
+    expect(u.text).toBe("intro ![harbour view 2](attachment:01J000)");
+    expect(u.text.slice(u.selStart, u.selEnd)).toBe("harbour view 2");
   });
 });

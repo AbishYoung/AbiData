@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "radix-ui";
 import { Copy, ExternalLink } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
+import { matchesShortcut } from "@/lib/shortcuts";
 import { askToConfirm, Button, buttonClass, Card, Field, Input, Textarea } from "@/components/ui";
 import { alertBox, successBox, warningBox } from "@/components/styles";
 import { openChangeUsername } from "@/features/account/ChangeUsernameDialog";
@@ -29,6 +30,20 @@ export function BlogSettings({ ws, info }: { ws: string; info: BlogInfo }) {
       setSaved(true);
     },
   });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (matchesShortcut(e, "design.save")) {
+        e.preventDefault();
+        if (dirty && !save.isPending) {
+          setSaved(false);
+          save.mutate();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dirty, save]);
 
   const publish = useMutation({
     meta: { inline: true },
@@ -138,7 +153,7 @@ export function BlogSettings({ ws, info }: { ws: string; info: BlogInfo }) {
           <Field label="Title" hint={`Shown at the top of your blog. ${title.length} / 200`}>
             <Input value={title} maxLength={200} onChange={(e) => (setTitle(e.target.value), setSaved(false))} />
           </Field>
-          <Field label="Intro" hint="Plain text under the title. Blank lines start new paragraphs.">
+          <Field label="Intro" hint={`Plain text under the title. Blank lines start new paragraphs. ${intro.length} / 2000`}>
             <Textarea value={intro} maxLength={2000} rows={5} onChange={(e) => (setIntro(e.target.value), setSaved(false))} />
           </Field>
           {save.isError && (

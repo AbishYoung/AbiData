@@ -249,7 +249,7 @@ for (const scheme of SCHEMES) {
     // /admin console, every section.
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Admin console" })).toBeVisible();
-    for (const section of ["Overview", "Workspaces", "Users", "Settings", "Live logs"]) {
+    for (const section of ["Overview", "Workspaces", "Users", "Public apps", "Blogs", "Settings", "Live logs"]) {
       await page.getByRole("tab", { name: section }).click();
       await expect(page.getByRole("tab", { name: section, selected: true })).toBeVisible();
       await scan(page, `/admin: ${section}`, scheme);

@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs } from "radix-ui";
-import { Bold, Code, Heading2, Image, Italic, Link2, List, Quote } from "lucide-react";
+import { Bold, Code, Heading2, Image, ImageUp, Italic, Link2, List, Quote } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { matchesShortcut } from "@/lib/shortcuts";
+import { useThemeStore } from "@/lib/theme";
 import { useIsCompact } from "@/lib/useMediaQuery";
-import { askToConfirm, Badge, Button, Dialog, Field, IconButton, Input, Skeleton, Textarea } from "@/components/ui";
+import { askToConfirm, Badge, Button, Dialog, Field, IconButton, Input, Skeleton, Textarea, ToolbarSeparator } from "@/components/ui";
 import { alertBox, warningBox } from "@/components/styles";
+import { uploadFile, type UploadHandle } from "@/features/files/filesApi";
 import { BlogNotFound } from "./BlogApp";
 import { CoverField } from "./CoverField";
 import { TakedownBanner } from "./TakedownBanner";
@@ -22,15 +25,20 @@ import {
   editSlug,
   followTitle,
   initialSlug,
+  insertUploadedImage,
   MAX_BODY_BYTES,
   MAX_SUMMARY,
   MAX_TITLE,
+  readingStats,
   slugify,
   targetStatus,
   type MarkdownKind,
   type PostAction,
   type SlugState,
+  type TextEdit,
 } from "./postModel";
+
+const ACCEPT_IMAGE = "image/png,image/jpeg,image/gif,image/webp";
 
 /** Loads the post (or starts a new one) and hands it to the form. */
 export function PostEditor({ ws, info, id }: { ws: string; info: BlogInfo; id: number | null }) {
@@ -96,21 +104,26 @@ export function changes(d: Draft, saved: BlogPost | null): PostInput {
 const FIELD_OF: Record<string, keyof Errors> = { title: "title", slug: "slug", summary: "summary", body_md: "body", published_at: "publishedAt", cover: "cover", cover_alt: "coverAlt" };
 type Errors = Partial<Record<"title" | "slug" | "summary" | "body" | "publishedAt" | "cover" | "coverAlt", string>>;
 
-const TOOLBAR: { kind: MarkdownKind; label: string; Icon: typeof Bold }[] = [
-  { kind: "heading", label: "Heading", Icon: Heading2 },
-  { kind: "bold", label: "Bold", Icon: Bold },
-  { kind: "italic", label: "Italic", Icon: Italic },
-  { kind: "link", label: "Link", Icon: Link2 },
-  { kind: "list", label: "List", Icon: List },
-  { kind: "quote", label: "Quote", Icon: Quote },
-  { kind: "code", label: "Code", Icon: Code },
-  { kind: "image", label: "Image (workspace file)", Icon: Image },
+const TOOLBAR_GROUPS: { kind: MarkdownKind; label: string; shortcut?: string; Icon: typeof Bold }[][] = [
+  [
+    { kind: "heading", label: "Heading", Icon: Heading2 },
+    { kind: "bold", label: "Bold", shortcut: "Mod+B", Icon: Bold },
+    { kind: "italic", label: "Italic", shortcut: "Mod+I", Icon: Italic },
+    { kind: "link", label: "Link", shortcut: "Mod+K", Icon: Link2 },
+  ],
+  [
+    { kind: "list", label: "List", Icon: List },
+    { kind: "quote", label: "Quote", Icon: Quote },
+    { kind: "code", label: "Code", Icon: Code },
+  ],
+  [{ kind: "image", label: "Image (workspace file)", Icon: Image }],
 ];
 
 function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: BlogPost | null }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const compact = useIsCompact();
+  const themePref = useThemeStore((s) => s.pref);
   const [saved, setSaved] = useState<BlogPost | null>(initial);
   const [d, setD] = useState<Draft>(() => draftOf(initial));
   const [editingSlug, setEditingSlug] = useState(false);
@@ -118,9 +131,15 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState<PostAction | null>(null);
+  const [inlineProgress, setInlineProgress] = useState<number | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const inlineFileRef = useRef<HTMLInputElement>(null);
+  const inlineUpload = useRef<UploadHandle | null>(null);
   const leaving = useRef(false);
+
+  useEffect(() => () => inlineUpload.current?.abort(), []);
 
   const pending = changes(d, saved);
   const dirty = saved ? Object.keys(pending).length > 0 : d.title !== "" || d.summary !== "" || d.body !== "" || d.cover !== "";
@@ -180,16 +199,71 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
     setErrors((e) => ({ ...e, title: undefined }));
   }
 
-  function onToolbar(kind: MarkdownKind) {
+  function applyEdit(edit: TextEdit) {
     const el = bodyRef.current;
-    const start = el?.selectionStart ?? d.body.length;
-    const end = el?.selectionEnd ?? d.body.length;
-    const edit = applyMarkdown(kind, d.body, start, end);
     set("body", edit.text);
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(edit.selStart, edit.selEnd);
     });
+  }
+
+  function onToolbar(kind: MarkdownKind) {
+    const el = bodyRef.current;
+    const start = el?.selectionStart ?? d.body.length;
+    const end = el?.selectionEnd ?? d.body.length;
+    applyEdit(applyMarkdown(kind, d.body, start, end));
+  }
+
+  function onBodyKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (matchesShortcut(e, "blog.bold")) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToolbar("bold");
+    } else if (matchesShortcut(e, "blog.italic")) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToolbar("italic");
+    } else if (matchesShortcut(e, "blog.link")) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToolbar("link");
+    }
+  }
+
+  async function onInlineImage(file: File | undefined) {
+    if (!file) return;
+    setInlineError(null);
+    setInlineProgress(0);
+    const el = bodyRef.current;
+    const start = el?.selectionStart ?? d.body.length;
+    const end = el?.selectionEnd ?? d.body.length;
+    const h = uploadFile(ws, file, (loaded, total) => setInlineProgress(total ? Math.round((loaded / total) * 100) : 0));
+    inlineUpload.current = h;
+    try {
+      const meta = await h.promise;
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(meta.content_type)) {
+        setInlineError("Inline images must be PNG, JPEG, GIF or WebP.");
+        return;
+      }
+      setD((cur) => {
+        const s = Math.min(start, cur.body.length);
+        const e = Math.min(Math.max(s, end), cur.body.length);
+        const edit = insertUploadedImage(cur.body, s, e, meta.id, file.name);
+        requestAnimationFrame(() => {
+          bodyRef.current?.focus();
+          bodyRef.current?.setSelectionRange(edit.selStart, edit.selEnd);
+        });
+        return { ...cur, body: edit.text };
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.canceled) return;
+      setInlineError(e instanceof Error ? e.message : "The image upload failed.");
+    } finally {
+      inlineUpload.current = null;
+      setInlineProgress(null);
+      if (inlineFileRef.current) inlineFileRef.current.value = "";
+    }
   }
 
   function adopt(p: BlogPost) {
@@ -276,7 +350,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
   runRef.current = run;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      if (matchesShortcut(e, "design.save")) {
         e.preventDefault();
         if (!busy && primary) void runRef.current(primary);
       }
@@ -286,16 +360,43 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
   }, [busy, primary]);
 
   const sizeNote = bodySizeNote(bytes);
+  const stats = readingStats(d.body);
+  const bodyHint = [sizeNote ?? "Markdown. Images use workspace files: attachment:FILE_ID.", stats].filter(Boolean).join(" · ");
+  const previewHtml =
+    preview.data && themePref !== "system" ? preview.data.replace('<html lang="en">', `<html lang="en" data-theme="${themePref}">`) : (preview.data ?? "");
   const write = (
-    <Field label="Body" hint={sizeNote ?? "Markdown. Images use workspace files: attachment:FILE_ID."} error={errors.body}>
-      <div className="mb-1.5 flex flex-wrap items-center gap-0.5" role="toolbar" aria-label="Formatting">
-        {TOOLBAR.map(({ kind, label, Icon }) => (
-          <IconButton key={kind} label={label} size="sm" onClick={() => onToolbar(kind)}>
-            <Icon size={14} aria-hidden="true" />
-          </IconButton>
+    <Field label="Body" hint={bodyHint} error={errors.body ?? inlineError ?? undefined}>
+      <div className="mb-1.5 flex flex-wrap items-center gap-0.5 rounded-md border border-border bg-surface-2 p-1" role="toolbar" aria-label="Formatting">
+        {TOOLBAR_GROUPS.map((group, gi) => (
+          <div key={gi} className="inline-flex items-center gap-0.5">
+            {gi > 0 && <ToolbarSeparator />}
+            {group.map(({ kind, label, shortcut, Icon }) => (
+              <IconButton key={kind} label={label} shortcut={shortcut} size="sm" onClick={() => onToolbar(kind)}>
+                <Icon size={14} aria-hidden="true" />
+              </IconButton>
+            ))}
+          </div>
         ))}
+        <IconButton label="Upload image into post" size="sm" disabled={inlineProgress !== null} onClick={() => inlineFileRef.current?.click()}>
+          <ImageUp size={14} aria-hidden="true" />
+        </IconButton>
+        <input
+          ref={inlineFileRef}
+          type="file"
+          accept={ACCEPT_IMAGE}
+          data-testid="inline-image-input"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(e) => void onInlineImage(e.target.files?.[0])}
+        />
+        {inlineProgress !== null && (
+          <span role="status" className="ml-1.5 text-xs text-fg-muted">
+            Uploading… {inlineProgress}%
+          </span>
+        )}
       </div>
-      <Textarea ref={bodyRef} value={d.body} onChange={(e) => set("body", e.target.value)} className="min-h-96 font-mono text-sm" spellCheck />
+      <Textarea ref={bodyRef} value={d.body} onKeyDown={onBodyKeyDown} onChange={(e) => set("body", e.target.value)} className="min-h-96 font-mono text-sm" spellCheck />
     </Field>
   );
   const previewPane = (
@@ -314,8 +415,8 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
           // eslint-disable-next-line no-restricted-syntax -- an iframe's title is its accessible name, not a tooltip
           title="Preview"
           sandbox="allow-same-origin"
-          srcDoc={preview.data ?? ""}
-          className="min-h-96 w-full flex-1 rounded-lg border border-border"
+          srcDoc={previewHtml}
+          className="min-h-96 w-full flex-1 rounded-lg border border-border bg-surface shadow-xs"
         />
       )}
     </div>

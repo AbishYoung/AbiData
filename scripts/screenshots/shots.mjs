@@ -480,6 +480,56 @@ export async function shoot(ctx) {
     await c.close();
   }
 
+  const blogShots = ["blog-editor", "public-blog-post"];
+  if (blogShots.some(want)) {
+    const me = await call("GET", "/api/v1/auth/me");
+    const blogWs = me.memberships.find((m) => m.system_kind === "blog")?.workspace_id;
+    const blogUsername = me.user?.username;
+    if (blogWs) {
+      await call("PUT", "/api/v1/admin/settings/public-blogs", { enabled: true });
+      await call("PATCH", `/api/v1/w/${blogWs}/blog`, {
+        title: "Field Notes from Northwind",
+        intro: "Dispatches on cold-chain logistics, supplier audits, and regional inventory data.",
+      });
+      await call("PUT", `/api/v1/w/${blogWs}/blog/published`, { published: true });
+      const post = await call("POST", `/api/v1/w/${blogWs}/blog/posts`, {
+        title: "Autumn freight routes and lead times",
+        slug: "autumn-freight-routes",
+        summary: "What changed across our Atlantic and Baltic shipping lanes this quarter, with updated transit tables.",
+        body_md: [
+          "Every October we review transit times across our primary refrigerated lanes before winter schedules take effect.",
+          "",
+          "## Transit summary by corridor",
+          "",
+          "| Corridor | Carrier | Median days | Variance |",
+          "| :--- | :--- | ---: | ---: |",
+          "| Gothenburg – Cork | Nordic Sea | 3.4 | +0.2 |",
+          "| Rotterdam – Bilbao | Iberia Line | 2.8 | -0.1 |",
+          "| Halifax – Liverpool | Atlantic Fast | 6.1 | +0.4 |",
+          "",
+          "> Cold-storage buffer stock in Cork was raised by **15%** ahead of the November storm window.",
+        ].join("\n"),
+      });
+      await call("PUT", `/api/v1/w/${blogWs}/blog/posts/${post.id}/status`, { _version: post._version, status: "published" });
+      if (want("blog-editor")) {
+        const { c, page } = await desktop("light");
+        await page.goto(`${base}/w/${blogWs}/blog/posts/${post.id}`);
+        await page.getByLabel(/^Title/).waitFor();
+        await page.locator('iframe[title="Preview"]').waitFor();
+        await save(page, "blog-editor");
+        await c.close();
+      }
+      if (want("public-blog-post") && blogUsername) {
+        const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, timezoneId: "UTC", locale: "en-US" });
+        const p = await c.newPage();
+        await p.goto(`${base}/b/${blogUsername}/autumn-freight-routes`);
+        await p.getByRole("heading", { name: "Autumn freight routes and lead times", level: 1 }).waitFor();
+        await save(p, "public-blog-post");
+        await c.close();
+      }
+    }
+  }
+
   await admin.close();
   console.log(`${written.length} images in ${out}`);
 }
