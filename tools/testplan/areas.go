@@ -16,6 +16,7 @@ var areas = []area{
 	{"reports", []string{"reports", "reports-designer"}},
 	{"automation", []string{"scripts", "jobs", "script-templates"}},
 	{"apps", []string{"public-apps", "invasive-species"}},
+	{"blogs", []string{"blogs"}},
 }
 
 type area struct {
@@ -36,6 +37,7 @@ var sourceAreas = map[string][]string{
 	"web/src/features/apikeys/":     {"auth"},
 	"web/src/features/apps/":        {"apps"},
 	"web/src/features/auth/":        all, // every spec signs in
+	"web/src/features/blog/":        {"blogs"},
 	"web/src/features/backups/":     {"admin"},
 	"web/src/features/datasheet/":   {"datasheet", "tables", "files-geo", "a11y"},
 	"web/src/features/docs/":        {"shell"},
@@ -66,6 +68,7 @@ var sourceAreas = map[string][]string{
 	"internal/apps/":                            {"apps"},
 	"internal/artifacts/":                       {"automation"},
 	"internal/backup/":                          {"admin"},
+	"internal/blogs/":                           {"blogs", "auth", "admin"},
 	"internal/demo/":                            {"apps", "admin"},
 	"internal/docsrv/":                          {"shell"},
 	"internal/egress/":                          {"automation", "admin"},
@@ -88,6 +91,7 @@ var sourceAreas = map[string][]string{
 	"internal/httpapi/routes_apikeys.go":        {"auth"},
 	"internal/httpapi/routes_apps.go":           {"apps"},
 	"internal/httpapi/routes_backups.go":        {"admin"},
+	"internal/httpapi/routes_blog.go":           {"blogs"},
 	"internal/httpapi/routes_docs.go":           {"shell"},
 	"internal/httpapi/routes_egress.go":         {"automation", "admin"},
 	"internal/httpapi/routes_files.go":          {"files-geo"},

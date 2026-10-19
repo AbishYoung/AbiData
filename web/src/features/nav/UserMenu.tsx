@@ -9,6 +9,7 @@ import {
   LogOut,
   Monitor,
   Moon,
+  PenLine,
   Rows3,
   Rows4,
   Settings,
@@ -109,6 +110,15 @@ export function UserMenu({
               <DropdownMenu.Item className={item} onSelect={() => openDocs()}>
                 <CircleHelp size={16} aria-hidden="true" />
                 Documentation
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className={menuSeparator} />
+            </>
+          )}
+          {(me.memberships ?? []).some((m) => m.system_kind === "blog") && (
+            <>
+              <DropdownMenu.Item className={item} onSelect={() => void navigate({ to: "/blog" })}>
+                <PenLine size={16} aria-hidden="true" />
+                Blog
               </DropdownMenu.Item>
               <DropdownMenu.Separator className={menuSeparator} />
             </>
