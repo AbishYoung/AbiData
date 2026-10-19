@@ -37,7 +37,7 @@ func init() {
 
 var doc = script.ModuleDoc{
 	Name:     "db",
-	Doc:      "Run SQL against this workspace's tables. Reads run on a snapshot; writes need edit rights and are not recorded in row history (use `records` for tracked edits). Statements are checked by the SQL authorizer: system tables, schema changes, PRAGMA and ATTACH are not allowed.",
+	Doc:      "Read and change this workspace's tables. db.select, db.update and db.delete need no SQL, so a script that uses them runs the same on SQLite and PostgreSQL; their writes are validated and recorded in row history. db.query and db.exec take SQL in the workspace database's own dialect: reads run on a snapshot, writes need edit rights and are not recorded in row history (use `records` or db.update for tracked edits), and system tables, schema changes and database settings are not allowed. On PostgreSQL, SQL text cannot run inside db.transaction.",
 	Contexts: allCtx,
 	Funcs: []script.FuncDoc{
 		{Name: "query", Signature: "db.query(sql, params?) → rows", Params: []script.ParamDoc{{Name: "sql", Type: "string", Doc: "One read-only statement; use :name placeholders."}, {Name: "params", Type: "table", Doc: "Values for :name placeholders.", Opt: true}},
@@ -50,6 +50,17 @@ var doc = script.ModuleDoc{
 			Doc: "Runs one INSERT, UPDATE or DELETE on a workspace table. Not available in reports.", Example: `db.exec("UPDATE Orders SET Status = 'Shipped' WHERE id = :id", {id = 7})`, Contexts: []script.Context{script.UIEvent, script.Job}},
 		{Name: "transaction", Signature: "db.transaction(fn) → results of fn", Doc: "Runs fn inside one write transaction (all-or-nothing). Raising an error inside fn rolls back. The block has its own time budget (250 ms in form events, 2 s in jobs).",
 			Example: `db.transaction(function() db.exec("UPDATE Stock SET Qty = Qty - 1 WHERE id = :id", {id = 3}) records.insert("Moves", {Item = 3}) end)`, Contexts: []script.Context{script.UIEvent, script.Job}},
+		{Name: "select", Signature: "db.select{from, where?, order?, limit?, offset?} → rows",
+			Returns: "array of row tables, as records.get returns them", Errors: []string{"BAD_REQUEST"},
+			Doc:     "Reads rows without SQL, so the script runs the same on every database. where maps fields to a value (db.NULL: empty), a list (any of its values) or operators: eq, ne, lt, le, gt, ge, contains, starts, ends, in, between, is_null; _or takes a list of where tables. order lists fields, \"-\" first for descending. limit is 100 unless given (at most 500).",
+			Example: `local rows = db.select{from = "Orders", where = {Status = "Open", Total = {gt = 100}}, order = {"-Ordered"}, limit = 50}`},
+		{Name: "update", Signature: "db.update{table, set, where} → {changes}", Returns: "table with changes",
+			Errors:  []string{"VALIDATION_FAILED", "CONCURRENT_MODIFICATION", "BAD_REQUEST"},
+			Doc:     "Updates every matching row as records.update would: validated, versioned and recorded in row history, all or nothing. where is required (where = {} means every row); at most 10,000 rows. Not available in reports.",
+			Example: `db.update{table = "Orders", set = {Status = "Shipped"}, where = {id = 42}}`, Contexts: []script.Context{script.UIEvent, script.Job}},
+		{Name: "delete", Signature: "db.delete{table, where} → {changes}", Returns: "table with changes", Errors: []string{"LINKED_RECORDS", "BAD_REQUEST"},
+			Doc:     "Deletes every matching row as records.delete would, all or nothing. where is required; at most 10,000 rows. Not available in reports.",
+			Example: `db.delete{table = "Drafts", where = {Status = "Abandoned"}}`, Contexts: []script.Context{script.UIEvent, script.Job}},
 		{Name: "lookup", Signature: "db.lookup(table, field, where?, params?) → value|db.NULL", Doc: "Access DLookup: the field's value in the first matching row, or db.NULL.", Example: `local email = db.lookup("Customers", "Email", "id = :id", {id = record.Customer})`},
 		{Name: "count", Signature: "db.count(table, field?, where?, params?) → number", Doc: "Access DCount: number of matching rows (non-empty values of field, or all rows when field is \"*\" or omitted).", Example: `local open = db.count("Orders", "*", "Status = 'Open'")`},
 		{Name: "sum", Signature: "db.sum(table, field, where?, params?) → number|db.NULL", Doc: "Access DSum.", Example: `local total = db.sum("OrderLines", "Qty", "OrderId = :id", {id = record.id})`},
@@ -136,6 +147,9 @@ func build(r *script.Run) lua.LValue {
 		return 1
 	})
 	fn("transaction", func(L *lua.LState) int { return transaction(r, L) })
+	fn("select", func(L *lua.LState) int { return builderSelect(r, L) })
+	fn("update", func(L *lua.LState) int { return builderWrite(r, L, false) })
+	fn("delete", func(L *lua.LState) int { return builderWrite(r, L, true) })
 	agg := func(name, sqlFn string) {
 		fn(name, func(L *lua.LState) int { return aggregate(r, L, sqlFn) })
 	}

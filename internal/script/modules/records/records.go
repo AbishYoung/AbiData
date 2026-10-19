@@ -123,12 +123,13 @@ func ValuesFromLua(r *script.Run, L *lua.LState, t *catalog.Table, idx int) map[
 		if !ok {
 			L.ArgError(idx, fmt.Sprintf("table %q has no field %q", t.PhysicalName, string(name)))
 		}
-		out[col.ID] = toAPI(script.FromLua(r, v))
+		out[col.ID] = ToAPI(script.FromLua(r, v))
 	})
 	return out
 }
 
-func toAPI(v any) any {
+// ToAPI converts a value from Lua to the API representation records take.
+func ToAPI(v any) any {
 	switch x := v.(type) {
 	case script.Null:
 		return nil

@@ -181,6 +181,14 @@ db.update{ table = "Orders", set = { status = "Shipped" }, where = { id = 42 } }
 - **Portability.** Scripts written this way are portable. Raw `db.query(sql)` stays available, documented as dialect-specific.
 - **Generated docs.** The Lua API manifest (D19) gains the builder, so docs and completion come for free.
 
+**As built (2026-10-19).** The builder is `db.select{from, where?, order?, limit?, offset?}`, `db.update{table, set, where}` and `db.delete{table, where}`.
+- It is built on the records layer rather than on raw `sqlgen` statements:
+  - `db.select` is `records.ListTx` and returns rows as `records.get` does.
+  - `db.update` and `db.delete` update or delete each matching row as `records.update` and `records.delete` do: validated, versioned, recorded in row history and published, all or nothing, at most 10,000 rows.
+  - So the builder needs no `Policy` of its own. It can name only user tables and their fields, and its SQL is generated.
+- **`where`.** It maps fields to a value (`db.NULL` means empty), a list (any of its values), or operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `contains`, `starts`, `ends`, `in`, `between`, `is_null`. `_or` takes a list of `where` tables. `where` is required for writes (`where = {}` means every row).
+- **Transactions.** Inside `db.transaction` the builder runs on the transaction on both backends. That is where PostgreSQL refuses SQL text (ADR 0012 Phase 3, part 8).
+
 ### 9. Semantics the layer must pin down
 
 Generating SQL for two engines is only safe if both engines give the same *answers*. The renderers make these choices explicit instead of inheriting each engine's default:
