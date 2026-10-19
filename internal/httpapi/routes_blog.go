@@ -100,7 +100,11 @@ func (s *Server) registerBlog(api huma.API) {
 		if err != nil {
 			return nil, err
 		}
-		return &blogInfoOut{Body: s.deps.BlogAPI.Info(ctx, b)}, nil
+		info, err := s.deps.BlogAPI.Info(ctx, b)
+		if err != nil {
+			return nil, err
+		}
+		return &blogInfoOut{Body: info}, nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -155,13 +159,13 @@ func (s *Server) registerBlog(api huma.API) {
 		Cursor string `query:"cursor" maxLength:"20"`
 	}) (*struct{ Body blogs.BlogPostList }, error) {
 		var out blogs.BlogPostList
-		err := asOwner(ctx, func(admin.Blog) error {
+		err := asOwner(ctx, func(b admin.Blog) error {
 			l, err := s.lease(ctx)
 			if err != nil {
 				return err
 			}
 			defer l.Release()
-			out, err = s.deps.BlogAPI.ListPosts(ctx, l, in.Status, in.Q, in.Cursor)
+			out, err = s.deps.BlogAPI.ListPosts(ctx, l, b, in.Status, in.Q, in.Cursor)
 			return err
 		})
 		if err != nil {

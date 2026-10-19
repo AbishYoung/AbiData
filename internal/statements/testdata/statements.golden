@@ -1,4 +1,5 @@
 admin.Audit	admin	portable	
+admin.BlogReports	admin	portable	id,blog_id,post_slug,reason_code,message,created_at,resolved_by,resolved_at
 admin.ChangeMembership	admin	portable	role
 admin.ChangeMembership#2	admin	portable	count(*)
 admin.ChangeMembership#3	admin	portable	
@@ -13,6 +14,7 @@ admin.CreateAPIKey#3	admin	portable
 admin.CreateApp	admin	portable	count(*)
 admin.CreateApp#2	admin	portable	
 admin.CreateBlog	admin	portable	
+admin.CreateBlogReport	admin	portable	
 admin.CreateSession	admin	portable	
 admin.CreateWorkspace	admin	portable	
 admin.CreateWorkspace#2	admin	portable	
@@ -30,6 +32,7 @@ admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_
 admin.GetSetting	admin	portable	value
 admin.InitUsername	admin	portable	
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
+admin.ListBlogs	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username,(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
 admin.ListMembers	admin	portable	id,email,display_name,role
 admin.ListSettings	admin	portable	key,value
 admin.ListUsersWithoutBlog	admin	portable	id
@@ -38,7 +41,10 @@ admin.PurgeSessions	admin	portable
 admin.PurgeSessions#2	admin	portable	
 admin.PutSetting	admin	portable	
 admin.RecordLoginFailure	admin	portable	
+admin.ResolveBlogReports	admin	portable	
 admin.ResolveOldUsername	admin	portable	username
+admin.Restore	admin	portable	
+admin.Restore#2	admin	portable	
 admin.RevokeAPIKey	admin	portable	
 admin.SetAppTakenDown	admin	portable	
 admin.SetAppToken	admin	portable	
@@ -50,6 +56,10 @@ admin.SetUsername	admin	portable	username
 admin.SetUsername#2	admin	portable	
 admin.SetUsername#3	admin	portable	
 admin.SetUsername#4	admin	portable	
+admin.TakeDown	admin	portable	
+admin.Takedowns	admin	portable	id,blog_id,post_slug,reason_code,note,taken_down_by,taken_down_at,restored_by,restored_at
+admin.TakenDown	admin	portable	count(*)
+admin.TakenDown#2	admin	portable	count(*)
 admin.TouchAPIKey	admin	portable	
 admin.TouchLogin	admin	portable	
 admin.TouchSession	admin	portable	
@@ -61,6 +71,7 @@ admin.UsernameOwner	admin	portable	id
 admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
 admin.migrate	admin	sqlite	application_id
 admin.migrate#2	admin	sqlite	user_version
+admin.pgListBlogs	-	postgres	-
 admin.readAttempts	admin	portable	count,window_start
 admin.refuseSystem	admin	portable	system_kind
 admin.writeAppItems	admin	portable	

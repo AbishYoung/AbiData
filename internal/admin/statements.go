@@ -103,6 +103,44 @@ var (
 	sqlListMembers = sqlgen.Register("admin.ListMembers", `SELECT u.id, u.email, u.display_name, m.role FROM _adm_memberships m
 			JOIN _adm_users u ON u.id = m.user_id WHERE m.workspace_id = ?
 			ORDER BY u.email, u.id`)
+	// Blog moderation (ADR 0017).
+	sqlTakeDown = sqlgen.Register("admin.TakeDown", `INSERT INTO _adm_blog_takedowns (id, blog_id, post_slug, reason_code, note, taken_down_by, taken_down_at)
+			VALUES (?,?,?,?,?,?,?)`)
+	sqlRestoreBlog = sqlgen.Register("admin.Restore", `UPDATE _adm_blog_takedowns SET restored_by = ?, restored_at = ?
+			WHERE blog_id = ? AND post_slug IS NULL AND restored_at IS NULL`)
+	sqlRestorePost = sqlgen.Register("admin.Restore#2", `UPDATE _adm_blog_takedowns SET restored_by = ?, restored_at = ?
+			WHERE blog_id = ? AND post_slug = ? AND restored_at IS NULL`)
+	sqlBlogTakenDown = sqlgen.Register("admin.TakenDown", `SELECT count(*) FROM _adm_blog_takedowns
+			WHERE blog_id = ? AND post_slug IS NULL AND restored_at IS NULL`)
+	sqlPostTakenDown = sqlgen.Register("admin.TakenDown#2", `SELECT count(*) FROM _adm_blog_takedowns
+			WHERE blog_id = ? AND post_slug = ? AND restored_at IS NULL`)
+	sqlTakedowns = sqlgen.Register("admin.Takedowns", `SELECT id, blog_id, post_slug, reason_code, note, taken_down_by, taken_down_at, restored_by, restored_at
+			FROM _adm_blog_takedowns WHERE blog_id = ? ORDER BY taken_down_at DESC, id DESC LIMIT 200`)
+	sqlCreateBlogReport = sqlgen.Register("admin.CreateBlogReport", `INSERT INTO _adm_blog_reports (id, blog_id, post_slug, reason_code, message, created_at)
+			VALUES (?,?,?,?,?,?)`)
+	sqlBlogReports = sqlgen.Register("admin.BlogReports", `SELECT id, blog_id, post_slug, reason_code, message, created_at, resolved_by, resolved_at
+			FROM _adm_blog_reports WHERE blog_id = ? ORDER BY created_at DESC, id DESC LIMIT 200`)
+	sqlResolveBlogReports = sqlgen.Register("admin.ResolveBlogReports", `UPDATE _adm_blog_reports SET resolved_by = ?, resolved_at = ?
+			WHERE blog_id = ? AND resolved_at IS NULL`)
+	sqlListBlogs = sqlgen.Register("admin.ListBlogs", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username,
+			(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),
+			(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
+			FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id
+			WHERE u.username LIKE ?
+			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL))
+			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL))
+			ORDER BY u.username LIMIT ?`)
+	// On PostgreSQL usernames have a nondeterministic collation, which LIKE refuses before version 18.
+	sqlListBlogsPG = sqlgen.RegisterPostgresOnly("admin.pgListBlogs", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username,
+			(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),
+			(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
+			FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id
+			WHERE u.username COLLATE "C" LIKE ?
+			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL))
+			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL))
+			ORDER BY u.username LIMIT ?`)
 	sqlMigrate  = sqlgen.RegisterSQLiteOnly("admin.migrate", "PRAGMA application_id")
 	sqlMigrate2 = sqlgen.RegisterSQLiteOnly("admin.migrate#2", "PRAGMA user_version")
 	sqlPing     = sqlgen.Register("admin.Ping", "SELECT 1")

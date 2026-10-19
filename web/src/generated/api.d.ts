@@ -89,6 +89,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/blogs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Blogs by username, optionally only those taken down or reported */
+        get: operations["adminListBlogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/blogs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A blog's published posts, take-downs and reports (drafts only through workspace access) */
+        get: operations["adminGetBlog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/blogs/{id}/reports/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a blog's open reports as handled */
+        post: operations["adminResolveBlogReports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/blogs/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the active take-down of a blog or one post */
+        post: operations["adminRestoreBlog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/blogs/{id}/take-down": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take a blog or one post down; it is not served until restored */
+        post: operations["adminTakeDownBlog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/demo-workspaces": {
         parameters: {
             query?: never;
@@ -587,6 +672,23 @@ export interface paths {
         get: operations["publicBlogPost"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/blogs/{username}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a blog or one of its posts to the administrators */
+        post: operations["publicBlogReport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1909,6 +2011,59 @@ export interface components {
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
         };
+        AdminBlog: {
+            /** Format: int64 */
+            active_takedowns: number;
+            /** @description The posts table is missing or changed, so nothing is served. */
+            damaged: boolean;
+            id: string;
+            intro: string;
+            /** Format: int64 */
+            open_reports: number;
+            posts: components["schemas"]["AdminBlogPost"][] | null;
+            public_url: string;
+            published: boolean;
+            /** Format: date-time */
+            published_at?: string;
+            reports: components["schemas"]["AdminBlogReport"][] | null;
+            takedowns: components["schemas"]["AdminTakedown"][] | null;
+            title: string;
+            username: string;
+            workspace_id: string;
+        };
+        AdminBlogPost: {
+            /** Format: date-time */
+            published_at?: string;
+            slug: string;
+            status: string;
+            taken_down: boolean;
+            title: string;
+            url: string;
+        };
+        AdminBlogReport: {
+            /** Format: date-time */
+            created_at: string;
+            id: string;
+            message: string;
+            post_slug?: string;
+            reason_code: string;
+            /** Format: date-time */
+            resolved_at?: string;
+        };
+        AdminBlogSummary: {
+            /** Format: int64 */
+            active_takedowns: number;
+            id: string;
+            /** Format: int64 */
+            open_reports: number;
+            public_url: string;
+            published: boolean;
+            /** Format: date-time */
+            published_at?: string;
+            title: string;
+            username: string;
+            workspace_id: string;
+        };
         AdminCreateUserRequest: {
             display_name: string;
             email: string;
@@ -1925,6 +2080,9 @@ export interface components {
         };
         AdminListAppsResponse: {
             items: components["schemas"]["AppOut"][] | null;
+        };
+        AdminListBlogsResponse: {
+            items: components["schemas"]["AdminBlogSummary"][] | null;
         };
         AdminListUsersResponse: {
             items: components["schemas"]["AdminUserDTO"][] | null;
@@ -1961,6 +2119,10 @@ export interface components {
         AdminResetUserPasswordRequest: {
             new_password: string;
         };
+        AdminRestoreBlogRequest: {
+            /** @description Empty for the whole blog. */
+            post_slug?: string;
+        };
         AdminStats: {
             /** Format: int64 */
             goroutines: number;
@@ -1975,6 +2137,19 @@ export interface components {
             version: string;
             /** Format: int64 */
             workspaces: number;
+        };
+        AdminTakedown: {
+            id: string;
+            note: string;
+            /** @description Empty for the whole blog. */
+            post_slug?: string;
+            reason_code: string;
+            /** Format: date-time */
+            restored_at?: string;
+            restored_by?: string;
+            /** Format: date-time */
+            taken_down_at: string;
+            taken_down_by: string;
         };
         AdminUpdateUserRequest: {
             disabled?: boolean;
@@ -2135,6 +2310,8 @@ export interface components {
              * @description When the blog was first switched on.
              */
             published_at?: string;
+            /** @description An administrator's active take-down of the whole blog. */
+            takedown?: components["schemas"]["Takedown"];
             title: string;
             username: string;
             workspace_id: string;
@@ -2156,6 +2333,8 @@ export interface components {
             /** @enum {string} */
             status: "draft" | "published" | "unlisted";
             summary: string;
+            /** @description An administrator's active take-down of this post. */
+            takedown?: components["schemas"]["Takedown"];
             title: string;
         };
         BlogPostList: {
@@ -2176,6 +2355,12 @@ export interface components {
             slug: string;
             status: string;
             title: string;
+        };
+        BlogReportRequest: {
+            message?: string;
+            post_slug?: string;
+            /** @enum {string} */
+            reason_code: "spam" | "phishing" | "malware" | "illegal" | "harassment" | "copyright" | "other";
         };
         Calc: {
             lua_expr: string;
@@ -3591,6 +3776,23 @@ export interface components {
             physical_name?: string;
             track_history?: boolean;
         };
+        Takedown: {
+            /** Format: date-time */
+            at: string;
+            /** @description The administrator's note to the owner. */
+            note: string;
+            /** @description The reason in words. */
+            reason: string;
+            reason_code: string;
+        };
+        TakedownRequest: {
+            /** @description Shown to the blog's owner. */
+            note?: string;
+            /** @description Empty to take down the whole blog. */
+            post_slug?: string;
+            /** @enum {string} */
+            reason_code: "spam" | "phishing" | "malware" | "illegal" | "harassment" | "copyright" | "other";
+        };
         TypeOptions: {
             expression?: string;
             format?: string;
@@ -3964,6 +4166,361 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminListBlogs: {
+        parameters: {
+            query?: {
+                /** @description Part of a username. */
+                q?: string;
+                /** @description Only blogs with an active take-down, or with open reports. */
+                filter?: "taken_down" | "reported" | "";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminListBlogsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminGetBlog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBlog"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminResolveBlogReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBlog"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminRestoreBlog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRestoreBlogRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBlog"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    adminTakeDownBlog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBlog"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6315,6 +6872,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicBlogPostPage"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    publicBlogReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlogReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Not Found */

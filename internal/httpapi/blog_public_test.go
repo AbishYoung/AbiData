@@ -268,8 +268,8 @@ func TestBlogAccessReadsNoCredentials(t *testing.T) {
 			}
 			n++
 			url := strings.NewReplacer("{username}", "ann", "{slug}", "hello-world").Replace(path)
-			plain := e.send(nil, "", op.Method, url, nil)
-			junk := e.send(nil, "not-a-key", op.Method, url, nil, "Cookie", "abidata_session=forged; __Host-abidata_session=forged")
+			plain := e.send(nil, "", op.Method, url, []byte(`{"reason_code":"other"}`), "Origin", testOrigin, "Content-Type", "application/json")
+			junk := e.send(nil, "not-a-key", op.Method, url, []byte(`{"reason_code":"other"}`), "Origin", testOrigin, "Content-Type", "application/json", "Cookie", "abidata_session=forged; __Host-abidata_session=forged")
 			if plain.status != junk.status || plain.status == 401 || plain.status == 403 || !bytes.Equal(plain.body, junk.body) {
 				t.Errorf("%s %s: %d without credentials, %d with junk ones", op.Method, path, plain.status, junk.status)
 			}
