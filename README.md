@@ -78,6 +78,10 @@ Workspace owners can bundle forms and reports into an **app** and publish it beh
 | ![A public app open without signing in](docs/images/app-public-form.png) | ![The Public apps panel in workspace settings](docs/images/apps-panel.png) |
 | A public app's form, opened from its link without signing in | Publishing and managing apps in workspace settings |
 
+### Blogs
+
+Every user account has a personal **blog workspace** (`Blog: {username}`) with its own Markdown editor, sandboxed preview and cover images, backed by a pinned `posts` table that still works with the datasheet, scripts, exports and backups behind **Open as workspace**. Everything is private until the user publishes a post, turns their blog on and a platform administrator allows public blogs on the server (`ABIDATA_PUBLIC_BLOGS=false` locks them off). Published blogs are served as static HTML at `/b/{username}` with an Atom feed at `/b/{username}/feed.xml` (or from a separate domain via `ABIDATA_BLOG_HOST`), and administrators moderate reported and taken-down posts from the admin console's **Blogs** tab. See the [Blogs guide](docs/content/guide/blogs.md).
+
 ### Automation
 
 - **Lua scripts** (Lua 5.1) run in a server-side sandbox with time and memory limits. Script Studio checks your code as you type.
@@ -107,7 +111,7 @@ Workspace owners can bundle forms and reports into an **app** and publish it beh
 - **Admin dashboard** with live request, latency, memory, job and outbound-request charts, plus workspace storage, backup status and the latest audit events. History is kept in memory since the last server start.
 - **Backups**: manual, scheduled and restore-point backups of each workspace. They are checked for corruption, compressed and signed. Owners can restore in place or restore as a new workspace.
 - **Audit log** of administrative and security-relevant events.
-- **Admin console** tabs for workspaces (including giving everyone a copy of a sample), users, API keys, public apps, platform settings and live logs.
+- **Admin console** tabs for workspaces (including giving everyone a copy of a sample), users, API keys, public apps, blogs, platform settings and live logs.
 - **Metrics** for Prometheus at `/metrics`, JSON logs, health checks at `/healthz` and `/readyz`, and a live log stream for administrators.
 
 | | |
@@ -246,12 +250,12 @@ flowchart LR
 - Services reach the databases through a driver-neutral layer (`internal/dbx`), and schema migrations live in `internal/admin/migrations/sqlite/` and `internal/catalog/migrations/sqlite/`.
 - Scripts run in a Lua sandbox with no file, process or network access except through reviewed functions. Jobs are started by the scheduler or by hand, and only they can make outbound requests, through the egress gateway.
 - Caddy terminates TLS in the provided Compose stack. The server trusts `X-Forwarded-For` only from the proxy addresses you configure.
-- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [gopher-lua fork](docs/adr/0004-gopher-lua-fork.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md), [workspace API keys](docs/adr/0009-workspace-api-keys.md), [geo fields](docs/adr/0010-geo-fields.md), [file attachments](docs/adr/0011-file-attachments.md) and [public apps](docs/adr/0014-public-apps.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
+- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [gopher-lua fork](docs/adr/0004-gopher-lua-fork.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md), [workspace API keys](docs/adr/0009-workspace-api-keys.md), [geo fields](docs/adr/0010-geo-fields.md), [file attachments](docs/adr/0011-file-attachments.md), [public apps](docs/adr/0014-public-apps.md) and [user blogs](docs/adr/0017-user-blogs.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
 - **Planned:** PostgreSQL as an alternative backend ([ADR 0012](docs/adr/0012-postgres-backend.md)), built on a backend-agnostic SQL layer ([ADR 0013](docs/adr/0013-backend-agnostic-sql-layer.md)). It is not usable yet: groundwork so far includes a sandbox spike and saved queries recording their SQL dialect. SQLite remains the only backend.
 
 ## Security
 
-In short: passwords are hashed with Argon2id and sign-in attempts are rate limited. Mutating requests carry a CSRF token and an `Origin` check. Workspaces are isolated, and a workspace you do not belong to answers "not found". User and script SQL runs under a database authorizer with time, row and memory limits. Scripts run in a sandbox, and outbound requests go through an allowlisted egress gateway that refuses private addresses. Backups are signed. API keys are stored only as keyed hashes. Public app routes ignore sessions and API keys, accept only new records through the published forms, and are rate limited.
+In short: passwords are hashed with Argon2id and sign-in attempts are rate limited. Mutating requests carry a CSRF token and an `Origin` check. Workspaces are isolated, and a workspace you do not belong to answers "not found". User and script SQL runs under a database authorizer with time, row and memory limits. Scripts run in a sandbox, and outbound requests go through an allowlisted egress gateway that refuses private addresses. Backups are signed. API keys are stored only as keyed hashes. Public app routes ignore sessions and API keys, accept only new records through the published forms, and are rate limited. Public blog pages are off by default, render sanitised Markdown as static HTML under a scriptless `Content-Security-Policy`, and can be served from a separate host (`ABIDATA_BLOG_HOST`).
 
 You are responsible for the host, the volumes, the secrets and TLS. Read the full threat model, what is not defended against and the operator checklist in [Security](docs/content/operations/security.md).
 
@@ -262,7 +266,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 | Path | Contents |
 |---|---|
 | `cmd/abidata` | The binary: `serve`, `user create-admin`, `user reset-password`, `demo`, `healthcheck`, `version` |
-| `internal/` | Server packages: `httpapi`, `auth`, `admin`, `workspace`, `catalog`, `records`, `query`, `forms`, `reports`, `apps`, `script`, `scripts`, `jobs`, `egress`, `backup`, `ingest`, `events`, `demo`, `docsrv`, `dbx` and others. `sqlgen` and `pgdb` hold the groundwork for the planned PostgreSQL backend |
+| `internal/` | Server packages: `httpapi`, `auth`, `admin`, `workspace`, `catalog`, `records`, `query`, `forms`, `reports`, `apps`, `blogs`, `script`, `scripts`, `jobs`, `egress`, `backup`, `ingest`, `events`, `demo`, `docsrv`, `dbx` and others. `sqlgen` and `pgdb` hold the groundwork for the planned PostgreSQL backend |
 | `web/` | The React app (Vite, TypeScript, Vitest). Design system notes: [web/src/components/DESIGN.md](web/src/components/DESIGN.md) |
 | `tests/e2e/` | Playwright end-to-end tests |
 | `docs/content/` | The documentation, served inside the app. `docs/adr/` holds the ADRs and `docs/images/` the screenshots |
@@ -331,7 +335,7 @@ Keep changes focused, add or update tests, run `make lint` and `make test-change
 The documentation is part of the app: press `?` or use the help button. The same pages are in the repository.
 
 - Start here: [Welcome](docs/content/guide/index.md)
-- Guide: [Tables](docs/content/guide/tables.md), [Queries](docs/content/guide/queries.md), [Forms](docs/content/guide/forms.md), [Reports](docs/content/guide/reports.md), [Public apps](docs/content/guide/apps.md), [Scripts](docs/content/guide/scripts.md), [Jobs](docs/content/guide/jobs.md), [Imports and exports](docs/content/guide/imports-exports.md), [Backups](docs/content/guide/backups.md), [API access](docs/content/guide/api.md), [Members and roles](docs/content/guide/members-and-roles.md), [Using the keyboard](docs/content/guide/keyboard.md), [Install on your phone](docs/content/guide/mobile.md), [Example: invasive species](docs/content/guide/example-invasive-species.md)
+- Guide: [Tables](docs/content/guide/tables.md), [Queries](docs/content/guide/queries.md), [Forms](docs/content/guide/forms.md), [Reports](docs/content/guide/reports.md), [Public apps](docs/content/guide/apps.md), [Blogs](docs/content/guide/blogs.md), [Scripts](docs/content/guide/scripts.md), [Jobs](docs/content/guide/jobs.md), [Imports and exports](docs/content/guide/imports-exports.md), [Backups](docs/content/guide/backups.md), [API access](docs/content/guide/api.md), [Members and roles](docs/content/guide/members-and-roles.md), [Using the keyboard](docs/content/guide/keyboard.md), [Install on your phone](docs/content/guide/mobile.md), [Example: invasive species](docs/content/guide/example-invasive-species.md)
 - Operations: [Install](docs/content/operations/install.md), [Configuration](docs/content/operations/configuration.md), [Security](docs/content/operations/security.md), [Monitoring](docs/content/operations/monitoring.md), [Backup strategy](docs/content/operations/backup-strategy.md), [Upgrade](docs/content/operations/upgrade.md)
 - Reference: [Keyboard shortcuts](docs/content/reference/shortcuts.md). The error and Lua API references are generated into the app.
 

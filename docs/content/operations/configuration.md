@@ -36,8 +36,8 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_BOOTSTRAP_ADMIN_EMAIL` | (none) | Email for the first platform administrator. While no user exists, the server prints a one-time setup token. See [Install](/docs/operations/install#first-run) |
 | `ABIDATA_DEMO_WORKSPACE` | `true` | When the first administrator is created through the setup page, also create the **Northwind Traders** and **Northwind Invasives** sample workspaces for them. `false` or `0` turns it off. See [Install](/docs/operations/install#demo) |
 | `ABIDATA_PUBLIC_APPS` | `true` | Whether workspace owners can publish [public apps](/docs/guide/apps). `false` or `0` turns them off for the whole install, and the administrator setting cannot turn them back on. |
-| `ABIDATA_PUBLIC_BLOGS` | `true` | Whether user blogs can be served at `/b/{username}`. Blogs are off until an administrator turns them on; `false` or `0` turns them off for good, and the administrator setting cannot turn them back on. |
-| `ABIDATA_BLOG_HOST` | unset | A separate host name for blogs, such as `blogs.example.com` (host and optional port, no scheme), pointed at the same server. When set, that host serves only `/b/...` and the public blog API, and blog paths on the main host redirect there. It must differ from the host of `ABIDATA_PUBLIC_URL`. |
+| `ABIDATA_PUBLIC_BLOGS` | `true` | Whether [user blogs](/docs/guide/blogs) can be served at `/b/{username}`. Blogs are off until an administrator turns them on; `false` or `0` turns them off for good, and the administrator setting cannot turn them back on. |
+| `ABIDATA_BLOG_HOST` | unset | A separate host name for blogs, such as `blogs.example.com` (host and optional port, no scheme), pointed at the same server. When set, that host serves only `/b/...` and the public blog API, and blog paths on the main host redirect there. It must differ from the host of `ABIDATA_PUBLIC_URL`. See [below](#blogs) |
 | `ABIDATA_DEBUG_ADDR` | (empty: off) | Address for the Go profiler (`/debug/pprof/`), such as `127.0.0.1:6060`. See below |
 | `ABIDATA_METRICS_ADDR` | (empty: off) | Extra listener serving `/metrics` without authentication, for Prometheus. Bind it to a private address. See [Monitoring](/docs/operations/monitoring#metrics) |
 | `ABIDATA_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
@@ -103,6 +103,17 @@ The admin database also records which backend created it, and refuses to open un
 ### ABIDATA_TRUSTED_PROXIES {#trusted-proxies}
 
 Without it, the server uses the connection's address as the client address, which behind a proxy is the proxy itself. With it, the server reads the client address from `X-Forwarded-For`, but only when the connection comes from a listed proxy. The client address is used in logs and for sign-in rate limiting. List only proxies you control.
+
+### User blogs and ABIDATA_BLOG_HOST {#blogs}
+
+[User blogs](/docs/guide/blogs) are served at `/b/{username}` and are off by default on a fresh server until an administrator enables them in the admin console's **Blogs** tab.
+
+When you enable public blogs in production, we recommend setting `ABIDATA_BLOG_HOST` to a separate host name (for example `blogs.example.com`) pointed at the same reverse proxy and server:
+
+- The blog host serves only `/b/...` and `/api/v1/blogs/...`, and requests to `/b/...` on `ABIDATA_PUBLIC_URL` redirect (`301`) to `ABIDATA_BLOG_HOST`.
+- Because `ABIDATA_BLOG_HOST` is a separate browser origin from `ABIDATA_PUBLIC_URL`, session cookies for the main application are never sent to public blog pages.
+
+Published blog pages and Atom feeds send `Cache-Control: public, max-age=60, stale-while-revalidate=300` and a weak `ETag` derived from the post version. Missing, unpublished or taken-down pages send `Cache-Control: no-store`. Taking a blog or post down purges AbiData's in-memory page cache at once; if you put a caching reverse proxy or CDN in front of `/b/`, configure it to honour `Cache-Control` and purge `/b/{username}*` from the proxy or CDN cache when taking content down.
 
 ## Limits that are not configurable yet {#fixed}
 

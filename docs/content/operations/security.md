@@ -97,6 +97,17 @@ Uploaded files are untrusted content that people will open in their browsers, so
 
 Files are not scanned for malware. If your people share files with each other outside AbiData, treat downloads like any other email attachment.
 
+## User blogs {#blogs}
+
+[User blogs](/docs/guide/blogs) publish user-written prose at `/b/{username}`:
+
+- Public blogs are off on a fresh install until a platform administrator enables them in the admin console (`ABIDATA_PUBLIC_BLOGS=false` locks them off in the environment).
+- Posts are written in Markdown with raw HTML disabled, passed through an allow-list HTML sanitiser on every render, and served as server-rendered HTML with `Content-Security-Policy: default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`. No script, frame, form or external image can load. Inside the authenticated blog editor, the live preview renders in a sandboxed `<iframe sandbox srcdoc>` without `allow-scripts`.
+- Public blog routes (`/b/...` and `/api/v1/blogs/...`) ignore session cookies and `Authorization` headers, never reveal draft rows or counts, and return the same `NOT_FOUND` response whether a username does not exist, the user is disabled, the blog is off, or a post was taken down.
+- Turning a blog on or changing a post's status (`draft`, `published`, `unlisted`) requires a signed-in owner session; [API keys](#api-keys) can write drafts but cannot publish. Status changes are limited to 10 per hour per user, and public reads are rate-limited per client address and per blog.
+- Outbound links carry `rel="nofollow noopener ugc"`. Visitors can report abusive pages without an account, and platform administrators can take down a post or an entire blog from the admin console's **Blogs** tab.
+- Setting `ABIDATA_BLOG_HOST` serves `/b/...` from a separate domain so browser session cookies for `ABIDATA_PUBLIC_URL` never reach public blog URLs: see [Configuration](/docs/operations/configuration#blogs).
+
 ## Your checklist {#checklist}
 
 1. Serve only over HTTPS and set `ABIDATA_PUBLIC_URL` to the HTTPS address.
@@ -105,5 +116,6 @@ Files are not scanned for malware. If your people share files with each other ou
 4. Keep the secrets out of images and repositories. Use `_FILE` variables. Restrict file mode to 600.
 5. Limit who holds the builder, owner and platform administrator roles, and review the workspaces' API keys from time to time (admin console, **API keys**).
 6. Keep the platform egress allowlist as narrow as you can: list the exact hosts your jobs need.
-7. Copy the backups and the keys off the host: see [Backup strategy](/docs/operations/backup-strategy).
-8. Keep the image up to date: see [Upgrade](/docs/operations/upgrade).
+7. If you enable [user blogs](/docs/guide/blogs), set `ABIDATA_BLOG_HOST` to a separate host name, review reported pages in the **Blogs** tab, and purge any proxy or CDN cache when taking content down. Leave public blogs off if nobody can moderate them.
+8. Copy the backups and the keys off the host: see [Backup strategy](/docs/operations/backup-strategy).
+9. Keep the image up to date: see [Upgrade](/docs/operations/upgrade).
