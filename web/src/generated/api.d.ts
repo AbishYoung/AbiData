@@ -559,6 +559,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/blogs/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A public blog's home and its newest posts */
+        get: operations["publicBlog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/blogs/{username}/posts/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One published or unlisted post, rendered */
+        get: operations["publicBlogPost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/docs": {
         parameters: {
             query?: never;
@@ -3080,6 +3114,36 @@ export interface components {
             enabled: boolean;
             /** @description ABIDATA_PUBLIC_APPS=false turned public apps off; the setting cannot turn them on. */
             readonly forced_off: boolean;
+        };
+        PublicBlog: {
+            /** @description Plain-text paragraphs. */
+            intro: string[] | null;
+            /** @description The newest published posts; unlisted posts are not listed. */
+            posts: components["schemas"]["PublicBlogPost"][] | null;
+            title: string;
+            url: string;
+            /** @description The canonical username (after an old name or another letter case). */
+            username: string;
+        };
+        PublicBlogPost: {
+            /** Format: date-time */
+            published_at?: string;
+            slug: string;
+            summary: string;
+            title: string;
+            url: string;
+        };
+        PublicBlogPostPage: {
+            /** @description The body through the public Markdown pipeline and sanitiser. */
+            html: string;
+            /** Format: date-time */
+            published_at?: string;
+            slug: string;
+            summary: string;
+            title: string;
+            unlisted: boolean;
+            url: string;
+            username: string;
         };
         PublicBlogsSetting: {
             /** @description Off by default: no blog is served until an administrator turns this on. */
@@ -6154,6 +6218,125 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    publicBlog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBlog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    publicBlogPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBlogPostPage"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

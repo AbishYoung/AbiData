@@ -55,7 +55,13 @@ var postColumns = []catalog.ColumnSpec{
 	{DisplayName: "Status", PhysicalName: "status", Type: catalog.ShortText, Required: true, Options: catalog.TypeOptions{MaxLength: 20},
 		DefaultSQL: "'draft'", ValidationSQL: "status IN ('draft', 'published', 'unlisted')", ValidationText: "Status is draft, published or unlisted."},
 	{DisplayName: "Published at", PhysicalName: "published_at", Type: catalog.DateTime, Description: "Set on first publish; can be changed to back-date a post."},
+	{DisplayName: "Images", PhysicalName: "images", Type: catalog.Attachments, Options: catalog.TypeOptions{MaxFiles: catalog.MaxMaxFiles},
+		Description: "The workspace files the body shows. The blog keeps it in step with the body, so the files are kept."},
 }
+
+// addedPostColumns joined the template after the first blogs were made. A
+// blog without them is still served; repair adds them.
+var addedPostColumns = map[string]bool{"images": true}
 
 // redirectColumns are the old-slug redirects' pinned columns.
 var redirectColumns = []catalog.ColumnSpec{
@@ -127,6 +133,9 @@ func (p Pins) Missing(s *catalog.Schema) []string {
 			return
 		}
 		for _, c := range specs {
+			if _, pinned := cols[c.PhysicalName]; !pinned && name == "posts" && addedPostColumns[c.PhysicalName] {
+				continue
+			}
 			col, ok := t.Column(cols[c.PhysicalName])
 			if !ok || col.Type != c.Type || col.PhysicalName != c.PhysicalName {
 				out = append(out, name+"."+c.PhysicalName)

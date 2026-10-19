@@ -10,6 +10,8 @@ import (
 
 	"abidata/internal/apps"
 	"abidata/internal/blogs"
+	"abidata/internal/fault"
+	"abidata/internal/files"
 )
 
 // Public blog pages (ADR 0017): server-rendered HTML at /b/{username} and
@@ -32,7 +34,65 @@ func (s *Server) mountPublicBlogs(r chi.Router) {
 			s.blogFail(w, r, &blogs.Moved{Username: chi.URLParam(r, "user")})
 		})
 		r.MethodFunc(m, "/b/{user}/{slug}", s.blogPost)
+		r.MethodFunc(m, "/b/{user}/_files/{id}", s.blogFile)
 	}
+}
+
+// blogFile serves an image of a served post. The file must be referred to by
+// a published or unlisted post that is served; other workspace files, images
+// of drafts and anything that is not a safe raster image are the NOT_FOUND.
+func (s *Server) blogFile(w http.ResponseWriter, r *http.Request) {
+	user, id := chi.URLParam(r, "user"), chi.URLParam(r, "id")
+	if s.blogLimited(w, r, strings.ToLower(user)) {
+		return
+	}
+	if s.deps.Files == nil {
+		s.blogFail(w, r, blogs.ErrHidden)
+		return
+	}
+	rd := s.blogReader()
+	b, err := rd.Blog(r.Context(), user)
+	var mv *blogs.Moved
+	if errors.As(err, &mv) {
+		mv.Slug = "_files/" + id
+	}
+	if err == nil {
+		err = rd.FileServed(r.Context(), b, id)
+	}
+	if err != nil {
+		s.blogFail(w, r, err)
+		return
+	}
+	l, err := s.deps.Workspaces.Acquire(r.Context(), b.WorkspaceID)
+	if err != nil {
+		s.blogFail(w, r, err)
+		return
+	}
+	f, meta, err := s.deps.Files.Open(r.Context(), l, id)
+	l.Release()
+	if err != nil {
+		if fault.Classify(err).Code == fault.NotFound {
+			err = blogs.ErrHidden
+		}
+		s.blogFail(w, r, err)
+		return
+	}
+	defer func() { _ = f.Close() }()
+	if !files.Inline(meta.ContentType) {
+		s.blogFail(w, r, blogs.ErrHidden)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", files.ServeType(meta.ContentType))
+	h.Set("Content-Disposition", "inline")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Security-Policy", fileCSP)
+	h.Set("Cross-Origin-Resource-Policy", "same-origin")
+	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	// Short-lived: a take-down or unpublish must reach readers soon.
+	h.Set("Cache-Control", blogCacheControl)
+	h.Set("ETag", `"`+meta.SHA256+`"`)
+	http.ServeContent(w, r, "", meta.CreatedAt, f)
 }
 
 // blogReader reads with the install switch as it stands now.

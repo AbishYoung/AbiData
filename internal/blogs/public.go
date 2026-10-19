@@ -10,6 +10,7 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
+	"abidata/internal/ids"
 	"abidata/internal/pgdb"
 	"abidata/internal/sqlgen"
 	"abidata/internal/workspace"
@@ -269,6 +270,45 @@ func (r *Reader) Post(ctx context.Context, b admin.Blog, slug string) (Post, err
 		return Post{}, ErrHidden
 	}
 	return Post{}, &Moved{Username: b.Username, Slug: p.Slug}
+}
+
+// FileServed reports whether a workspace file may be served publicly: only
+// when a served post's body refers to it (attachment:ID). Other files of the
+// blog workspace, and images of drafts, stay private (ErrHidden).
+func (r *Reader) FileServed(ctx context.Context, b admin.Blog, fileID string) error {
+	if !ids.Valid(fileID) {
+		return ErrHidden
+	}
+	l, sch, pins, err := r.open(ctx, b)
+	if err != nil {
+		return err
+	}
+	defer l.Release()
+	var posts []Post
+	err = l.Read(ctx, func(db dbx.Querier) error {
+		var err error
+		posts, err = readPosts(ctx, db, sch, pins, postQuery{limit: 50, where: func(col func(string) sqlgen.Col) sqlgen.Expr {
+			return sqlgen.And{
+				statusIs(col, StatusPublished, StatusUnlisted),
+				sqlgen.Match{Kind: sqlgen.MatchContains, X: col("body_md"), Pattern: sqlgen.Arg{Value: FileScheme + fileID}},
+			}
+		}})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	v := Visibility{InstallOn: true, UserActive: true, WorkspaceActive: true, BlogPublished: true}
+	for _, p := range posts {
+		down, err := r.takenDown(ctx, b.ID, p.Slug)
+		if err != nil {
+			return err
+		}
+		if PostServed(v, p, down) {
+			return nil
+		}
+	}
+	return ErrHidden
 }
 
 func firstErr(err, otherwise error) error {

@@ -166,6 +166,7 @@ func New(deps Deps) *Server {
 	s.registerApps(api)
 	s.registerBlog(api)
 	s.registerAdminBlogs(api)
+	s.registerPublicBlogs(api)
 	s.registerDocs(api)
 
 	r.NotFound(s.notFound)

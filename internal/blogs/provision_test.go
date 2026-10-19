@@ -154,6 +154,47 @@ func TestEnsureAllAndNameClash(t *testing.T) {
 	}
 }
 
+// TestRepairAddsNewTemplateColumns: a blog made before the images column
+// existed is still served, and repair adds and pins the column.
+func TestRepairAddsNewTemplateColumns(t *testing.T) {
+	r := newRig(t)
+	u := r.user(t, "ann@example.com", "ann")
+	b, err := r.p.EnsureBlog(r.ctx, u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Make it an old blog: unpin the images column, then drop it.
+	_, pins := r.schema(t, b.WorkspaceID)
+	imagesID := pins.Columns["images"]
+	delete(pins.Columns, "images")
+	l, err := r.wm.Acquire(r.ctx, b.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error { return writePins(r.ctx, tx, pins) }); err != nil {
+		l.Release()
+		t.Fatal(err)
+	}
+	_, err = r.p.Catalog.Run(r.ctx, l, []catalog.Op{{Kind: catalog.OpDropColumn, TableID: pins.Posts, ColumnID: imagesID}}, catalog.Apply, catalog.ApplyOptions{UserID: u, Force: true})
+	l.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, pins := r.schema(t, b.WorkspaceID)
+	if m := pins.Missing(s); len(m) != 0 {
+		t.Fatalf("an old blog counts as damaged: %v", m)
+	}
+	if _, err := r.p.EnsureBlog(r.ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	s, pins = r.schema(t, b.WorkspaceID)
+	posts, _ := s.Table(pins.Posts)
+	c, ok := posts.Column(pins.Columns["images"])
+	if !ok || c.Type != catalog.Attachments || c.PhysicalName != "images" || len(pins.Missing(s)) != 0 {
+		t.Fatalf("images after repair: %+v %v %v", c, ok, pins.Missing(s))
+	}
+}
+
 func TestGuardKeepsPinnedColumns(t *testing.T) {
 	r := newRig(t)
 	u := r.user(t, "ann@example.com", "ann")
