@@ -158,7 +158,7 @@ jobs:
       - run: chmod +x tests/e2e/.bin/abidata
       - run: npm --prefix tests/e2e ci
       - id: browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/package-lock.json') }}
