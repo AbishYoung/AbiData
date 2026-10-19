@@ -92,7 +92,10 @@ func TestStatementsPrepare(t *testing.T) {
 			continue
 		}
 		dialect := "portable"
-		if s.SQLiteOnly() {
+		switch {
+		case s.Variant():
+			dialect = "variant"
+		case s.SQLiteOnly():
 			dialect = "sqlite"
 		}
 		for i, c := range cols {

@@ -92,6 +92,24 @@ type DropTable struct {
 	IfExists bool
 }
 
+// AddForeignKey adds a foreign key to an existing table (PostgreSQL; SQLite
+// rebuilds the table instead). NotValid skips checking the rows already
+// there, which ValidateConstraint does later.
+type AddForeignKey struct {
+	Table    string
+	FK       ForeignKey
+	NotValid bool
+}
+
+// DropConstraint drops a table constraint (PostgreSQL).
+type DropConstraint struct {
+	Table, Name string
+	IfExists    bool
+}
+
+// ValidateConstraint checks a NOT VALID constraint against the table's rows (PostgreSQL).
+type ValidateConstraint struct{ Table, Name string }
+
 // DropIndex drops an index.
 type DropIndex struct{ Name string }
 
@@ -135,13 +153,16 @@ type AttachmentRefs struct {
 	Columns []AttachmentColumn
 }
 
-func (*CreateTable) isStmt()    {}
-func (*CreateIndex) isStmt()    {}
-func (*AddColumn) isStmt()      {}
-func (*RenameTable) isStmt()    {}
-func (*RenameColumn) isStmt()   {}
-func (*DropTable) isStmt()      {}
-func (*DropIndex) isStmt()      {}
-func (*DropTrigger) isStmt()    {}
-func (*OCCBump) isStmt()        {}
-func (*AttachmentRefs) isStmt() {}
+func (*CreateTable) isStmt()        {}
+func (*AddForeignKey) isStmt()      {}
+func (*DropConstraint) isStmt()     {}
+func (*ValidateConstraint) isStmt() {}
+func (*CreateIndex) isStmt()        {}
+func (*AddColumn) isStmt()          {}
+func (*RenameTable) isStmt()        {}
+func (*RenameColumn) isStmt()       {}
+func (*DropTable) isStmt()          {}
+func (*DropIndex) isStmt()          {}
+func (*DropTrigger) isStmt()        {}
+func (*OCCBump) isStmt()            {}
+func (*AttachmentRefs) isStmt()     {}

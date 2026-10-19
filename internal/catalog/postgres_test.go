@@ -244,11 +244,13 @@ func TestPostgresStatementsPrepare(t *testing.T) {
 		if !strings.HasPrefix(s.Name, "catalog.") || s.SQLiteOnly() {
 			continue
 		}
-		want, err := lite.Prepare(ctx, s.SQL)
-		if err != nil {
-			t.Fatalf("%s on SQLite: %v", s.Name, err)
+		var want []string
+		if !s.PostgresOnly() {
+			if want, err = lite.Prepare(ctx, s.SQL); err != nil {
+				t.Fatalf("%s on SQLite: %v", s.Name, err)
+			}
 		}
-		sql, err := dbx.RebindText(s.SQL)
+		sql, err := dbx.RebindText(s.For(sqlgen.Postgres))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -261,7 +263,7 @@ func TestPostgresStatementsPrepare(t *testing.T) {
 		for _, f := range desc.Fields {
 			got = append(got, f.Name)
 		}
-		same := len(got) == len(want)
+		same := s.PostgresOnly() || len(got) == len(want)
 		for i := 0; same && i < len(want); i++ {
 			same = !plainName.MatchString(want[i]) || got[i] == want[i]
 		}

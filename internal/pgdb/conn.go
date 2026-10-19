@@ -59,6 +59,29 @@ func (t Tx) Savepoint(ctx context.Context, fn func() error) (err error) {
 	return sp.Commit(ctx)
 }
 
+var _ dbx.Preparer = Tx{}
+
+// Prepare compiles sql without running it and returns its result columns.
+// It runs in a savepoint, so a statement that does not compile leaves the
+// transaction usable, as it does on SQLite.
+func (t Tx) Prepare(ctx context.Context, sql string) (columns []string, err error) {
+	text, err := dbx.RebindText(sql)
+	if err != nil {
+		return nil, err
+	}
+	err = t.Savepoint(ctx, func() error {
+		sd, err := t.tx.Conn().Prepare(ctx, "", text)
+		if err != nil {
+			return err
+		}
+		for _, f := range sd.Fields {
+			columns = append(columns, f.Name)
+		}
+		return nil
+	})
+	return columns, err
+}
+
 var (
 	_ dbx.Execer = DB{}
 	_ dbx.Rows   = rows{}

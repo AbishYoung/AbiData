@@ -59,17 +59,17 @@ backup.prepare	workspace	portable
 backup.prepare#2	workspace	sqlite	journal_mode
 backup.snapshot	workspace	sqlite	
 catalog.Cache.Get	workspace	portable	value
-catalog.Load	workspace	sqlite	id,physical_name,display_name,description,track_history,version
+catalog.Load	workspace	variant	id,physical_name,display_name,description,track_history,version
 catalog.Load#2	workspace	portable	id,table_id,physical_name,display_name,field_type,type_options,is_required,default_sql,validation_sql,validation_text,lookup_relationship_id,lookup_display_column_id,description,ordinal,is_hidden
 catalog.Load#3	workspace	portable	id,table_id,physical_name,is_unique,column_ids
-catalog.Load#4	workspace	sqlite	id,name,parent_table_id,child_table_id,child_column_id,on_delete,enforce
+catalog.Load#4	workspace	variant	id,name,parent_table_id,child_table_id,child_column_id,on_delete,enforce
 catalog.Migrate	workspace	sqlite	application_id
 catalog.Migrate#2	workspace	sqlite	user_version
 catalog.Migrate#3	workspace	portable	
-catalog.Reconcile	workspace	sqlite	name,hidden
-catalog.Reconcile#2	workspace	sqlite	count(*)
-catalog.Reconcile#3	workspace	sqlite	count(*)
-catalog.Reconcile#4	workspace	sqlite	name
+catalog.Reconcile	workspace	variant	name,hidden
+catalog.Reconcile#2	workspace	variant	count(*)
+catalog.Reconcile#3	workspace	variant	count(*)
+catalog.Reconcile#4	workspace	variant	name
 catalog.planner.alterColumn	workspace	portable	
 catalog.planner.checkSavedQueries	workspace	portable	id,name,sql_text
 catalog.planner.createIndex	workspace	portable	
@@ -88,7 +88,11 @@ catalog.planner.impact	workspace	sqlite	table,parent,count(*)
 catalog.planner.insertColumnMeta	workspace	portable	
 catalog.planner.insertOrUpdateRelationship	workspace	portable	
 catalog.planner.insertRelationship	workspace	portable	
-catalog.planner.physicalNameTaken	workspace	sqlite	count(*)
+catalog.planner.pgCheckForeignKeys	-	postgres	-
+catalog.planner.pgCopy	-	postgres	-
+catalog.planner.pgRebuild	-	postgres	-
+catalog.planner.pgRebuild#2	-	postgres	-
+catalog.planner.physicalNameTaken	workspace	variant	count(*)
 catalog.planner.rebuild	workspace	sqlite	seq
 catalog.planner.rebuild#2	workspace	sqlite	
 catalog.planner.rebuild#3	workspace	sqlite	

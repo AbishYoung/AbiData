@@ -211,3 +211,23 @@ func TestRenderRefusesMalformedSchema(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderConstraintStatements(t *testing.T) {
+	fk := ForeignKey{Name: "fk_r1", Column: "Customer", RefTable: "Customers", OnDelete: Cascade}
+	for _, c := range []struct {
+		s    Stmt
+		want string
+	}{
+		{&AddForeignKey{Table: "Orders", FK: fk, NotValid: true}, `ALTER TABLE "Orders" ADD CONSTRAINT "fk_r1" FOREIGN KEY ("Customer") REFERENCES "Customers"("id") ON DELETE CASCADE NOT VALID`},
+		{&DropConstraint{Table: "Orders", Name: "fk_r1", IfExists: true}, `ALTER TABLE "Orders" DROP CONSTRAINT IF EXISTS "fk_r1"`},
+		{&ValidateConstraint{Table: "Orders", Name: "fk_r1"}, `ALTER TABLE "Orders" VALIDATE CONSTRAINT "fk_r1"`},
+	} {
+		r, err := Render(Postgres, c.s)
+		if err != nil || r.SQL != c.want {
+			t.Errorf("got %q, %v\nwant %q", r.SQL, err, c.want)
+		}
+		if _, err := Render(SQLite, c.s); err == nil {
+			t.Errorf("%T rendered on SQLite", c.s)
+		}
+	}
+}

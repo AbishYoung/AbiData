@@ -186,7 +186,7 @@ func TestPostgresStatementsPrepare(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("%s on SQLite: %v", s.Name, err)
 		}
-		sql, err := dbx.RebindText(s.SQL)
+		sql, err := dbx.RebindText(s.For(sqlgen.Postgres))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -6,14 +6,17 @@ import (
 	"strings"
 
 	"abidata/internal/dbx"
+	"abidata/internal/pgdb"
+	"abidata/internal/sqlgen"
 )
 
 // Reconcile compares the catalog snapshot against the physical schema (D5) and
 // returns human-readable drift descriptions (empty when consistent).
 func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) {
+	d := dialectOf(q)
 	var drift []string
 	for _, t := range s.Tables {
-		rows, err := q.Query(ctx, sqlReconcile.SQL, t.PhysicalName)
+		rows, err := q.Query(ctx, sqlReconcile.For(d), t.PhysicalName)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +58,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 			}
 		}
 		var trig int
-		if err := q.QueryRow(ctx, sqlReconcile2.SQL, occTriggerName(&t)).Scan(&trig); err != nil {
+		if err := q.QueryRow(ctx, sqlReconcile2.For(d), occTriggerName(&t)).Scan(&trig); err != nil {
 			return nil, err
 		}
 		if trig == 0 {
@@ -64,7 +67,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 		if HasAttachTriggers(&t) {
 			for _, name := range attachTriggerNames(&t) {
 				var n int
-				if err := q.QueryRow(ctx, sqlReconcile2.SQL, name).Scan(&n); err != nil {
+				if err := q.QueryRow(ctx, sqlReconcile2.For(d), name).Scan(&n); err != nil {
 					return nil, err
 				}
 				if n == 0 {
@@ -74,7 +77,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 		}
 		for _, x := range t.Indexes {
 			var n int
-			if err := q.QueryRow(ctx, sqlReconcile3.SQL, x.PhysicalName).Scan(&n); err != nil {
+			if err := q.QueryRow(ctx, sqlReconcile3.For(d), x.PhysicalName).Scan(&n); err != nil {
 				return nil, err
 			}
 			if n == 0 {
@@ -83,7 +86,7 @@ func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) 
 		}
 	}
 	// User tables that exist physically but not in the catalog.
-	rows, err := q.Query(ctx, sqlReconcile4.SQL)
+	rows, err := q.Query(ctx, sqlReconcile4.For(d))
 	if err != nil {
 		return nil, err
 	}
@@ -200,4 +203,13 @@ func renameIdent(expr, old, new string) string {
 
 func isWordByte(c byte) bool {
 	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+}
+
+// dialectOf is the dialect of the database q reaches.
+func dialectOf(q dbx.Querier) sqlgen.Dialect {
+	switch q.(type) {
+	case pgdb.DB, pgdb.Tx:
+		return sqlgen.Postgres // the catalog's statements are the same on 17
+	}
+	return sqlgen.SQLite
 }

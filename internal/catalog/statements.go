@@ -5,8 +5,9 @@ import "abidata/internal/sqlgen"
 // The package's hand-written statements (ADR 0013 §7), registered so the
 // conformance test prepares each against the migrated schema.
 var (
-	sqlPlannerPhysicalNameTaken = sqlgen.RegisterSQLiteOnly("catalog.planner.physicalNameTaken", `SELECT count(*) FROM sqlite_schema WHERE name = ? COLLATE NOCASE`)
-	sqlPlannerCreateTable       = sqlgen.Register("catalog.planner.createTable", `INSERT INTO _sys_tables(id, physical_name, display_name, description, track_history, version, created_at, updated_at)
+	sqlPlannerPhysicalNameTaken = sqlgen.RegisterSQLiteOnly("catalog.planner.physicalNameTaken", `SELECT count(*) FROM sqlite_schema WHERE name = ? COLLATE NOCASE`).
+					WithPostgres(`SELECT count(*) FROM pg_class WHERE relnamespace = current_schema()::regnamespace AND lower(relname::text) = lower(?)`)
+	sqlPlannerCreateTable = sqlgen.Register("catalog.planner.createTable", `INSERT INTO _sys_tables(id, physical_name, display_name, description, track_history, version, created_at, updated_at)
 		VALUES (?,?,?,?,?,1,?,?)`)
 	sqlPlannerRenameTable       = sqlgen.Register("catalog.planner.renameTable", `UPDATE _sys_tables SET display_name = ?, physical_name = ? WHERE id = ?`)
 	sqlPlannerDropTable         = sqlgen.Register("catalog.planner.dropTable", `DELETE FROM _sys_file_refs WHERE table_id = ?`)
@@ -38,21 +39,36 @@ var (
 		VALUES (?,?,?,?,?,?,?)`)
 	sqlPlannerInsertOrUpdateRelationship = sqlgen.Register("catalog.planner.insertOrUpdateRelationship", `INSERT INTO _sys_relationships(id, name, parent_table_id, child_table_id, child_column_id, on_delete, enforce)
 		VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET on_delete = excluded.on_delete, enforce = excluded.enforce`)
-	sqlCacheGet = sqlgen.Register("catalog.Cache.Get", `SELECT value FROM _sys_meta WHERE key = 'schema_version'`)
-	sqlLoad     = sqlgen.RegisterSQLiteOnly("catalog.Load", `SELECT id, physical_name, display_name, description, track_history, version
-		FROM _sys_tables ORDER BY display_name COLLATE NOCASE, id`)
+	sqlPlannerPGRebuild     = sqlgen.RegisterPostgresOnly("catalog.planner.pgRebuild", `SELECT pg_sequence_last_value(pg_get_serial_sequence(?, 'id')::regclass)`)
+	sqlPlannerPGRebuild2    = sqlgen.RegisterPostgresOnly("catalog.planner.pgRebuild#2", `SELECT setval(pg_get_serial_sequence(?, 'id'), ?)`)
+	sqlPlannerPGCopy        = sqlgen.RegisterPostgresOnly("catalog.planner.pgCopy", `SELECT copied, skipped, sample FROM abi_copy_rows(?, ?)`)
+	sqlPlannerPGForeignKeys = sqlgen.RegisterPostgresOnly("catalog.planner.pgCheckForeignKeys", `SELECT NOT convalidated FROM pg_constraint WHERE conrelid = to_regclass(?) AND conname = ?`)
+	sqlCacheGet             = sqlgen.Register("catalog.Cache.Get", `SELECT value FROM _sys_meta WHERE key = 'schema_version'`)
+	sqlLoad                 = sqlgen.RegisterSQLiteOnly("catalog.Load", `SELECT id, physical_name, display_name, description, track_history, version
+		FROM _sys_tables ORDER BY display_name COLLATE NOCASE, id`).
+		WithPostgres(`SELECT id, physical_name, display_name, description, track_history, version
+		FROM _sys_tables ORDER BY display_name COLLATE abi_ci, id`)
 	sqlLoad2 = sqlgen.Register("catalog.Load#2", `SELECT id, table_id, physical_name, display_name, field_type, type_options, is_required,
 		default_sql, validation_sql, validation_text, lookup_relationship_id, lookup_display_column_id, description,
 		ordinal, is_hidden FROM _sys_columns ORDER BY table_id, ordinal, id`)
 	sqlLoad3 = sqlgen.Register("catalog.Load#3", `SELECT id, table_id, physical_name, is_unique, column_ids FROM _sys_indexes ORDER BY physical_name`)
 	sqlLoad4 = sqlgen.RegisterSQLiteOnly("catalog.Load#4", `SELECT id, name, parent_table_id, child_table_id, child_column_id, on_delete, enforce
-		FROM _sys_relationships ORDER BY name COLLATE NOCASE`)
-	sqlMigrate    = sqlgen.RegisterSQLiteOnly("catalog.Migrate", "PRAGMA application_id")
-	sqlMigrate2   = sqlgen.RegisterSQLiteOnly("catalog.Migrate#2", "PRAGMA user_version")
-	sqlMigrate3   = sqlgen.Register("catalog.Migrate#3", `INSERT INTO _sys_meta(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING`)
-	sqlReconcile  = sqlgen.RegisterSQLiteOnly("catalog.Reconcile", `SELECT name, hidden FROM pragma_table_xinfo(?)`)
-	sqlReconcile2 = sqlgen.RegisterSQLiteOnly("catalog.Reconcile#2", `SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name = ?`)
-	sqlReconcile3 = sqlgen.RegisterSQLiteOnly("catalog.Reconcile#3", `SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = ?`)
+		FROM _sys_relationships ORDER BY name COLLATE NOCASE`).
+		WithPostgres(`SELECT id, name, parent_table_id, child_table_id, child_column_id, on_delete, enforce
+		FROM _sys_relationships ORDER BY name, id`)
+	sqlMigrate   = sqlgen.RegisterSQLiteOnly("catalog.Migrate", "PRAGMA application_id")
+	sqlMigrate2  = sqlgen.RegisterSQLiteOnly("catalog.Migrate#2", "PRAGMA user_version")
+	sqlMigrate3  = sqlgen.Register("catalog.Migrate#3", `INSERT INTO _sys_meta(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING`)
+	sqlReconcile = sqlgen.RegisterSQLiteOnly("catalog.Reconcile", `SELECT name, hidden FROM pragma_table_xinfo(?)`).
+			WithPostgres(`SELECT column_name AS name, CASE WHEN is_generated = 'ALWAYS' THEN 2 ELSE 0 END AS hidden
+		FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ?`)
+	sqlReconcile2 = sqlgen.RegisterSQLiteOnly("catalog.Reconcile#2", `SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name = ?`).
+			WithPostgres(`SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+		WHERE c.relnamespace = current_schema()::regnamespace AND t.tgname = ?`)
+	sqlReconcile3 = sqlgen.RegisterSQLiteOnly("catalog.Reconcile#3", `SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = ?`).
+			WithPostgres(`SELECT count(*) FROM pg_class WHERE relkind = 'i' AND relnamespace = current_schema()::regnamespace AND relname = ?`)
 	sqlReconcile4 = sqlgen.RegisterSQLiteOnly("catalog.Reconcile#4", `SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
-		AND name NOT LIKE '\_sys\_%' ESCAPE '\'`)
+		AND name NOT LIKE '\_sys\_%' ESCAPE '\'`).
+		WithPostgres(`SELECT relname AS name FROM pg_class WHERE relkind IN ('r', 'p') AND relnamespace = current_schema()::regnamespace
+		AND relname NOT LIKE '\_sys\_%' ESCAPE '\'`)
 )

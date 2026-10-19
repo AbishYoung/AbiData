@@ -45,6 +45,22 @@ func (r *renderer) ddl(s Stmt) bool {
 			`BEGIN UPDATE ` + t + ` SET "_version" = OLD."_version" + 1 WHERE "id" = NEW."id"; END`)
 	case *AttachmentRefs:
 		r.attachmentRefs(s)
+	case *AddForeignKey:
+		r.pgOnly("ADD CONSTRAINT")
+		r.need(s.Table)
+		r.w("ALTER TABLE " + Quote(s.Table) + " ADD ")
+		r.foreignKey(s.FK)
+		if s.NotValid {
+			r.w(" NOT VALID")
+		}
+	case *DropConstraint:
+		r.pgOnly("DROP CONSTRAINT")
+		r.need(s.Table, s.Name)
+		r.w("ALTER TABLE " + Quote(s.Table) + " DROP CONSTRAINT " + ifExists(s.IfExists) + Quote(s.Name))
+	case *ValidateConstraint:
+		r.pgOnly("VALIDATE CONSTRAINT")
+		r.need(s.Table, s.Name)
+		r.w("ALTER TABLE " + Quote(s.Table) + " VALIDATE CONSTRAINT " + Quote(s.Name))
 	default:
 		return false
 	}
@@ -81,18 +97,30 @@ func (r *renderer) createTable(s *CreateTable) {
 	r.w("CREATE TABLE " + Quote(s.Name) + " (\n  ")
 	r.list(len(s.Columns), ",\n  ", func(i int) { r.columnDef(s.Columns[i]) })
 	for _, fk := range s.ForeignKeys {
-		r.need(fk.Name, fk.Column, fk.RefTable)
-		switch fk.OnDelete {
-		case Restrict, Cascade, SetNull:
-		default:
-			r.fail("unknown ON DELETE action %q", fk.OnDelete)
-		}
-		r.w(",\n  CONSTRAINT " + Quote(fk.Name) + " FOREIGN KEY (" + Quote(fk.Column) + ") REFERENCES " +
-			Quote(fk.RefTable) + `("id") ON DELETE ` + string(fk.OnDelete))
+		r.w(",\n  ")
+		r.foreignKey(fk)
 	}
 	r.w("\n)")
 	if s.Strict && !r.pg() { // PostgreSQL is always strict
 		r.w(" STRICT")
+	}
+}
+
+func (r *renderer) foreignKey(fk ForeignKey) {
+	r.need(fk.Name, fk.Column, fk.RefTable)
+	switch fk.OnDelete {
+	case Restrict, Cascade, SetNull:
+	default:
+		r.fail("unknown ON DELETE action %q", fk.OnDelete)
+	}
+	r.w("CONSTRAINT " + Quote(fk.Name) + " FOREIGN KEY (" + Quote(fk.Column) + ") REFERENCES " +
+		Quote(fk.RefTable) + `("id") ON DELETE ` + string(fk.OnDelete))
+}
+
+// pgOnly fails on SQLite, which cannot alter a table's constraints.
+func (r *renderer) pgOnly(what string) {
+	if !r.pg() {
+		r.fail("%s is PostgreSQL-only; SQLite rebuilds the table", what)
 	}
 }
 
