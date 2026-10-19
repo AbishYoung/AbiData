@@ -8,6 +8,7 @@ import { useIsCompact } from "@/lib/useMediaQuery";
 import { askToConfirm, Badge, Button, Dialog, Field, IconButton, Input, Skeleton, Textarea } from "@/components/ui";
 import { alertBox, warningBox } from "@/components/styles";
 import { BlogNotFound } from "./BlogApp";
+import { TakedownBanner } from "./TakedownBanner";
 import { blogKeys, checkSlug, createPost, getPost, previewPost, setPostStatus, updatePost, type BlogInfo, type BlogPost, type PostInput } from "./blogApi";
 import {
   ACTION_LABEL,
@@ -116,7 +117,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
 
   const pending = changes(d, saved);
   const dirty = saved ? Object.keys(pending).length > 0 : d.title !== "" || d.summary !== "" || d.body !== "";
-  const takenDown = saved?.chip === "taken_down";
+  const takenDown = !!saved?.takedown || !!info.takedown;
   const status = saved?.status ?? "new";
   const actions = actionsFor(status, takenDown);
   const bytes = byteLength(d.body);
@@ -330,6 +331,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
         <h2 className="m-0 text-xl font-semibold tracking-tight text-fg">{saved ? "Edit post" : "New post"}</h2>
         {saved && <Badge tone={CHIP_TONE[saved.chip]}>{CHIP_LABEL[saved.chip]}</Badge>}
       </div>
+      {info.takedown ? <TakedownBanner takedown={info.takedown} scope="blog" /> : saved?.takedown && <TakedownBanner takedown={saved.takedown} scope="post" />}
       {saved?.problem && (
         <p role="status" className={`${warningBox} m-0`}>
           Needs attention: {saved.problem}

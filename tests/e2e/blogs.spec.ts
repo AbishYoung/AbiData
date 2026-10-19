@@ -128,3 +128,39 @@ test("the published post is public once the server allows blogs", async ({ page,
     await stranger.close();
   }
 });
+
+test("an administrator takes a post down and the owner sees why", async ({ page, browser, baseURL }) => {
+  await signInAsBlogger(page);
+  const me: { user: { username: string } } = await (await page.request.get("/api/v1/auth/me")).json();
+  const username = me.user.username;
+
+  const adminContext = await browser.newContext({ baseURL: baseURL ?? "" });
+  const admin = await adminContext.newPage();
+  await signIn(admin);
+  await admin.goto("/admin?tab=blogs");
+  await admin.getByLabel("Search usernames").fill(username);
+  await admin.getByRole("button", { name: `Open @${username}` }).click();
+  await admin.getByRole("button", { name: `Take down ${TITLE}` }).click();
+  const dialog = admin.getByRole("dialog", { name: `Take down “${TITLE}”?` });
+  await dialog.getByLabel("Reason").selectOption("spam");
+  await dialog.getByLabel(/Note to the owner/).fill("Remove the advertising.");
+  await dialog.getByRole("button", { name: "Take down" }).click();
+  await expect(admin.getByRole("button", { name: `Restore ${TITLE}` })).toBeVisible();
+  await expectNoAxeViolations(admin);
+
+  // The owner sees the chip, the banner and no publish actions.
+  await page.goto("/blog");
+  await expect(page.getByRole("listitem").filter({ hasText: TITLE }).getByText("Taken down", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: TITLE }).click();
+  const banner = page.getByRole("status", { name: /This post was taken down by an administrator/ });
+  await expect(banner).toContainText("Remove the advertising.");
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unpublish" })).toHaveCount(0);
+
+  // Restore brings the actions back.
+  await admin.getByRole("button", { name: `Restore ${TITLE}` }).click();
+  await expect(admin.getByRole("button", { name: `Take down ${TITLE}` })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Unpublish" })).toBeVisible();
+  await adminContext.close();
+});

@@ -139,6 +139,19 @@ describe("PostEditor", () => {
     expect(await screen.findByText("That slug is reserved.")).toBeInTheDocument();
   });
 
+  it("shows a take-down and offers only Save", async () => {
+    api.getPost.mockResolvedValue(
+      post({ status: "published", chip: "taken_down", published_at: "2026-10-01T00:00:00Z", takedown: { reason_code: "spam", reason: "Spam", note: "Remove the ads.", at: "2026-10-02T00:00:00Z" } }),
+    );
+    wrap(<PostEditor ws="w1" info={info} id={7} />);
+    const banner = await screen.findByRole("status", { name: /This post was taken down by an administrator/ });
+    expect(within(banner).getByText("Remove the ads.")).toBeInTheDocument();
+    expect(within(banner).getByText("Spam")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
+  });
+
   it("renders the preview in a sandbox without scripts", async () => {
     api.getPost.mockResolvedValue(post());
     wrap(<PostEditor ws="w1" info={info} id={7} />);
