@@ -37,6 +37,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"abidata/internal/dbx"
@@ -395,6 +396,9 @@ func (s *Sandbox) Query(ctx context.Context, n Names, sql string, args []any, li
 			out.Truncated = true
 			break
 		}
+		for i := range v {
+			v[i] = plainNumber(v[i])
+		}
 		out.Rows = append(out.Rows, v)
 	}
 	return out, rows.Err()
@@ -451,7 +455,9 @@ func DescribeIn(ctx context.Context, tx Tx, role, sql string) (columns []string,
 		if err != nil {
 			return err
 		}
-		plan, err := tx.tx.Query(ctx, "EXPLAIN (GENERIC_PLAN, COSTS OFF) "+wrapped, pgx.QueryExecModeExec)
+		// A generic plan ignores the parameters' values, but each needs one bound.
+		args := append([]any{pgx.QueryExecModeExec}, make([]any, len(sd.ParamOIDs))...)
+		plan, err := tx.tx.Query(ctx, "EXPLAIN (GENERIC_PLAN, COSTS OFF) "+wrapped, args...)
 		if err == nil {
 			plan.Close()
 			err = plan.Err()
@@ -469,4 +475,26 @@ func DescribeIn(ctx context.Context, tx Tx, role, sql string) (columns []string,
 		return columns, orig, nil
 	}
 	return nil, nil, err
+}
+
+// plainNumber turns a numeric value (sum of integers, a division) into the
+// int64 or float64 SQLite gives for the same expression.
+func plainNumber(v any) any {
+	n, ok := v.(pgtype.Numeric)
+	if !ok {
+		return v
+	}
+	if !n.Valid || n.NaN {
+		return nil
+	}
+	if n.InfinityModifier == pgtype.Finite && n.Exp >= 0 {
+		if i, err := n.Int64Value(); err == nil && i.Valid {
+			return i.Int64
+		}
+	}
+	f, err := n.Float64Value()
+	if err != nil || !f.Valid {
+		return nil
+	}
+	return f.Float64
 }

@@ -89,6 +89,12 @@ func TestParitySQLiteAndPostgres(t *testing.T) {
 	}{
 		{name: "fields and sort", model: &Model{Sources: []Source{{Alias: "c", TableID: pcCust}},
 			Fields: []Field{{Alias: "c", ColumnID: pcName, Sort: "desc"}, {Alias: "c", ColumnID: pcCity}, {Alias: "c", ColumnID: pcVIP}}}},
+		{name: "nulls sort first", model: &Model{Sources: []Source{{Alias: "c", TableID: pcCust}, {Alias: "o", TableID: pcOrd}},
+			Joins:  []Join{{LeftAlias: "c", LeftColumnID: "id", RightAlias: "o", RightColumnID: pcCustRef, Kind: "left"}},
+			Fields: []Field{{Alias: "o", ColumnID: pcQty, Sort: "asc"}, {Alias: "c", ColumnID: pcName}}}},
+		{name: "nulls sort last descending", model: &Model{Sources: []Source{{Alias: "c", TableID: pcCust}, {Alias: "o", TableID: pcOrd}},
+			Joins:  []Join{{LeftAlias: "c", LeftColumnID: "id", RightAlias: "o", RightColumnID: pcCustRef, Kind: "left"}},
+			Fields: []Field{{Alias: "o", ColumnID: pcQty, Sort: "desc"}, {Alias: "c", ColumnID: pcName}}}},
 		{name: "join, group, sum", model: &Model{Sources: []Source{{Alias: "c", TableID: pcCust}, {Alias: "o", TableID: pcOrd}},
 			Joins: []Join{{LeftAlias: "c", LeftColumnID: "id", RightAlias: "o", RightColumnID: pcCustRef, Kind: "left"}},
 			Fields: []Field{{Alias: "c", ColumnID: pcName, Group: "group_by", Sort: "asc"},
@@ -147,6 +153,13 @@ func TestParitySQLiteAndPostgres(t *testing.T) {
 	s, err := svc.Put(ctx, pg, "", 0, SavedInput{Name: "Cities", Kind: "sql", SQL: `SELECT DISTINCT "City" FROM "Customers"`}, "u1")
 	if err != nil || fmt.Sprint(s.Columns) != "[City]" {
 		t.Fatalf("%+v %v", s, err)
+	}
+	after, err := svc.Put(ctx, pg, "", 0, SavedInput{Name: "After", Kind: "sql", SQL: `SELECT id FROM "Customers" WHERE id > :after ORDER BY id`}, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, err := svc.RunSaved(ctx, pg, Policy{}, after.ID, Params{"after": int64(1)}, 0); err != nil || fmt.Sprint(r.Rows) != "[[2] [3]]" {
+		t.Fatalf("%+v %v", r, err)
 	}
 	// A schema change that breaks the SQL query is reported, and one that
 	// renames a field the visual queries use is followed.
