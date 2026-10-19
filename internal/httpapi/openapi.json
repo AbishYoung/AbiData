@@ -4759,6 +4759,118 @@
         ],
         "type": "object"
       },
+      "PublicBlog": {
+        "additionalProperties": false,
+        "properties": {
+          "intro": {
+            "description": "Plain-text paragraphs.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "posts": {
+            "description": "The newest published posts; unlisted posts are not listed.",
+            "items": {
+              "$ref": "#/components/schemas/PublicBlogPost"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "description": "The canonical username (after an old name or another letter case).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "title",
+          "intro",
+          "url",
+          "posts"
+        ],
+        "type": "object"
+      },
+      "PublicBlogPost": {
+        "additionalProperties": false,
+        "properties": {
+          "published_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "slug",
+          "summary",
+          "url"
+        ],
+        "type": "object"
+      },
+      "PublicBlogPostPage": {
+        "additionalProperties": false,
+        "properties": {
+          "html": {
+            "description": "The body through the public Markdown pipeline and sanitiser.",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "html",
+          "unlisted",
+          "title",
+          "slug",
+          "summary",
+          "url"
+        ],
+        "type": "object"
+      },
       "PublicBlogsSetting": {
         "additionalProperties": false,
         "properties": {
@@ -9714,6 +9826,175 @@
         "summary": "Change your username (once per 30 days; the old one redirects for 90 days)",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/blogs/{username}": {
+      "get": {
+        "operationId": "publicBlog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBlog"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [],
+        "summary": "A public blog's home and its newest posts",
+        "tags": [
+          "public blogs"
+        ]
+      }
+    },
+    "/api/v1/blogs/{username}/posts/{slug}": {
+      "get": {
+        "operationId": "publicBlogPost",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBlogPostPage"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [],
+        "summary": "One published or unlisted post, rendered",
+        "tags": [
+          "public blogs"
         ]
       }
     },

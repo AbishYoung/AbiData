@@ -145,8 +145,11 @@ func (p *Provisioner) repair(ctx context.Context, b admin.Blog) error {
 	})
 	if err == nil && ok {
 		var s *catalog.Schema
-		if s, err = p.Schemas.Get(ctx, l); err == nil && p.Log != nil {
-			if missing := pins.Missing(s); len(missing) > 0 {
+		if s, err = p.Schemas.Get(ctx, l); err == nil {
+			if uerr := p.upgrade(ctx, l, s, pins, b.UserID); uerr != nil && p.Log != nil {
+				p.Log.Warn("blog workspace could not get the template's new columns", "workspace_id", w.ID, "err", uerr)
+			}
+			if missing := pins.Missing(s); len(missing) > 0 && p.Log != nil {
 				p.Log.Warn("blog workspace is missing pinned parts; it is not served until repaired",
 					"workspace_id", w.ID, "missing", missing)
 			}
@@ -157,6 +160,39 @@ func (p *Provisioner) repair(ctx context.Context, b admin.Blog) error {
 		return err
 	}
 	return p.applyTemplate(ctx, w.ID, b.UserID)
+}
+
+// upgrade adds the posts columns that joined the template after this blog
+// was made (addedPostColumns), and pins them.
+func (p *Provisioner) upgrade(ctx context.Context, l *workspace.Lease, s *catalog.Schema, pins Pins, owner string) error {
+	if _, ok := s.Table(pins.Posts); !ok {
+		return nil
+	}
+	var ops []catalog.Op
+	added := map[string]string{}
+	for _, c := range postColumns {
+		if _, pinned := pins.Columns[c.PhysicalName]; pinned || !addedPostColumns[c.PhysicalName] {
+			continue
+		}
+		c.ID = ids.New()
+		added[c.PhysicalName] = c.ID
+		ops = append(ops, catalog.Op{Kind: catalog.OpAddColumn, TableID: pins.Posts, Column: &c})
+	}
+	if len(ops) == 0 {
+		return nil
+	}
+	if _, err := p.Catalog.Run(ctx, l, ops, catalog.Apply, catalog.ApplyOptions{UserID: owner}); err != nil {
+		return err
+	}
+	next := pins
+	next.Columns = make(map[string]string, len(pins.Columns)+len(added))
+	for k, v := range pins.Columns {
+		next.Columns[k] = v
+	}
+	for k, v := range added {
+		next.Columns[k] = v
+	}
+	return l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error { return writePins(ctx, tx, next) })
 }
 
 // EnsureAll provisions a blog for every user without one, in batches, and

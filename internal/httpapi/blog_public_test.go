@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"abidata/internal/apps"
 	"abidata/internal/blogs"
 )
@@ -184,6 +186,97 @@ func TestPublicBlogRedirects(t *testing.T) {
 	}
 	if st, _, _ := e.visit("/b/anna/greetings", nil); st != 200 {
 		t.Fatalf("new address %d", st)
+	}
+}
+
+// TestPublicBlogImages: a served post's images are public, and kept by the
+// file sweep; other files of the blog workspace stay private.
+func TestPublicBlogImages(t *testing.T) {
+	e, ann, ws, _ := publicBlog(t)
+	base := "/api/v1/w/" + ws
+	upload := func(name string, data []byte) string {
+		t.Helper()
+		r := e.send(ann, "", "POST", base+"/files", data, "X-File-Name", name, "Content-Type", "application/octet-stream")
+		if r.status != 201 {
+			t.Fatalf("upload %d %s", r.status, r.body)
+		}
+		return r.json()["id"].(string)
+	}
+	shown, draftOnly, unused := upload("a.png", testPNG(8, 8)), upload("b.png", testPNG(9, 9)), upload("c.png", testPNG(7, 7))
+	notImage := upload("notes.txt", []byte("plain text"))
+	st, p, _ := ann.do("POST", base+"/blog/posts", map[string]any{"title": "Pictures",
+		"body_md": "![a](attachment:" + shown + ") ![t](attachment:" + notImage + ") ![gone](attachment:01J0000000000000000000000Z)"})
+	if st != 201 {
+		t.Fatalf("create %d %v", st, p)
+	}
+	if st, _, _ := ann.do("PUT", fmt.Sprintf("%s/blog/posts/%v/status", base, p["id"]), map[string]any{"_version": p["_version"], "status": "published"}); st != 200 {
+		t.Fatal("publish")
+	}
+	if st, _, _ := ann.do("POST", base+"/blog/posts", map[string]any{"title": "Draft pictures", "body_md": "![b](attachment:" + draftOnly + ")"}); st != 201 {
+		t.Fatal("draft")
+	}
+
+	st, body, h := e.visit("/b/ann/_files/"+shown, nil)
+	if st != 200 || h.Get("Content-Type") != "image/png" || h.Get("X-Content-Type-Options") != "nosniff" || h.Get("Content-Security-Policy") != fileCSP || len(body) == 0 || h.Get("Set-Cookie") != "" {
+		t.Fatalf("image %d %v", st, h)
+	}
+	for name, id := range map[string]string{"draft's image": draftOnly, "unused file": unused, "not an image": notImage, "malformed id": "x"} {
+		if st, body, _ := e.visit("/b/ann/_files/"+id, nil); st != 404 || body != string(blogs.NotFoundPage) {
+			t.Errorf("%s: %d", name, st)
+		}
+	}
+
+	// The post's images column holds the files it shows (existing ones only), so they are attached.
+	_, meta, _ := ann.do("GET", base+"/files/"+shown, nil)
+	if meta["state"] != "attached" {
+		t.Fatalf("file state %v", meta)
+	}
+	if _, meta, _ := ann.do("GET", base+"/files/"+unused, nil); meta["state"] != "pending" {
+		t.Fatalf("unused file %v", meta)
+	}
+}
+
+func TestPublicBlogJSON(t *testing.T) {
+	e, _, _, _ := publicBlog(t)
+	anon := e.client()
+	st, home, h := anon.do("GET", "/api/v1/blogs/ANN", nil)
+	posts, _ := home["posts"].([]any)
+	if st != 200 || home["username"] != "ann" || home["title"] != "Ann writes" || len(posts) != 1 || h.Get("Cache-Control") != blogCacheControl {
+		t.Fatalf("home %d %v %v", st, home, h)
+	}
+	st, p, _ := anon.do("GET", "/api/v1/blogs/ann/posts/hello-world", nil)
+	if st != 200 || !strings.Contains(p["html"].(string), "<strong>bold</strong>") || strings.Contains(p["html"].(string), "<script") || p["url"] != testOrigin+"/b/ann/hello-world" {
+		t.Fatalf("post %d %v", st, p)
+	}
+	for _, path := range []string{"/api/v1/blogs/ann/posts/secret-draft", "/api/v1/blogs/nobody", "/api/v1/blogs/ann/posts/Bad_Slug"} {
+		if st, body, h := anon.do("GET", path, nil); st != 404 || errCode(body) != "NOT_FOUND" || h.Get("Cache-Control") != "no-store" {
+			t.Errorf("%s: %d %v", path, st, body)
+		}
+	}
+}
+
+// TestBlogAccessReadsNoCredentials: every operation marked access "blog"
+// answers the same with a broken cookie and a broken bearer token as without,
+// so it reads neither (ADR 0017).
+func TestBlogAccessReadsNoCredentials(t *testing.T) {
+	e, _, _, _ := publicBlog(t)
+	n := 0
+	for path, item := range e.s.API().OpenAPI().Paths {
+		for _, op := range []*huma.Operation{item.Get, item.Post, item.Put, item.Patch, item.Delete} {
+			if op == nil || metaString(op, metaAccess) != "blog" {
+				continue
+			}
+			n++
+			url := strings.NewReplacer("{username}", "ann", "{slug}", "hello-world").Replace(path)
+			plain := e.send(nil, "", op.Method, url, nil)
+			junk := e.send(nil, "not-a-key", op.Method, url, nil, "Cookie", "abidata_session=forged; __Host-abidata_session=forged")
+			if plain.status != junk.status || plain.status == 401 || plain.status == 403 || !bytes.Equal(plain.body, junk.body) {
+				t.Errorf("%s %s: %d without credentials, %d with junk ones", op.Method, path, plain.status, junk.status)
+			}
+		}
+	}
+	if n < 2 {
+		t.Fatalf("only %d blog operations", n)
 	}
 }
 

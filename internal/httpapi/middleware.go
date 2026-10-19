@@ -55,7 +55,7 @@ func clientIP(ctx context.Context) string {
 
 // Operation metadata keys.
 const (
-	metaAccess = "access" // "public" | "session" (default) | "platform_admin" | "app"
+	metaAccess = "access" // "public" | "session" (default) | "platform_admin" | "app" | "blog"
 	metaRole   = "role"   // admin.Role minimum for /w/{ws} routes (default viewer)
 	// metaSessionOnly (bool) refuses API-key callers even if their role would pass.
 	metaSessionOnly = "session_only"
@@ -210,6 +210,17 @@ func (s *Server) authenticate(hctx huma.Context, next func(huma.Context)) {
 	// are read, so a member's session or an API key never mixes in (ADR 0014).
 	if metaString(op, metaAccess) == "app" {
 		s.authenticateApp(hctx, next)
+		return
+	}
+	// Public blogs answer the same to everyone: neither cookies nor
+	// Authorization are read (ADR 0017).
+	if metaString(op, metaAccess) == "blog" {
+		hctx.SetHeader("Cache-Control", "no-store")
+		if isUnsafe(hctx.Method()) && !s.deps.Config.OriginAllowed(hctx.Header("Origin")) {
+			writeHumaError(hctx, s.log, fault.New(fault.Forbidden, "The request origin is not allowed."))
+			return
+		}
+		next(hctx)
 		return
 	}
 	// A bearer Authorization header means API-key auth and nothing else: cookies

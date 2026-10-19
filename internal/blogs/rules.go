@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -139,8 +140,22 @@ func (r *Rules) apply(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, pins 
 	}
 	changed := false
 
-	if body, _ := get("body_md"); len(str(body)) > MaxBodySize {
+	body, bodyGiven := get("body_md")
+	if len(str(body)) > MaxBodySize {
 		return nil, false, fault.Newf(fault.BadRequest, "A post can be at most %d KB.", MaxBodySize>>10)
+	}
+	// The images column holds the files the body shows, so the file sweep
+	// keeps them and backups carry them (ADR 0011).
+	if imagesCol, ok := col["images"]; ok && (bodyGiven || cur == nil) {
+		files, err := existingFiles(ctx, tx, BodyFileIDs(str(body)))
+		if err != nil {
+			return nil, false, err
+		}
+		var v any
+		if len(files) > 0 {
+			v = files
+		}
+		out[imagesCol], changed = v, true
 	}
 
 	title, _ := get("title")
@@ -286,4 +301,63 @@ func (r *Rules) redirect(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, pi
 	}
 	_, err = r.Records.InsertTx(ctx, tx, "", sch, t, map[string]any{oldCol: oldSlug, postCol: json.Number(strconv.FormatInt(postID, 10))}, actor)
 	return err
+}
+
+// bodyFileRef matches a body's references to workspace files.
+var bodyFileRef = regexp.MustCompile(`attachment:([0-9A-HJKMNP-TV-Z]{26})`)
+
+// BodyFileIDs lists the file ids a post body refers to, first occurrence
+// first, at most catalog.MaxMaxFiles.
+func BodyFileIDs(body string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range bodyFileRef.FindAllStringSubmatch(body, -1) {
+		if id := m[1]; !seen[id] && len(out) < catalog.MaxMaxFiles {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// existingFiles keeps the ids that are files of this workspace, in order.
+func existingFiles(ctx context.Context, q dbx.Querier, list []string) ([]string, error) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	args := make([]sqlgen.Expr, len(list))
+	for i, id := range list {
+		args[i] = sqlgen.Arg{Value: id}
+	}
+	stmt, err := sqlgen.Render(pgdb.DialectOf(q), &sqlgen.Select{
+		Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "id"}}},
+		From:    sqlgen.Table{Name: "_sys_files"},
+		Where:   sqlgen.In{X: sqlgen.Col{Name: "id"}, List: args},
+	})
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.Query(ctx, stmt.SQL, stmt.Args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	have := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		have[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := list[:0:0]
+	for _, id := range list {
+		if have[id] {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
