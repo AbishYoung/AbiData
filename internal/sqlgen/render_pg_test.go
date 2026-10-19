@@ -141,3 +141,11 @@ func TestRenderPostgresDDL(t *testing.T) {
 		t.Error("a PostgreSQL DROP TRIGGER without its table rendered")
 	}
 }
+
+func TestCICollation(t *testing.T) {
+	for d, want := range map[Dialect]string{SQLite: "NOCASE", Postgres: "abi_ci", Postgres17: "abi_ci"} {
+		if got := CICollation(d); got != want {
+			t.Errorf("%v: %s, want %s", d, got, want)
+		}
+	}
+}

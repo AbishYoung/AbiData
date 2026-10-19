@@ -17,7 +17,10 @@ import (
 // PostgreSQL builtin is called abi_<name>, since pg_catalog is searched first.
 
 // pg reports whether the renderer targets PostgreSQL (any version).
-func (r *renderer) pg() bool { return r.d == Postgres || r.d == Postgres17 }
+func (r *renderer) pg() bool { return isPG(r.d) }
+
+// isPG reports whether d is one of the PostgreSQL dialects.
+func isPG(d Dialect) bool { return d == Postgres || d == Postgres17 }
 
 // pgType is the PostgreSQL type a CAST to t produces: the storage types of
 // ADR 0012 §4 for the scalar logical types.
@@ -151,7 +154,7 @@ func (r *renderer) ciCollation() string { return CICollation(r.d) }
 // CICollation is d's case-insensitive collation, for hand-written ORDER BY
 // clauses: NOCASE on SQLite, <prefix>_lib's abi_ci on PostgreSQL.
 func CICollation(d Dialect) string {
-	if d == Postgres {
+	if isPG(d) {
 		return "abi_ci"
 	}
 	return "NOCASE"
