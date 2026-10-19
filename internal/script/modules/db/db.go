@@ -114,7 +114,7 @@ func build(r *script.Run) lua.LValue {
 		done := false
 		L.Push(L.NewFunction(func(L *lua.LState) int {
 			if len(buf) == 0 && !done {
-				buf = readRows(r, L, "SELECT * FROM ("+sql+") LIMIT 1000 OFFSET "+fmt.Sprint(offset), args, 1000)
+				buf = readRows(r, L, "SELECT * FROM ("+sql+") AS abidata_iter LIMIT 1000 OFFSET "+fmt.Sprint(offset), args, 1000)
 				offset += len(buf)
 				done = len(buf) < 1000
 			}
@@ -256,6 +256,9 @@ func sqlError(d *query.Denial, err error) error {
 }
 
 func readRows(r *script.Run, L *lua.LState, sql string, args []any, limit int) []*lua.LTable {
+	if d := data(r, L); onPostgres(d) {
+		return pgReadRows(r, L, d, sql, args, limit)
+	}
 	var out []*lua.LTable
 	withConn(r, L, false, func(ctx context.Context, c *sqlitex.Conn) error {
 		desc, err := c.Describe(ctx, sql)
@@ -292,6 +295,9 @@ func readRows(r *script.Run, L *lua.LState, sql string, args []any, limit int) [
 }
 
 func readValues(r *script.Run, L *lua.LState, sql string, args []any) lua.LValue {
+	if d := data(r, L); onPostgres(d) {
+		return pgReadValue(r, d, sql, args)
+	}
 	var out lua.LValue
 	withConn(r, L, false, func(ctx context.Context, c *sqlitex.Conn) error {
 		desc, err := c.Describe(ctx, sql)
@@ -331,21 +337,26 @@ func execSQL(r *script.Run, L *lua.LState, sql string, args []any) dbx.Result {
 	}
 	var res dbx.Result
 	var touched []string
-	withConn(r, L, true, func(ctx context.Context, c *sqlitex.Conn) error {
-		desc, err := c.Describe(ctx, sql)
-		if err != nil {
-			return err
-		}
-		if desc.ReadOnly {
-			return fault.New(fault.BadRequest, "db.exec runs INSERT, UPDATE or DELETE; use db.query to read.")
-		}
-		res, err = c.Exec(ctx, sql, args...)
-		if err != nil {
-			return err
-		}
+	if onPostgres(d) {
+		res.Changes, res.LastInsertID = pgExec(r, d, sql, args)
 		touched = writtenTables(sql)
-		return nil
-	})
+	} else {
+		withConn(r, L, true, func(ctx context.Context, c *sqlitex.Conn) error {
+			desc, err := c.Describe(ctx, sql)
+			if err != nil {
+				return err
+			}
+			if desc.ReadOnly {
+				return fault.New(fault.BadRequest, "db.exec runs INSERT, UPDATE or DELETE; use db.query to read.")
+			}
+			res, err = c.Exec(ctx, sql, args...)
+			if err != nil {
+				return err
+			}
+			touched = writtenTables(sql)
+			return nil
+		})
+	}
 	if len(touched) > 0 && d.Records != nil && d.Schemas != nil {
 		ids := tableIDs(r, d, touched)
 		ws := string(d.Lease.ID())
@@ -476,7 +487,12 @@ func aggregate(r *script.Run, L *lua.LState, sqlFn string) int {
 	if sqlFn == "" {
 		sql += " LIMIT 1"
 	}
-	v := readValues(r, L, sql, args)
+	var v lua.LValue
+	if onPostgres(d) {
+		v = pgAggregate(r, d, sql, where == "", args)
+	} else {
+		v = readValues(r, L, sql, args)
+	}
 	if v == nil {
 		v = r.Sentinel(script.NullName)
 	}

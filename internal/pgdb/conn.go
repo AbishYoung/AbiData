@@ -168,6 +168,11 @@ func (d DB) QueryRow(ctx context.Context, sql string, args ...any) dbx.Row {
 
 type rows struct{ r pgx.Rows }
 
+// rowsOf exposes the pgx rows under a dbx.Rows from DB.Query.
+type rowsOf interface{ pgx() pgx.Rows }
+
+func (r rows) pgx() pgx.Rows { return r.r }
+
 func (r rows) Next() bool             { return r.r.Next() }
 func (r rows) Err() error             { return r.r.Err() }
 func (r rows) Close()                 { r.r.Close() }

@@ -12,6 +12,7 @@ import (
 // Phase 3 security review: the db module's SQL surface as seen by hostile Lua.
 // Every statement here must be refused.
 func TestSecReviewAuthorizerSurface(t *testing.T) {
+	sqliteOnly(t)
 	f := setup(t)
 	out := filepath.Join(t.TempDir(), "exfil.db")
 	denied := []string{
@@ -70,6 +71,7 @@ func TestSecReviewRecursiveCTEInterrupted(t *testing.T) {
 // Positional INSERT … SELECT copies _version without naming it, so CheckDML's
 // _VERSION token test does not see it. Informational: only new rows are affected.
 func TestSecReviewInsertSelectSetsVersion(t *testing.T) {
+	sqliteOnly(t)
 	f := setup(t)
 	vals, err := f.run(t, script.UIEvent, `
 		db.exec("INSERT INTO Items(Name) VALUES ('a')")

@@ -370,3 +370,48 @@ func TestDescribeInRunsNothing(t *testing.T) {
 		_ = tx.Rollback(ctx)
 	}
 }
+
+// Exec (Lua db.exec) writes the workspace's own user tables as its write
+// role, and nothing else.
+func TestSandboxExec(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	exec := func(sql string, args ...any) (ExecResult, error) {
+		return e.sb.Exec(ctx, e.a, sql, args, 2*time.Second)
+	}
+	r, err := exec(`INSERT INTO "Orders"(item) VALUES (:item)`, dbx.Named{Name: "item", Value: "A-3"})
+	if err != nil || r.Changes != 1 || r.LastID != 3 {
+		t.Fatalf("insert: %+v %v", r, err)
+	}
+	if r, err := exec(`UPDATE "Orders" SET item = item || '!' WHERE id <= ?`, 2); err != nil || r.Changes != 2 || r.LastID != 0 {
+		t.Fatalf("update: %+v %v", r, err)
+	}
+	if r, err := exec(`DELETE FROM "Orders" WHERE id = 3`); err != nil || r.Changes != 1 {
+		t.Fatalf("delete: %+v %v", r, err)
+	}
+	var app string
+	if err := Pool(e.app).QueryRow(ctx, `SELECT current_user`).Scan(&app); err != nil {
+		t.Fatal(err)
+	}
+	for sql, want := range map[string]string{
+		`INSERT INTO _sys_meta VALUES ('k', 'v')`:                                        "permission denied for table _sys_meta",
+		`UPDATE ` + ident(e.b.Schema()) + `."Orders" SET item = 'x'`:                     "permission denied for schema",
+		`DELETE FROM "Orders"; DELETE FROM "Orders"`:                                     "single statement",
+		`CREATE TABLE "New"(x int)`:                                                      "permission denied for schema",
+		`TRUNCATE "Orders"`:                                                              "permission denied",
+		`SELECT set_config('role', '` + app + `', true)`:                                 "permission denied to set role",
+		`UPDATE "Orders" SET item = set_config('role', '` + e.a.ReadLogin() + `', true)`: "permission denied to set role",
+		`SELECT 1`: "only INSERT, UPDATE and DELETE",
+		`DO $$ BEGIN DELETE FROM "Orders"; END $$`: "only INSERT, UPDATE and DELETE",
+		`COMMIT`: "only INSERT, UPDATE and DELETE",
+	} {
+		if _, err := exec(sql); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v, want %q", sql, err, want)
+		}
+	}
+	// Nothing a refused statement did was kept.
+	r2, err := e.query(t, `SELECT item FROM "Orders" ORDER BY id`)
+	if err != nil || len(r2.Rows) != 2 || r2.Rows[0][0] != "A-1!" {
+		t.Fatalf("%+v %v", r2, err)
+	}
+}

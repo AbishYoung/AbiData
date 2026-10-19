@@ -133,6 +133,10 @@ func GrantUserTable(ctx context.Context, c dbx.Execer, n Names, table string) er
 	for _, q := range []string{
 		`GRANT SELECT ON ` + t + ` TO ` + ident(n.ReadRole()),
 		`GRANT INSERT, UPDATE, DELETE ON ` + t + ` TO ` + ident(n.WriteRole()),
+		// lastval() after an INSERT, for db.exec's last_id. It also lets a
+		// write call nextval(), which can only skip IDs.
+		`DO $g$ DECLARE s text := pg_get_serial_sequence('` + strings.ReplaceAll(t, "'", "''") + `', 'id'); BEGIN
+			IF s IS NOT NULL THEN EXECUTE format('GRANT USAGE ON SEQUENCE %s TO %I', s, '` + strings.ReplaceAll(n.WriteRole(), "'", "''") + `'); END IF; END $g$`,
 	} {
 		if _, err := c.Exec(ctx, q); err != nil {
 			return fmt.Errorf("pgdb: grant %s: %w", table, err)
@@ -404,6 +408,86 @@ func (s *Sandbox) Query(ctx context.Context, n Names, sql string, args []any, li
 	return out, rows.Err()
 }
 
+// ErrNotDML reports a db.exec statement that is not an INSERT, UPDATE or DELETE.
+var ErrNotDML = errors.New("pgdb: only INSERT, UPDATE and DELETE run here")
+
+// ExecResult is a sandboxed write's outcome.
+type ExecResult struct {
+	Changes int64
+	LastID  int64 // the last ID an INSERT assigned; 0 otherwise
+}
+
+// Exec runs one INSERT, UPDATE or DELETE typed by a person (Lua db.exec), as
+// the workspace's write role on its own login, and commits it. The caller
+// holds the workspace's writer lock. Statements that are not one of those
+// are rolled back (ErrNotDML).
+func (s *Sandbox) Exec(ctx context.Context, n Names, sql string, args []any, timeout time.Duration) (ExecResult, error) {
+	if timeout <= 0 {
+		return ExecResult{}, errors.New("pgdb: sandbox exec needs a timeout")
+	}
+	body, bound, err := dbx.Rebind(strings.TrimRight(strings.TrimSpace(sql), ";"), args)
+	if err != nil {
+		return ExecResult{}, err
+	}
+	p, err := s.pool(ctx, n.WriteLogin())
+	if err != nil {
+		return ExecResult{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout+5*time.Second)
+	defer cancel()
+	tx, err := p.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite})
+	if err != nil {
+		return ExecResult{}, err
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	for _, q := range []string{
+		`SET LOCAL ROLE ` + ident(n.WriteRole()),
+		`SET LOCAL search_path = ` + ident(n.Schema()) + `, ` + ident(n.Lib()),
+		fmt.Sprintf(`SET LOCAL statement_timeout = %d`, timeout.Milliseconds()),
+		fmt.Sprintf(`SET LOCAL lock_timeout = %d`, timeout.Milliseconds()),
+		fmt.Sprintf(`SET LOCAL idle_in_transaction_session_timeout = %d`, (timeout + 5*time.Second).Milliseconds()),
+	} {
+		if _, err := tx.Exec(ctx, q); err != nil {
+			return ExecResult{}, err
+		}
+	}
+	// Query, not Exec: the extended protocol runs exactly one statement (see Query).
+	rows, err := tx.Query(ctx, body, append([]any{pgx.QueryExecModeExec}, bound...)...)
+	if err != nil {
+		return ExecResult{}, execErr(err)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return ExecResult{}, execErr(err)
+	}
+	tag := rows.CommandTag()
+	var res ExecResult
+	switch {
+	case tag.Insert():
+		res.Changes = tag.RowsAffected()
+		if res.Changes > 0 {
+			if err := tx.QueryRow(ctx, `SELECT lastval()`).Scan(&res.LastID); err != nil {
+				return ExecResult{}, err
+			}
+		}
+	case tag.Update(), tag.Delete():
+		res.Changes = tag.RowsAffected()
+	default:
+		return ExecResult{}, ErrNotDML
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ExecResult{}, err
+	}
+	return res, nil
+}
+
+func execErr(err error) error {
+	if strings.Contains(err.Error(), "multiple commands") {
+		return ErrMultipleStatements
+	}
+	return err
+}
+
 // Describe checks that sql is one statement that only reads, as the
 // workspace's read role on its own login, and returns its result columns
 // without running it.
@@ -475,6 +559,47 @@ func DescribeIn(ctx context.Context, tx Tx, role, sql string) (columns []string,
 		return columns, orig, nil
 	}
 	return nil, nil, err
+}
+
+// Value is one value a query returned, with where it came from.
+type Value struct {
+	Value  any
+	Origin Origin
+}
+
+// QueryValueAs runs generated SQL (never SQL a person typed: ADR 0012 §3) in
+// tx as role and returns the first column of its first row, nil when there
+// is none. It runs in a savepoint that is rolled back, which also undoes the
+// role change.
+func QueryValueAs(ctx context.Context, tx Tx, role, sql string, args ...any) (out Value, err error) {
+	err = tx.Savepoint(ctx, func() error {
+		if _, err := tx.tx.Exec(ctx, `SET LOCAL ROLE `+ident(role)); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		r := rows.(rowsOf).pgx()
+		if r.Next() {
+			v, err := r.Values()
+			if err != nil {
+				return err
+			}
+			if len(v) > 0 {
+				out = Value{Value: plainNumber(v[0]), Origin: origins(r.FieldDescriptions())[0]}
+			}
+		}
+		if err := r.Err(); err != nil {
+			return err
+		}
+		return errDescribed
+	})
+	if errors.Is(err, errDescribed) {
+		return out, nil
+	}
+	return Value{}, err
 }
 
 // plainNumber turns a numeric value (sum of integers, a division) into the
