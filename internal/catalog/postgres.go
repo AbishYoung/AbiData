@@ -22,12 +22,18 @@ import (
 var pgMigrationFS embed.FS
 
 // MigratePostgres creates or migrates the _sys_* tables in the workspace's
+// MigratePostgres creates or migrates the _sys_* tables in the workspace's
 // schema and seeds _sys_meta, as Migrate does on SQLite. The schema
 // (pgdb.ProvisionWorkspace) and <prefix>_lib (pgdb.InstallLib) must exist.
 // The version is kept in _sys_schema, as SQLite keeps it in user_version. It
 // is safe to run on every open.
 func MigratePostgres(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names) error {
-	schema, lib := pgdb.Ident(n.Schema()), pgdb.Ident(n.Lib())
+	return MigratePostgresInSchema(ctx, id, d, n, n.Schema())
+}
+
+// MigratePostgresInSchema runs MigratePostgres targeting schemaName.
+func MigratePostgresInSchema(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names, schemaName string) error {
+	schema, lib := pgdb.Ident(schemaName), pgdb.Ident(n.Lib())
 	if _, err := d.Exec(ctx, `CREATE TABLE IF NOT EXISTS `+schema+`._sys_schema (
 		id integer PRIMARY KEY CHECK (id = 1), application_id bigint NOT NULL, version integer NOT NULL)`); err != nil {
 		return fmt.Errorf("catalog: %w", err)
@@ -39,7 +45,7 @@ func MigratePostgres(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pg
 		return fmt.Errorf("catalog: %w", err)
 	}
 	if appID != 0 && appID != ApplicationID {
-		return fmt.Errorf("catalog: schema %s does not hold an AbiData workspace", n.Schema())
+		return fmt.Errorf("catalog: schema %s does not hold an AbiData workspace", schemaName)
 	}
 	names, err := fs.Glob(pgMigrationFS, "migrations/postgres/*.sql")
 	if err != nil {
@@ -56,10 +62,10 @@ func MigratePostgres(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pg
 		}
 		// One script is one implicit transaction: the migration and its
 		// version step commit together or not at all.
-		script := fmt.Sprintf(`SET LOCAL search_path = %s, pg_catalog;
+		script := fmt.Sprintf(`SET LOCAL search_path = %s, %s, pg_catalog;
 %s
 INSERT INTO _sys_schema (id, application_id, version) VALUES (1, %d, %d)
-	ON CONFLICT (id) DO UPDATE SET version = excluded.version;`, schema, strings.ReplaceAll(string(body), "@lib.", lib+"."), ApplicationID, i+1)
+	ON CONFLICT (id) DO UPDATE SET version = excluded.version;`, schema, lib, strings.ReplaceAll(string(body), "@lib.", lib+"."), ApplicationID, i+1)
 		if _, err := d.Exec(ctx, script); err != nil {
 			return fmt.Errorf("catalog: migration %s: %w", strings.TrimPrefix(names[i], "migrations/postgres/"), err)
 		}

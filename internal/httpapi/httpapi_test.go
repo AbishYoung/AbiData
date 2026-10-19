@@ -454,11 +454,7 @@ func TestOpenAPIDocumentBuilds(t *testing.T) {
 	}
 }
 
-// backupsOnSQLite skips a test of backups and restore on PostgreSQL, where
-// they arrive with ADR 0012 Phase 4.
+// backupsOnSQLite was a skip helper pending ADR 0012 Phase 4.
 func backupsOnSQLite(t *testing.T) {
 	t.Helper()
-	if wstest.Postgres() {
-		t.Skip("backups and restore on PostgreSQL are ADR 0012 Phase 4")
-	}
 }

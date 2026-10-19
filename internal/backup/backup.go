@@ -32,11 +32,15 @@ import (
 
 	"abidata/internal/admin"
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/files"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ManifestFormat is the manifest schema version.
@@ -68,6 +72,7 @@ type Manifest struct {
 	SHA256Raw      string       `json:"sha256_raw"`
 	SHA256Gz       string       `json:"sha256_gz"`
 	Tables         []TableCount `json:"tables"`
+	SourceDialect  string       `json:"source_dialect,omitempty"`
 	// File attachments (ADR 0011); all omitted for a workspace without files,
 	// which keeps older manifests and their signatures valid unchanged.
 	Files        []ManifestFile `json:"files,omitempty"`
@@ -237,6 +242,9 @@ func (s *Service) snapshot(ctx context.Context, l *workspace.Lease, kind, by str
 	default:
 		return admin.Backup{}, fmt.Errorf("backup: kind %q is not a snapshot kind", kind)
 	}
+	if _, ok := l.Postgres(); ok {
+		return s.snapshotPG(ctx, l, kind, by)
+	}
 	dir, err := s.stagingDir(l.ID())
 	if err != nil {
 		return admin.Backup{}, err
@@ -253,7 +261,64 @@ func (s *Service) snapshot(ctx context.Context, l *workspace.Lease, kind, by str
 	}); err != nil {
 		return admin.Backup{}, fmt.Errorf("backup: snapshot: %w", err)
 	}
-	return s.archive(ctx, l.ID(), id, kind, by, stage)
+	return s.archive(ctx, l.ID(), id, kind, by, stage, "sqlite")
+}
+
+func (s *Service) snapshotPG(ctx context.Context, l *workspace.Lease, kind, by string) (admin.Backup, error) {
+	dir, err := s.stagingDir(l.ID())
+	if err != nil {
+		return admin.Backup{}, err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return admin.Backup{}, err
+	}
+	id := ids.New()
+	stage := filepath.Join(dir, "bk-"+id+".db")
+	defer func() { _ = os.Remove(stage) }()
+
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		return admin.Backup{}, fmt.Errorf("backup: snapshot postgres: postgres not configured")
+	}
+	n := pgdb.Names{Prefix: pgCfg.Prefix, Workspace: string(l.ID())}
+	if err := s.exportPG(ctx, l.ID(), n.Schema(), stage); err != nil {
+		return admin.Backup{}, fmt.Errorf("backup: snapshot postgres: %w", err)
+	}
+	return s.archive(ctx, l.ID(), id, kind, by, stage, "postgres")
+}
+
+func (s *Service) exportPG(ctx context.Context, ws ids.WorkspaceID, schema, stage string) error {
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		return fmt.Errorf("backup: postgres not configured")
+	}
+	sc, err := sqlitex.Open(ctx, stage, sqlitex.Options{Kind: sqlitex.Staging})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sc.Close() }()
+
+	if err := catalog.Migrate(ctx, ws, sc); err != nil {
+		return fmt.Errorf("migrate sqlite staging db: %w", err)
+	}
+
+	tx, err := pgCfg.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return fmt.Errorf("begin export tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	n := pgdb.Names{Prefix: pgCfg.Prefix, Workspace: string(ws)}
+	setPath := fmt.Sprintf(`SET LOCAL search_path = %s, %s, pg_catalog`, pgdb.Ident(schema), pgdb.Ident(n.Lib()))
+	if _, err := tx.Exec(ctx, setPath); err != nil {
+		return fmt.Errorf("set export search_path: %w", err)
+	}
+
+	dtx := pgdb.WrapTx(tx)
+	if err := catalog.ExportPostgresToSQLite(ctx, dtx, pgCfg.Dialect, sc, ws, schema); err != nil {
+		return fmt.Errorf("export postgres to sqlite: %w", err)
+	}
+	return sc.Close()
 }
 
 // inspection is what verifying a raw database file reports.
@@ -332,7 +397,10 @@ func inspect(ctx context.Context, path string) (inspection, error) {
 
 // archive verifies raw, compresses it into the backup directory, writes the
 // manifest, records the backup and applies retention.
-func (s *Service) archive(ctx context.Context, ws ids.WorkspaceID, id, kind, by, raw string) (admin.Backup, error) {
+func (s *Service) archive(ctx context.Context, ws ids.WorkspaceID, id, kind, by, raw, sourceDialect string) (admin.Backup, error) {
+	if sourceDialect == "" {
+		sourceDialect = "sqlite"
+	}
 	info, err := inspect(ctx, raw)
 	if err != nil {
 		return admin.Backup{}, fmt.Errorf("backup: verify snapshot: %w", err)
@@ -351,7 +419,8 @@ func (s *Service) archive(ctx context.Context, ws ids.WorkspaceID, id, kind, by,
 	}
 	m := Manifest{Format: ManifestFormat, BackupID: id, WorkspaceID: string(ws), Kind: kind, CreatedAt: s.clock(), CreatedBy: by,
 		AppVersion: s.AppVersion, CatalogVersion: info.catalogVersion, SQLiteVersion: info.sqliteVersion,
-		RawBytes: rawBytes, GzBytes: gzBytes, SHA256Raw: shaRaw, SHA256Gz: shaGz, Tables: info.tables}
+		RawBytes: rawBytes, GzBytes: gzBytes, SHA256Raw: shaRaw, SHA256Gz: shaGz, Tables: info.tables,
+		SourceDialect: sourceDialect}
 	if m.Tables == nil {
 		m.Tables = []TableCount{}
 	}
@@ -668,6 +737,8 @@ type journal struct {
 	BackupID    string `json:"backup_id"`
 	RestorePath string `json:"restore_path"`
 	AsideDir    string `json:"aside_dir"`
+	StageSchema string `json:"stage_schema,omitempty"`
+	AsideSchema string `json:"aside_schema,omitempty"`
 	// PrevStatus is the workspace status before the restore, put back at the
 	// end (an admin suspension must survive a restore). Empty means active.
 	PrevStatus admin.WorkspaceStatus `json:"prev_status,omitempty"`
@@ -751,6 +822,9 @@ func (s *Service) Restore(ctx context.Context, ws ids.WorkspaceID, backupID, by 
 	if err := s.mergeFiles(ws, stage); err != nil {
 		_ = os.Remove(tmp)
 		return err
+	}
+	if _, ok := l.Postgres(); ok {
+		return s.restorePG(ctx, l, release, ws, b, tmp, by)
 	}
 	j := journal{State: jPrepared, WorkspaceID: string(ws), BackupID: backupID, RestorePath: tmp,
 		AsideDir: filepath.Join(s.asideRoot(), fmt.Sprintf("%s-%d", ws, s.clock().UnixNano())), By: by, At: s.clock()}
@@ -842,6 +916,122 @@ func (s *Service) Restore(ctx context.Context, ws ids.WorkspaceID, backupID, by 
 	return s.finish(context.WithoutCancel(ctx), ws, j)
 }
 
+func (s *Service) restorePG(ctx context.Context, l *workspace.Lease, release func(), ws ids.WorkspaceID, b admin.Backup, tmp, by string) error {
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("backup: restore postgres: postgres not configured")
+	}
+	n := pgdb.Names{Prefix: pgCfg.Prefix, Workspace: string(ws)}
+	liveSchema := n.Schema()
+	stageSchema := liveSchema + "_stage"
+	asideSchema := fmt.Sprintf("%s_aside_%x", liveSchema, s.clock().UnixNano()%0xffffff)
+
+	// Clean up any stale stage schema
+	_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(stageSchema)))
+
+	sc, err := sqlitex.Open(ctx, tmp, sqlitex.Options{Kind: sqlitex.Maintenance})
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	defer func() { _ = sc.Close() }()
+
+	err = pgx.BeginFunc(ctx, pgCfg.Pool, func(tx pgx.Tx) error {
+		dtx := pgdb.WrapTx(tx)
+		_, err := catalog.ImportSQLiteToPostgres(ctx, sc, dtx, pgCfg.Dialect, ws, n, stageSchema)
+		return err
+	})
+	if err != nil {
+		_ = os.Remove(tmp)
+		_, _ = pgCfg.Pool.Exec(context.WithoutCancel(ctx), fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(stageSchema)))
+		return fmt.Errorf("backup: restore postgres import: %w", err)
+	}
+	_ = sc.Close()
+
+	j := journal{
+		State:       jPrepared,
+		WorkspaceID: string(ws),
+		BackupID:    b.ID,
+		RestorePath: tmp,
+		StageSchema: stageSchema,
+		AsideSchema: asideSchema,
+		By:          by,
+		At:          s.clock(),
+	}
+	if err := s.writeJournal(j); err != nil {
+		_ = os.Remove(tmp)
+		_, _ = pgCfg.Pool.Exec(context.WithoutCancel(ctx), fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(stageSchema)))
+		return err
+	}
+	if err := s.step("prepared"); err != nil {
+		return err
+	}
+
+	var swapErr error
+	exErr := l.Exclusive(ctx, 30*time.Second, func(paths workspace.Paths) error {
+		cur, err := s.Admin.GetWorkspace(context.WithoutCancel(ctx), ws)
+		if err != nil {
+			return err
+		}
+		if cur.Status != admin.StatusActive && cur.Status != admin.StatusSuspended {
+			return fault.Newf(fault.BadRequest, "A %s workspace cannot be restored.", cur.Status)
+		}
+		j.PrevStatus = cur.Status
+		if err := s.writeJournal(j); err != nil {
+			return err
+		}
+		st := admin.StatusRestoring
+		if err := s.Admin.UpdateWorkspace(context.WithoutCancel(ctx), ws, admin.WorkspacePatch{Status: &st}); err != nil {
+			return err
+		}
+		if err := s.step("restoring"); err != nil {
+			return err
+		}
+
+		tx, err := pgCfg.Pool.Begin(ctx)
+		if err != nil {
+			swapErr = err
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		swapSQL := fmt.Sprintf(`ALTER SCHEMA %s RENAME TO %s; ALTER SCHEMA %s RENAME TO %s;`,
+			pgdb.Ident(liveSchema), pgdb.Ident(j.AsideSchema),
+			pgdb.Ident(j.StageSchema), pgdb.Ident(liveSchema),
+		)
+		if _, err := tx.Exec(ctx, swapSQL); err != nil {
+			swapErr = err
+			return err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			swapErr = err
+			return err
+		}
+
+		if err := s.step("swapped"); err != nil {
+			return err
+		}
+
+		j.State = jSwapped
+		if err := s.writeJournal(j); err != nil {
+			return err
+		}
+		return nil
+	})
+	if errors.Is(exErr, errCrash) {
+		return exErr
+	}
+	release()
+	if exErr != nil {
+		if rerr := s.recoverOne(context.WithoutCancel(ctx), ws); rerr != nil {
+			return errors.Join(exErr, swapErr, rerr)
+		}
+		return fault.Wrap(fault.RestoreFailed, exErr)
+	}
+	return s.finish(context.WithoutCancel(ctx), ws, j)
+}
+
 // finish runs steps 7–8 for a swapped restore: check the reopened workspace,
 // revert on failure, else mark it active and keep the old files as pre_restore.
 func (s *Service) finish(ctx context.Context, ws ids.WorkspaceID, j journal) error {
@@ -850,16 +1040,23 @@ func (s *Service) finish(ctx context.Context, ws ids.WorkspaceID, j journal) err
 	}
 	l, err := s.Workspaces.Acquire(ctx, ws)
 	if err == nil {
-		err = l.Maintenance(ctx, func(c *sqlitex.Conn) error {
-			var res string
-			if err := c.QueryRow(ctx, sqlFinish.SQL).Scan(&res); err != nil {
-				return err
-			}
-			if res != "ok" {
-				return fault.Newf(fault.RestoreFailed, "The restored workspace failed quick_check: %s", res)
-			}
-			return nil
-		})
+		if _, isPG := l.Postgres(); isPG {
+			err = l.Read(ctx, func(q dbx.Querier) error {
+				var cnt int64
+				return q.QueryRow(ctx, sqlFinishPG.SQL).Scan(&cnt)
+			})
+		} else {
+			err = l.Maintenance(ctx, func(c *sqlitex.Conn) error {
+				var res string
+				if err := c.QueryRow(ctx, sqlFinish.SQL).Scan(&res); err != nil {
+					return err
+				}
+				if res != "ok" {
+					return fault.Newf(fault.RestoreFailed, "The restored workspace failed quick_check: %s", res)
+				}
+				return nil
+			})
+		}
 		l.Release()
 	}
 	if err != nil {
@@ -882,7 +1079,11 @@ func (s *Service) finish(ctx context.Context, ws ids.WorkspaceID, j journal) err
 		ObjectID: string(ws), Details: map[string]any{"backup_id": j.BackupID}})
 	// Keep the replaced files as a pre_restore backup (best effort, in the
 	// background; if the process dies first, Recover archives them at startup).
-	s.bg.Go(func() { s.keepAside(context.WithoutCancel(ctx), ws, j) })
+	if j.StageSchema != "" || (s.Workspaces != nil && s.Workspaces.Postgres() != nil) {
+		s.bg.Go(func() { s.keepAsidePG(context.WithoutCancel(ctx), ws, j) })
+	} else {
+		s.bg.Go(func() { s.keepAside(context.WithoutCancel(ctx), ws, j) })
+	}
 	return nil
 }
 
@@ -909,13 +1110,52 @@ func (s *Service) keepAside(ctx context.Context, ws ids.WorkspaceID, j journal) 
 		_ = c.Close()
 	}
 	if err == nil {
-		_, err = s.archive(ctx, ws, ids.New(), admin.BackupPreRestore, j.By, stage)
+		_, err = s.archive(ctx, ws, ids.New(), admin.BackupPreRestore, j.By, stage, "sqlite")
 	}
 	if err != nil {
 		s.log().Warn("pre-restore backup failed; leaving files in place", "subsystem", "backup", "workspace_id", ws, "dir", j.AsideDir, "err", err)
 		return
 	}
 	_ = os.RemoveAll(j.AsideDir)
+}
+
+func (s *Service) keepAsidePG(ctx context.Context, ws ids.WorkspaceID, j journal) {
+	if j.AsideSchema == "" {
+		return
+	}
+	if !s.claim("aside:" + j.AsideSchema) {
+		return // already being archived
+	}
+	defer s.unclaim("aside:" + j.AsideSchema)
+
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		return
+	}
+	var exists bool
+	_ = pgdb.Pool(pgCfg.Pool).QueryRow(ctx, sqlAsideExists.SQL, j.AsideSchema).Scan(&exists)
+	if !exists {
+		return
+	}
+
+	dir, err := s.stagingDir(ws)
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return
+	}
+	stage := filepath.Join(dir, "aside-"+ids.New()+".db")
+	defer func() { _ = os.Remove(stage) }()
+
+	if err = s.exportPG(ctx, ws, j.AsideSchema, stage); err == nil {
+		_, err = s.archive(ctx, ws, ids.New(), admin.BackupPreRestore, j.By, stage, "postgres")
+	}
+	if err != nil {
+		s.log().Warn("pre-restore backup failed; leaving schema in place", "subsystem", "backup", "workspace_id", ws, "schema", j.AsideSchema, "err", err)
+		return
+	}
+	_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(j.AsideSchema)))
 }
 
 func moveIfExists(src, dst string) error {
@@ -990,19 +1230,72 @@ func (s *Service) sweep(ctx context.Context) {
 		}
 	}
 	entries, err := os.ReadDir(s.asideRoot())
+	if err == nil {
+		for _, e := range entries {
+			dir := filepath.Join(s.asideRoot(), e.Name())
+			ws, _, ok := strings.Cut(e.Name(), "-")
+			if !e.IsDir() || !ok || !ids.Valid(ws) {
+				continue
+			}
+			if p, _ := s.journalPath(ids.WorkspaceID(ws)); fileExists(p) {
+				continue // a journal recovery could not finish still needs these files
+			}
+			s.keepAside(ctx, ids.WorkspaceID(ws), journal{WorkspaceID: ws, AsideDir: dir, By: "system"})
+		}
+	}
+	if s.Workspaces != nil && s.Workspaces.Postgres() != nil {
+		s.sweepPG(ctx)
+	}
+}
+
+func (s *Service) sweepPG(ctx context.Context) {
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		return
+	}
+	rows, err := pgdb.Pool(pgCfg.Pool).Query(ctx, sqlListStageAsideSchemas.SQL, pgCfg.Prefix+"_ws_%")
 	if err != nil {
 		return
 	}
-	for _, e := range entries {
-		dir := filepath.Join(s.asideRoot(), e.Name())
-		ws, _, ok := strings.Cut(e.Name(), "-")
-		if !e.IsDir() || !ok || !ids.Valid(ws) {
-			continue
+	defer rows.Close()
+	var stageSchemas, asideSchemas []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return
 		}
-		if p, _ := s.journalPath(ids.WorkspaceID(ws)); fileExists(p) {
-			continue // a journal recovery could not finish still needs these files
+		if strings.HasSuffix(name, "_stage") {
+			stageSchemas = append(stageSchemas, name)
+		} else if strings.Contains(name, "_aside") {
+			asideSchemas = append(asideSchemas, name)
 		}
-		s.keepAside(ctx, ids.WorkspaceID(ws), journal{WorkspaceID: ws, AsideDir: dir, By: "system"})
+	}
+	rows.Close()
+
+	for _, st := range stageSchemas {
+		trimmed := strings.TrimPrefix(st, pgCfg.Prefix+"_ws_")
+		wsStr, _, _ := strings.Cut(trimmed, "_stage")
+		ws := ids.WorkspaceID(wsStr)
+		if ids.Valid(string(ws)) {
+			if p, _ := s.journalPath(ws); fileExists(p) {
+				continue
+			}
+		}
+		_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(st)))
+	}
+
+	for _, as := range asideSchemas {
+		trimmed := strings.TrimPrefix(as, pgCfg.Prefix+"_ws_")
+		wsStr, _, _ := strings.Cut(trimmed, "_aside")
+		ws := ids.WorkspaceID(wsStr)
+		if ids.Valid(string(ws)) {
+			if p, _ := s.journalPath(ws); fileExists(p) {
+				continue
+			}
+			s.keepAsidePG(ctx, ws, journal{WorkspaceID: string(ws), AsideSchema: as, By: "system"})
+		} else {
+			_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(as)))
+		}
 	}
 }
 
@@ -1012,6 +1305,9 @@ func (s *Service) recoverOne(ctx context.Context, ws ids.WorkspaceID) error {
 	j, err := s.readJournal(ws)
 	if err != nil || j == nil {
 		return err
+	}
+	if j.StageSchema != "" || (s.Workspaces != nil && s.Workspaces.Postgres() != nil) {
+		return s.recoverOnePG(ctx, ws, j)
 	}
 	p, err := s.Workspaces.PathsFor(ws)
 	if err != nil {
@@ -1033,6 +1329,35 @@ func (s *Service) recoverOne(ctx context.Context, ws ids.WorkspaceID) error {
 		}
 		_ = os.Remove(j.RestorePath)
 		_ = os.RemoveAll(j.AsideDir)
+	case jSwapped:
+		return s.finish(ctx, ws, *j)
+	default:
+		return fmt.Errorf("unknown restore journal state %q", j.State)
+	}
+	if err := s.putBackStatus(ctx, ws, j); err != nil {
+		return err
+	}
+	return s.deleteJournal(ws)
+}
+
+func (s *Service) recoverOnePG(ctx context.Context, ws ids.WorkspaceID, j *journal) error {
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		return fmt.Errorf("recover postgres workspace %s: postgres not configured", ws)
+	}
+	switch j.State {
+	case jPrepared:
+		var asideExists bool
+		_ = pgdb.Pool(pgCfg.Pool).QueryRow(ctx, sqlAsideExists.SQL, j.AsideSchema).Scan(&asideExists)
+		if asideExists {
+			return s.finish(ctx, ws, *j)
+		}
+		_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(j.StageSchema)))
+		_ = os.Remove(j.RestorePath)
+	case jReverted:
+		_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(j.StageSchema)))
+		_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(j.AsideSchema)))
+		_ = os.Remove(j.RestorePath)
 	case jSwapped:
 		return s.finish(ctx, ws, *j)
 	default:
@@ -1084,6 +1409,9 @@ func (s *Service) moveBack(p workspace.Paths, j *journal) error {
 
 // revertSwapped undoes a swapped restore whose check failed.
 func (s *Service) revertSwapped(ctx context.Context, ws ids.WorkspaceID, j journal) error {
+	if j.StageSchema != "" || (s.Workspaces != nil && s.Workspaces.Postgres() != nil) {
+		return s.revertSwappedPG(ctx, ws, j)
+	}
 	l, err := s.Workspaces.Acquire(ctx, ws)
 	if err != nil {
 		// Not openable: move files back directly (no connections are open).
@@ -1106,6 +1434,61 @@ func (s *Service) revertSwapped(ctx context.Context, ws ids.WorkspaceID, j journ
 		return err
 	}
 	_ = os.RemoveAll(j.AsideDir)
+	if err := s.putBackStatus(ctx, ws, &j); err != nil {
+		return err
+	}
+	return s.deleteJournal(ws)
+}
+
+func (s *Service) revertSwappedPG(ctx context.Context, ws ids.WorkspaceID, j journal) error {
+	pgCfg := s.Workspaces.Postgres()
+	if pgCfg == nil {
+		return fmt.Errorf("revert postgres restore: postgres not configured")
+	}
+	n := pgdb.Names{Prefix: pgCfg.Prefix, Workspace: string(ws)}
+	liveSchema := n.Schema()
+
+	revertFn := func() error {
+		var asideExists bool
+		_ = pgdb.Pool(pgCfg.Pool).QueryRow(ctx, sqlAsideExists.SQL, j.AsideSchema).Scan(&asideExists)
+		if !asideExists {
+			return nil
+		}
+		tx, err := pgCfg.Pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		swapSQL := fmt.Sprintf(`ALTER SCHEMA %s RENAME TO %s; ALTER SCHEMA %s RENAME TO %s;`,
+			pgdb.Ident(liveSchema), pgdb.Ident(j.StageSchema),
+			pgdb.Ident(j.AsideSchema), pgdb.Ident(liveSchema),
+		)
+		if _, err := tx.Exec(ctx, swapSQL); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+
+	l, err := s.Workspaces.Acquire(ctx, ws)
+	if err != nil {
+		if err := revertFn(); err != nil {
+			return err
+		}
+	} else {
+		err = l.Exclusive(ctx, 30*time.Second, func(workspace.Paths) error {
+			return revertFn()
+		})
+		l.Release()
+		if err != nil {
+			return err
+		}
+	}
+	_, _ = pgCfg.Pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgdb.Ident(j.StageSchema)))
+	_ = os.Remove(j.RestorePath)
+	j.State = jReverted
+	if err := s.writeJournal(j); err != nil {
+		return err
+	}
 	if err := s.putBackStatus(ctx, ws, &j); err != nil {
 		return err
 	}
@@ -1151,12 +1534,23 @@ func (s *Service) RestoreAsNew(ctx context.Context, backupID string, create func
 		}
 	}
 	if err := s.Workspaces.Adopt(ctx, id, tmp); err != nil {
-		_ = os.Remove(tmp)
-		if bucket != "" {
-			_ = os.RemoveAll(bucket)
+		if errors.Is(err, workspace.ErrSQLiteOnly) && s.Workspaces.Postgres() != nil {
+			pgCfg := s.Workspaces.Postgres()
+			if pgCfg.Adopt != nil {
+				err = pgCfg.Adopt(ctx, id, tmp)
+			} else {
+				err = catalog.AdoptPostgres(ctx, pgCfg.Pool, pgCfg.Database, pgCfg.Prefix, pgCfg.Dialect, id, tmp)
+			}
 		}
-		return fail(err)
+		if err != nil {
+			_ = os.Remove(tmp)
+			if bucket != "" {
+				_ = os.RemoveAll(bucket)
+			}
+			return fail(err)
+		}
 	}
+	_ = os.Remove(tmp)
 	st := admin.StatusActive
 	if err := s.Admin.UpdateWorkspace(ctx, id, admin.WorkspacePatch{Status: &st}); err != nil {
 		return "", err

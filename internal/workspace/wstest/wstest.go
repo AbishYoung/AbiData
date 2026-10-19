@@ -49,7 +49,12 @@ func NewWith(t testing.TB, cfg workspace.Config) *Env {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cfg.Postgres = &workspace.PostgresConfig{Pool: e.App, Database: e.Database, Prefix: e.Prefix, Dialect: dialect, Migrate: catalog.MigratePostgres}
+		cfg.Postgres = &workspace.PostgresConfig{
+			Pool: e.App, Database: e.Database, Prefix: e.Prefix, Dialect: dialect, Migrate: catalog.MigratePostgres,
+			Adopt: func(ctx context.Context, id ids.WorkspaceID, src string) error {
+				return catalog.AdoptPostgres(ctx, e.App, e.Database, e.Prefix, dialect, id, src)
+			},
+		}
 	}
 	m, err := workspace.NewManager(cfg)
 	if err != nil {

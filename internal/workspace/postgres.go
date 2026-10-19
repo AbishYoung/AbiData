@@ -41,9 +41,17 @@ type PostgresConfig struct {
 	Sandbox *pgdb.Sandbox
 	// Migrate creates or migrates a workspace's system tables (catalog.MigratePostgres).
 	Migrate func(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names) error
+	// Adopt provisions schema and roles for id and imports SQLite archive src into it.
+	Adopt func(ctx context.Context, id ids.WorkspaceID, src string) error
+	// QuotaSampleInterval rate-limits DB size quota sampling after writes.
+	// 0 means sample after every write.
+	QuotaSampleInterval time.Duration
 }
 
 func (m *Manager) pg() *PostgresConfig { return m.cfg.Postgres }
+
+// Postgres returns the manager's PostgreSQL configuration, or nil on SQLite.
+func (m *Manager) Postgres() *PostgresConfig { return m.cfg.Postgres }
 
 // Names returns a workspace's PostgreSQL object names.
 func (m *Manager) Names(id ids.WorkspaceID) pgdb.Names {
@@ -106,6 +114,18 @@ func (m *Manager) pgOpen(ctx context.Context, h *handle) error {
 			return fmt.Errorf("workspace %s: migrate: %w", h.id, err)
 		}
 	}
+	if m.cfg.MaxPageCount != nil {
+		pages, err := m.cfg.MaxPageCount(ctx, h.id)
+		if err != nil {
+			return err
+		}
+		h.maxPages = pages
+		if h.maxPages > 0 {
+			if err := h.samplePGSize(ctx, m, true); err != nil {
+				return fmt.Errorf("workspace %s: sample size: %w", h.id, err)
+			}
+		}
+	}
 	h.pgReaders = make(chan struct{}, m.cfg.MaxReaders)
 	h.scriptCtx, h.scriptStop = context.WithCancel(context.Background())
 	return nil
@@ -159,6 +179,9 @@ func (l *Lease) keyed(tx pgx.Tx, schemaChange bool) pgdb.Tx {
 // caller holds the gate; an interactive wait for the row is bounded as the
 // gate's is.
 func (l *Lease) pgWrite(ctx context.Context, p Priority, schemaChange bool, fn func(tx dbx.Tx) error) error {
+	if err := l.checkPGQuota(ctx); err != nil {
+		return err
+	}
 	if schemaChange {
 		// Statements prepared before the change may no longer fit, whether it commits or not.
 		defer l.h.schemaGen.Add(1)
@@ -188,7 +211,65 @@ func (l *Lease) pgWrite(ctx context.Context, p Priority, schemaChange bool, fn f
 	if err := fn(l.keyed(tx, schemaChange)); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	_ = l.h.samplePGSize(ctx, l.m, false)
+	return nil
+}
+
+// checkPGQuota returns QUOTA_EXCEEDED if the workspace is currently over its soft
+// DB-size quota (ADR 0012 §5).
+func (l *Lease) checkPGQuota(ctx context.Context) error {
+	l.h.quotaMu.Lock()
+	maxPages := l.h.maxPages
+	overQuota := l.h.pgOverQuota
+	lastSample := l.h.pgSizeSampled
+	l.h.quotaMu.Unlock()
+	if maxPages <= 0 {
+		return nil
+	}
+	if overQuota {
+		if time.Since(lastSample) >= 250*time.Millisecond {
+			_ = l.h.samplePGSize(ctx, l.m, true)
+			l.h.quotaMu.Lock()
+			overQuota = l.h.pgOverQuota
+			l.h.quotaMu.Unlock()
+		}
+		if overQuota {
+			return &fault.Error{Code: fault.QuotaExceeded, Message: "workspace database quota exceeded"}
+		}
+	}
+	return nil
+}
+
+// samplePGSize queries the total relation size over the workspace's schema and
+// updates cached size and over-quota status.
+func (h *handle) samplePGSize(ctx context.Context, m *Manager, force bool) error {
+	h.quotaMu.Lock()
+	defer h.quotaMu.Unlock()
+	if h.maxPages <= 0 && !force {
+		h.pgOverQuota = false
+		return nil
+	}
+	now := time.Now()
+	var interval time.Duration
+	if pc := m.pg(); pc != nil {
+		interval = pc.QuotaSampleInterval
+	}
+	if !force && interval > 0 && !h.pgSizeSampled.IsZero() && now.Sub(h.pgSizeSampled) < interval {
+		return nil
+	}
+	var size int64
+	n := m.Names(h.id)
+	d := pgdb.Pool(m.pg().Pool)
+	if err := d.QueryRow(ctx, sqlPGSchemaSize.SQL, n.Schema()).Scan(&size); err != nil {
+		return err
+	}
+	h.pgSizeBytes = size
+	h.pgSizeSampled = now
+	h.pgOverQuota = h.maxPages > 0 && size > h.maxPages*4096
+	return nil
 }
 
 // Drop removes a closed workspace's schema and roles, or its database files.

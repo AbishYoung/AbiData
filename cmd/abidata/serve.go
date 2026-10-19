@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"abidata/docs"
 	"abidata/internal/admin"
 	"abidata/internal/artifacts"
@@ -24,6 +26,7 @@ import (
 	"abidata/internal/blogs"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
+	"abidata/internal/dbx"
 	"abidata/internal/demo"
 	"abidata/internal/docsrv"
 	"abidata/internal/egress"
@@ -36,6 +39,7 @@ import (
 	"abidata/internal/jobs"
 	"abidata/internal/obs"
 	"abidata/internal/ops"
+	"abidata/internal/pgdb"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/reports"
@@ -83,9 +87,61 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	adm, err := admin.Open(ctx, filepath.Join(cfg.DataDir, "system", "admin.db"), cfg.Synchronous)
-	if err != nil {
-		return err
+	// afterOpen runs once a workspace has been opened (set below, once the
+	// services it needs exist): reconcile interrupted operations, rebuild the job index.
+	var afterOpen func(id ids.WorkspaceID)
+	var adm *admin.Store
+	var pgCfg *workspace.PostgresConfig
+	if cfg.DB == config.DBPostgres {
+		pc, err := pgxpool.ParseConfig(cfg.PostgresURL)
+		if err != nil {
+			return err
+		}
+		appPool, err := pgxpool.NewWithConfig(ctx, pc)
+		if err != nil {
+			return err
+		}
+		defer appPool.Close()
+
+		n := pgdb.Names{Prefix: cfg.PostgresPrefix}
+		if err := pgdb.InstallLib(ctx, pgdb.Pool(appPool), n); err != nil {
+			return err
+		}
+		dialect, err := pgdb.Dialect(ctx, pgdb.Pool(appPool))
+		if err != nil {
+			return err
+		}
+
+		adm, err = admin.OpenPostgres(ctx, pc, n)
+		if err != nil {
+			return err
+		}
+
+		pgMigrate := func(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names) error {
+			if err := catalog.MigratePostgres(ctx, id, d, n); err != nil {
+				return err
+			}
+			if afterOpen != nil {
+				go afterOpen(id)
+			}
+			return nil
+		}
+
+		pgCfg = &workspace.PostgresConfig{
+			Pool:     appPool,
+			Database: pc.ConnConfig.Database,
+			Prefix:   cfg.PostgresPrefix,
+			Dialect:  dialect,
+			Migrate:  pgMigrate,
+			Adopt: func(ctx context.Context, id ids.WorkspaceID, src string) error {
+				return catalog.AdoptPostgres(ctx, appPool, pc.ConnConfig.Database, cfg.PostgresPrefix, dialect, id, src)
+			},
+		}
+	} else {
+		adm, err = admin.Open(ctx, filepath.Join(cfg.DataDir, "system", "admin.db"), cfg.Synchronous)
+		if err != nil {
+			return err
+		}
 	}
 	defer func() { _ = adm.Close() }()
 	if err := httpapi.MigrateEgressPolicy(ctx, adm, obs.Subsystem(log, "egress")); err != nil {
@@ -108,9 +164,6 @@ func serve() error {
 	hub := events.NewHub(events.DefaultRing)
 	schemas := catalog.NewCache()
 	wsLog := obs.Subsystem(log, "workspace")
-	// afterOpen runs once a workspace has been opened (set below, once the
-	// services it needs exist): reconcile interrupted operations, rebuild the job index.
-	var afterOpen func(id ids.WorkspaceID)
 	// Migrate, then reconcile catalog vs physical schema (D5); drift marks the
 	// workspace needs_repair and is logged, but does not block opening.
 	migrate := func(ctx context.Context, id ids.WorkspaceID, c *sqlitex.Conn) error {
@@ -144,6 +197,7 @@ func serve() error {
 	wm, err := workspace.NewManager(workspace.Config{
 		DataDir: cfg.DataDir, MaxOpen: cfg.MaxOpenWorkspaces, Synchronous: cfg.Synchronous,
 		Migrate: migrate, Observe: metricsObserver{metrics},
+		Postgres: pgCfg,
 		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
 			w, err := adm.GetWorkspace(ctx, id)
 			if err != nil {

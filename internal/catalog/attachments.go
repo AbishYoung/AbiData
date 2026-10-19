@@ -54,11 +54,11 @@ func attachTriggerNames(t *Table) []string {
 // HasAttachTriggers reports whether t should carry reference triggers.
 func HasAttachTriggers(t *Table) bool { return len(attachmentColumns(t)) > 0 }
 
-// attachTriggers returns the statements that (re)create t's reference
+// AttachTriggers returns the statements that (re)create t's reference
 // triggers: a DROP IF EXISTS for each, then the CREATEs when t has attachments
 // columns. They refer to the columns by physical name, so they are rebuilt
 // whenever the table is rebuilt or a column is added or renamed.
-func attachTriggers(t *Table) []sqlgen.Stmt {
+func AttachTriggers(t *Table) []sqlgen.Stmt {
 	var out []sqlgen.Stmt
 	for _, n := range attachTriggerNames(t) {
 		out = append(out, &sqlgen.DropTrigger{Name: n, Table: t.PhysicalName, IfExists: true})
@@ -82,7 +82,7 @@ func attachTriggers(t *Table) []sqlgen.Stmt {
 
 // syncAttachTriggers recreates t's reference triggers to match its columns.
 func (p *planner) syncAttachTriggers(t *Table) error {
-	for _, s := range attachTriggers(t) {
+	for _, s := range AttachTriggers(t) {
 		if err := p.execStmt(s); err != nil {
 			return err
 		}

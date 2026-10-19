@@ -107,8 +107,8 @@ func columnDef(cols []Column, c Column) sqlgen.ColumnDef {
 // versionColumn is the optimistic-concurrency row version every table has.
 var versionColumn = sqlgen.ColumnDef{Name: "_version", Type: sqlgen.Integer, NotNull: true, Default: sqlgen.Lit{Value: 1}}
 
-// render renders a schema statement for dialect d.
-func render(d sqlgen.Dialect, s sqlgen.Stmt) (string, error) {
+// Render renders a schema statement for dialect d.
+func Render(d sqlgen.Dialect, s sqlgen.Stmt) (string, error) {
 	r, err := sqlgen.Render(d, s)
 	if err != nil {
 		return "", fmt.Errorf("catalog: %w", err)
@@ -116,24 +116,43 @@ func render(d sqlgen.Dialect, s sqlgen.Stmt) (string, error) {
 	return r.SQL, nil
 }
 
-// createTableSQL renders CREATE TABLE for t under physical name `as`, with
+func render(d sqlgen.Dialect, s sqlgen.Stmt) (string, error) { return Render(d, s) }
+
+// CreateTableSQL renders CREATE TABLE for t under physical name `as`, with
 // foreign keys for every enforced relationship whose child is t.
-func createTableSQL(d sqlgen.Dialect, s *Schema, t *Table, as string) (string, error) {
-	ct, err := createTableStmt(s, t, as)
+func CreateTableSQL(d sqlgen.Dialect, s *Schema, t *Table, as string) (string, error) {
+	return CreateTableSQLWithFK(d, s, t, as, true)
+}
+
+// CreateTableSQLWithFK is CreateTableSQL with an option to omit foreign keys
+// (for bulk import where foreign keys are added after all tables and rows exist).
+func CreateTableSQLWithFK(d sqlgen.Dialect, s *Schema, t *Table, as string, withFK bool) (string, error) {
+	ct, err := createTableStmtWithFK(s, t, as, withFK)
 	if err != nil {
 		return "", err
 	}
-	return render(d, ct)
+	return Render(d, ct)
+}
+
+func createTableSQL(d sqlgen.Dialect, s *Schema, t *Table, as string) (string, error) {
+	return CreateTableSQL(d, s, t, as)
 }
 
 // createTableStmt is createTableSQL's statement.
 func createTableStmt(s *Schema, t *Table, as string) (*sqlgen.CreateTable, error) {
+	return createTableStmtWithFK(s, t, as, true)
+}
+
+func createTableStmtWithFK(s *Schema, t *Table, as string, withFK bool) (*sqlgen.CreateTable, error) {
 	ct := &sqlgen.CreateTable{Name: as, Strict: true}
 	for _, c := range t.Columns {
 		ct.Columns = append(ct.Columns, columnDef(t.Columns, c))
 		if c.Type == Autonumber {
 			ct.Columns = append(ct.Columns, versionColumn)
 		}
+	}
+	if !withFK {
+		return ct, nil
 	}
 	for _, r := range s.Relationships {
 		if r.ChildTableID != t.ID || !r.Enforce {
@@ -160,7 +179,8 @@ func createTableStmt(s *Schema, t *Table, as string) (*sqlgen.CreateTable, error
 // fkName is the constraint name of relationship id's foreign key.
 func fkName(id string) string { return "fk_" + strings.ToLower(id) }
 
-func createIndexSQL(d sqlgen.Dialect, t *Table, x Index) (string, error) {
+// CreateIndexSQL renders CREATE INDEX for index x on table t.
+func CreateIndexSQL(d sqlgen.Dialect, t *Table, x Index) (string, error) {
 	ci := &sqlgen.CreateIndex{Name: x.PhysicalName, Table: t.PhysicalName, Unique: x.Unique}
 	for _, id := range x.ColumnIDs {
 		c, ok := t.Column(id)
@@ -172,16 +192,22 @@ func createIndexSQL(d sqlgen.Dialect, t *Table, x Index) (string, error) {
 		// Unique text indexes are therefore case-insensitive too.
 		ci.Columns = append(ci.Columns, sqlgen.Col{Name: c.PhysicalName, CI: isTextType(c)})
 	}
-	return render(d, ci)
+	return Render(d, ci)
+}
+
+func createIndexSQL(d sqlgen.Dialect, t *Table, x Index) (string, error) {
+	return CreateIndexSQL(d, t, x)
 }
 
 func occTriggerName(t *Table) string { return "_occ_" + strings.ToLower(t.ID) }
 
-// occTrigger is the safety-net trigger: any UPDATE that left _version
+// OCCTrigger is the safety-net trigger: any UPDATE that left _version
 // unchanged bumps it (recursive_triggers stays OFF, so it does not re-fire).
-func occTrigger(t *Table) sqlgen.Stmt {
+func OCCTrigger(t *Table) sqlgen.Stmt {
 	return &sqlgen.OCCBump{Name: occTriggerName(t), Table: t.PhysicalName}
 }
+
+func occTrigger(t *Table) sqlgen.Stmt { return OCCTrigger(t) }
 
 // isTextType reports whether c holds text that sorts case-insensitively.
 func isTextType(c *Column) bool {
