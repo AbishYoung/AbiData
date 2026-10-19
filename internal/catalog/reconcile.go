@@ -7,13 +7,12 @@ import (
 
 	"abidata/internal/dbx"
 	"abidata/internal/pgdb"
-	"abidata/internal/sqlgen"
 )
 
 // Reconcile compares the catalog snapshot against the physical schema (D5) and
 // returns human-readable drift descriptions (empty when consistent).
 func Reconcile(ctx context.Context, q dbx.Querier, s *Schema) ([]string, error) {
-	d := dialectOf(q)
+	d := pgdb.DialectOf(q)
 	var drift []string
 	for _, t := range s.Tables {
 		rows, err := q.Query(ctx, sqlReconcile.For(d), t.PhysicalName)
@@ -203,13 +202,4 @@ func renameIdent(expr, old, new string) string {
 
 func isWordByte(c byte) bool {
 	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-}
-
-// dialectOf is the dialect of the database q reaches.
-func dialectOf(q dbx.Querier) sqlgen.Dialect {
-	switch q.(type) {
-	case pgdb.DB, pgdb.Tx:
-		return sqlgen.Postgres // the catalog's statements are the same on 17
-	}
-	return sqlgen.SQLite
 }

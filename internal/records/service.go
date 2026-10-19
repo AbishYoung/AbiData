@@ -15,6 +15,7 @@ import (
 	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
+	"abidata/internal/pgdb"
 	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -94,14 +95,14 @@ type ListQuery struct {
 
 // selectList builds the column list for t (as alias "t") plus lookup display
 // subqueries.
-func selectList(sch *catalog.Schema, t *catalog.Table) ([]sqlgen.Column, []catalog.Column, []catalog.Column) {
+func selectList(d sqlgen.Dialect, sch *catalog.Schema, t *catalog.Table) ([]sqlgen.Column, []catalog.Column, []catalog.Column) {
 	cols := []sqlgen.Column{{Expr: sqlgen.Col{Table: "t", Name: "id", Type: sqlgen.Integer}}, {Expr: sqlgen.Col{Table: "t", Name: "_version", Type: sqlgen.Integer}}}
 	var data, lookups []catalog.Column
 	for _, c := range t.Columns {
 		if c.Type == catalog.Autonumber {
 			continue
 		}
-		cols = append(cols, sqlgen.Column{Expr: sqlgen.Col{Table: "t", Name: c.PhysicalName}})
+		cols = append(cols, sqlgen.Column{Expr: selectCol(d, c)})
 		data = append(data, c)
 	}
 	for _, c := range data {
@@ -132,8 +133,8 @@ func selectList(sch *catalog.Schema, t *catalog.Table) ([]sqlgen.Column, []catal
 
 // render renders a statement this package built; failures are programming
 // errors, since every value was decoded and checked first.
-func render(s sqlgen.Stmt) (sqlgen.Rendered, error) {
-	r, err := sqlgen.Render(sqlgen.SQLite, s)
+func render(d sqlgen.Dialect, s sqlgen.Stmt) (sqlgen.Rendered, error) {
+	r, err := sqlgen.Render(d, s)
 	if err != nil {
 		return r, fmt.Errorf("records: %w", err)
 	}
@@ -150,7 +151,7 @@ func scanRow(rows dbx.Rows, data, lookups []catalog.Column) (Row, error) {
 	}
 	r.ID, r.Version = id, ver
 	for i, c := range data {
-		r.Fields[c.ID] = EncodeValue(c, vals[2+i])
+		r.Fields[c.ID] = EncodeValue(c, catalog.StorageForm(storedType(c), vals[2+i]))
 	}
 	for i, c := range lookups {
 		if v := vals[2+len(data)+i]; v != nil {
@@ -175,7 +176,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 	if q.Offset < 0 {
 		return nil, false, fault.New(fault.BadRequest, "Offset cannot be negative.")
 	}
-	where, err := filterExpr(t, q.Filter, DecodeValue, "t")
+	where, err := filterExpr(t, q.Filter, decoderFor(l.Dialect()), "t")
 	if err != nil {
 		return nil, false, err
 	}
@@ -183,8 +184,8 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 	if err != nil {
 		return nil, false, err
 	}
-	cols, data, lookups := selectList(sch, t)
-	stmt, err := render(&sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, OrderBy: order,
+	cols, data, lookups := selectList(l.Dialect(), sch, t)
+	stmt, err := render(l.Dialect(), &sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, OrderBy: order,
 		Limit: sqlgen.Arg{Value: q.Limit + 1}, Offset: sqlgen.Arg{Value: q.Offset}})
 	if err != nil {
 		return nil, false, err
@@ -231,12 +232,12 @@ func (s *Service) Count(ctx context.Context, l *workspace.Lease, tableID string,
 	if err != nil {
 		return 0, false, err
 	}
-	where, err := filterExpr(t, f, DecodeValue, "t")
+	where, err := filterExpr(t, f, decoderFor(l.Dialect()), "t")
 	if err != nil {
 		return 0, false, err
 	}
 	// Counting stops one past the cap, so a huge table costs no more than that.
-	stmt, err := render(&sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
+	stmt, err := render(l.Dialect(), &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
 		From: sqlgen.SubSelect{Alias: "c", Select: &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Lit{Value: 1}}},
 			From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, Limit: sqlgen.Arg{Value: CountCap + 1}}}})
 	if err != nil {
@@ -269,8 +270,8 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, tableID string, i
 }
 
 func getRow(ctx context.Context, q dbx.Querier, sch *catalog.Schema, t *catalog.Table, id int64) (Row, error) {
-	cols, data, lookups := selectList(sch, t)
-	stmt, err := render(&sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"},
+	cols, data, lookups := selectList(pgdb.DialectOf(q), sch, t)
+	stmt, err := render(pgdb.DialectOf(q), &sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"},
 		Where: sqlgen.Binary{Op: sqlgen.OpEq, L: sqlgen.Col{Table: "t", Name: "id"}, R: sqlgen.Arg{Value: id}}})
 	if err != nil {
 		return Row{}, err
@@ -514,11 +515,11 @@ func insertRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.T
 		row := make([]sqlgen.Expr, len(cols))
 		for i, c := range cols {
 			ins.Columns = append(ins.Columns, c.PhysicalName)
-			row[i] = sqlgen.Arg{Value: vals[i]}
+			row[i] = sqlgen.Arg{Value: argValue(pgdb.DialectOf(tx), c, vals[i])}
 		}
 		ins.Rows = [][]sqlgen.Expr{row}
 	}
-	stmt, err := render(ins)
+	stmt, err := render(pgdb.DialectOf(tx), ins)
 	if err != nil {
 		return Row{}, err
 	}
@@ -573,9 +574,9 @@ func updateRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.T
 	}
 	set := []sqlgen.Assign{{Column: "_version", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "_version"}, R: sqlgen.Lit{Value: 1}}}}
 	for i, c := range cols {
-		set = append(set, sqlgen.Assign{Column: c.PhysicalName, Value: sqlgen.Arg{Value: vals[i]}})
+		set = append(set, sqlgen.Assign{Column: c.PhysicalName, Value: sqlgen.Arg{Value: argValue(pgdb.DialectOf(tx), c, vals[i])}})
 	}
-	stmt, err := render(&sqlgen.Update{Table: t.PhysicalName, Set: set, Where: versionMatch(id, expected)})
+	stmt, err := render(pgdb.DialectOf(tx), &sqlgen.Update{Table: t.PhysicalName, Set: set, Where: versionMatch(id, expected)})
 	if err != nil {
 		return Row{}, nil, err
 	}
@@ -633,7 +634,7 @@ func deleteRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.T
 			before = &b
 		}
 	}
-	stmt, err := render(&sqlgen.Delete{Table: t.PhysicalName, Where: versionMatch(id, expected)})
+	stmt, err := render(pgdb.DialectOf(tx), &sqlgen.Delete{Table: t.PhysicalName, Where: versionMatch(id, expected)})
 	if err != nil {
 		return err
 	}
@@ -824,3 +825,47 @@ func (s *Service) PublishInvalidated(ws string, tableIDs []string) {
 // that names fields by display name (the same mapping the row API uses). Bulk
 // writers such as the importer call it for per-row failures.
 func Translate(t *catalog.Table, err error) error { return translate(t, err) }
+
+// storedType is the field type whose storage form column c holds.
+func storedType(c catalog.Column) catalog.FieldType {
+	if c.Type == catalog.Calculated {
+		return ResultFieldType(c.Options.ResultType)
+	}
+	return c.Type
+}
+
+// argValue binds a storage value for column c in dialect d. PostgreSQL
+// stores yes/no as boolean rather than SQLite's 0/1; dates, times and JSON go
+// as text, which the server parses for the column's type.
+func argValue(d sqlgen.Dialect, c catalog.Column, v any) any {
+	if n, ok := v.(int64); ok && c.Type == catalog.YesNo && d != sqlgen.SQLite {
+		return n != 0
+	}
+	return v
+}
+
+// decoderFor decodes filter values for dialect d.
+func decoderFor(d sqlgen.Dialect) valueDecoder {
+	if d == sqlgen.SQLite {
+		return DecodeValue
+	}
+	return func(c catalog.Column, v any) (any, error) {
+		x, err := DecodeValue(c, v)
+		return argValue(d, c, x), err
+	}
+}
+
+// selectCol reads column c of the row alias t. PostgreSQL keeps JSON values
+// (attachments, geo) as jsonb, which pgx would decode into Go maps; they are
+// read as SQLite's compact text instead.
+func selectCol(d sqlgen.Dialect, c catalog.Column) sqlgen.Expr {
+	col := sqlgen.Col{Table: "t", Name: c.PhysicalName}
+	if d == sqlgen.SQLite {
+		return col
+	}
+	switch c.Type { // a calculated column's value is text
+	case catalog.Attachments, catalog.GeoPoint, catalog.GeoArea:
+		return sqlgen.Raw{SQL: `abi_json_min("t".` + catalog.Quote(c.PhysicalName) + `)`}
+	}
+	return col
+}

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/ncruces/go-sqlite3"
 )
 
@@ -283,11 +284,63 @@ func Classify(err error) *Error {
 		}
 		return &Error{Code: Internal, Cause: err}
 	}
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) {
+		return classifyPG(pe, err)
+	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return &Error{Code: WorkspaceBusy, Message: "The operation took too long and was stopped.", Cause: err}
 	}
 	if errors.Is(err, context.Canceled) {
 		return &Error{Code: WorkspaceBusy, Message: "The operation was cancelled.", Cause: err}
+	}
+	return &Error{Code: Internal, Cause: err}
+}
+
+// pgKeyRe reads the columns of a unique violation's detail, as in
+// Key ("Email")=(a@example.com) already exists.
+var pgKeyRe = regexp.MustCompile(`^Key \((.+?)\)=\(`)
+
+// classifyPG maps a PostgreSQL error to the codes SQLite's map to, with the
+// same details: the constraint, the column, or the columns.
+func classifyPG(pe *pgconn.PgError, err error) *Error {
+	switch pe.Code {
+	case "23505": // unique_violation
+		d := map[string]any{}
+		if m := pgKeyRe.FindStringSubmatch(pe.Detail); m != nil {
+			var cols []string
+			for _, c := range strings.Split(m[1], ", ") {
+				c, _, _ = strings.Cut(c, " COLLATE ")
+				cols = append(cols, strings.ReplaceAll(strings.Trim(c, `"`), `""`, `"`))
+			}
+			d["columns"] = strings.Join(cols, ", ")
+		}
+		return &Error{Code: DuplicateValue, Details: d, Cause: err}
+	case "23503", "23001": // foreign_key_violation, restrict_violation
+		return &Error{Code: LinkedRecords, Cause: err}
+	case "23514": // check_violation
+		d := map[string]any{}
+		if pe.ConstraintName != "" {
+			d["constraint"] = pe.ConstraintName
+		}
+		return &Error{Code: ValidationFailed, Details: d, Cause: err}
+	case "23502": // not_null_violation
+		d := map[string]any{}
+		if pe.ColumnName != "" {
+			d["column"] = pe.ColumnName
+		}
+		return &Error{Code: RequiredField, Details: d, Cause: err}
+	case "55P03", "40001", "40P01": // lock_not_available, serialization_failure, deadlock_detected
+		return &Error{Code: WorkspaceBusy, Cause: err}
+	case "57014": // query_canceled: statement_timeout or a cancelled context
+		return &Error{Code: WorkspaceBusy, Message: "The operation was cancelled before it finished. Nothing was saved.", Cause: err}
+	case "42501": // insufficient_privilege
+		return &Error{Code: SQLNotAllowed, Cause: err}
+	case "53100": // disk_full
+		return &Error{Code: QuotaExceeded, Cause: err}
+	}
+	if strings.HasPrefix(pe.Code, "22") { // data_exception: a value that does not fit its column
+		return &Error{Code: ValidationFailed, Message: "A value has the wrong type for its field. Nothing was saved.", Cause: err}
 	}
 	return &Error{Code: Internal, Cause: err}
 }

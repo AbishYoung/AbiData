@@ -51,3 +51,14 @@ func CheckServer(ctx context.Context, q dbx.Querier) error {
 	}
 	return nil
 }
+
+// DialectOf is the dialect of the database q reaches: PostgreSQL for this
+// package's types, SQLite otherwise. Statements that are not DDL render the
+// same on PostgreSQL 17 and 18, so it does not tell them apart.
+func DialectOf(q dbx.Querier) sqlgen.Dialect {
+	switch q.(type) {
+	case DB, Tx:
+		return sqlgen.Postgres
+	}
+	return sqlgen.SQLite
+}
