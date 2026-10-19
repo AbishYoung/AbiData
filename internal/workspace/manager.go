@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"abidata/internal/dbx"
@@ -97,6 +98,7 @@ type handle struct {
 	gate       gate
 	readers    *readerPool
 	pgReaders  chan struct{} // PostgreSQL: one slot per concurrent reader
+	schemaGen  atomic.Int64  // PostgreSQL: bumped by each schema change (see Lease.keyed)
 	maintMu    sync.Mutex
 	scriptCtx  context.Context // cancelled when the workspace drains
 	scriptStop context.CancelFunc

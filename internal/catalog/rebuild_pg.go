@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"abidata/internal/dbx"
-	"abidata/internal/fault"
 	"abidata/internal/sqlgen"
 )
 
@@ -24,12 +23,7 @@ import (
 //     savepoint; when a row breaks a rule, abi_copy_rows copies row by row
 //     instead and reports the rows it could not copy.
 
-var errPGConvert = fault.New(fault.BadRequest, "Changing a field's type is not available on PostgreSQL yet.")
-
 func (p *planner) pgRebuild(before, after *Table, conv map[string]convSpec) error {
-	if len(conv) > 0 {
-		return errPGConvert
-	}
 	var children []sqlgen.AddForeignKey
 	for _, r := range p.s.Relationships {
 		if r.ParentTableID != after.ID || r.ChildTableID == after.ID || !r.Enforce {
@@ -59,7 +53,16 @@ func (p *planner) pgRebuild(before, after *Table, conv map[string]convSpec) erro
 	if err := p.execStmt(ct); err != nil {
 		return ddlError(err)
 	}
-	dst, src := copyColumns(before, after, conv)
+	dst, src := copyColumns(before, after, nil)
+	for i, name := range dst {
+		if c, ok := after.ColumnByPhysical(name); ok && conv[c.ID] != (convSpec{}) {
+			pc := p.pgConv[c.ID]
+			if pc == nil {
+				return fmt.Errorf("catalog: conversion of %s was not prepared", c.PhysicalName)
+			}
+			src[i] = sqlgen.Column{Expr: pc.expr(before.PhysicalName)}
+		}
+	}
 	total, err := p.countRows(before.PhysicalName, nil)
 	if err != nil {
 		return err

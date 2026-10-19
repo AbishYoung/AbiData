@@ -213,3 +213,6 @@ func (r *renderer) pgAttachmentRefs(s *AttachmentRefs) {
 	}
 	r.w(` FOR EACH ROW EXECUTE FUNCTION abi_att_refs(` + strings.Join(args, ", ") + `)`)
 }
+
+// PostgresType is the column type a logical type is stored as on PostgreSQL.
+func PostgresType(t Type) string { return pgStorageType(t) }

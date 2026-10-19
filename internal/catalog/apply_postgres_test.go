@@ -310,19 +310,104 @@ func TestPostgresLookupRelationshipAndFKCheck(t *testing.T) {
 	}
 }
 
-// TestPostgresTypeChangeRefused: converting a field's type is not on
-// PostgreSQL yet; it says so and changes nothing.
-func TestPostgresTypeChangeRefused(t *testing.T) {
+// TestPostgresConversion mirrors TestTransactionalDDLBlockedConversionLeavesFileUnchanged.
+func TestPostgresConversion(t *testing.T) {
 	f, _ := newPGFixture(t)
-	f.apply(allTypesTable())
-	tb, _ := f.schema().TableByPhysical("Customers")
-	notes, _ := tb.ColumnByPhysical("Notes")
-	_, err := f.run(Apply, ApplyOptions{}, Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: notes.ID, Column: &ColumnSpec{DisplayName: "Notes", Type: Integer}})
-	var fe *fault.Error
-	if !errors.As(err, &fe) || fe.Code != fault.BadRequest || !strings.Contains(fe.DisplayMessage(), "PostgreSQL") {
-		t.Fatalf("type change: %v", err)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Items", Columns: []ColumnSpec{{DisplayName: "Code", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("Items")
+	code, _ := tb.ColumnByPhysical("Code")
+	if err := f.write(`INSERT INTO "Items" ("Code") VALUES ('12'), ('abc'), (' 7 '), ('x9'), (NULL)`); err != nil {
+		t.Fatal(err)
 	}
-	if s := f.schema(); s.Version != 1 {
-		t.Fatalf("schema version %d", s.Version)
+	op := Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: code.ID, Column: &ColumnSpec{DisplayName: "Code", Type: Integer}}
+	r, err := f.run(Preview, ApplyOptions{}, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.ConversionFailures) != 1 || r.ConversionFailures[0].Count != 2 || len(r.ConversionFailures[0].Samples) != 2 ||
+		r.ConversionFailures[0].Samples[0].RowID != 2 || r.ConversionFailures[0].Samples[0].Value != "abc" {
+		t.Fatalf("preview: %+v", r)
+	}
+	if _, err := f.run(Apply, ApplyOptions{}, op); fault.Classify(err).Code != fault.SchemaChangeBlocked {
+		t.Fatalf("apply not blocked: %v", err)
+	}
+	if got := f.rows(`SELECT id, "Code" FROM "Items" ORDER BY id`); got != "[[1 12] [2 abc] [3  7 ] [4 x9] [5 <nil>]]" {
+		t.Fatalf("blocked apply changed the table: %s", got)
+	}
+	if _, err := f.run(Apply, ApplyOptions{Force: true}, op); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.rows(`SELECT id, "Code", pg_typeof("Code")::text FROM "Items" ORDER BY id`); got != "[[1 12 bigint] [2 <nil> bigint] [3 7 bigint] [4 <nil> bigint] [5 <nil> bigint]]" {
+		t.Fatalf("%s", got)
+	}
+	// And back, and on to other types, through every storage form.
+	f.apply(Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: code.ID, Column: &ColumnSpec{DisplayName: "Code", Type: Currency}})
+	if got := f.rows(`SELECT "Code" FROM "Items" WHERE id = 1`); got != "[[120000]]" {
+		t.Fatalf("currency: %s", got)
+	}
+	f.apply(Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: code.ID, Column: &ColumnSpec{DisplayName: "Code", Type: ShortText}})
+	if got := f.rows(`SELECT "Code" FROM "Items" WHERE id = 1`); got != "[[12]]" {
+		t.Fatalf("currency to text: %s", got)
+	}
+	if d := f.drift(); len(d) > 0 {
+		t.Fatal(d)
+	}
+}
+
+// TestPostgresConvertDates converts text to dates and times and back.
+func TestPostgresConvertDates(t *testing.T) {
+	f, _ := newPGFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Ev", Columns: []ColumnSpec{{DisplayName: "At", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("Ev")
+	at, _ := tb.ColumnByPhysical("At")
+	if err := f.write(`INSERT INTO "Ev" ("At") VALUES ('2026-03-01'), ('2026-03-01T10:20:30Z')`); err != nil {
+		t.Fatal(err)
+	}
+	f.apply(Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: at.ID, Column: &ColumnSpec{DisplayName: "At", Type: DateTime}})
+	f.apply(Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: at.ID, Column: &ColumnSpec{DisplayName: "At", Type: LongText}})
+	if got := f.rows(`SELECT "At" FROM "Ev" ORDER BY id`); got != "[[2026-03-01T00:00:00.000Z] [2026-03-01T10:20:30.000Z]]" {
+		t.Fatalf("%s", got)
+	}
+	r, err := f.run(Apply, ApplyOptions{Force: true}, Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: at.ID, Column: &ColumnSpec{DisplayName: "At", Type: Date}})
+	if err != nil || len(r.ConversionFailures) != 1 || r.ConversionFailures[0].Count != 1 {
+		t.Fatalf("%+v %v", r, err)
+	}
+	if got := f.rows(`SELECT "At"::text FROM "Ev" ORDER BY id`); got != "[[2026-03-01] [<nil>]]" {
+		t.Fatalf("%s", got)
+	}
+}
+
+// TestPostgresConvertToYesNo mirrors TestConvertToYesNoForcedAndBlankTextIsNotAFailure.
+func TestPostgresConvertToYesNo(t *testing.T) {
+	f, _ := newPGFixture(t)
+	f.apply(Op{Kind: OpCreateTable, Table: &TableSpec{DisplayName: "Items", Columns: []ColumnSpec{{DisplayName: "Flag", Type: ShortText}}}})
+	tb, _ := f.schema().TableByPhysical("Items")
+	flag, _ := tb.ColumnByPhysical("Flag")
+	if err := f.write(`INSERT INTO "Items" ("Flag") VALUES ('yes'), ('maybe'), (''), ('0'), (NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	op := Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: flag.ID, Column: &ColumnSpec{DisplayName: "Flag", Type: YesNo}}
+	r, err := f.run(Preview, ApplyOptions{}, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.ConversionFailures) != 1 || r.ConversionFailures[0].Count != 1 || r.ConversionFailures[0].Samples[0].Value != "maybe" {
+		t.Fatalf("only 'maybe' is a failure: %+v", r.ConversionFailures)
+	}
+	for _, b := range r.Breaking {
+		if b.Kind == "constraint_violation" {
+			t.Fatalf("spurious constraint violation: %+v", r.Breaking)
+		}
+	}
+	if _, err := f.run(Apply, ApplyOptions{Force: true}, op); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.rows(`SELECT id, "Flag" FROM "Items" ORDER BY id`); got != "[[1 true] [2 false] [3 false] [4 false] [5 false]]" {
+		t.Fatalf("%s", got)
+	}
+	// yes_no back to text reads Yes and No.
+	f.apply(Op{Kind: OpAlterColumn, TableID: tb.ID, ColumnID: flag.ID, Column: &ColumnSpec{DisplayName: "Flag", Type: ShortText}})
+	if got := f.rows(`SELECT "Flag" FROM "Items" WHERE id <= 2 ORDER BY id`); got != "[[Yes] [No]]" {
+		t.Fatalf("%s", got)
 	}
 }
