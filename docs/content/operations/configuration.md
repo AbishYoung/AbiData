@@ -37,6 +37,7 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_DEMO_WORKSPACE` | `true` | When the first administrator is created through the setup page, also create the **Northwind Traders** and **Northwind Invasives** sample workspaces for them. `false` or `0` turns it off. See [Install](/docs/operations/install#demo) |
 | `ABIDATA_PUBLIC_APPS` | `true` | Whether workspace owners can publish [public apps](/docs/guide/apps). `false` or `0` turns them off for the whole install, and the administrator setting cannot turn them back on. |
 | `ABIDATA_PUBLIC_BLOGS` | `true` | Whether user blogs can be served at `/b/{username}`. Blogs are off until an administrator turns them on; `false` or `0` turns them off for good, and the administrator setting cannot turn them back on. |
+| `ABIDATA_BLOG_HOST` | unset | A separate host name for blogs, such as `blogs.example.com` (host and optional port, no scheme), pointed at the same server. When set, that host serves only `/b/...` and the public blog API, and blog paths on the main host redirect there. It must differ from the host of `ABIDATA_PUBLIC_URL`. |
 | `ABIDATA_DEBUG_ADDR` | (empty: off) | Address for the Go profiler (`/debug/pprof/`), such as `127.0.0.1:6060`. See below |
 | `ABIDATA_METRICS_ADDR` | (empty: off) | Extra listener serving `/metrics` without authentication, for Prometheus. Bind it to a private address. See [Monitoring](/docs/operations/monitoring#metrics) |
 | `ABIDATA_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |

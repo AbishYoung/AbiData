@@ -24,6 +24,10 @@ func (e *env) visit(path string, extra map[string]string) (int, string, http.Hea
 		e.t.Fatal(err)
 	}
 	for k, v := range extra {
+		if k == "Host" {
+			req.Host = v
+			continue
+		}
 		req.Header.Set(k, v)
 	}
 	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -277,6 +281,68 @@ func TestBlogAccessReadsNoCredentials(t *testing.T) {
 	}
 	if n < 2 {
 		t.Fatalf("only %d blog operations", n)
+	}
+}
+
+func TestPublicBlogFeed(t *testing.T) {
+	e, _, _, _ := publicBlog(t)
+	st, feed, h := e.visit("/b/ann/feed.xml", nil)
+	if st != 200 || !strings.HasPrefix(h.Get("Content-Type"), "application/atom+xml") || h.Get("ETag") == "" ||
+		!strings.Contains(feed, `<feed xmlns="http://www.w3.org/2005/Atom">`) || !strings.Contains(feed, "<title>Hello World</title>") ||
+		!strings.Contains(feed, `<summary type="text">About Hello World</summary>`) || !strings.Contains(feed, `href="`+testOrigin+`/b/ann/hello-world"`) {
+		t.Fatalf("feed %d %v\n%s", st, h, feed)
+	}
+	// Published posts only, and summaries, never bodies.
+	for _, absent := range []string{"Quiet One", "Secret Draft", "bold", "script"} {
+		if strings.Contains(feed, absent) {
+			t.Errorf("feed contains %q", absent)
+		}
+	}
+	if _, home, _ := e.visit("/b/ann", nil); !strings.Contains(home, `<link rel="alternate" type="application/atom+xml" href="/b/ann/feed.xml">`) {
+		t.Error("home has no feed link")
+	}
+	if st, _, _ := e.visit("/b/nobody/feed.xml", nil); st != 404 {
+		t.Errorf("unknown feed %d", st)
+	}
+}
+
+// TestBlogHost: with ABIDATA_BLOG_HOST, blogs live on that host alone and
+// the app's host sends readers there.
+func TestBlogHost(t *testing.T) {
+	e, _, _, _ := publicBlog(t)
+	e.s.deps.Config.BlogHost = "blogs.test"
+	if st, _, h := e.visit("/b/ann/hello-world?x=1", nil); st != 301 || h.Get("Location") != "http://blogs.test/b/ann/hello-world?x=1" {
+		t.Fatalf("app host %d %v", st, h)
+	}
+	st, page, _ := e.visit("/b/ann/hello-world", map[string]string{"Host": "blogs.test"})
+	if st != 200 || !strings.Contains(page, `<link rel="canonical" href="http://blogs.test/b/ann/hello-world">`) {
+		t.Fatalf("blog host %d %s", st, page)
+	}
+	for _, p := range []string{"/", "/api/v1/auth/me", "/login", "/api/v1/admin/blogs"} {
+		if st, body, _ := e.visit(p, map[string]string{"Host": "blogs.test"}); st != 404 || body != string(blogs.NotFoundPage) {
+			t.Errorf("%s on the blog host: %d", p, st)
+		}
+	}
+	if st, _, _ := e.visit("/api/v1/blogs/ann", map[string]string{"Host": "blogs.test"}); st != 200 {
+		t.Errorf("JSON on the blog host: %d", st)
+	}
+	// Reports may come from a page on the blog host, but not from elsewhere.
+	for origin, want := range map[string]int{"http://blogs.test": 202, "http://evil.test": 403} {
+		req, err := http.NewRequest(http.MethodPost, e.srv.URL+"/api/v1/blogs/ann/report", strings.NewReader(`{"reason_code":"spam"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Host = "blogs.test"
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("report from %s: %d, want %d", origin, resp.StatusCode, want)
+		}
 	}
 }
 

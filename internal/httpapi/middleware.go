@@ -216,7 +216,7 @@ func (s *Server) authenticate(hctx huma.Context, next func(huma.Context)) {
 	// Authorization are read (ADR 0017).
 	if metaString(op, metaAccess) == "blog" {
 		hctx.SetHeader("Cache-Control", "no-store")
-		if isUnsafe(hctx.Method()) && !s.deps.Config.OriginAllowed(hctx.Header("Origin")) {
+		if origin := hctx.Header("Origin"); isUnsafe(hctx.Method()) && !s.deps.Config.OriginAllowed(origin) && origin != s.deps.Config.BlogBaseURL() {
 			writeHumaError(hctx, s.log, fault.New(fault.Forbidden, "The request origin is not allowed."))
 			return
 		}

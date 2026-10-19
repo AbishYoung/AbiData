@@ -83,6 +83,9 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.PublicBlogs, err = l.boolean("ABIDATA_PUBLIC_BLOGS", true); err != nil {
 		return Config{}, err
 	}
+	if c.BlogHost, err = l.blogHost("ABIDATA_BLOG_HOST", c.PublicURL); err != nil {
+		return Config{}, err
+	}
 	if c.DebugAddr, _, err = l.lookup("ABIDATA_DEBUG_ADDR"); err != nil {
 		return Config{}, err
 	}
@@ -263,6 +266,22 @@ func (l loader) publicURL(name, def string) (string, error) {
 		return "", fmt.Errorf("config: %s must not include a query or fragment", name)
 	}
 	return u.Scheme + "://" + u.Host, nil
+}
+
+// blogHost reads an optional host[:port] that differs from the public URL's host.
+func (l loader) blogHost(name, publicURL string) (string, error) {
+	v, ok, err := l.lookup(name)
+	if err != nil || !ok || v == "" {
+		return "", err
+	}
+	u, err := url.Parse("http://" + v)
+	if err != nil || u.Hostname() == "" || u.Host != v || u.User != nil || u.Path != "" || u.RawQuery != "" {
+		return "", fmt.Errorf("config: %s must be a host name, with an optional port, and nothing else", name)
+	}
+	if pub, err := url.Parse(publicURL); err == nil && strings.EqualFold(pub.Host, u.Host) {
+		return "", fmt.Errorf("config: %s must differ from the host of ABIDATA_PUBLIC_URL", name)
+	}
+	return strings.ToLower(u.Host), nil
 }
 
 func (l loader) synchronous(name string) (string, error) {

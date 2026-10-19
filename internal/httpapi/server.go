@@ -124,7 +124,7 @@ func New(deps Deps) *Server {
 		deps.BlogAPI.PublicEnabled = s.blogSwitch().Enabled
 	}
 	r := chi.NewMux()
-	r.Use(s.requestID, s.securityHeaders, s.accessLog)
+	r.Use(s.requestID, s.securityHeaders, s.accessLog, s.blogHostGate)
 
 	cfg := huma.DefaultConfig("AbiData API", deps.Version)
 	cfg.OpenAPIPath = "/api/v1/openapi"

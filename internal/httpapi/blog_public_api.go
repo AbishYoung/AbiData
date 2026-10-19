@@ -86,7 +86,7 @@ type publicBlogPostOut struct {
 func (s *Server) registerPublicBlogs(api huma.API) {
 	meta := map[string]any{metaAccess: "blog"}
 	tags := []string{"public blogs"}
-	base := func() string { return strings.TrimRight(s.deps.Config.PublicURL, "/") }
+	base := func() string { return strings.TrimRight(s.deps.Config.BlogBaseURL(), "/") }
 	postOf := func(user string, p blogs.Post) PublicBlogPost {
 		return PublicBlogPost{Title: p.Title, Slug: p.Slug, Summary: p.Summary, PublishedAt: p.PublishedAt, URL: base() + "/b/" + user + "/" + p.Slug}
 	}

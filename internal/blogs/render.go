@@ -69,6 +69,7 @@ type pageMeta struct {
 	OGType      string
 	SiteName    string
 	Stylesheet  string
+	Feed        string
 }
 
 type homeData struct {
@@ -111,6 +112,7 @@ const head = `{{define "head"}}<!doctype html>
 <meta property="og:site_name" content="{{.SiteName}}">
 <meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="{{.Stylesheet}}">
+{{with .Feed}}<link rel="alternate" type="application/atom+xml" href="{{.}}">{{end}}
 </head>{{end}}`
 
 var pages = template.Must(template.New("pages").Parse(head + `
@@ -165,7 +167,7 @@ func RenderHome(base string, b admin.Blog, posts []Post) ([]byte, error) {
 		desc = clip(intro[0], 200)
 	}
 	d := homeData{Blog: b, Name: blogName(b), Intro: intro,
-		Meta: pageMeta{Title: blogName(b), Description: desc, Canonical: home, Robots: "index,follow", OGType: "website", SiteName: blogName(b), Stylesheet: StylesheetPath}}
+		Meta: pageMeta{Title: blogName(b), Description: desc, Canonical: home, Robots: "index,follow", OGType: "website", SiteName: blogName(b), Stylesheet: StylesheetPath, Feed: "/b/" + b.Username + "/feed.xml"}}
 	for _, p := range posts {
 		human, iso := dates(p.PublishedAt)
 		d.Posts = append(d.Posts, postItem{Title: p.Title, URL: "/b/" + b.Username + "/" + p.Slug, Date: human, ISODate: iso, Summary: p.Summary})
@@ -189,7 +191,7 @@ func RenderPost(base string, b admin.Blog, p Post) ([]byte, error) {
 	d := postData{Name: blogName(b), HomePath: "/b/" + b.Username, Title: p.Title, Date: human, ISODate: iso,
 		Body: template.HTML(body), //nolint:gosec // sanitised by RenderMarkdown
 		Meta: pageMeta{Title: p.Title + " · " + blogName(b), Description: clip(p.Summary, 300), Robots: robots, OGType: "article", SiteName: blogName(b),
-			Canonical: strings.TrimRight(base, "/") + "/b/" + b.Username + "/" + p.Slug, Stylesheet: StylesheetPath}}
+			Canonical: strings.TrimRight(base, "/") + "/b/" + b.Username + "/" + p.Slug, Stylesheet: StylesheetPath, Feed: "/b/" + b.Username + "/feed.xml"}}
 	var buf bytes.Buffer
 	err = pages.ExecuteTemplate(&buf, "post", d)
 	return buf.Bytes(), err

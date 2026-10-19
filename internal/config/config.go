@@ -26,6 +26,7 @@ type Config struct {
 	DemoWorkspace       bool           // ABIDATA_DEMO_WORKSPACE, default true; "false"/"0" disables the Northwind Traders sample workspace created at first-run setup
 	PublicApps          bool           // ABIDATA_PUBLIC_APPS, default true; "false"/"0" turns public apps (ADR 0014) off for good, whatever the admin setting says
 	PublicBlogs         bool           // ABIDATA_PUBLIC_BLOGS, default true; "false"/"0" turns public blogs (ADR 0017) off for good. They are also off until an administrator turns them on
+	BlogHost            string         // ABIDATA_BLOG_HOST: host[:port] that alone serves public blogs (/b/), so the session cookie never reaches them; "" serves them on the public URL
 	DebugAddr           string         // ABIDATA_DEBUG_ADDR, default "" (pprof off)
 	MetricsAddr         string         // ABIDATA_METRICS_ADDR, default "" (metrics only at /metrics for admins); unauthenticated, bind to a private interface
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info
@@ -43,6 +44,19 @@ const (
 	DBSQLite   = "sqlite"
 	DBPostgres = "postgres"
 )
+
+// BlogBaseURL is the scheme and host public blog links use: ABIDATA_BLOG_HOST
+// with the public URL's scheme when set, else the public URL.
+func (c Config) BlogBaseURL() string {
+	if c.BlogHost == "" {
+		return c.PublicURL
+	}
+	scheme := "http"
+	if c.SecureCookies() {
+		scheme = "https"
+	}
+	return scheme + "://" + c.BlogHost
+}
 
 // SecureCookies reports whether cookies must carry Secure (and may use __Host-).
 func (c Config) SecureCookies() bool { return len(c.PublicURL) >= 8 && c.PublicURL[:8] == "https://" }
