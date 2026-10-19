@@ -126,7 +126,7 @@ jobs:
           npm --prefix web ci
           npm --prefix web run build
           go build -o tests/e2e/.bin/abidata ./cmd/abidata
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: e2e-binary
           path: tests/e2e/.bin/abidata
@@ -176,7 +176,7 @@ jobs:
         run: go run ./tools/testplan e2e ${{ matrix.area }}
       - name: Upload traces and server logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-${{ matrix.area }}-traces
           path: |
@@ -230,7 +230,7 @@ jobs:
         run: ./scripts/container-smoke.sh
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: container-smoke-traces
           path: tests/e2e/test-results
