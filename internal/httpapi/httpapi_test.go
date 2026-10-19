@@ -15,6 +15,7 @@ import (
 	"testing/fstest"
 
 	"abidata/internal/admin"
+	"abidata/internal/admin/admintest"
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
@@ -35,6 +36,7 @@ import (
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 const testOrigin = "http://abidata.test"
@@ -54,22 +56,14 @@ func newEnv(t *testing.T) *env {
 	if err := os.MkdirAll(filepath.Join(dir, "system"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	ad, err := admin.Open(ctx, filepath.Join(dir, "system", "admin.db"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = ad.Close() })
+	ad := admintest.Open(t)
 	au := auth.NewService(ad, auth.Keys{Session: make([]byte, 32)}, auth.Argon2Params{Memory: 1024, Time: 1, Threads: 1, KeyLen: 32, SaltLen: 16}, nil, nil)
-	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate,
+	wm := wstest.NewWith(t, workspace.Config{DataDir: dir,
 		// Same fail-closed quota lookup as serve: regression for create-before-row.
 		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
 			w, err := ad.GetWorkspace(ctx, id)
 			return w.Quota.MaxPageCount, err
-		}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = wm.Shutdown(ctx) })
+		}}).Manager
 	cfg := config.Config{PublicURL: testOrigin, DataDir: dir, PublicApps: true, PublicBlogs: true}
 	spa := fstest.MapFS{
 		"index.html":           {Data: []byte("<!doctype html><title>AbiData</title>")},
@@ -457,5 +451,14 @@ func TestOpenAPIDocumentBuilds(t *testing.T) {
 	b, err := json.Marshal(e.s.API().OpenAPI())
 	if err != nil || len(b) < 1000 {
 		t.Fatalf("%d bytes, %v", len(b), err)
+	}
+}
+
+// backupsOnSQLite skips a test of backups and restore on PostgreSQL, where
+// they arrive with ADR 0012 Phase 4.
+func backupsOnSQLite(t *testing.T) {
+	t.Helper()
+	if wstest.Postgres() {
+		t.Skip("backups and restore on PostgreSQL are ADR 0012 Phase 4")
 	}
 }

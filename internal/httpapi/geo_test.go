@@ -125,7 +125,7 @@ func TestGeoFieldsOverHTTP(t *testing.T) {
 
 	// A saved SQL query with an area parameter, run with a JSON object.
 	st, q, _ := root.do("POST", base+"/queries", map[string]any{"name": "In fence", "kind": "sql",
-		"sql_text":   `SELECT Species, geo_distance_m(Spot, geo_point(51.5, -0.14)) < 1000 AS close FROM Sightings WHERE geo_within(Spot, :fence) ORDER BY id`,
+		"sql_text":   `SELECT "Species", geo_distance_m("Spot", geo_point(51.5, -0.14)) < 1000 AS close FROM "Sightings" WHERE geo_within("Spot", :fence) ORDER BY id`,
 		"parameters": []map[string]string{{"name": "fence", "type": "area"}}})
 	if st != 201 && st != 200 {
 		t.Fatalf("save query %d %v", st, q)

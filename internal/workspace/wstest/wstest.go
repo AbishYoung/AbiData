@@ -25,10 +25,19 @@ type Env struct {
 }
 
 // New returns a manager with the catalog's migrations, shut down when the test ends.
-func New(t testing.TB) *Env {
+func New(t testing.TB) *Env { t.Helper(); return NewWith(t, workspace.Config{}) }
+
+// NewWith is New with cfg's settings; DataDir and the migrations are filled
+// in when empty.
+func NewWith(t testing.TB, cfg workspace.Config) *Env {
 	t.Helper()
 	ctx := context.Background()
-	cfg := workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate}
+	if cfg.DataDir == "" {
+		cfg.DataDir = t.TempDir()
+	}
+	if cfg.Migrate == nil {
+		cfg.Migrate = catalog.Migrate
+	}
 	var e *pgtest.Env
 	if Postgres() {
 		e = pgtest.New(t)

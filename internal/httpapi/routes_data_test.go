@@ -226,7 +226,7 @@ func TestQueriesOverHTTP(t *testing.T) {
 	if st != 200 || len(out["rows"].([]any)) != 2 {
 		t.Fatalf("editor run saved %d %v", st, out)
 	}
-	st, out, _ = root.do("POST", base+"/sql/run", map[string]any{"sql": "SELECT count(*) AS n FROM Pets WHERE Kind = :k", "params": map[string]any{"k": "cat"}})
+	st, out, _ = root.do("POST", base+"/sql/run", map[string]any{"sql": `SELECT count(*) AS n FROM "Pets" WHERE "Kind" = :k`, "params": map[string]any{"k": "cat"}})
 	if st != 200 || out["rows"].([]any)[0].([]any)[0].(float64) != 2 {
 		t.Fatalf("sql console %d %v", st, out)
 	}
