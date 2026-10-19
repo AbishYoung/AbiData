@@ -52,6 +52,9 @@ type Engine struct {
 	// (wired to the backup package in Phase 6).
 	RestorePoint func(ctx context.Context, l *workspace.Lease) error
 	Validators   []Validator
+	// Guard, when set, may refuse an op before it is applied, given the schema
+	// as it stands before that op (pinned system tables, ADR 0017).
+	Guard func(ctx context.Context, ws ids.WorkspaceID, tx dbx.Tx, s *Schema, op Op) error
 	// AfterCommit runs after a successful apply (publish schema.changed, drop caches).
 	AfterCommit func(ctx context.Context, l *workspace.Lease, s *Schema)
 	// fault injection for crash tests (see faultinject build tag)
@@ -109,6 +112,11 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 			p := &planner{ctx: ctx, tx: tx, d: d, pg: pg, s: s, report: &report, now: e.clock(), user: opt.UserID,
 				touched: map[string]bool{}, created: map[string]string{}}
 			for i, op := range ops {
+				if e.Guard != nil {
+					if err := e.Guard(ctx, l.ID(), tx, p.s, op); err != nil {
+						return opError(i, op, err)
+					}
+				}
 				if err := p.apply(op); err != nil {
 					return opError(i, op, err)
 				}

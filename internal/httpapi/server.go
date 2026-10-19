@@ -26,6 +26,7 @@ import (
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
+	"abidata/internal/blogs"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/demo"
@@ -76,7 +77,9 @@ type Deps struct {
 	OnSetup func(ctx context.Context, firstAdmin admin.User)
 	// Demo builds sample workspaces for the admin "give everyone the demo"
 	// action; nil: that route answers NOT_FOUND.
-	Demo    DemoProvisioner
+	Demo DemoProvisioner
+	// Blogs gives each user a blog workspace (ADR 0017); nil: users get none.
+	Blogs   *blogs.Provisioner
 	Version string
 	SPA     fs.FS // contents of web/dist; nil serves nothing
 }

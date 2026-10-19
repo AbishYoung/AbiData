@@ -9,6 +9,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
 import {
+  badge,
   badgeAccent,
   badgeWarning,
   btnPrimary,
@@ -187,9 +188,15 @@ export function PickerPage({ me: initial }: { me: Me }) {
                     </span>
                   </span>
                   <span className="mt-auto flex flex-wrap items-center gap-2">
-                    <Tip label={ROLE_HELP[m.role] ?? m.role}>
-                      <span className={badgeAccent}>Role: {m.role}</span>
-                    </Tip>
+                    {m.system_kind === "blog" ? (
+                      <Tip label="Your blog. Only you can write in it; nothing is public until you publish it.">
+                        <span className={badge}>Blog</span>
+                      </Tip>
+                    ) : (
+                      <Tip label={ROLE_HELP[m.role] ?? m.role}>
+                        <span className={badgeAccent}>Role: {m.role}</span>
+                      </Tip>
+                    )}
                     {m.status !== "active" && (
                       <span className={badgeWarning}>{m.status}</span>
                     )}

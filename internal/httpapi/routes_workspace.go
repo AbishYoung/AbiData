@@ -19,6 +19,8 @@ type WorkspaceInfo struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Role   string `json:"role" enum:"owner,builder,editor,viewer"`
+	// SystemKind is "blog" for a user's blog workspace (ADR 0017), empty otherwise.
+	SystemKind string `json:"system_kind,omitempty"`
 }
 
 // MemberDTO is a workspace member.
@@ -56,7 +58,7 @@ func (s *Server) registerWorkspace(api huma.API) {
 	}) (*struct{ Body WorkspaceInfo }, error) {
 		m, _ := MembershipFrom(ctx)
 		return &struct{ Body WorkspaceInfo }{Body: WorkspaceInfo{ID: string(m.Workspace.ID), Name: m.Workspace.Name,
-			Status: string(m.Workspace.Status), Role: string(m.Role)}}, nil
+			Status: string(m.Workspace.Status), Role: string(m.Role), SystemKind: string(m.Workspace.SystemKind)}}, nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -108,7 +110,7 @@ func (s *Server) registerWorkspace(api huma.API) {
 		}
 		role := admin.Role(in.Body.Role)
 		if err := s.deps.Admin.SetMembership(ctx, admin.Membership{WorkspaceID: m.Workspace.ID, UserID: u.ID, Role: role}); err != nil {
-			return nil, err
+			return nil, mapAdminErr(err)
 		}
 		s.audit(ctx, "member.add", "workspace", string(m.Workspace.ID), map[string]any{"user_id": u.ID, "role": role})
 		return &struct{ Body MemberDTO }{Body: MemberDTO{UserID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Role: string(role)}}, nil
@@ -116,7 +118,7 @@ func (s *Server) registerWorkspace(api huma.API) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "updateMember", Method: http.MethodPatch, Path: "/api/v1/w/{ws}/members/{user}", Tags: tags, Metadata: owner,
-		Summary: "Change a member's role", Errors: []int{400, 401, 403, 404},
+		Summary: "Change a member's role", Errors: []int{400, 401, 403, 404, 409},
 	}, func(ctx context.Context, in *struct {
 		WS   string `path:"ws"`
 		User string `path:"user"`
@@ -139,7 +141,7 @@ func (s *Server) registerWorkspace(api huma.API) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "removeMember", Method: http.MethodDelete, Path: "/api/v1/w/{ws}/members/{user}", Tags: tags, Metadata: owner,
-		Summary: "Remove a member", DefaultStatus: http.StatusNoContent, Errors: []int{400, 401, 403, 404},
+		Summary: "Remove a member", DefaultStatus: http.StatusNoContent, Errors: []int{400, 401, 403, 404, 409},
 	}, func(ctx context.Context, in *struct {
 		WS   string `path:"ws"`
 		User string `path:"user"`

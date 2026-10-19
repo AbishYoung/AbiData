@@ -21,6 +21,7 @@ import (
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
+	"abidata/internal/blogs"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/demo"
@@ -195,6 +196,9 @@ func serve() error {
 		schemas.Put(l.ID(), s)
 		hub.Publish(string(l.ID()), events.SchemaChanged, map[string]any{"schema_version": s.Version})
 	}}
+	// User blogs (ADR 0017): provisioning, and the guard on their pinned tables.
+	blogSvc := &blogs.Provisioner{Admin: adm, Workspaces: wm, Catalog: engine, Schemas: schemas, Log: obs.Subsystem(log, "blogs")}
+	engine.Guard = blogSvc.Guard
 	// Destructive schema changes and large chunked import replaces take a restore point first.
 	restorePoint := func(ctx context.Context, l *workspace.Lease) error {
 		_, err := backups.Snapshot(ctx, l, admin.BackupRestorePoint, "system")
@@ -305,7 +309,7 @@ func serve() error {
 		}
 	}
 
-	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Demo: demoBuilder, Config: cfg, Log: log, Metrics: metrics, Series: sampler, Admin: adm, Auth: authSvc,
+	api := httpapi.New(httpapi.Deps{OnSetup: onSetup, Demo: demoBuilder, Blogs: blogSvc, Config: cfg, Log: log, Metrics: metrics, Series: sampler, Admin: adm, Auth: authSvc,
 		Workspaces: wm, Schemas: schemas, Catalog: engine, Events: hub,
 		Records: recSvc, Queries: querySvc, Scripts: scriptSvc,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Files: fileSvc, Queries: querySvc, Scripts: scriptSvc, Runner: runner, Events: hub},
@@ -328,6 +332,15 @@ func serve() error {
 	go sampler.Run(janitorCtx)
 	go janitor(janitorCtx, log, wm, adm, arts, ingestSvc, fileSvc)
 	go backups.RunSchedule(janitorCtx, 10*time.Minute)
+	// Every user has a blog (ADR 0017): create the missing ones, users created
+	// before blogs or by the CLI, in the background.
+	go func() {
+		if n, err := blogSvc.EnsureAll(janitorCtx); err != nil && janitorCtx.Err() == nil {
+			log.Error("blog backfill", "subsystem", "blogs", "err", err)
+		} else if n > 0 {
+			log.Info("created blogs for existing users", "subsystem", "blogs", "count", n)
+		}
+	}()
 
 	errc := make(chan error, 1)
 	go func() {

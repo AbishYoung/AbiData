@@ -9,14 +9,18 @@ import (
 	"abidata/internal/ids"
 )
 
-const wsCols = "w.id, w.name, w.status, w.quota_json, w.created_at, w.created_by"
+const wsCols = "w.id, w.name, w.status, w.quota_json, w.created_at, w.created_by, w.system_kind"
 
 func scanWorkspace(r scanner, extra ...any) (Workspace, error) {
 	var w Workspace
 	var id, status, quota, created string
-	dest := append([]any{&id, &w.Name, &status, &quota, &created, &w.CreatedBy}, extra...)
+	var kind *string
+	dest := append([]any{&id, &w.Name, &status, &quota, &created, &w.CreatedBy, &kind}, extra...)
 	if err := r.Scan(dest...); err != nil {
 		return Workspace{}, err
+	}
+	if kind != nil {
+		w.SystemKind = SystemKind(*kind)
 	}
 	w.ID = ids.WorkspaceID(id)
 	w.Status = WorkspaceStatus(status)
@@ -37,8 +41,13 @@ func (s *Store) CreateWorkspace(ctx context.Context, w Workspace, owner string) 
 	if status == "" {
 		status = StatusActive
 	}
+	var kind *string
+	if w.SystemKind != "" {
+		k := string(w.SystemKind)
+		kind = &k
+	}
 	return s.Write(ctx, func(tx dbx.Tx) error {
-		if _, err := tx.Exec(ctx, sqlCreateWorkspace.SQL, string(w.ID), w.Name, string(status), string(q), w.CreatedAt, w.CreatedBy); err != nil {
+		if _, err := tx.Exec(ctx, sqlCreateWorkspace.SQL, string(w.ID), w.Name, string(status), string(q), w.CreatedAt, w.CreatedBy, kind); err != nil {
 			return wrapWrite(err, "create workspace")
 		}
 		_, err := tx.Exec(ctx, sqlCreateWorkspace2.SQL,
@@ -154,14 +163,37 @@ func (s *Store) GetRole(ctx context.Context, ws ids.WorkspaceID, userID string) 
 
 func (s *Store) SetMembership(ctx context.Context, m Membership) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
+		if err := refuseSystem(ctx, tx, m.WorkspaceID); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, sqlSetMembership.SQL,
 			string(m.WorkspaceID), m.UserID, string(m.Role))
 		return err
 	})
 }
 
+// refuseSystem returns ErrProtected for a system workspace (a blog), whose
+// only member is its pinned owner (ADR 0017).
+func refuseSystem(ctx context.Context, tx dbx.Tx, ws ids.WorkspaceID) error {
+	var kind *string
+	err := tx.QueryRow(ctx, sqlSystemKind.SQL, string(ws)).Scan(&kind)
+	if dbx.IsNoRows(err) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if kind != nil && *kind != "" {
+		return ErrProtected
+	}
+	return nil
+}
+
 func (s *Store) DeleteMembership(ctx context.Context, ws ids.WorkspaceID, userID string) error {
 	return s.Write(ctx, func(tx dbx.Tx) error {
+		if err := refuseSystem(ctx, tx, ws); err != nil {
+			return err
+		}
 		res, err := tx.Exec(ctx, sqlChangeMembership3.SQL, string(ws), userID)
 		if err != nil {
 			return err
