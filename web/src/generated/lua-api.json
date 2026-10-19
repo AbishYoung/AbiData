@@ -279,7 +279,7 @@
   },
   {
     "name": "db",
-    "doc": "Run SQL against this workspace's tables. Reads run on a snapshot; writes need edit rights and are not recorded in row history (use `records` for tracked edits). Statements are checked by the SQL authorizer: system tables, schema changes, PRAGMA and ATTACH are not allowed.",
+    "doc": "Read and change this workspace's tables. db.select, db.update and db.delete need no SQL, so a script that uses them runs the same on SQLite and PostgreSQL; their writes are validated and recorded in row history. db.query and db.exec take SQL in the workspace database's own dialect: reads run on a snapshot, writes need edit rights and are not recorded in row history (use `records` or db.update for tracked edits), and system tables, schema changes and database settings are not allowed. On PostgreSQL, SQL text cannot run inside db.transaction.",
     "contexts": [
       "ui_event",
       "report",
@@ -355,6 +355,47 @@
         "signature": "db.transaction(fn) → results of fn",
         "doc": "Runs fn inside one write transaction (all-or-nothing). Raising an error inside fn rolls back. The block has its own time budget (250 ms in form events, 2 s in jobs).",
         "example": "db.transaction(function() db.exec(\"UPDATE Stock SET Qty = Qty - 1 WHERE id = :id\", {id = 3}) records.insert(\"Moves\", {Item = 3}) end)",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "select",
+        "signature": "db.select{from, where?, order?, limit?, offset?} → rows",
+        "returns": "array of row tables, as records.get returns them",
+        "errors": [
+          "BAD_REQUEST"
+        ],
+        "doc": "Reads rows without SQL, so the script runs the same on every database. where maps fields to a value (db.NULL: empty), a list (any of its values) or operators: eq, ne, lt, le, gt, ge, contains, starts, ends, in, between, is_null; _or takes a list of where tables. order lists fields, \"-\" first for descending. limit is 100 unless given (at most 500).",
+        "example": "local rows = db.select{from = \"Orders\", where = {Status = \"Open\", Total = {gt = 100}}, order = {\"-Ordered\"}, limit = 50}"
+      },
+      {
+        "name": "update",
+        "signature": "db.update{table, set, where} → {changes}",
+        "returns": "table with changes",
+        "errors": [
+          "VALIDATION_FAILED",
+          "CONCURRENT_MODIFICATION",
+          "BAD_REQUEST"
+        ],
+        "doc": "Updates every matching row as records.update would: validated, versioned and recorded in row history, all or nothing. where is required (where = {} means every row); at most 10,000 rows. Not available in reports.",
+        "example": "db.update{table = \"Orders\", set = {Status = \"Shipped\"}, where = {id = 42}}",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "delete",
+        "signature": "db.delete{table, where} → {changes}",
+        "returns": "table with changes",
+        "errors": [
+          "LINKED_RECORDS",
+          "BAD_REQUEST"
+        ],
+        "doc": "Deletes every matching row as records.delete would, all or nothing. where is required; at most 10,000 rows. Not available in reports.",
+        "example": "db.delete{table = \"Drafts\", where = {Status = \"Abandoned\"}}",
         "contexts": [
           "ui_event",
           "job"

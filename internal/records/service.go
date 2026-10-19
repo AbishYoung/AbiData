@@ -193,13 +193,26 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 	if err != nil {
 		return nil, false, err
 	}
+	var out []Row
+	var more bool
+	err = l.Read(ctx, func(qr dbx.Querier) error {
+		out, more, err = ListTx(ctx, qr, sch, t, q)
+		return err
+	})
+	return out, more, err
+}
+
+// ListTx is List on q: inside a write transaction, it sees the transaction's
+// own changes.
+func ListTx(ctx context.Context, qr dbx.Querier, sch *catalog.Schema, t *catalog.Table, q ListQuery) ([]Row, bool, error) {
+	d := pgdb.DialectOf(qr)
 	if q.Limit <= 0 || q.Limit > MaxPage {
 		q.Limit = min(max(q.Limit, 1), MaxPage)
 	}
 	if q.Offset < 0 {
 		return nil, false, fault.New(fault.BadRequest, "Offset cannot be negative.")
 	}
-	where, err := filterExpr(t, q.Filter, decoderFor(l.Dialect()), "t")
+	where, err := filterExpr(t, q.Filter, decoderFor(d), "t")
 	if err != nil {
 		return nil, false, err
 	}
@@ -207,14 +220,14 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 	if err != nil {
 		return nil, false, err
 	}
-	cols, data, lookups := selectList(l.Dialect(), sch, t)
-	stmt, err := render(l.Dialect(), &sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, OrderBy: order,
+	cols, data, lookups := selectList(d, sch, t)
+	stmt, err := render(d, &sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, OrderBy: order,
 		Limit: sqlgen.Arg{Value: q.Limit + 1}, Offset: sqlgen.Arg{Value: q.Offset}})
 	if err != nil {
 		return nil, false, err
 	}
 	var out []Row
-	err = l.Read(ctx, func(qr dbx.Querier) error {
+	err = func() error {
 		rows, err := qr.Query(ctx, stmt.SQL, stmt.Args...)
 		if err != nil {
 			return err
@@ -235,7 +248,7 @@ func (s *Service) List(ctx context.Context, l *workspace.Lease, tableID string, 
 			out = append(out, r)
 		}
 		return rows.Err()
-	})
+	}()
 	if err != nil {
 		return nil, false, fault.Classify(err)
 	}
