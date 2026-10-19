@@ -36,6 +36,9 @@ type PostgresConfig struct {
 	Database string
 	Prefix   string         // ABIDATA_POSTGRES_SCHEMA_PREFIX
 	Dialect  sqlgen.Dialect // the server's (pgdb.Dialect): Postgres or Postgres17
+	// Sandbox runs user-typed SQL as the workspaces' own roles. NewManager
+	// creates one on Pool when it is nil.
+	Sandbox *pgdb.Sandbox
 	// Migrate creates or migrates a workspace's system tables (catalog.MigratePostgres).
 	Migrate func(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names) error
 }
@@ -211,7 +214,33 @@ func (m *Manager) Drop(ctx context.Context, id ids.WorkspaceID) error {
 	if !ids.Valid(string(id)) {
 		return ids.ErrInvalidID
 	}
+	m.pg().Sandbox.Forget(m.Names(id)) // a role with open connections cannot be dropped
 	return pgx.BeginFunc(ctx, m.pg().Pool, func(tx pgx.Tx) error {
 		return pgdb.DropWorkspace(ctx, pgdb.WrapTx(tx), m.Names(id))
 	})
+}
+
+// UserQuery runs one read-only statement typed by a person, as the
+// workspace's read role (ADR 0012 §3). On SQLite, user SQL runs on ReadConn
+// under the authorizer instead.
+func (l *Lease) UserQuery(ctx context.Context, sql string, args []any, lim pgdb.Limits) (pgdb.Result, error) {
+	if l.m.pg() == nil {
+		return pgdb.Result{}, errors.New("workspace: UserQuery is for PostgreSQL workspaces")
+	}
+	if err := l.check(); err != nil {
+		return pgdb.Result{}, err
+	}
+	return l.m.pg().Sandbox.Query(ctx, l.m.Names(l.h.id), sql, args, lim)
+}
+
+// DescribeUserQuery checks a statement typed by a person as UserQuery would
+// run it, without running it, and returns its columns.
+func (l *Lease) DescribeUserQuery(ctx context.Context, sql string) ([]string, []pgdb.Origin, error) {
+	if l.m.pg() == nil {
+		return nil, nil, errors.New("workspace: DescribeUserQuery is for PostgreSQL workspaces")
+	}
+	if err := l.check(); err != nil {
+		return nil, nil, err
+	}
+	return l.m.pg().Sandbox.Describe(ctx, l.m.Names(l.h.id), sql)
 }

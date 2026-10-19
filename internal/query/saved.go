@@ -12,6 +12,7 @@ import (
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
@@ -91,6 +92,7 @@ func loadAll(ctx context.Context, q dbx.Querier) (map[string]*Saved, error) {
 
 // resolver compiles saved queries used as sources, detecting cycles.
 type resolver struct {
+	d     sqlgen.Dialect
 	sch   *catalog.Schema
 	all   map[string]*Saved
 	stack []string
@@ -128,7 +130,7 @@ func (r *resolver) resolve(id string) (SavedQuery, bool) {
 	}
 	r.stack = append(r.stack, id)
 	defer func() { r.stack = r.stack[:len(r.stack)-1] }()
-	c, err := CompileWith(r.sch, *s.Visual, r.resolve, r.legacy)
+	c, err := CompileFor(r.d, r.sch, *s.Visual, r.resolve, r.legacy)
 	if err != nil {
 		return SavedQuery{}, false
 	}
@@ -141,8 +143,19 @@ func describeSQL(ctx context.Context, q dbx.Querier, sql string) ([]string, erro
 	if strings.TrimSpace(sql) == "" || len(sql) > MaxSQLLen {
 		return nil, fault.New(fault.BadRequest, "Enter a SQL statement.")
 	}
-	// dialect: sqlite. User SQL is vetted by the SQLite authorizer; the
-	// PostgreSQL sandbox is ADR 0012 §3.
+	if pgdb.DialectOf(q) != sqlgen.SQLite {
+		names, err := dbx.Params(sql)
+		if err != nil {
+			return nil, fault.SQLError(err.Error(), err)
+		}
+		for _, p := range names {
+			if strings.HasPrefix(p, "?") {
+				return nil, fault.New(fault.BadRequest, "Use named parameters such as :start_date instead of ?.")
+			}
+		}
+		return pgDescribe(ctx, q, sql)
+	}
+	// User SQL is vetted by the SQLite authorizer.
 	c, ok := sqlitex.ConnOf(q)
 	if !ok {
 		return nil, fmt.Errorf("query: SQL check needs a SQLite connection, got %T", q)
@@ -175,8 +188,8 @@ func fill(ctx context.Context, c dbx.Querier, sch *catalog.Schema, all map[strin
 		if s.Visual == nil {
 			return Deps{}, fault.New(fault.BadRequest, "A visual query needs a model.")
 		}
-		r := &resolver{sch: sch, all: all, stack: []string{s.ID}}
-		comp, err := CompileWith(sch, *s.Visual, r.resolve, r.legacy)
+		r := &resolver{d: pgdb.DialectOf(c), sch: sch, all: all, stack: []string{s.ID}}
+		comp, err := CompileFor(r.d, sch, *s.Visual, r.resolve, r.legacy)
 		if err != nil {
 			return Deps{}, err
 		}
@@ -216,7 +229,7 @@ func writeDeps(ctx context.Context, tx dbx.Tx, id string, d Deps) error {
 func save(ctx context.Context, tx dbx.Tx, s *Saved) error {
 	// Visual queries are compiled for, and SQL queries are checked against,
 	// the backend this workspace runs on.
-	s.Dialect = sqlgen.SQLite.String()
+	s.Dialect = dialectString(tx)
 	var vis any
 	if s.Visual != nil {
 		b, err := json.Marshal(s.Visual)
@@ -292,7 +305,7 @@ func (svc *Service) List(ctx context.Context, l *workspace.Lease) ([]Saved, erro
 		return nil, err
 	}
 	var out []Saved
-	err = l.ReadConn(ctx, func(c *sqlitex.Conn) error {
+	err = l.Read(ctx, func(c dbx.Querier) error {
 		all, err := loadAll(ctx, c)
 		if err != nil {
 			return err
@@ -322,7 +335,7 @@ func (svc *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Sav
 		return Saved{}, err
 	}
 	var out Saved
-	err = l.ReadConn(ctx, func(c *sqlitex.Conn) error {
+	err = l.Read(ctx, func(c dbx.Querier) error {
 		all, err := loadAll(ctx, c)
 		if err != nil {
 			return err
@@ -448,13 +461,13 @@ func (svc *Service) CompileModel(ctx context.Context, l *workspace.Lease, m Mode
 		return Compiled{}, err
 	}
 	var out Compiled
-	err = l.ReadConn(ctx, func(c *sqlitex.Conn) error {
+	err = l.Read(ctx, func(c dbx.Querier) error {
 		all, err := loadAll(ctx, c)
 		if err != nil {
 			return err
 		}
-		r := &resolver{sch: sch, all: all}
-		out, err = CompileWith(sch, m, r.resolve, r.legacy)
+		r := &resolver{d: pgdb.DialectOf(c), sch: sch, all: all}
+		out, err = CompileFor(r.d, sch, m, r.resolve, r.legacy)
 		return err
 	})
 	return out, err
@@ -568,8 +581,8 @@ func SchemaValidator(ctx context.Context, tx dbx.Tx, sch *catalog.Schema) (break
 		if s.Kind != "visual" {
 			continue
 		}
-		r := &resolver{sch: sch, all: all, stack: []string{s.ID}}
-		if _, err := CompileWith(sch, *s.Visual, r.resolve, r.legacy); err != nil {
+		r := &resolver{d: pgdb.DialectOf(tx), sch: sch, all: all, stack: []string{s.ID}}
+		if _, err := CompileFor(r.d, sch, *s.Visual, r.resolve, r.legacy); err != nil {
 			breaking = append(breaking, catalog.Issue{Kind: "query_invalid", Object: "query", ID: s.ID,
 				Message: fmt.Sprintf("Saved query %q would stop working: %s", s.Name, fault.Classify(err).DisplayMessage())})
 		}

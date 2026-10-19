@@ -160,6 +160,11 @@ func Compile(sch *catalog.Schema, m Model, resolve Resolver) (Compiled, error) {
 // the lexical check, as before; the query still runs under the user-SQL
 // authorizer. Any other expression must parse.
 func CompileWith(sch *catalog.Schema, m Model, resolve Resolver, legacy func(expr string) bool) (Compiled, error) {
+	return CompileFor(sqlgen.SQLite, sch, m, resolve, legacy)
+}
+
+// CompileFor is CompileWith for dialect d.
+func CompileFor(d sqlgen.Dialect, sch *catalog.Schema, m Model, resolve Resolver, legacy func(expr string) bool) (Compiled, error) {
 	var out Compiled
 	if len(m.Sources) == 0 {
 		return out, bad("Add a table to the query.")
@@ -418,7 +423,7 @@ func CompileWith(sch *catalog.Schema, m Model, resolve Resolver, legacy func(exp
 			critCol = nil
 		}
 		for _, c := range f.Criteria {
-			cond, err := criterion(valueExpr, critCol, c, params, func(alias, colID string) (sqlgen.Col, *catalog.Column, error) {
+			cond, err := criterion(d, valueExpr, critCol, c, params, func(alias, colID string) (sqlgen.Col, *catalog.Column, error) {
 				s, ok := srcs[strings.ToLower(alias)]
 				if !ok {
 					return sqlgen.Col{}, nil, bad("Source %q is not in the query.", alias)
@@ -467,7 +472,7 @@ func CompileWith(sch *catalog.Schema, m Model, resolve Resolver, legacy func(exp
 	if m.Limit > 0 {
 		sel.Limit = sqlgen.Lit{Value: m.Limit, Type: sqlgen.Integer}
 	}
-	r, err := sqlgen.Render(sqlgen.SQLite, sel)
+	r, err := sqlgen.Render(d, sel)
 	if err != nil {
 		// Values are decoded and checked before they reach the renderer; what
 		// is left (text with NUL characters, non-finite numbers) is the
@@ -526,7 +531,7 @@ func keysOf(m map[string]bool) []string {
 // criterion builds one condition. Literal values are inlined (the compiled SQL
 // is stored and shown to builders) from decoded, typed values; parameters
 // become :name.
-func criterion(expr sqlgen.Expr, col *catalog.Column, c Criterion, params map[string]Param, ref func(alias, colID string) (sqlgen.Col, *catalog.Column, error)) (sqlgen.Expr, error) {
+func criterion(d sqlgen.Dialect, expr sqlgen.Expr, col *catalog.Column, c Criterion, params map[string]Param, ref func(alias, colID string) (sqlgen.Col, *catalog.Column, error)) (sqlgen.Expr, error) {
 	operand := func(v any) (sqlgen.Expr, error) {
 		if c.Param != "" {
 			p, ok := params[strings.ToLower(c.Param)]
@@ -545,7 +550,7 @@ func criterion(expr sqlgen.Expr, col *catalog.Column, c Criterion, params map[st
 			if err != nil {
 				return nil, err
 			}
-			v = dv
+			v = records.ArgValue(d, *col, dv)
 		}
 		switch v.(type) {
 		case nil, bool, int64, float64, json.Number, string:

@@ -2,6 +2,7 @@ package dbx
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -59,5 +60,12 @@ func TestRebindArgumentErrors(t *testing.T) {
 		if _, _, err := Rebind(c.sql, c.args); err == nil {
 			t.Errorf("%q %v: no error", c.sql, c.args)
 		}
+	}
+}
+
+func TestParams(t *testing.T) {
+	got, err := Params(`SELECT * FROM t WHERE a = :a AND b = ? AND c = @c AND d = :a AND e = '?' AND f::text = $f`)
+	if err != nil || strings.Join(got, ",") != ":a,?1,:c,:f" {
+		t.Fatalf("%v %v", got, err)
 	}
 }

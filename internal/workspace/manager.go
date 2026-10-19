@@ -19,6 +19,7 @@ import (
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/sqlitex"
 )
 
@@ -123,6 +124,11 @@ func NewManager(cfg Config) (*Manager, error) {
 	}
 	if cfg.GateTimeout <= 0 {
 		cfg.GateTimeout = 10 * time.Second
+	}
+	if pc := cfg.Postgres; pc != nil && pc.Sandbox == nil {
+		c := *pc
+		c.Sandbox = pgdb.NewSandbox(pc.Pool)
+		cfg.Postgres = &c
 	}
 	dir, err := ids.SafeJoin(cfg.DataDir, "workspaces")
 	if err != nil {
@@ -476,6 +482,9 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			m.mu.Unlock()
 			for _, h := range all {
 				h.closeConns(true)
+			}
+			if pc := m.pg(); pc != nil {
+				pc.Sandbox.Close()
 			}
 			return nil
 		}

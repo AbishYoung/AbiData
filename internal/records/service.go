@@ -515,7 +515,7 @@ func insertRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.T
 		row := make([]sqlgen.Expr, len(cols))
 		for i, c := range cols {
 			ins.Columns = append(ins.Columns, c.PhysicalName)
-			row[i] = sqlgen.Arg{Value: argValue(pgdb.DialectOf(tx), c, vals[i])}
+			row[i] = sqlgen.Arg{Value: ArgValue(pgdb.DialectOf(tx), c, vals[i])}
 		}
 		ins.Rows = [][]sqlgen.Expr{row}
 	}
@@ -574,7 +574,7 @@ func updateRow(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.T
 	}
 	set := []sqlgen.Assign{{Column: "_version", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "_version"}, R: sqlgen.Lit{Value: 1}}}}
 	for i, c := range cols {
-		set = append(set, sqlgen.Assign{Column: c.PhysicalName, Value: sqlgen.Arg{Value: argValue(pgdb.DialectOf(tx), c, vals[i])}})
+		set = append(set, sqlgen.Assign{Column: c.PhysicalName, Value: sqlgen.Arg{Value: ArgValue(pgdb.DialectOf(tx), c, vals[i])}})
 	}
 	stmt, err := render(pgdb.DialectOf(tx), &sqlgen.Update{Table: t.PhysicalName, Set: set, Where: versionMatch(id, expected)})
 	if err != nil {
@@ -834,10 +834,10 @@ func storedType(c catalog.Column) catalog.FieldType {
 	return c.Type
 }
 
-// argValue binds a storage value for column c in dialect d. PostgreSQL
+// ArgValue binds a storage value for column c in dialect d. PostgreSQL
 // stores yes/no as boolean rather than SQLite's 0/1; dates, times and JSON go
 // as text, which the server parses for the column's type.
-func argValue(d sqlgen.Dialect, c catalog.Column, v any) any {
+func ArgValue(d sqlgen.Dialect, c catalog.Column, v any) any {
 	if n, ok := v.(int64); ok && c.Type == catalog.YesNo && d != sqlgen.SQLite {
 		return n != 0
 	}
@@ -851,7 +851,7 @@ func decoderFor(d sqlgen.Dialect) valueDecoder {
 	}
 	return func(c catalog.Column, v any) (any, error) {
 		x, err := DecodeValue(c, v)
-		return argValue(d, c, x), err
+		return ArgValue(d, c, x), err
 	}
 }
 
