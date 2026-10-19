@@ -83,7 +83,7 @@ jobs:
           PACKAGES: ${{ needs.plan.outputs.go_packages }}
         # Never -short here: the heavy tests the fast local layer skips run in CI.
         run: go test -race $PACKAGES
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         if: needs.plan.outputs.go_lint == 'true'
         with:
           version: v2.14.0
