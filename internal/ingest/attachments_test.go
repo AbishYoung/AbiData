@@ -41,7 +41,7 @@ func TestImportSkipsAttachmentsColumns(t *testing.T) {
 	}
 	var n int
 	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
-		return q.QueryRow(e.ctx, `SELECT count(*) FROM Sightings WHERE Photos IS NOT NULL`).Scan(&n)
+		return q.QueryRow(e.ctx, `SELECT count(*) FROM "Sightings" WHERE "Photos" IS NOT NULL`).Scan(&n)
 	}); err != nil || n != 0 {
 		t.Fatalf("attachments cells were filled: %d %v", n, err)
 	}
@@ -63,7 +63,7 @@ func TestExportWithAttachmentsColumn(t *testing.T) {
 			fid, strings.Repeat("a", 64)); err != nil {
 			return err
 		}
-		_, err := tx.Exec(e.ctx, `INSERT INTO Sightings(Species, Photos) VALUES ('Kudzu', ?), ('Reed', NULL)`, `["`+fid+`"]`)
+		_, err := tx.Exec(e.ctx, `INSERT INTO "Sightings"("Species", "Photos") VALUES ('Kudzu', ?), ('Reed', NULL)`, `["`+fid+`"]`)
 		return err
 	}); err != nil {
 		t.Fatal(err)

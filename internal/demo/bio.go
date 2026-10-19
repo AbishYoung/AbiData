@@ -311,7 +311,7 @@ func (k *bioKit) queries(t bioTables) (bioQueries, error) {
 		for i, v := range vals {
 			parts[i] = "SELECT '" + v + "'"
 			if i == 0 {
-				parts[i] += " AS Status"
+				parts[i] += ` AS "Status"`
 			}
 		}
 		return strings.Join(parts, " UNION ALL ")
@@ -329,13 +329,13 @@ func (k *bioKit) queries(t bioTables) (bioQueries, error) {
 	// The two overlays and the pick lists feed the forms.
 	if out.zones, err = put(query.SavedInput{Name: "Zone boundaries", Kind: "sql",
 		Description: "Every quarantine zone with its boundary. Drawn as the overlay on the sighting form and the report maps.",
-		SQL: fmt.Sprintf(`SELECT z.%s || CASE WHEN z.%s = 'Lifted' THEN ' (lifted)' ELSE '' END AS Zone, z.%s AS Boundary FROM %s z WHERE z.%s IS NOT NULL ORDER BY z.%s`,
+		SQL: fmt.Sprintf(`SELECT z.%s || CASE WHEN z.%s = 'Lifted' THEN ' (lifted)' ELSE '' END AS "Zone", z.%s AS "Boundary" FROM %s z WHERE z.%s IS NOT NULL ORDER BY z.%s`,
 			q(t.zon.phys("Name")), q(t.zon.phys("Status")), bnd, Z, bnd, q(t.zon.phys("Name")))}); err != nil {
 		return out, err
 	}
 	if out.sightings, err = put(query.SavedInput{Name: "Sighting locations", Kind: "sql",
 		Description: "Where each species was seen. Drawn as the overlay on the Quarantine zone form.",
-		SQL: fmt.Sprintf(`SELECT sp.%s AS Species, s.%s AS Location FROM %s s JOIN %s sp ON sp.id = s.%s WHERE s.%s IS NOT NULL`,
+		SQL: fmt.Sprintf(`SELECT sp.%s AS "Species", s.%s AS "Location" FROM %s s JOIN %s sp ON sp.id = s.%s WHERE s.%s IS NOT NULL`,
 			q(t.spc.phys("Name")), loc, S, P, q(t.sig.phys("Species")), loc)}); err != nil {
 		return out, err
 	}
@@ -370,7 +370,7 @@ func (k *bioKit) queries(t bioTables) (bioQueries, error) {
 	if _, err = put(query.SavedInput{Name: "Sightings near a point", Kind: "sql",
 		Description: "Sightings within a distance of a point, nearest first. Try lat 51.27, lon 0.52 and 5000 metres.",
 		Parameters:  []query.Param{{Name: "lat", Type: "number"}, {Name: "lon", Type: "number"}, {Name: "metres", Type: "number"}},
-		SQL: fmt.Sprintf(`SELECT sp.%s AS Species, s.%s AS "Observed at", s.%s AS Status, su.%s AS Supplier, round(geo_distance_m(s.%s, geo_point(:lat, :lon))) AS "Distance (m)" `+
+		SQL: fmt.Sprintf(`SELECT sp.%s AS "Species", s.%s AS "Observed at", s.%s AS "Status", su.%s AS "Supplier", round(geo_distance_m(s.%s, geo_point(:lat, :lon))) AS "Distance (m)" `+
 			`FROM %s s JOIN %s sp ON sp.id = s.%s LEFT JOIN %s su ON su.id = s.%s `+
 			`WHERE geo_distance_m(s.%s, geo_point(:lat, :lon)) <= :metres ORDER BY "Distance (m)"`,
 			q(t.spc.phys("Name")), q(t.sig.phys("Observed at")), q(t.sig.phys("Status")), q(t.sup.phys("Name")), loc,
@@ -379,8 +379,8 @@ func (k *bioKit) queries(t bioTables) (bioQueries, error) {
 	}
 	if _, err = put(query.SavedInput{Name: "Zone sizes", Kind: "sql",
 		Description: "Each quarantine zone's area in hectares (geo_area_m2 / 10000) and how many sightings lie inside it.",
-		SQL: fmt.Sprintf(`SELECT z.%s AS Zone, sp.%s AS Species, z.%s AS Status, round(geo_area_m2(z.%s) / 10000.0, 1) AS "Area (ha)", `+
-			`(SELECT count(*) FROM %s s WHERE geo_within(s.%s, z.%s)) AS Sightings FROM %s z LEFT JOIN %s sp ON sp.id = z.%s ORDER BY "Area (ha)" DESC`,
+		SQL: fmt.Sprintf(`SELECT z.%s AS "Zone", sp.%s AS "Species", z.%s AS "Status", round(geo_area_m2(z.%s) / 10000.0, 1) AS "Area (ha)", `+
+			`(SELECT count(*) FROM %s s WHERE geo_within(s.%s, z.%s)) AS "Sightings" FROM %s z LEFT JOIN %s sp ON sp.id = z.%s ORDER BY "Area (ha)" DESC`,
 			q(t.zon.phys("Name")), q(t.spc.phys("Name")), q(t.zon.phys("Status")), bnd, S, loc, bnd, Z, P, q(t.zon.phys("Species")))}); err != nil {
 		return out, err
 	}

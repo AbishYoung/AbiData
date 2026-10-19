@@ -348,13 +348,13 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view)
 	}
 	// Keyset paging: one placeholder for the last id seen, one for the page size.
-	page, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: sel, From: sqlgen.Table{Name: t.PhysicalName},
+	page, err := sqlgen.Render(l.Dialect(), &sqlgen.Select{Columns: sel, From: sqlgen.Table{Name: t.PhysicalName},
 		Where:   sqlgen.Binary{Op: sqlgen.OpGt, L: sqlgen.Col{Name: "id"}, R: sqlgen.Arg{}},
 		OrderBy: []sqlgen.Order{{Expr: sqlgen.Col{Name: "id"}}}, Limit: sqlgen.Arg{}})
 	if err != nil {
 		return 0, fmt.Errorf("ingest: %w", err)
 	}
-	count, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}}, From: sqlgen.Table{Name: t.PhysicalName}})
+	count, err := sqlgen.Render(l.Dialect(), &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}}, From: sqlgen.Table{Name: t.PhysicalName}})
 	if err != nil {
 		return 0, fmt.Errorf("ingest: %w", err)
 	}
@@ -389,7 +389,7 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 			vals := make([]any, len(raw))
 			vals[0] = raw[0]
 			for i, c := range cols {
-				vals[i+1] = records.EncodeValue(c, raw[i+1])
+				vals[i+1] = records.EncodeValue(c, catalog.StorageForm(c.Type, raw[i+1]))
 			}
 			if err := sk.row(vals, textual); err != nil {
 				return n, err

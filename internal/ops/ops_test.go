@@ -7,32 +7,26 @@ import (
 	"testing"
 	"time"
 
-	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 func setup(t *testing.T) (*Service, *workspace.Lease, *events.Hub) {
 	t.Helper()
 	ctx := context.Background()
-	wm, err := workspace.NewManager(workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ws := ids.NewWorkspaceID()
-	if err := wm.Create(ctx, ws); err != nil {
-		t.Fatal(err)
-	}
-	l, err := wm.Acquire(ctx, ws)
+	w := wstest.New(t)
+	wm := w.Manager
+	l, err := wm.Acquire(ctx, w.Create(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	hub := events.NewHub(100)
 	s := &Service{Workspaces: wm, Events: hub, MinInterval: time.Millisecond}
-	t.Cleanup(func() { _ = s.Shutdown(ctx); l.Release(); _ = wm.Shutdown(ctx) })
+	t.Cleanup(func() { _ = s.Shutdown(ctx); l.Release() })
 	return s, l, hub
 }
 

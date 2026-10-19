@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"abidata/internal/admin"
+	"abidata/internal/admin/admintest"
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
@@ -22,6 +22,7 @@ import (
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type env struct {
@@ -44,18 +45,10 @@ func setup(t *testing.T) *env {
 	if err := os.MkdirAll(filepath.Join(dir, "system"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	ad, err := admin.Open(ctx, filepath.Join(dir, "system", "admin.db"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ws := ids.NewWorkspaceID()
-	if err := wm.Create(ctx, ws); err != nil {
-		t.Fatal(err)
-	}
+	ad := admintest.Open(t)
+	w := wstest.New(t)
+	wm := w.Manager
+	ws := w.Create(t)
 	l, err := wm.Acquire(ctx, ws)
 	if err != nil {
 		t.Fatal(err)
@@ -85,8 +78,6 @@ func setup(t *testing.T) *env {
 	t.Cleanup(func() {
 		e.sched.Wait()
 		l.Release()
-		_ = wm.Shutdown(ctx)
-		_ = ad.Close()
 	})
 	return e
 }
@@ -119,7 +110,7 @@ func TestJobRunEndToEnd(t *testing.T) {
 	e := setup(t)
 	sid := e.script(t, "Nightly", `
 		log.info("starting", {who = job.name, n = job.args.n})
-		db.exec("INSERT INTO Notes(Body) VALUES (:b)", {b = "from job " .. job.run_id})
+		db.exec([[INSERT INTO "Notes"("Body") VALUES (:b)]], {b = "from job " .. job.run_id})
 		local a = artifacts.save("out.csv", csv.encode({{1, "x"}}, {columns = {"id", "v"}}))
 		log.info("saved", {size = a.size})
 	`)
@@ -147,7 +138,7 @@ func TestJobRunEndToEnd(t *testing.T) {
 	}
 	var body, by string
 	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
-		return q.QueryRow(e.ctx, `SELECT Body, coalesce((SELECT updated_by FROM _sys_jobs LIMIT 1), '') FROM Notes`).Scan(&body, &by)
+		return q.QueryRow(e.ctx, `SELECT "Body", coalesce((SELECT updated_by FROM _sys_jobs LIMIT 1), '') FROM "Notes"`).Scan(&body, &by)
 	}); err != nil || body != "from job "+run.ID {
 		t.Fatalf("row %q %v", body, err)
 	}

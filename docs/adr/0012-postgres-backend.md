@@ -391,6 +391,19 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **Dialect.** Raw SQL is the backend's own dialect. Unquoted names fold to lower case on PostgreSQL, so scripts written for SQLite with unquoted mixed-case names need their names quoted (§8 import report). ADR 0013 §8's builder is the portable path, and the next part.
 - **Tests.** A portable suite (quoted SQL) runs on both backends: query, exec, iter, lookups, denials (including the escalations of spike finding 1 on PostgreSQL) and transactions. The SQLite-dialect suites stay SQLite only.
 
+**Phase 3, part 9 (as built): the rest of the services' suites.**
+
+- **On both backends now:** files, forms, jobs, ops, ingest, demo, and the geo and all-modules script tests. Each opens its workspace through `wstest`, and its admin store through `admintest` where it needs one. Test SQL now quotes its names and reads values through `catalog.StorageForm`.
+- **Found and fixed:**
+  - List queries for forms, reports and scripts sorted with `COLLATE NOCASE` (now `sqlgen.CICollation`).
+  - `jobs.ByName` had no PostgreSQL form.
+  - The upload quota relied on SQLite's bare column in GROUP BY.
+  - Ingest rendered its merge for SQLite. It bound yes/no as 0/1, and its upsert's `"_version" + 1` is ambiguous with `excluded` on PostgreSQL.
+  - The demo's SQL compared yes/no with 1 and left aliases unquoted, so PostgreSQL folded them to lower case.
+- **Skipping bad rows on PostgreSQL.** A failed statement aborts a PostgreSQL transaction. So an import that skips bad rows first tries each chunk in one savepoint, and redoes it row by row in savepoints only when a row fails.
+- **SQLite idioms in typed SQL.** `<prefix>_lib` overloads `substr` for dates and times, and `round(double precision, integer)`, answering as SQLite does. pg_catalog has no such signatures, so no builtin call changes meaning. Comparing yes/no with 0 or 1 still fails on PostgreSQL. `NOT "Flag"` and `"Flag"` are the portable spellings.
+- **Cleanup.** `pgtest` drops every role under the test's prefix, including those of workspaces a test did not create itself.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

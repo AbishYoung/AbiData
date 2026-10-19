@@ -15,7 +15,9 @@ import (
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/script"
+	"abidata/internal/sqlgen"
 	"abidata/internal/workspace"
 )
 
@@ -88,7 +90,7 @@ func (svc *Service) List(ctx context.Context, l *workspace.Lease, kind string) (
 			sql += ` WHERE kind = ?`
 			args = append(args, kind)
 		}
-		rows, err := q.Query(ctx, sql+` ORDER BY name COLLATE NOCASE`, args...)
+		rows, err := q.Query(ctx, sql+` ORDER BY name COLLATE `+sqlgen.CICollation(pgdb.DialectOf(q)), args...)
 		if err != nil {
 			return err
 		}

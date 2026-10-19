@@ -13,10 +13,12 @@ import (
 	"abidata/internal/fault"
 	"abidata/internal/files"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/script"
 	"abidata/internal/scripts"
+	"abidata/internal/sqlgen"
 	"abidata/internal/workspace"
 )
 
@@ -122,7 +124,7 @@ func loadForm(ctx context.Context, q dbx.Querier, id string) (Form, error) {
 func (s *Service) List(ctx context.Context, l *workspace.Lease) ([]Form, error) {
 	out := []Form{}
 	err := l.Read(ctx, func(q dbx.Querier) error {
-		rows, err := q.Query(ctx, `SELECT `+formCols+` FROM _sys_forms ORDER BY name COLLATE NOCASE`)
+		rows, err := q.Query(ctx, `SELECT `+formCols+` FROM _sys_forms ORDER BY name COLLATE `+sqlgen.CICollation(pgdb.DialectOf(q)))
 		if err != nil {
 			return err
 		}

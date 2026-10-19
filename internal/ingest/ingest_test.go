@@ -26,6 +26,7 @@ import (
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type env struct {
@@ -46,14 +47,9 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
-	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ws := ids.NewWorkspaceID()
-	if err := wm.Create(ctx, ws); err != nil {
-		t.Fatal(err)
-	}
+	w := wstest.New(t)
+	wm := w.Manager
+	ws := w.Create(t)
 	l, err := wm.Acquire(ctx, ws)
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +60,7 @@ func newEnv(t *testing.T) *env {
 	arts := &artifacts.Store{Dir: filepath.Join(dir, "artifacts")}
 	svc := &Service{DataDir: dir, Workspaces: wm, Schemas: cache, Catalog: eng, Records: &records.Service{Schemas: cache},
 		Queries: &query.Service{Schemas: cache}, Ops: opsSvc, Artifacts: arts}
-	t.Cleanup(func() { _ = opsSvc.Shutdown(ctx); l.Release(); _ = wm.Shutdown(ctx) })
+	t.Cleanup(func() { _ = opsSvc.Shutdown(ctx); l.Release() })
 	return &env{t: t, ctx: ctx, dir: dir, ws: ws, l: l, wm: wm, cache: cache, eng: eng, svc: svc, ops: opsSvc, arts: arts}
 }
 
@@ -596,8 +592,10 @@ func rowsOf(t *testing.T, e *env, tb *catalog.Table, cols ...string) [][]any {
 	t.Helper()
 	var out [][]any
 	sel := make([]string, len(cols))
+	types := make([]catalog.FieldType, len(cols))
 	for i, c := range cols {
-		sel[i] = catalog.Quote(col2(t, tb, c).PhysicalName)
+		cc := col2(t, tb, c)
+		sel[i], types[i] = catalog.Quote(cc.PhysicalName), cc.Type
 	}
 	err := e.l.Read(e.ctx, func(q dbx.Querier) error {
 		rows, err := q.Query(e.ctx, `SELECT `+strings.Join(sel, ",")+` FROM `+catalog.Quote(tb.PhysicalName)+` ORDER BY id`)
@@ -606,7 +604,12 @@ func rowsOf(t *testing.T, e *env, tb *catalog.Table, cols ...string) [][]any {
 		}
 		defer rows.Close()
 		for rows.Next() {
-			out = append(out, rows.Values())
+			// SQLite's storage forms on both backends: dates as text, yes/no as 0/1.
+			vals := rows.Values()
+			for i, v := range vals {
+				vals[i] = catalog.StorageForm(types[i], v)
+			}
+			out = append(out, vals)
 		}
 		return rows.Err()
 	})
@@ -660,7 +663,7 @@ func TestCommitModes(t *testing.T) {
 	}
 	var ver int64
 	_ = e.l.Read(e.ctx, func(q dbx.Querier) error {
-		return q.QueryRow(e.ctx, `SELECT _version FROM `+tb.PhysicalName+` WHERE id = 2`).Scan(&ver)
+		return q.QueryRow(e.ctx, `SELECT _version FROM `+catalog.Quote(tb.PhysicalName)+` WHERE id = 2`).Scan(&ver)
 	})
 	if ver != 3 {
 		t.Fatalf("version %d", ver)
@@ -840,7 +843,7 @@ func TestExports(t *testing.T) {
 			if i == 1 {
 				name = "=cmd|' /C calc'!A0"
 			}
-			if _, err := tx.Exec(e.ctx, `INSERT INTO Orders(Customer, Total, Day, Paid) VALUES (?,?,?,?)`, name, int64(i)*10050, "2026-01-02", i%2); err != nil {
+			if _, err := tx.Exec(e.ctx, `INSERT INTO "Orders"("Customer", "Total", "Day", "Paid") VALUES (?,?,?,?)`, name, int64(i)*10050, "2026-01-02", i%2 == 1); err != nil {
 				return err
 			}
 		}
@@ -887,7 +890,7 @@ func TestExports(t *testing.T) {
 	}
 	// Saved query with a parameter.
 	sq, err := e.svc.Queries.Put(e.ctx, e.l, "", 0, query.SavedInput{Name: "Big orders", Kind: "sql",
-		SQL: `SELECT Customer, Total FROM Orders WHERE id <= :max ORDER BY id`, Parameters: []query.Param{{Name: "max", Type: "integer"}}}, "u")
+		SQL: `SELECT "Customer", "Total" FROM "Orders" WHERE id <= :max ORDER BY id`, Parameters: []query.Param{{Name: "max", Type: "integer"}}}, "u")
 	if err != nil {
 		t.Fatal(err)
 	}

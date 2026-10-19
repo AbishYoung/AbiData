@@ -15,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"abidata/internal/dbx"
 )
 
 // Env is one test's database.
@@ -96,12 +98,41 @@ func New(t testing.TB) *Env {
 	t.Cleanup(func() {
 		e.App.Close()
 		stmts := []string{`DROP DATABASE IF EXISTS ` + Ident(e.Database) + ` WITH (FORCE)`}
-		for _, r := range append(e.roles, e.Role) {
+		// Every workspace's roles, including those a test did not register.
+		roles := append(e.prefixRoles(t), e.roles...)
+		for _, r := range append(roles, e.Role) {
 			stmts = append(stmts, `DROP ROLE IF EXISTS `+Ident(r))
 		}
 		e.Superuser(t, stmts...)
 	})
 	return e
+}
+
+// prefixRoles lists the roles named under the test's prefix (workspace
+// roles), logins first so they go before the roles they are members of.
+func (e *Env) prefixRoles(t testing.TB) []string {
+	ctx := context.Background()
+	su, err := pgx.Connect(ctx, e.url)
+	if err != nil {
+		t.Log(err)
+		return nil
+	}
+	defer func() { _ = su.Close(ctx) }()
+	text, err := dbx.RebindText(sqlPrefixRoles.SQL)
+	if err != nil {
+		t.Log(err)
+		return nil
+	}
+	rows, err := su.Query(ctx, text, e.Prefix+"_ws_")
+	if err != nil {
+		t.Log(err)
+		return nil
+	}
+	names, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Log(err)
+	}
+	return names
 }
 
 // Superuser runs statements as the test server's superuser, logging failures
