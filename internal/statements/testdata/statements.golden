@@ -22,6 +22,7 @@ admin.DeleteUserSessions	admin	portable
 admin.DropWorkspace	admin	portable	
 admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_at,expires_at,ip,user_agent
 admin.GetSetting	admin	portable	value
+admin.InitUsername	admin	portable	
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
 admin.ListMembers	admin	portable	id,email,display_name,role
 admin.ListSettings	admin	portable	key,value
@@ -30,17 +31,23 @@ admin.PurgeSessions	admin	portable
 admin.PurgeSessions#2	admin	portable	
 admin.PutSetting	admin	portable	
 admin.RecordLoginFailure	admin	portable	
+admin.ResolveOldUsername	admin	portable	username
 admin.RevokeAPIKey	admin	portable	
 admin.SetAppTakenDown	admin	portable	
 admin.SetAppToken	admin	portable	
 admin.SetMembership	admin	portable	
 admin.SetPasswordHash	admin	portable	
+admin.SetUsername	admin	portable	username
+admin.SetUsername#2	admin	portable	
+admin.SetUsername#3	admin	portable	
+admin.SetUsername#4	admin	portable	
 admin.TouchAPIKey	admin	portable	
 admin.TouchLogin	admin	portable	
 admin.TouchSession	admin	portable	
 admin.UpdateApp	admin	portable	
 admin.UpdateUser	admin	portable	
 admin.UpdateWorkspace	admin	portable	
+admin.UsernameOwner	admin	portable	id
 admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
 admin.migrate	admin	sqlite	application_id
 admin.migrate#2	admin	sqlite	user_version

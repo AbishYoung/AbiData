@@ -57,6 +57,17 @@ var (
 			is_platform_admin = COALESCE(:admin, is_platform_admin),
 			disabled = COALESCE(:disabled, disabled)
 			WHERE id = :id`)
+	// A name is held by a current user, or by the user who gave it up until the hold expires.
+	sqlUsernameOwner = sqlgen.Register("admin.UsernameOwner", `SELECT id FROM _adm_users WHERE username = ?1
+			UNION ALL SELECT user_id FROM _adm_username_history WHERE username = ?1 AND expires_at > ?2 LIMIT 1`)
+	sqlResolveOldUsername = sqlgen.Register("admin.ResolveOldUsername", `SELECT u.username FROM _adm_username_history h
+			JOIN _adm_users u ON u.id = h.user_id WHERE h.username = ? AND h.expires_at > ? AND u.username IS NOT NULL`)
+	sqlInitUsername = sqlgen.Register("admin.InitUsername", `UPDATE _adm_users SET username = ? WHERE id = ? AND username IS NULL`)
+	sqlSetUsername  = sqlgen.Register("admin.SetUsername", `SELECT username FROM _adm_users WHERE id = ?`)
+	sqlSetUsername2 = sqlgen.Register("admin.SetUsername#2", `DELETE FROM _adm_username_history WHERE username = ? AND user_id = ?`)
+	sqlSetUsername3 = sqlgen.Register("admin.SetUsername#3", `UPDATE _adm_users SET username = ?, username_changed_at = ? WHERE id = ?`)
+	sqlSetUsername4 = sqlgen.Register("admin.SetUsername#4", `INSERT INTO _adm_username_history (username, user_id, changed_at, expires_at) VALUES (?,?,?,?)
+			ON CONFLICT(username) DO UPDATE SET user_id = excluded.user_id, changed_at = excluded.changed_at, expires_at = excluded.expires_at`)
 	sqlSetPasswordHash = sqlgen.Register("admin.SetPasswordHash", `UPDATE _adm_users SET password_hash = ? WHERE id = ?`)
 	sqlTouchLogin      = sqlgen.Register("admin.TouchLogin", `UPDATE _adm_users SET last_login_at = ? WHERE id = ?`)
 	sqlCreateWorkspace = sqlgen.Register("admin.CreateWorkspace", `INSERT INTO _adm_workspaces (id, name, status, quota_json, created_at, created_by)

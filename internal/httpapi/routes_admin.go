@@ -244,16 +244,17 @@ func (s *Server) registerAdmin(api huma.API) {
 	}, func(ctx context.Context, in *struct {
 		Body struct {
 			Email           string `json:"email" maxLength:"254"`
+			Username        string `json:"username,omitempty" maxLength:"64" doc:"Optional; derived from the email when empty."`
 			DisplayName     string `json:"display_name" maxLength:"200"`
 			Password        string `json:"password" maxLength:"1024"`
 			IsPlatformAdmin bool   `json:"is_platform_admin,omitempty"`
 		}
 	}) (*struct{ Body AdminUserDTO }, error) {
-		u, err := s.deps.Auth.CreateUser(ctx, in.Body.Email, in.Body.DisplayName, in.Body.Password, in.Body.IsPlatformAdmin)
+		u, err := s.deps.Auth.CreateNamedUser(ctx, in.Body.Email, in.Body.Username, in.Body.DisplayName, in.Body.Password, in.Body.IsPlatformAdmin)
 		if err != nil {
 			return nil, err
 		}
-		s.audit(ctx, "user.create", "user", u.ID, map[string]any{"email": u.Email, "platform_admin": u.IsPlatformAdmin})
+		s.audit(ctx, "user.create", "user", u.ID, map[string]any{"email": u.Email, "username": u.Username, "platform_admin": u.IsPlatformAdmin})
 		return &struct{ Body AdminUserDTO }{Body: AdminUserDTO{UserDTO: userDTO(u), CreatedAt: u.CreatedAt}}, nil
 	})
 
@@ -264,6 +265,7 @@ func (s *Server) registerAdmin(api huma.API) {
 		ID   string `path:"id"`
 		Body struct {
 			DisplayName     *string `json:"display_name,omitempty" maxLength:"200"`
+			Username        *string `json:"username,omitempty" maxLength:"64" doc:"Not limited to once per 30 days; the old name still redirects for 90 days."`
 			IsPlatformAdmin *bool   `json:"is_platform_admin,omitempty"`
 			Disabled        *bool   `json:"disabled,omitempty"`
 		}
@@ -275,6 +277,22 @@ func (s *Server) registerAdmin(api huma.API) {
 		if in.Body.DisplayName != nil {
 			if err := auth.ValidateDisplayName(*in.Body.DisplayName); err != nil {
 				return nil, err
+			}
+		}
+		if in.Body.Username != nil {
+			if _, err := auth.NormalizeUsername(*in.Body.Username); err != nil {
+				return nil, err
+			}
+			before, err := s.deps.Admin.GetUser(ctx, in.ID)
+			if err != nil {
+				return nil, mapAdminErr(err)
+			}
+			u, err := s.deps.Auth.ChangeUsername(ctx, in.ID, *in.Body.Username, true)
+			if err != nil {
+				return nil, mapAdminErr(err)
+			}
+			if u.Username != before.Username {
+				s.audit(ctx, "user.rename", "user", u.ID, map[string]any{"from": before.Username, "to": u.Username})
 			}
 		}
 		if err := s.deps.Admin.UpdateUser(ctx, in.ID, admin.UserPatch{DisplayName: in.Body.DisplayName,

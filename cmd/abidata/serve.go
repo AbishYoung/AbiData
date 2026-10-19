@@ -91,6 +91,12 @@ func serve() error {
 		return err
 	}
 	authSvc := auth.NewService(adm, keys, auth.DefaultArgon2, nil, obs.Subsystem(log, "auth"))
+	// Users created before usernames get one derived from their email (ADR 0017).
+	if n, err := authSvc.BackfillUsernames(ctx); err != nil {
+		return err
+	} else if n > 0 {
+		log.Info("assigned usernames to existing users", "subsystem", "auth", "count", n)
+	}
 	if tok, err := authSvc.PrepareBootstrap(ctx, cfg.BootstrapAdminEmail); err != nil {
 		return err
 	} else if tok != "" {

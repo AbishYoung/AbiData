@@ -52,6 +52,7 @@ type Principal struct {
 	UserID          string
 	Email           string
 	DisplayName     string
+	Username        string
 	IsPlatformAdmin bool
 	SessionHash     string
 	CSRFToken       string
@@ -229,7 +230,7 @@ func (s *Service) hash(ctx context.Context, password string) (string, error) {
 }
 
 func principalOf(u admin.User, sess admin.Session) Principal {
-	return Principal{UserID: u.ID, Email: u.Email, DisplayName: u.DisplayName, IsPlatformAdmin: u.IsPlatformAdmin,
+	return Principal{UserID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Username: u.Username, IsPlatformAdmin: u.IsPlatformAdmin,
 		SessionHash: sess.IDHash, CSRFToken: sess.CSRFToken}
 }
 
@@ -363,11 +364,22 @@ func ValidateDisplayName(name string) error {
 	return nil
 }
 
-// CreateUser creates a user with a hashed password.
+// CreateUser creates a user with a hashed password and a username derived from the email.
 func (s *Service) CreateUser(ctx context.Context, email, displayName, password string, platformAdmin bool) (admin.User, error) {
+	return s.CreateNamedUser(ctx, email, "", displayName, password, platformAdmin)
+}
+
+// CreateNamedUser creates a user with a hashed password. An empty username is
+// derived from the email (ADR 0017).
+func (s *Service) CreateNamedUser(ctx context.Context, email, username, displayName, password string, platformAdmin bool) (admin.User, error) {
 	email, err := NormalizeEmail(email)
 	if err != nil {
 		return admin.User{}, err
+	}
+	if strings.TrimSpace(username) != "" {
+		if _, err := NormalizeUsername(username); err != nil {
+			return admin.User{}, err
+		}
 	}
 	if err := ValidatePassword(password); err != nil {
 		return admin.User{}, err
@@ -382,16 +394,31 @@ func (s *Service) CreateUser(ctx context.Context, email, displayName, password s
 	if err != nil {
 		return admin.User{}, err
 	}
-	u := admin.User{ID: ids.New(), Email: email, DisplayName: strings.TrimSpace(displayName), PasswordHash: h,
+	if _, err := s.repo.GetUserByEmail(ctx, email); err == nil {
+		return admin.User{}, errEmailTaken
+	} else if !errors.Is(err, admin.ErrNotFound) {
+		return admin.User{}, err
+	}
+	name, err := s.chooseUsername(ctx, username, email)
+	if err != nil {
+		return admin.User{}, err
+	}
+	u := admin.User{ID: ids.New(), Email: email, Username: name, DisplayName: strings.TrimSpace(displayName), PasswordHash: h,
 		IsPlatformAdmin: platformAdmin, CreatedAt: s.now()}
 	if err := s.repo.CreateUser(ctx, u); err != nil {
 		if errors.Is(err, admin.ErrConflict) {
-			return admin.User{}, fault.New(fault.DuplicateValue, "A user with this email already exists.")
+			// A race with another creation: tell apart which name collided.
+			if _, err := s.repo.GetUserByEmail(ctx, email); err == nil {
+				return admin.User{}, errEmailTaken
+			}
+			return admin.User{}, errUsernameTaken
 		}
 		return admin.User{}, err
 	}
 	return u, nil
 }
+
+var errEmailTaken = fault.New(fault.DuplicateValue, "A user with this email already exists.")
 
 // PrepareBootstrap issues a one-time setup token when no users exist and an
 // admin email is configured. It returns the token ("" if not applicable).
@@ -414,7 +441,8 @@ func (s *Service) PrepareBootstrap(ctx context.Context, email string) (string, e
 }
 
 // CompleteBootstrap consumes the setup token and creates the platform admin.
-func (s *Service) CompleteBootstrap(ctx context.Context, token, displayName, password string) (admin.User, error) {
+// An empty username is derived from the email.
+func (s *Service) CompleteBootstrap(ctx context.Context, token, username, displayName, password string) (admin.User, error) {
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 	if s.setupToken == "" || subtle.ConstantTimeCompare([]byte(token), []byte(s.setupToken)) != 1 {
@@ -428,7 +456,7 @@ func (s *Service) CompleteBootstrap(ctx context.Context, token, displayName, pas
 		s.setupToken = ""
 		return admin.User{}, fault.New(fault.Forbidden, "Setup has already been completed.")
 	}
-	u, err := s.CreateUser(ctx, s.setupEmail, displayName, password, true)
+	u, err := s.CreateNamedUser(ctx, s.setupEmail, username, displayName, password, true)
 	if err != nil {
 		return admin.User{}, err
 	}

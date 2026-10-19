@@ -88,7 +88,7 @@ export async function listUsers(): Promise<AdminUser[]> {
   return res.items ?? [];
 }
 
-export async function createUser(body: { email: string; display_name: string; password: string; is_platform_admin?: boolean }): Promise<AdminUser> {
+export async function createUser(body: { email: string; username?: string; display_name: string; password: string; is_platform_admin?: boolean }): Promise<AdminUser> {
   return api.requestData((c, init) => c.POST("/api/v1/admin/users", { ...init, body }), { label: "Creating user" });
 }
 

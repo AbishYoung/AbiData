@@ -52,16 +52,27 @@ func parseTime(s string) (time.Time, error) {
 	return t, nil
 }
 
-const userCols = "id, email, display_name, password_hash, is_platform_admin, disabled, created_at, last_login_at"
+const userCols = "id, email, display_name, password_hash, is_platform_admin, disabled, created_at, last_login_at, username, username_changed_at"
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanUser(r scanner) (User, error) {
 	var u User
 	var created string
-	var last *string
-	if err := r.Scan(&u.ID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.IsPlatformAdmin, &u.Disabled, &created, &last); err != nil {
+	var last, username, renamed *string
+	if err := r.Scan(&u.ID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.IsPlatformAdmin, &u.Disabled, &created, &last,
+		&username, &renamed); err != nil {
 		return User{}, err
+	}
+	if username != nil {
+		u.Username = *username
+	}
+	if renamed != nil {
+		t, err := parseTime(*renamed)
+		if err != nil {
+			return User{}, err
+		}
+		u.UsernameChangedAt = &t
 	}
 	var err error
 	if u.CreatedAt, err = parseTime(created); err != nil {
@@ -84,8 +95,12 @@ func (s *Store) CreateUser(ctx context.Context, u User) error {
 			v := dbx.FormatTime(*u.LastLoginAt)
 			last = &v
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO _adm_users (`+userCols+`) VALUES (?,?,?,?,?,?,?,?)`,
-			u.ID, u.Email, u.DisplayName, u.PasswordHash, u.IsPlatformAdmin, u.Disabled, u.CreatedAt, last)
+		var username *string
+		if u.Username != "" {
+			username = &u.Username
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO _adm_users (`+userCols+`) VALUES (?,?,?,?,?,?,?,?,?,NULL)`,
+			u.ID, u.Email, u.DisplayName, u.PasswordHash, u.IsPlatformAdmin, u.Disabled, u.CreatedAt, last, username)
 		return wrapWrite(err, "create user")
 	})
 }
@@ -183,5 +198,101 @@ func (s *Store) TouchLogin(ctx context.Context, id string, at time.Time) error {
 			return err
 		}
 		return requireChanged(res, "touch login")
+	})
+}
+
+// GetUserByUsername finds a user by current username (case-insensitive).
+func (s *Store) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	var u User
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		var err error
+		u, err = scanUser(c.QueryRow(ctx, `SELECT `+userCols+` FROM _adm_users WHERE username = ?`, username))
+		return err
+	})
+	if err != nil {
+		return User{}, notFoundIfNoRows(err, "user")
+	}
+	return u, nil
+}
+
+// ListUsersWithoutUsername lists users created before usernames, oldest first.
+func (s *Store) ListUsersWithoutUsername(ctx context.Context) ([]User, error) {
+	var out []User
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		rows, err := c.Query(ctx, `SELECT `+userCols+` FROM _adm_users WHERE username IS NULL ORDER BY created_at, id`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			u, err := scanUser(rows)
+			if err != nil {
+				return err
+			}
+			out = append(out, u)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
+// UsernameOwner returns the id of the user holding name: as a current
+// username, or as an old one still reserved at now. ErrNotFound if free.
+func (s *Store) UsernameOwner(ctx context.Context, name string, now time.Time) (string, error) {
+	var id string
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		return c.QueryRow(ctx, sqlUsernameOwner.SQL, name, now).Scan(&id)
+	})
+	if err != nil {
+		return "", notFoundIfNoRows(err, "username")
+	}
+	return id, nil
+}
+
+// ResolveOldUsername returns the current username of the user who gave up
+// old, while it is still reserved. ErrNotFound if old is not a held former name.
+func (s *Store) ResolveOldUsername(ctx context.Context, old string, now time.Time) (string, error) {
+	var name string
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		return c.QueryRow(ctx, sqlResolveOldUsername.SQL, old, now).Scan(&name)
+	})
+	if err != nil {
+		return "", notFoundIfNoRows(err, "username")
+	}
+	return name, nil
+}
+
+// InitUsername sets the username of a user that has none (the boot backfill).
+func (s *Store) InitUsername(ctx context.Context, id, name string) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
+		res, err := tx.Exec(ctx, sqlInitUsername.SQL, name, id)
+		if err != nil {
+			return wrapWrite(err, "set username")
+		}
+		return requireChanged(res, "set username")
+	})
+}
+
+// SetUsername renames a user. The previous name stays in the history,
+// reserved for the user until holdUntil; taking back one's own old name
+// removes it from the history.
+func (s *Store) SetUsername(ctx context.Context, id, name string, now, holdUntil time.Time) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
+		var old *string
+		if err := tx.QueryRow(ctx, sqlSetUsername.SQL, id).Scan(&old); err != nil {
+			return notFoundIfNoRows(err, "user")
+		}
+		if _, err := tx.Exec(ctx, sqlSetUsername2.SQL, name, id); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, sqlSetUsername3.SQL, name, now, id); err != nil {
+			return wrapWrite(err, "set username")
+		}
+		if old != nil && *old != "" {
+			if _, err := tx.Exec(ctx, sqlSetUsername4.SQL, *old, id, now, holdUntil); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }

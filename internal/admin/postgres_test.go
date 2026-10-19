@@ -121,7 +121,8 @@ func TestPostgresMigrationsMatchSQLite(t *testing.T) {
 	var pgIndexes []string
 	irows, err := d.Query(ctx, `SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
 		JOIN pg_namespace s ON s.oid = c.relnamespace
-		WHERE s.nspname = ? AND NOT i.indisprimary AND NOT i.indisunique ORDER BY c.relname`, n.Admin())
+		WHERE s.nspname = ? AND NOT i.indisprimary
+		AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conindid = i.indexrelid) ORDER BY c.relname`, n.Admin())
 	if err != nil {
 		t.Fatal(err)
 	}

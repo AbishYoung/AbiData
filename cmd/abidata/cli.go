@@ -56,6 +56,7 @@ func userCmd(args []string) error {
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	email := fs.String("email", "", "user email (required)")
 	name := fs.String("name", "", "display name (create-admin)")
+	username := fs.String("username", "", "username (create-admin; derived from the email if empty)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -117,11 +118,12 @@ func userCmd(args []string) error {
 		fmt.Printf("reset the password of %s (%s); all of their sessions were ended\n", u.Email, u.ID)
 		return nil
 	}
-	u, err := svc.CreateUser(ctx, *email, *name, pw, true)
+	u, err := svc.CreateNamedUser(ctx, *email, *username, *name, pw, true)
 	if err != nil {
 		return err
 	}
-	_ = adm.Audit(ctx, admin.AuditEntry{At: time.Now(), Action: "user.create_admin_cli", ObjectKind: "user", ObjectID: u.ID})
-	fmt.Printf("created platform admin %s (%s)\n", u.Email, u.ID)
+	_ = adm.Audit(ctx, admin.AuditEntry{At: time.Now(), Action: "user.create_admin_cli", ObjectKind: "user", ObjectID: u.ID,
+		Details: map[string]any{"username": u.Username}})
+	fmt.Printf("created platform admin %s (%s), username %s\n", u.Email, u.ID, u.Username)
 	return nil
 }
