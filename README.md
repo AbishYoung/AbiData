@@ -1,6 +1,6 @@
 # AbiData
 
-AbiData is a self-hosted database application platform for teams, in the spirit of Microsoft Access. Builders design **tables, queries, forms, reports, Lua scripts and scheduled jobs** in the browser. Everyone else works with them from a desktop or a phone, and owners can publish chosen forms and reports to people without an account. Each project lives in its own **workspace**, which is a single SQLite file on your server. The backend is one Go binary with the React web app embedded in it.
+AbiData is a self-hosted database application platform for teams, in the spirit of Microsoft Access. Builders design **tables, queries, forms, reports, Lua scripts, scheduled jobs and user blogs** in the browser. Everyone else works with them from a desktop or a phone, owners can publish chosen forms and reports to people without an account, and users can publish static blogs. Each project lives in its own **workspace**, which is a single SQLite file on your server. The backend is one Go binary with the React web app embedded in it.
 
 ![The Orders datasheet in the Northwind Traders sample workspace](docs/images/datasheet-orders.jpg)
 
@@ -81,6 +81,11 @@ Workspace owners can bundle forms and reports into an **app** and publish it beh
 ### Blogs
 
 Every user account has a personal **blog workspace** (`Blog: {username}`) with its own Markdown editor, sandboxed preview and cover images, backed by a pinned `posts` table that still works with the datasheet, scripts, exports and backups behind **Open as workspace**. Everything is private until the user publishes a post, turns their blog on and a platform administrator allows public blogs on the server (`ABIDATA_PUBLIC_BLOGS=false` locks them off). Published blogs are served as static HTML at `/b/{username}` with an Atom feed at `/b/{username}/feed.xml` (or from a separate domain via `ABIDATA_BLOG_HOST`), and administrators moderate reported and taken-down posts from the admin console's **Blogs** tab. See the [Blogs guide](docs/content/guide/blogs.md).
+
+| | |
+|---|---|
+| ![The blog post editor](docs/images/blog-editor.png) | ![A published blog post](docs/images/public-blog-post.png) |
+| The blog Markdown editor with live preview, cover image and metadata | A published blog post with cover image, served as clean static HTML |
 
 ### Automation
 
@@ -223,11 +228,11 @@ Writes need `Idempotency-Key` and, for updates and deletes, an `If-Match` versio
 flowchart LR
   B["Browser or phone<br/>(React app, PWA)"] -->|HTTPS| C[Caddy<br/>TLS, HTTP/2]
   K["Bots<br/>(API keys)"] -->|HTTPS| C
-  V["Visitors<br/>(public app links)"] -->|HTTPS| C
+  V["Visitors & readers<br/>(public apps & blogs)"] -->|HTTPS| C
   C --> S
 
   subgraph S["abidata (one Go binary)"]
-    API["HTTP API + embedded web app<br/>(OpenAPI, server-sent events)"]
+    API["HTTP API + embedded web app<br/>(OpenAPI, SSE, public blogs)"]
     SCH["Job scheduler"]
     SBX["Lua sandbox<br/>(forms, reports, jobs)"]
     EG["Egress gateway<br/>(allowlist)"]
@@ -250,8 +255,8 @@ flowchart LR
 - Services reach the databases through a driver-neutral layer (`internal/dbx`), and schema migrations live in `internal/admin/migrations/sqlite/` and `internal/catalog/migrations/sqlite/`.
 - Scripts run in a Lua sandbox with no file, process or network access except through reviewed functions. Jobs are started by the scheduler or by hand, and only they can make outbound requests, through the egress gateway.
 - Caddy terminates TLS in the provided Compose stack. The server trusts `X-Forwarded-For` only from the proxy addresses you configure.
-- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [gopher-lua fork](docs/adr/0004-gopher-lua-fork.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md), [workspace API keys](docs/adr/0009-workspace-api-keys.md), [geo fields](docs/adr/0010-geo-fields.md), [file attachments](docs/adr/0011-file-attachments.md), [public apps](docs/adr/0014-public-apps.md) and [user blogs](docs/adr/0017-user-blogs.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
-- **Planned:** PostgreSQL as an alternative backend ([ADR 0012](docs/adr/0012-postgres-backend.md)), built on a backend-agnostic SQL layer ([ADR 0013](docs/adr/0013-backend-agnostic-sql-layer.md)). It is not usable yet: groundwork so far includes a sandbox spike and saved queries recording their SQL dialect. SQLite remains the only backend.
+- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [gopher-lua fork](docs/adr/0004-gopher-lua-fork.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md), [workspace API keys](docs/adr/0009-workspace-api-keys.md), [geo fields](docs/adr/0010-geo-fields.md), [file attachments](docs/adr/0011-file-attachments.md), [public apps](docs/adr/0014-public-apps.md), [web UI modernisation](docs/adr/0015-web-ui-review-and-modernisation.md), [layered testing](docs/adr/0016-layered-testing.md) and [user blogs](docs/adr/0017-user-blogs.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
+- **Planned:** PostgreSQL as an alternative backend ([ADR 0012](docs/adr/0012-postgres-backend.md)), built on a backend-agnostic SQL layer ([ADR 0013](docs/adr/0013-backend-agnostic-sql-layer.md)). It is not usable yet: groundwork so far includes a sandbox spike, the `sqlgen` statement and expression model with SQLite and PostgreSQL renderers, `pgdb` Docker tests (`make test-postgres`), and saved queries recording their SQL dialect. SQLite remains the only production backend.
 
 ## Security
 
@@ -271,7 +276,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 | `tests/e2e/` | Playwright end-to-end tests |
 | `docs/content/` | The documentation, served inside the app. `docs/adr/` holds the ADRs and `docs/images/` the screenshots |
 | `scripts/` | Docker helpers, secret generation, the demo seeder and the screenshot pipeline |
-| `tools/gen/` | Generators for the OpenAPI document and the Lua API reference |
+| `tools/` | Code generators (`tools/gen`) and the layered test runner (`tools/testplan`, ADR 0016) |
 
 ### Make targets
 
@@ -287,6 +292,7 @@ You are responsible for the host, the volumes, the secrets and TLS. Read the ful
 | `make test-go-unit` / `make test-go-integration` / `make test-web` / `make test-e2e AREA=…` | One test layer |
 | `make e2e` | The Playwright suite in `tests/e2e` |
 | `make screenshots` | Regenerate `docs/images/` |
+| `make screenshots-review` | Capture every screen in both themes across viewports with axe scans ([ADR 0015](docs/adr/0015-web-ui-review-and-modernisation.md)) |
 | `make docker-local` / `make docker` | Build the image for this machine / for amd64 and arm64 |
 
 ### Tests
@@ -324,7 +330,7 @@ Options:
 
 ### Screenshots
 
-`make screenshots` rebuilds the app, starts a throwaway server on a free port with a temporary data directory and the two sample workspaces, completes setup with a password generated for that run, generates some activity (including a published public app and a report made from the Columnar layout) and writes the images in `docs/images/`. `node scripts/screenshots.mjs --only=name,name` regenerates only the named images. It needs the Playwright setup above. Dates in the sample data are relative to the day you run it, so images change from day to day.
+`make screenshots` rebuilds the app, starts a throwaway server on a free port with a temporary data directory and the two sample workspaces, completes setup with a password generated for that run, generates some activity (including a published public app, a report made from the Columnar layout, and a published user blog post with cover image and live preview) and writes the images in `docs/images/`. `node scripts/screenshots.mjs --only=name,name` regenerates only the named images. `make screenshots-review` captures every main screen across light and dark themes at desktop and compact widths with axe accessibility scans ([ADR 0015](docs/adr/0015-web-ui-review-and-modernisation.md)). Both targets need the Playwright setup above. Dates in the sample data are relative to the day you run it, so images change from day to day.
 
 ### Contributing
 
