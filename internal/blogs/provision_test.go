@@ -3,17 +3,17 @@ package blogs
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"abidata/internal/admin"
+	"abidata/internal/admin/admintest"
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type rig struct {
@@ -26,22 +26,8 @@ type rig struct {
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	ctx := context.Background()
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "system"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	adm, err := admin.Open(ctx, filepath.Join(dir, "system", "admin.db"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = wm.Shutdown(ctx)
-		_ = adm.Close()
-	})
+	adm := admintest.Open(t)
+	wm := wstest.New(t).Manager
 	schemas := catalog.NewCache()
 	engine := &catalog.Engine{AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) { schemas.Put(l.ID(), s) }}
 	p := &Provisioner{Admin: adm, Workspaces: wm, Catalog: engine, Schemas: schemas}

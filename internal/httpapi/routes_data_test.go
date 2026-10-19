@@ -3,6 +3,8 @@ package httpapi
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -233,5 +235,60 @@ func TestQueriesOverHTTP(t *testing.T) {
 	st, out, _ = root.do("POST", base+"/sql/run", map[string]any{"sql": "ATTACH 'x.db' AS x"})
 	if st != 403 || errCode(out) != "SQL_NOT_ALLOWED" {
 		t.Fatalf("attach via console %d %v", st, out)
+	}
+}
+
+func TestDatabaseSizeQuota(t *testing.T) {
+	e, root, ws := setupWorkspace(t)
+	base := "/api/v1/w/" + ws
+	// Set database size quota to 256 pages (~1 MiB)
+	if st, b, _ := root.do("PATCH", "/api/v1/admin/workspaces/"+ws, map[string]any{"quota": map[string]any{"max_page_count": 256}}); st != 200 {
+		t.Fatalf("quota patch %d %v", st, b)
+	}
+	ops := map[string]any{"ops": []map[string]any{{"op": "create_table", "table": map[string]any{
+		"display_name": "Blobs", "columns": []map[string]any{
+			{"display_name": "Body", "field_type": "long_text"},
+		}}}}}
+	st, res, _ := root.do("POST", base+"/schema/apply", ops)
+	if st != 200 {
+		t.Fatalf("apply %d %v", st, res)
+	}
+	tid := res["schema"].(map[string]any)["tables"].([]any)[0].(map[string]any)["id"].(string)
+	colID := res["schema"].(map[string]any)["tables"].([]any)[0].(map[string]any)["columns"].([]any)[1].(map[string]any)["id"].(string)
+
+	ed := e.login("ed@example.com")
+	rows := base + "/tables/" + tid + "/rows"
+
+	// Insert rows until quota exceeded (on SQLite or PostgreSQL)
+	var hitQuota bool
+	for step := range 35 {
+		var b strings.Builder
+		b.Grow(64 << 10)
+		for i := range (64 << 10) / 64 {
+			h := sha256.Sum256([]byte(fmt.Sprintf("chunk-%d-%d", step, i)))
+			b.WriteString(hex.EncodeToString(h[:]))
+		}
+		st, resp, _ := ed.do("POST", rows, map[string]any{"fields": map[string]any{colID: b.String()}})
+		if st == 507 {
+			if errCode(resp) != "QUOTA_EXCEEDED" {
+				t.Fatalf("expected QUOTA_EXCEEDED, got %v", resp)
+			}
+			hitQuota = true
+			break
+		} else if st != 201 {
+			t.Fatalf("insert %d %v", st, resp)
+		}
+	}
+	if !hitQuota {
+		t.Fatal("expected insert to hit QUOTA_EXCEEDED")
+	}
+
+	// Raising quota allows writes again
+	if st, b, _ := root.do("PATCH", "/api/v1/admin/workspaces/"+ws, map[string]any{"quota": map[string]any{"max_page_count": 2048}}); st != 200 {
+		t.Fatalf("raise quota %d %v", st, b)
+	}
+	st, b, _ := ed.do("POST", rows, map[string]any{"fields": map[string]any{colID: "small"}})
+	if st != 201 {
+		t.Fatalf("insert after raising quota: %d %v", st, b)
 	}
 }

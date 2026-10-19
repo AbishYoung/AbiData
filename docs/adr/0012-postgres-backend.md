@@ -404,11 +404,12 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **SQLite idioms in typed SQL.** `<prefix>_lib` overloads `substr` for dates and times, and `round(double precision, integer)`, answering as SQLite does. pg_catalog has no such signatures, so no builtin call changes meaning. Comparing yes/no with 0 or 1 still fails on PostgreSQL. `NOT "Flag"` and `"Flag"` are the portable spellings.
 - **Cleanup.** `pgtest` drops every role under the test's prefix, including those of workspaces a test did not create itself.
 
-**Phase 3, part 10 (as built): the HTTP API.**
+- **Phase 3 finish:** soft DB size quota (§5) and blogs tests on PostgreSQL are in part 11 below.
 
-- **The httpapi suite** runs on both backends (`wstest.NewWith` takes the server's manager settings). Backup and restore tests skip on PostgreSQL: they are Phase 4.
-- **Found and fixed:** publishing a blog post scanned `published_at` into a string. PostgreSQL returns it as a time.
-- **Not yet on PostgreSQL:** the size quota (`MaxPageCount` is SQLite's), and the blogs package's own tests.
+**Phase 3, part 11 (as built): soft DB size quota and blogs on PostgreSQL.**
+
+- **Soft DB size quota (§5).** On PostgreSQL, workspace size is the sum of `pg_total_relation_size` over tables and materialized views in the schema (`workspace.pgSchemaSize`). It is sampled after writes and cached; once over quota, subsequent writes return `QUOTA_EXCEEDED` until the quota is raised (`ReapplyQuota`) or usage drops. A single transaction may overshoot, as specified. Reads continue to work. Tested in `workspace` (`TestPostgresSoftQuota`) and `httpapi` (`TestDatabaseSizeQuota`).
+- **Blogs package tests.** `internal/blogs` runs on both backends via `admintest` and `wstest`, added to `scripts/test-postgres.sh` and `tools/testplan`.
 
 ## Consequences
 

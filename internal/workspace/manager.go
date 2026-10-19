@@ -59,7 +59,8 @@ type Config struct {
 	// Observe receives timing samples; nil means none.
 	Observe Observer
 	// Postgres, when set, keeps workspaces in PostgreSQL schemas instead of
-	// files; Migrate and MaxPageCount are then unused.
+	// files; Migrate is then unused (see PostgresConfig.Migrate). MaxPageCount
+	// enforces a soft DB-size quota (ADR 0012 §5).
 	Postgres *PostgresConfig
 }
 
@@ -103,6 +104,13 @@ type handle struct {
 	maintMu    sync.Mutex
 	scriptCtx  context.Context // cancelled when the workspace drains
 	scriptStop context.CancelFunc
+
+	// PostgreSQL DB-size quota tracking (ADR 0012 §5)
+	quotaMu       sync.Mutex
+	maxPages      int64
+	pgSizeBytes   int64
+	pgSizeSampled time.Time
+	pgOverQuota   bool
 }
 
 // Manager owns all open workspaces.
@@ -500,7 +508,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 // ReapplyQuota pushes a changed DB-size quota to an open workspace's writer.
 // Closed workspaces pick it up on their next open.
 func (m *Manager) ReapplyQuota(ctx context.Context, id ids.WorkspaceID) error {
-	if m.cfg.MaxPageCount == nil || m.pg() != nil {
+	if m.cfg.MaxPageCount == nil {
 		return nil
 	}
 	m.mu.Lock()
@@ -513,6 +521,12 @@ func (m *Manager) ReapplyQuota(ctx context.Context, id ids.WorkspaceID) error {
 	pages, err := m.cfg.MaxPageCount(ctx, id)
 	if err != nil {
 		return err
+	}
+	if m.pg() != nil {
+		h.quotaMu.Lock()
+		h.maxPages = pages
+		h.quotaMu.Unlock()
+		return h.samplePGSize(ctx, m, true)
 	}
 	l, err := m.Acquire(ctx, id)
 	if err != nil {

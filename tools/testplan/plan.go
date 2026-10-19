@@ -81,7 +81,7 @@ var postgresPaths = []string{"scripts/test-postgres.sh", "internal/pgdb/", "inte
 // postgresPackages have tests that run against PostgreSQL; with
 // cmd/abidata's startup checks (a path above, since every package is its
 // dependency), they are the packages scripts/test-postgres.sh runs.
-var postgresPackages = []string{"abidata/internal/pgdb", "abidata/internal/admin", "abidata/internal/auth", "abidata/internal/catalog", "abidata/internal/workspace", "abidata/internal/records", "abidata/internal/query", "abidata/internal/reports", "abidata/internal/script/modules/db", "abidata/internal/files", "abidata/internal/forms", "abidata/internal/jobs", "abidata/internal/script/modules/geo", "abidata/internal/script/modules/all", "abidata/internal/ops", "abidata/internal/ingest", "abidata/internal/demo", "abidata/internal/httpapi"}
+var postgresPackages = []string{"abidata/internal/pgdb", "abidata/internal/admin", "abidata/internal/auth", "abidata/internal/catalog", "abidata/internal/workspace", "abidata/internal/records", "abidata/internal/query", "abidata/internal/reports", "abidata/internal/script/modules/db", "abidata/internal/files", "abidata/internal/forms", "abidata/internal/jobs", "abidata/internal/script/modules/geo", "abidata/internal/script/modules/all", "abidata/internal/ops", "abidata/internal/ingest", "abidata/internal/demo", "abidata/internal/blogs", "abidata/internal/httpapi"}
 
 // inert paths are documentation and tests: they never change what is built or shipped.
 func inert(p string) bool {

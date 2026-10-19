@@ -193,4 +193,5 @@ workspace.Lease.WriteWith#2	workspace	sqlite
 workspace.handle.closeConns	workspace	sqlite	optimize
 workspace.handle.closeConns#2	workspace	sqlite	busy,log,checkpointed
 workspace.pgOpen	-	postgres	-
+workspace.pgSchemaSize	-	postgres	-
 workspace.pgWrite	-	postgres	-
