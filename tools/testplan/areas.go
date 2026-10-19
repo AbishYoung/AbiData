@@ -92,6 +92,7 @@ var sourceAreas = map[string][]string{
 	"internal/httpapi/routes_apps.go":           {"apps"},
 	"internal/httpapi/routes_backups.go":        {"admin"},
 	"internal/httpapi/routes_blog.go":           {"blogs"},
+	"internal/httpapi/blog_public.go":           {"blogs"},
 	"internal/httpapi/routes_docs.go":           {"shell"},
 	"internal/httpapi/routes_egress.go":         {"automation", "admin"},
 	"internal/httpapi/routes_files.go":          {"files-geo"},

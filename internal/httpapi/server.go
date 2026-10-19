@@ -100,8 +100,10 @@ type Server struct {
 	cspValue atomic.Pointer[string]
 	// demoRun is held while a demo provisioning run is in progress.
 	demoRun sync.Mutex
-	// appLimits throttles public app visitors (ADR 0014).
+	// appLimits throttles public app visitors (ADR 0014) and blog readers (ADR 0017).
 	appLimits *apps.Limiter
+	// blogPages caches rendered public blog pages by ETag.
+	blogPages *blogs.PageCache
 }
 
 // DemoProvisioner gives every active user their own demo workspace.
@@ -116,7 +118,7 @@ func New(deps Deps) *Server {
 		log = slog.New(slog.DiscardHandler)
 	}
 	installHumaErrors(log)
-	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now(), appLimits: apps.NewLimiter()}
+	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now(), appLimits: apps.NewLimiter(), blogPages: blogs.NewPageCache(512)}
 	if deps.BlogAPI != nil && deps.BlogAPI.PublicEnabled == nil {
 		// The authoring API reports the same install switch the public pages obey.
 		deps.BlogAPI.PublicEnabled = s.blogSwitch().Enabled
@@ -145,6 +147,7 @@ func New(deps Deps) *Server {
 	r.Get("/api/v1/w/{ws}/events", s.eventsHandler)
 	r.Get("/api/v1/admin/logs/stream", s.logsHandler)
 	r.Get("/api/v1/docs/highlight.css", s.docsCSS)
+	s.mountPublicBlogs(r)
 
 	s.registerAuth(api)
 	s.registerAdmin(api)
