@@ -3,7 +3,7 @@ module abidata
 go 1.27.2
 
 require (
-	github.com/alecthomas/chroma/v2 v2.2.0
+	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/jackc/pgx/v5 v5.11.0
@@ -14,18 +14,19 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shopspring/decimal v1.5.0
 	github.com/xuri/excelize/v2 v2.11.1-0.20261003002531-6258dcebc4e2
-	github.com/yuin/goldmark v1.7.13
+	github.com/yuin/goldmark v1.8.6
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	github.com/yuin/goldmark-meta v1.1.0
 	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.60.0
+	golang.org/x/text v0.43.0
 )
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/dlclark/regexp2 v1.7.0 // indirect
+	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -42,7 +43,6 @@ require (
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
