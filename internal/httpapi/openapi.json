@@ -1389,6 +1389,13 @@
             ],
             "type": "string"
           },
+          "cover": {
+            "description": "The cover image's workspace file id.",
+            "type": "string"
+          },
+          "cover_alt": {
+            "type": "string"
+          },
           "id": {
             "format": "int64",
             "type": "integer"
@@ -4942,6 +4949,16 @@
             "maxLength": 204800,
             "type": "string"
           },
+          "cover": {
+            "description": "A workspace image file id for the cover; empty removes it.",
+            "maxLength": 26,
+            "type": "string"
+          },
+          "cover_alt": {
+            "description": "The cover's alt text; required with a cover.",
+            "maxLength": 200,
+            "type": "string"
+          },
           "published_at": {
             "description": "RFC 3339; changes the date shown, for back-dating.",
             "maxLength": 40,
@@ -5106,6 +5123,13 @@
       "PublicBlogPost": {
         "additionalProperties": false,
         "properties": {
+          "cover_alt": {
+            "type": "string"
+          },
+          "cover_url": {
+            "description": "The cover image, if the post has one.",
+            "type": "string"
+          },
           "published_at": {
             "format": "date-time",
             "type": "string"
@@ -5134,6 +5158,13 @@
       "PublicBlogPostPage": {
         "additionalProperties": false,
         "properties": {
+          "cover_alt": {
+            "type": "string"
+          },
+          "cover_url": {
+            "description": "The cover image, if the post has one.",
+            "type": "string"
+          },
           "html": {
             "description": "The body through the public Markdown pipeline and sanitiser.",
             "type": "string"
@@ -6816,6 +6847,16 @@
           },
           "body_md": {
             "maxLength": 204800,
+            "type": "string"
+          },
+          "cover": {
+            "description": "A workspace image file id for the cover; empty removes it.",
+            "maxLength": 26,
+            "type": "string"
+          },
+          "cover_alt": {
+            "description": "The cover's alt text; required with a cover.",
+            "maxLength": 200,
             "type": "string"
           },
           "published_at": {

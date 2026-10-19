@@ -8,6 +8,7 @@ import { useIsCompact } from "@/lib/useMediaQuery";
 import { askToConfirm, Badge, Button, Dialog, Field, IconButton, Input, Skeleton, Textarea } from "@/components/ui";
 import { alertBox, warningBox } from "@/components/styles";
 import { BlogNotFound } from "./BlogApp";
+import { CoverField } from "./CoverField";
 import { TakedownBanner } from "./TakedownBanner";
 import { blogKeys, checkSlug, createPost, getPost, previewPost, setPostStatus, updatePost, type BlogInfo, type BlogPost, type PostInput } from "./blogApi";
 import {
@@ -53,6 +54,8 @@ interface Draft {
   summary: string;
   body: string;
   publishedAt: string;
+  cover: string;
+  coverAlt: string;
 }
 
 function toLocalInput(iso: string | undefined): string {
@@ -70,6 +73,8 @@ function draftOf(p: BlogPost | null): Draft {
     summary: p?.summary ?? "",
     body: p?.body_md ?? "",
     publishedAt: toLocalInput(p?.published_at),
+    cover: p?.cover ?? "",
+    coverAlt: p?.cover_alt ?? "",
   };
 }
 
@@ -83,11 +88,13 @@ export function changes(d: Draft, saved: BlogPost | null): PostInput {
   if (saved && d.publishedAt !== toLocalInput(saved.published_at)) {
     out.published_at = d.publishedAt ? new Date(d.publishedAt).toISOString() : "";
   }
+  if (saved ? d.cover !== (saved.cover ?? "") : d.cover !== "") out.cover = d.cover;
+  if (saved ? d.coverAlt !== (saved.cover_alt ?? "") : d.coverAlt !== "") out.cover_alt = d.coverAlt;
   return out;
 }
 
-const FIELD_OF: Record<string, keyof Errors> = { title: "title", slug: "slug", summary: "summary", body_md: "body", published_at: "publishedAt" };
-type Errors = Partial<Record<"title" | "slug" | "summary" | "body" | "publishedAt", string>>;
+const FIELD_OF: Record<string, keyof Errors> = { title: "title", slug: "slug", summary: "summary", body_md: "body", published_at: "publishedAt", cover: "cover", cover_alt: "coverAlt" };
+type Errors = Partial<Record<"title" | "slug" | "summary" | "body" | "publishedAt" | "cover" | "coverAlt", string>>;
 
 const TOOLBAR: { kind: MarkdownKind; label: string; Icon: typeof Bold }[] = [
   { kind: "heading", label: "Heading", Icon: Heading2 },
@@ -116,7 +123,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
   const leaving = useRef(false);
 
   const pending = changes(d, saved);
-  const dirty = saved ? Object.keys(pending).length > 0 : d.title !== "" || d.summary !== "" || d.body !== "";
+  const dirty = saved ? Object.keys(pending).length > 0 : d.title !== "" || d.summary !== "" || d.body !== "" || d.cover !== "";
   const takenDown = !!saved?.takedown || !!info.takedown;
   const status = saved?.status ?? "new";
   const actions = actionsFor(status, takenDown);
@@ -202,6 +209,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
     const e: Errors = {};
     if (d.title.trim() === "") e.title = "Give the post a title.";
     if (bytes > MAX_BODY_BYTES) e.body = "The post is longer than 200 KB.";
+    if (d.cover && d.coverAlt.trim() === "") e.coverAlt = "Describe the cover image for readers who cannot see it.";
     setErrors(e);
     const first = Object.keys(e)[0];
     if (first === "title") titleRef.current?.focus();
@@ -366,6 +374,18 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
       <Field label="Summary" error={errors.summary} hint={`Shown in the post list and link previews. ${d.summary.length} / ${MAX_SUMMARY}`}>
         <Textarea value={d.summary} maxLength={MAX_SUMMARY} rows={2} onChange={(e) => set("summary", e.target.value)} />
       </Field>
+      <CoverField
+        ws={ws}
+        cover={d.cover}
+        alt={d.coverAlt}
+        coverError={errors.cover}
+        altError={errors.coverAlt}
+        onCover={(id) => {
+          setD((cur) => ({ ...cur, cover: id, coverAlt: id ? cur.coverAlt : "" }));
+          setErrors((e) => ({ ...e, cover: undefined, coverAlt: undefined }));
+        }}
+        onAlt={(v) => set("coverAlt", v)}
+      />
       {saved?.published_at && (
         <Field label="Publish date" error={errors.publishedAt} hint="Shown on the post. Change it to back-date the post.">
           <Input type="datetime-local" value={d.publishedAt} onChange={(e) => set("publishedAt", e.target.value)} className="w-auto" />

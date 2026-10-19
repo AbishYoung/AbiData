@@ -240,6 +240,73 @@ func TestPublicBlogImages(t *testing.T) {
 	}
 }
 
+func TestPublicBlogCover(t *testing.T) {
+	e, ann, ws, _ := publicBlog(t)
+	base := "/api/v1/w/" + ws
+	upload := func(name string, data []byte) string {
+		t.Helper()
+		r := e.send(ann, "", "POST", base+"/files", data, "X-File-Name", name, "Content-Type", "application/octet-stream")
+		if r.status != 201 {
+			t.Fatalf("upload %d %s", r.status, r.body)
+		}
+		return r.json()["id"].(string)
+	}
+	cover, text := upload("cover.png", testPNG(16, 9)), upload("notes.txt", []byte("plain text"))
+	st, p, _ := ann.do("POST", base+"/blog/posts", map[string]any{"title": "Covered", "body_md": "Text."})
+	if st != 201 {
+		t.Fatalf("create %d %v", st, p)
+	}
+	path := fmt.Sprintf("%s/blog/posts/%v", base, p["id"])
+	for name, in := range map[string]map[string]any{
+		"no alt":     {"cover": cover},
+		"blank alt":  {"cover": cover, "cover_alt": "  "},
+		"not image":  {"cover": text, "cover_alt": "Notes"},
+		"not a file": {"cover": "nope", "cover_alt": "x"},
+	} {
+		in["_version"] = p["_version"]
+		if st, body, _ := ann.do("PATCH", path, in); st != 400 {
+			t.Errorf("%s: %d %v", name, st, body)
+		}
+	}
+	st, p, _ = ann.do("PATCH", path, map[string]any{"_version": p["_version"], "cover": cover, "cover_alt": "A <red> sky"})
+	if st != 200 || p["cover"] != cover || p["cover_alt"] != "A <red> sky" {
+		t.Fatalf("cover %d %v", st, p)
+	}
+	// A draft's cover is private.
+	if st, _, _ := e.visit("/b/ann/_files/"+cover, nil); st != 404 {
+		t.Fatalf("draft cover %d", st)
+	}
+	if st, _, _ := ann.do("PUT", path+"/status", map[string]any{"_version": p["_version"], "status": "published"}); st != 200 {
+		t.Fatal("publish")
+	}
+	if st, _, h := e.visit("/b/ann/_files/"+cover, nil); st != 200 || h.Get("Content-Type") != "image/png" {
+		t.Fatalf("cover image %d", st)
+	}
+	_, page, _ := e.visit("/b/ann/covered", nil)
+	src := "/b/ann/_files/" + cover
+	for _, want := range []string{`<figure class="cover"><img src="` + src + `" alt="A &lt;red&gt; sky"></figure>`,
+		`<meta property="og:image" content="` + testOrigin + src + `">`, `<meta name="twitter:card" content="summary_large_image">`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if _, j, _ := e.client().do("GET", "/api/v1/blogs/ann/posts/covered", nil); j["cover_url"] != testOrigin+src || j["cover_alt"] != "A <red> sky" {
+		t.Errorf("JSON %v", j)
+	}
+	// The cover column attaches the file, so the sweep keeps it.
+	if _, meta, _ := ann.do("GET", base+"/files/"+cover, nil); meta["state"] != "attached" {
+		t.Fatalf("file state %v", meta)
+	}
+	// Removing the cover clears it; the alt text may stay.
+	_, p, _ = ann.do("GET", path, nil)
+	if st, p, _ := ann.do("PATCH", path, map[string]any{"_version": p["_version"], "cover": ""}); st != 200 || p["cover"] != nil {
+		t.Fatalf("remove %d %v", st, p)
+	}
+	if st, _, _ := e.visit("/b/ann/_files/"+cover, nil); st != 404 {
+		t.Errorf("removed cover %d", st)
+	}
+}
+
 func TestPublicBlogJSON(t *testing.T) {
 	e, _, _, _ := publicBlog(t)
 	anon := e.client()

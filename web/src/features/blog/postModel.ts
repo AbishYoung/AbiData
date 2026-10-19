@@ -7,6 +7,7 @@ export const MAX_TITLE = 200;
 export const MAX_SUMMARY = 300;
 export const MAX_BODY_BYTES = 200 * 1024;
 export const MAX_SLUG = 80;
+export const MAX_COVER_ALT = 200;
 
 const TRANSLIT: Record<string, string> = { ß: "ss", æ: "ae", Æ: "ae", ø: "o", Ø: "o", œ: "oe", Œ: "oe", đ: "d", Đ: "d", ł: "l", Ł: "l", þ: "th", Þ: "th", ð: "d", Ð: "d", ı: "i", "&": " and " };
 

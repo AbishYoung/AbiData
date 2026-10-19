@@ -2322,6 +2322,9 @@ export interface components {
             body_md: string;
             /** @enum {string} */
             chip: "draft" | "published" | "unlisted" | "taken_down" | "needs_attention";
+            /** @description The cover image's workspace file id. */
+            cover?: string;
+            cover_alt?: string;
             /** Format: int64 */
             id: number;
             problem?: string;
@@ -3270,6 +3273,10 @@ export interface components {
         };
         PostInput: {
             body_md?: string;
+            /** @description A workspace image file id for the cover; empty removes it. */
+            cover?: string;
+            /** @description The cover's alt text; required with a cover. */
+            cover_alt?: string;
             /** @description RFC 3339; changes the date shown, for back-dating. */
             published_at?: string;
             slug?: string;
@@ -3311,6 +3318,9 @@ export interface components {
             username: string;
         };
         PublicBlogPost: {
+            cover_alt?: string;
+            /** @description The cover image, if the post has one. */
+            cover_url?: string;
             /** Format: date-time */
             published_at?: string;
             slug: string;
@@ -3319,6 +3329,9 @@ export interface components {
             url: string;
         };
         PublicBlogPostPage: {
+            cover_alt?: string;
+            /** @description The cover image, if the post has one. */
+            cover_url?: string;
             /** @description The body through the public Markdown pipeline and sanitiser. */
             html: string;
             /** Format: date-time */
@@ -3806,6 +3819,10 @@ export interface components {
             /** Format: int64 */
             _version: number;
             body_md?: string;
+            /** @description A workspace image file id for the cover; empty removes it. */
+            cover?: string;
+            /** @description The cover's alt text; required with a cover. */
+            cover_alt?: string;
             /** @description RFC 3339; changes the date shown, for back-dating. */
             published_at?: string;
             slug?: string;

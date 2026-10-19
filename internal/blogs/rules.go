@@ -16,6 +16,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
+	"abidata/internal/files"
 	"abidata/internal/pgdb"
 	"abidata/internal/records"
 	"abidata/internal/sqlgen"
@@ -156,6 +157,28 @@ func (r *Rules) apply(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, pins 
 			v = files
 		}
 		out[imagesCol], changed = v, true
+	}
+	// A cover is one image of the workspace, and needs alt text.
+	if _, ok := col["cover"]; ok {
+		cover, coverGiven := get("cover")
+		alt, altGiven := get("cover_alt")
+		if coverGiven || altGiven {
+			files := fileList(cover)
+			if len(files) > 0 && strings.TrimSpace(str(alt)) == "" {
+				return nil, false, fault.New(fault.BadRequest, "Describe the cover image for readers who cannot see it.").
+					WithDetails(map[string]any{"field": "cover_alt"})
+			}
+			if coverGiven && len(files) > 0 {
+				ok, err := imagesOnly(ctx, tx, files)
+				if err != nil {
+					return nil, false, err
+				}
+				if !ok {
+					return nil, false, fault.New(fault.BadRequest, "The cover must be a PNG, JPEG, GIF or WebP image.").
+						WithDetails(map[string]any{"field": "cover"})
+				}
+			}
+		}
 	}
 
 	title, _ := get("title")
@@ -360,4 +383,54 @@ func existingFiles(ctx context.Context, q dbx.Querier, list []string) ([]string,
 		}
 	}
 	return out, nil
+}
+
+// fileList reads an attachments value in any of its forms: the API's list,
+// or the stored JSON text.
+func fileList(v any) []string {
+	switch x := v.(type) {
+	case []string:
+		return x
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, e := range x {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return records.AttachmentIDs(textOf(catalog.StorageForm(catalog.Attachments, v)))
+}
+
+// imagesOnly reports whether every listed file is an image a page may show.
+// A file that does not exist passes: the attachments check reports it.
+func imagesOnly(ctx context.Context, q dbx.Querier, list []string) (bool, error) {
+	args := make([]sqlgen.Expr, len(list))
+	for i, id := range list {
+		args[i] = sqlgen.Arg{Value: id}
+	}
+	stmt, err := sqlgen.Render(pgdb.DialectOf(q), &sqlgen.Select{
+		Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: "content_type"}}},
+		From:    sqlgen.Table{Name: "_sys_files"},
+		Where:   sqlgen.In{X: sqlgen.Col{Name: "id"}, List: args},
+	})
+	if err != nil {
+		return false, err
+	}
+	rows, err := q.Query(ctx, stmt.SQL, stmt.Args...)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ct string
+		if err := rows.Scan(&ct); err != nil {
+			return false, err
+		}
+		if !files.Inline(ct) {
+			return false, nil
+		}
+	}
+	return true, rows.Err()
 }

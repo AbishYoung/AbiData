@@ -29,7 +29,7 @@ var StylesheetPath = func() string {
 }()
 
 // pageVersion changes when the templates do, so old ETags stop matching.
-const pageVersion = "1"
+const pageVersion = "2"
 
 // PublicImageURL is where a served post's images are: the public file route,
 // which applies the same visibility rules as the post.
@@ -70,6 +70,8 @@ type pageMeta struct {
 	SiteName    string
 	Stylesheet  string
 	Feed        string
+	Image       string // absolute URL of the og:image
+	ImageAlt    string
 }
 
 type homeData struct {
@@ -96,6 +98,8 @@ type postData struct {
 	Date     string
 	ISODate  string
 	Body     template.HTML
+	Cover    string
+	CoverAlt string
 }
 
 const head = `{{define "head"}}<!doctype html>
@@ -110,7 +114,9 @@ const head = `{{define "head"}}<!doctype html>
 {{with .Description}}<meta property="og:description" content="{{.}}">{{end}}
 <meta property="og:url" content="{{.Canonical}}">
 <meta property="og:site_name" content="{{.SiteName}}">
-<meta name="twitter:card" content="summary">
+{{if .Image}}<meta property="og:image" content="{{.Image}}">
+<meta property="og:image:alt" content="{{.ImageAlt}}">
+<meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}
 <link rel="stylesheet" href="{{.Stylesheet}}">
 {{with .Feed}}<link rel="alternate" type="application/atom+xml" href="{{.}}">{{end}}
 </head>{{end}}`
@@ -134,6 +140,7 @@ var pages = template.Must(template.New("pages").Parse(head + `
 <main><article>
 <h1>{{.Title}}</h1>
 {{if .Date}}<p class="meta"><time datetime="{{.ISODate}}">{{.Date}}</time></p>{{end}}
+{{with .Cover}}<figure class="cover"><img src="{{.}}" alt="{{$.CoverAlt}}"></figure>{{end}}
 {{.Body}}
 </article></main>
 <footer class="site-footer"><a href="{{.HomePath}}">More from {{.Name}}</a></footer>
@@ -192,6 +199,10 @@ func RenderPost(base string, b admin.Blog, p Post) ([]byte, error) {
 		Body: template.HTML(body), //nolint:gosec // sanitised by RenderMarkdown
 		Meta: pageMeta{Title: p.Title + " · " + blogName(b), Description: clip(p.Summary, 300), Robots: robots, OGType: "article", SiteName: blogName(b),
 			Canonical: strings.TrimRight(base, "/") + "/b/" + b.Username + "/" + p.Slug, Stylesheet: StylesheetPath, Feed: "/b/" + b.Username + "/feed.xml"}}
+	if p.Cover != "" {
+		d.Cover, d.CoverAlt = PublicImageURL(b.Username)(p.Cover), p.CoverAlt
+		d.Meta.Image, d.Meta.ImageAlt = strings.TrimRight(base, "/")+d.Cover, p.CoverAlt
+	}
 	var buf bytes.Buffer
 	err = pages.ExecuteTemplate(&buf, "post", d)
 	return buf.Bytes(), err

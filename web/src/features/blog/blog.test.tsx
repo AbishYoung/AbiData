@@ -31,6 +31,9 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("./blogApi", async (importOriginal) => ({ ...(await importOriginal<typeof import("./blogApi")>()), ...api }));
 
+const uploadFile = vi.hoisted(() => vi.fn());
+vi.mock("@/features/files/filesApi", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/features/files/filesApi")>()), uploadFile }));
+
 import { PostEditor } from "./PostEditor";
 import { PostList } from "./PostList";
 
@@ -150,6 +153,37 @@ describe("PostEditor", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
+  });
+
+  it("uploads a cover and requires its alt text", async () => {
+    const user = userEvent.setup();
+    api.getPost.mockResolvedValue(post());
+    api.updatePost.mockResolvedValue(post({ _version: 2, cover: "01J00000000000000000000000", cover_alt: "A boat" }));
+    uploadFile.mockReturnValue({ promise: Promise.resolve({ id: "01J00000000000000000000000", content_type: "image/png" }), abort: vi.fn() });
+    const { container } = wrap(<PostEditor ws="w1" info={info} id={7} />);
+    await screen.findByRole("group", { name: "Cover image" });
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error("no file input");
+    await user.upload(input, new File(["png"], "boat.png", { type: "image/png" }));
+    expect(await screen.findByRole("button", { name: "Remove cover" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByText("Describe the cover image for readers who cannot see it.")).toBeInTheDocument();
+    expect(api.updatePost).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText(/^Cover alt text/), "A boat");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(api.updatePost).toHaveBeenCalledWith("w1", 7, 1, { cover: "01J00000000000000000000000", cover_alt: "A boat" }));
+  });
+
+  it("removes a cover with its alt text", async () => {
+    const user = userEvent.setup();
+    api.getPost.mockResolvedValue(post({ cover: "01J00000000000000000000000", cover_alt: "A boat" }));
+    api.updatePost.mockResolvedValue(post({ _version: 2 }));
+    wrap(<PostEditor ws="w1" info={info} id={7} />);
+    expect(await screen.findByLabelText(/^Cover alt text/)).toHaveValue("A boat");
+    await user.click(screen.getByRole("button", { name: "Remove cover" }));
+    expect(screen.queryByLabelText(/^Cover alt text/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(api.updatePost).toHaveBeenCalledWith("w1", 7, 1, { cover: "", cover_alt: "" }));
   });
 
   it("renders the preview in a sandbox without scripts", async () => {

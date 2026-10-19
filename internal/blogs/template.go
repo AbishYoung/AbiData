@@ -28,6 +28,7 @@ const (
 	MaxSlug     = 80
 	MaxSummary  = 300
 	MaxBodySize = 200 << 10
+	MaxCoverAlt = 200
 )
 
 // metaKey is the _sys_meta key that flags the blog's tables. The tables are
@@ -57,11 +58,15 @@ var postColumns = []catalog.ColumnSpec{
 	{DisplayName: "Published at", PhysicalName: "published_at", Type: catalog.DateTime, Description: "Set on first publish; can be changed to back-date a post."},
 	{DisplayName: "Images", PhysicalName: "images", Type: catalog.Attachments, Options: catalog.TypeOptions{MaxFiles: catalog.MaxMaxFiles},
 		Description: "The workspace files the body shows. The blog keeps it in step with the body, so the files are kept."},
+	{DisplayName: "Cover", PhysicalName: "cover", Type: catalog.Attachments, Options: catalog.TypeOptions{MaxFiles: 1},
+		Description: "An image shown above the post and in link previews."},
+	{DisplayName: "Cover alt text", PhysicalName: "cover_alt", Type: catalog.ShortText, Options: catalog.TypeOptions{MaxLength: MaxCoverAlt},
+		Description: "What the cover shows, for readers who cannot see it. Required with a cover."},
 }
 
 // addedPostColumns joined the template after the first blogs were made. A
 // blog without them is still served; repair adds them.
-var addedPostColumns = map[string]bool{"images": true}
+var addedPostColumns = map[string]bool{"images": true, "cover": true, "cover_alt": true}
 
 // redirectColumns are the old-slug redirects' pinned columns.
 var redirectColumns = []catalog.ColumnSpec{

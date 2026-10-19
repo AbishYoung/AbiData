@@ -294,7 +294,7 @@ func (r *Reader) Post(ctx context.Context, b admin.Blog, slug string) (Post, err
 }
 
 // FileServed reports whether a workspace file may be served publicly: only
-// when a served post's body refers to it (attachment:ID). Other files of the
+// when a served post's body refers to it (attachment:ID) or it is the post's cover. Other files of the
 // blog workspace, and images of drafts, stay private (ErrHidden).
 func (r *Reader) FileServed(ctx context.Context, b admin.Blog, fileID string) error {
 	if !ids.Valid(fileID) {
@@ -309,10 +309,11 @@ func (r *Reader) FileServed(ctx context.Context, b admin.Blog, fileID string) er
 	err = l.Read(ctx, func(db dbx.Querier) error {
 		var err error
 		posts, err = readPosts(ctx, db, sch, pins, postQuery{limit: 50, where: func(col func(string) sqlgen.Col) sqlgen.Expr {
-			return sqlgen.And{
-				statusIs(col, StatusPublished, StatusUnlisted),
-				sqlgen.Match{Kind: sqlgen.MatchContains, X: col("body_md"), Pattern: sqlgen.Arg{Value: FileScheme + fileID}},
+			refers := sqlgen.Or{sqlgen.Match{Kind: sqlgen.MatchContains, X: col("body_md"), Pattern: sqlgen.Arg{Value: FileScheme + fileID}}}
+			if _, ok := pins.Columns["cover"]; ok {
+				refers = append(refers, sqlgen.Match{Kind: sqlgen.MatchContains, X: col("cover"), Pattern: sqlgen.Arg{Value: `"` + fileID + `"`}})
 			}
+			return sqlgen.And{statusIs(col, StatusPublished, StatusUnlisted), refers}
 		}})
 		return err
 	})
