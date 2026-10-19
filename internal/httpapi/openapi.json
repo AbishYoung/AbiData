@@ -4759,6 +4759,25 @@
         ],
         "type": "object"
       },
+      "PublicBlogsSetting": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "description": "Off by default: no blog is served until an administrator turns this on.",
+            "type": "boolean"
+          },
+          "forced_off": {
+            "description": "ABIDATA_PUBLIC_BLOGS=false turned public blogs off; the setting cannot turn them on.",
+            "readOnly": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "forced_off"
+        ],
+        "type": "object"
+      },
       "PublicColumn": {
         "additionalProperties": false,
         "properties": {
@@ -7721,6 +7740,136 @@
           }
         },
         "summary": "Turn public apps on or off for the whole server; off makes every app link answer as unknown",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/settings/public-blogs": {
+      "get": {
+        "operationId": "adminGetPublicBlogs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBlogsSetting"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Whether user blogs are served",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "adminPutPublicBlogs",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicBlogsSetting"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBlogsSetting"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Turn public blogs on or off for the whole server; off makes every blog address answer as unknown",
         "tags": [
           "admin"
         ]
