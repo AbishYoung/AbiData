@@ -80,6 +80,9 @@ func Load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	if c.PublicApps, err = l.boolean("ABIDATA_PUBLIC_APPS", true); err != nil {
 		return Config{}, err
 	}
+	if c.PublicBlogs, err = l.boolean("ABIDATA_PUBLIC_BLOGS", true); err != nil {
+		return Config{}, err
+	}
 	if c.DebugAddr, _, err = l.lookup("ABIDATA_DEBUG_ADDR"); err != nil {
 		return Config{}, err
 	}

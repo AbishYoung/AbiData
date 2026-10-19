@@ -25,6 +25,7 @@ type Config struct {
 	BootstrapAdminEmail string         // ABIDATA_BOOTSTRAP_ADMIN_EMAIL
 	DemoWorkspace       bool           // ABIDATA_DEMO_WORKSPACE, default true; "false"/"0" disables the Northwind Traders sample workspace created at first-run setup
 	PublicApps          bool           // ABIDATA_PUBLIC_APPS, default true; "false"/"0" turns public apps (ADR 0014) off for good, whatever the admin setting says
+	PublicBlogs         bool           // ABIDATA_PUBLIC_BLOGS, default true; "false"/"0" turns public blogs (ADR 0017) off for good. They are also off until an administrator turns them on
 	DebugAddr           string         // ABIDATA_DEBUG_ADDR, default "" (pprof off)
 	MetricsAddr         string         // ABIDATA_METRICS_ADDR, default "" (metrics only at /metrics for admins); unauthenticated, bind to a private interface
 	LogLevel            slog.Level     // ABIDATA_LOG_LEVEL: debug|info|warn|error, default info

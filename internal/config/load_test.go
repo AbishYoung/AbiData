@@ -41,6 +41,7 @@ func TestDefaults(t *testing.T) {
 		LogLevel:          slog.LevelInfo,
 		DemoWorkspace:     true,
 		PublicApps:        true,
+		PublicBlogs:       true,
 		DB:                "sqlite",
 		PostgresMaxConns:  20,
 		PostgresPrefix:    "abd",

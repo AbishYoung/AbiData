@@ -70,7 +70,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = wm.Shutdown(ctx) })
-	cfg := config.Config{PublicURL: testOrigin, DataDir: dir, PublicApps: true}
+	cfg := config.Config{PublicURL: testOrigin, DataDir: dir, PublicApps: true, PublicBlogs: true}
 	spa := fstest.MapFS{
 		"index.html":           {Data: []byte("<!doctype html><title>AbiData</title>")},
 		"assets/app-1a.js":     {Data: []byte("console.log(1)")},

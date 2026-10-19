@@ -28,6 +28,46 @@ func (s *Server) ownBlog(ctx context.Context) (admin.Blog, error) {
 	return b, err
 }
 
+// blogSwitch is the install-wide switch for public blogs (ADR 0017).
+func (s *Server) blogSwitch() blogs.InstallSwitch {
+	return blogs.InstallSwitch{Admin: s.deps.Admin, Allowed: s.deps.Config.PublicBlogs}
+}
+
+// PublicBlogsSetting is the install-wide switch for public blogs.
+type PublicBlogsSetting struct {
+	Enabled bool `json:"enabled" doc:"Off by default: no blog is served until an administrator turns this on."`
+	Forced  bool `json:"forced_off" readOnly:"true" doc:"ABIDATA_PUBLIC_BLOGS=false turned public blogs off; the setting cannot turn them on."`
+}
+
+func (s *Server) registerAdminBlogs(api huma.API) {
+	tags := []string{"admin"}
+	adminOnly := map[string]any{metaAccess: "platform_admin", metaSessionOnly: true}
+	type out = struct{ Body PublicBlogsSetting }
+	current := func(ctx context.Context) *out {
+		on, forced := s.blogSwitch().On(ctx)
+		return &out{Body: PublicBlogsSetting{Enabled: on, Forced: forced}}
+	}
+	huma.Register(api, huma.Operation{OperationID: "adminGetPublicBlogs", Method: http.MethodGet, Path: "/api/v1/admin/settings/public-blogs", Tags: tags, Metadata: adminOnly,
+		Summary: "Whether user blogs are served", Errors: []int{401, 403}},
+		func(ctx context.Context, _ *struct{}) (*out, error) { return current(ctx), nil })
+	huma.Register(api, huma.Operation{OperationID: "adminPutPublicBlogs", Method: http.MethodPut, Path: "/api/v1/admin/settings/public-blogs", Tags: tags, Metadata: adminOnly,
+		Summary: "Turn public blogs on or off for the whole server; off makes every blog address answer as unknown", Errors: []int{400, 401, 403}},
+		func(ctx context.Context, in *struct{ Body PublicBlogsSetting }) (*out, error) {
+			if in.Body.Enabled && !s.deps.Config.PublicBlogs {
+				return nil, fault.New(fault.BadRequest, "ABIDATA_PUBLIC_BLOGS=false turns public blogs off on this server. Change the environment setting first.")
+			}
+			v := "false"
+			if in.Body.Enabled {
+				v = "true"
+			}
+			if err := s.deps.Admin.PutSetting(ctx, blogs.SettingPublicBlogs, v); err != nil {
+				return nil, err
+			}
+			s.audit(ctx, "settings.public_blogs", "settings", blogs.SettingPublicBlogs, map[string]any{"enabled": in.Body.Enabled})
+			return current(ctx), nil
+		})
+}
+
 type blogInfoOut struct {
 	Body blogs.BlogInfo
 }

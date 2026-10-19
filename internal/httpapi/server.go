@@ -117,6 +117,10 @@ func New(deps Deps) *Server {
 	}
 	installHumaErrors(log)
 	s := &Server{deps: deps, log: obs.Subsystem(log, "http"), started: time.Now(), appLimits: apps.NewLimiter()}
+	if deps.BlogAPI != nil && deps.BlogAPI.PublicEnabled == nil {
+		// The authoring API reports the same install switch the public pages obey.
+		deps.BlogAPI.PublicEnabled = s.blogSwitch().Enabled
+	}
 	r := chi.NewMux()
 	r.Use(s.requestID, s.securityHeaders, s.accessLog)
 
@@ -158,6 +162,7 @@ func New(deps Deps) *Server {
 	s.registerAPIKeys(api)
 	s.registerApps(api)
 	s.registerBlog(api)
+	s.registerAdminBlogs(api)
 	s.registerDocs(api)
 
 	r.NotFound(s.notFound)

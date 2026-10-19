@@ -174,3 +174,41 @@ func TestBlogAPIAccess(t *testing.T) {
 		t.Fatalf("rate limit: %v", codes)
 	}
 }
+
+func TestPublicBlogsSwitch(t *testing.T) {
+	e, ann, ws := blogEnv(t)
+	e.user("root@example.com", true)
+	root := e.login("root@example.com")
+	path := "/api/v1/admin/settings/public-blogs"
+
+	// Off by default, and only administrators may read or change it.
+	if st, body, _ := root.do("GET", path, nil); st != 200 || body["enabled"] != false || body["forced_off"] != false {
+		t.Fatalf("default %d %v", st, body)
+	}
+	if st, _, _ := ann.do("PUT", path, map[string]any{"enabled": true}); st != 403 {
+		t.Fatalf("non-admin %d", st)
+	}
+	if st, body, _ := root.do("PUT", path, map[string]any{"enabled": true}); st != 200 || body["enabled"] != true {
+		t.Fatalf("on %d %v", st, body)
+	}
+	// The blog UI reports the same switch.
+	if _, info, _ := ann.do("GET", "/api/v1/w/"+ws+"/blog", nil); info["public_blogs_enabled"] != true {
+		t.Fatalf("info %v", info)
+	}
+	// ABIDATA_PUBLIC_BLOGS=false wins over the setting.
+	e.s.deps.Config.PublicBlogs = false
+	if st, body, _ := root.do("GET", path, nil); st != 200 || body["enabled"] != false || body["forced_off"] != true {
+		t.Fatalf("forced %d %v", st, body)
+	}
+	if st, _, _ := root.do("PUT", path, map[string]any{"enabled": true}); st != 400 {
+		t.Fatalf("turned on against the environment: %d", st)
+	}
+	audit, _ := e.ad.ListAudit(context.Background(), 20)
+	found := false
+	for _, a := range audit {
+		found = found || a.Action == "settings.public_blogs"
+	}
+	if !found {
+		t.Fatal("no settings.public_blogs audit row")
+	}
+}
