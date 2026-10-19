@@ -411,6 +411,22 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **Soft DB size quota (§5).** On PostgreSQL, workspace size is the sum of `pg_total_relation_size` over tables and materialized views in the schema (`workspace.pgSchemaSize`). It is sampled after writes and cached; once over quota, subsequent writes return `QUOTA_EXCEEDED` until the quota is raised (`ReapplyQuota`) or usage drops. A single transaction may overshoot, as specified. Reads continue to work. Tested in `workspace` (`TestPostgresSoftQuota`) and `httpapi` (`TestDatabaseSizeQuota`).
 - **Blogs package tests.** `internal/blogs` runs on both backends via `admintest` and `wstest`, added to `scripts/test-postgres.sh` and `tools/testplan`.
 
+**Phase 4 (as built): archive, interchange, backups & restore on PostgreSQL.**
+
+- **Archive & Interchange (§8):**
+  - `catalog.ExportPostgresToSQLite` exports all tables and metadata from a PostgreSQL workspace schema in a `REPEATABLE READ` snapshot into an open SQLite staging database. System metadata, catalog-managed tables, and raw user tables are exported with type conversions (booleans, timestamps, numbers, JSON).
+  - `catalog.ImportSQLiteToPostgres` imports a SQLite workspace archive into a target PostgreSQL schema. Migrates system tables (`_sys_*`), loads and creates catalog schema with constraints, triggers (`_occ_*`), sequences, and copies rows, respecting foreign key dependency ordering across `_sys_*` tables.
+  - `catalog.AdoptPostgres` provisions a new workspace on PostgreSQL and imports a SQLite archive into its schema within an atomic transaction.
+- **Backups & Restore (§7):**
+  - `backup.Service.Snapshot` on PostgreSQL builds the portable workspace archive via `exportPG` in a `REPEATABLE READ` transaction with `search_path` set to `<schema>, <lib>, pg_catalog`. Signed manifest records `source_dialect: "postgres"`.
+  - In-place `Restore` restores into a temporary staging schema (`<ws>_stage`), drains outstanding leases under `Exclusive`, and atomically swaps live and stage schemas (`ALTER SCHEMA <ws> RENAME TO <aside>; ALTER SCHEMA <stage> RENAME TO <ws>;`). The replaced schema is preserved as a `pre_restore` backup.
+  - Crash recovery (`recoverOnePG` / `Recover`): handles interrupted restores at any journal state (`prepared`, `restoring`, `swapped`, `finish`), leaving the workspace either fully old or fully restored.
+  - Cross-dialect backups: bidirectional backup/restore roundtrips losslessly between SQLite and PostgreSQL (`TestCrossDialectBackupRestore`).
+- **Wiring & CLI:**
+  - `cmd/abidata/backend.go`: startup check allows PostgreSQL workspaces once connection checks pass.
+  - `cmd/abidata/serve.go`: installs shared functions library via `pgdb.InstallLib`, configures `workspace.PostgresConfig` (including `Adopt`), and wires full PostgreSQL backend.
+  - `scripts/test-postgres.sh` and `tools/testplan`: added `internal/backup` to PostgreSQL test suite; verified 100% pass on PostgreSQL 17 and 18 with race detector.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

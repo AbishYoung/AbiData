@@ -188,6 +188,9 @@ func (m *Manager) Create(ctx context.Context, id ids.WorkspaceID) error {
 // is removed.
 func (m *Manager) Adopt(ctx context.Context, id ids.WorkspaceID, src string) error {
 	if m.pg() != nil {
+		if m.pg().Adopt != nil {
+			return m.pg().Adopt(ctx, id, src)
+		}
 		return ErrSQLiteOnly
 	}
 	p, err := m.PathsFor(id)

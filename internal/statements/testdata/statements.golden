@@ -76,7 +76,9 @@ admin.readAttempts	admin	portable	count,window_start
 admin.refuseSystem	admin	portable	system_kind
 admin.writeAppItems	admin	portable	
 admin.writeAppItems#2	admin	portable	
+backup.asideExists	-	postgres	-
 backup.finish	workspace	sqlite	quick_check
+backup.finishPG	workspace	portable	count(*)
 backup.inspect	workspace	sqlite	application_id
 backup.inspect#2	workspace	sqlite	user_version
 backup.inspect#3	workspace	sqlite	sqlite_version()
@@ -84,6 +86,7 @@ backup.inspect#4	workspace	portable	value
 backup.inspect#5	workspace	sqlite	name
 backup.listFiles	workspace	sqlite	count(*)
 backup.listFiles#2	workspace	portable	sha256,MAX(size)
+backup.listStageAsideSchemas	-	postgres	-
 backup.prepare	workspace	portable	
 backup.prepare#2	workspace	sqlite	journal_mode
 backup.snapshot	workspace	sqlite	
@@ -102,6 +105,15 @@ catalog.Reconcile	workspace	variant	name,hidden
 catalog.Reconcile#2	workspace	variant	count(*)
 catalog.Reconcile#3	workspace	variant	count(*)
 catalog.Reconcile#4	workspace	variant	name
+catalog.interchange.clearSysMeta	workspace	portable	
+catalog.interchange.fkOff	workspace	sqlite	
+catalog.interchange.fkOn	workspace	sqlite	
+catalog.interchange.listSysTables	workspace	sqlite	name
+catalog.interchange.pgColumns	-	postgres	-
+catalog.interchange.pgRawTables	-	postgres	-
+catalog.interchange.pgTableExists	-	postgres	-
+catalog.interchange.schemaExists	-	postgres	-
+catalog.interchange.sqliteRawTables	workspace	sqlite	name
 catalog.planner.alterColumn	workspace	portable	
 catalog.planner.checkSavedQueries	workspace	portable	id,name,sql_text
 catalog.planner.createIndex	workspace	portable	

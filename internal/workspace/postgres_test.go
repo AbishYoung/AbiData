@@ -107,12 +107,14 @@ func TestPostgresCreateReadWrite(t *testing.T) {
 	for name, err := range map[string]error{
 		"ReadConn":    l.ReadConn(ctx, func(*sqlitex.Conn) error { return nil }),
 		"Maintenance": l.Maintenance(ctx, func(*sqlitex.Conn) error { return nil }),
-		"Exclusive":   l.Exclusive(ctx, time.Second, func(Paths) error { return nil }),
 		"WriteWith":   l.WriteWith(ctx, Interactive, WriteOptions{ForeignKeysOff: true}, func(dbx.Tx) error { return nil }),
 	} {
 		if !errors.Is(err, ErrSQLiteOnly) {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+	if err := l.Exclusive(ctx, time.Second, func(Paths) error { return nil }); err != nil {
+		t.Errorf("Exclusive: %v", err)
 	}
 }
 

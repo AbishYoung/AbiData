@@ -16,12 +16,14 @@ import (
 	"time"
 
 	"abidata/internal/admin"
+	"abidata/internal/admin/admintest"
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type env struct {
@@ -576,5 +578,402 @@ func TestScheduledTick(t *testing.T) {
 	e.svc.ScheduledTick(e.ctx)
 	if n := count(); n != 4 {
 		t.Fatalf("disabled policy still backed up: %d", n)
+	}
+}
+
+func TestPostgresBackupRestore(t *testing.T) {
+	if !wstest.Postgres() {
+		t.Skip("PostgreSQL not enabled")
+	}
+	ctx := context.Background()
+	e := wstest.New(t)
+	ad := admintest.Open(t)
+	owner := ids.New()
+	if err := ad.CreateUser(ctx, admin.User{ID: owner, Email: "o@example.com", DisplayName: "O", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := e.Create(t)
+	if err := ad.CreateWorkspace(ctx, admin.Workspace{ID: ws, Name: "Main", CreatedAt: time.Now().UTC(), CreatedBy: owner}, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	svc := &Service{
+		DataDir:    dir,
+		BackupDir:  filepath.Join(dir, "backups"),
+		Admin:      ad,
+		Workspaces: e.Manager,
+		Key:        []byte(strings.Repeat("k", 32)),
+		AppVersion: "test",
+	}
+
+	// Seed data
+	l, err := e.Acquire(ctx, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		// Ensure lease is released if test exits early
+		if l != nil {
+			l.Release()
+		}
+	}()
+	if _, err := (&catalog.Engine{}).Run(ctx, l, []catalog.Op{{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{
+		DisplayName: "notes",
+		Columns:     []catalog.ColumnSpec{{DisplayName: "body", Type: catalog.ShortText}},
+	}}}, catalog.Apply, catalog.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO notes (body) VALUES (?)`, "hello postgres"); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `CREATE TABLE ledger (id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, amount INTEGER NOT NULL, note TEXT)`); err != nil {
+			return err
+		}
+		for i := range 20 {
+			if _, err := tx.Exec(ctx, `INSERT INTO ledger (amount, note) VALUES (?, ?)`, i*10, fmt.Sprintf("row %d", i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Snapshot
+	b, err := svc.Snapshot(ctx, l, admin.BackupManual, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Release()
+	l = nil
+
+	// 2. Verify
+	man, err := svc.Verify(ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if man.SourceDialect != "postgres" {
+		t.Fatalf("expected source_dialect postgres, got %q", man.SourceDialect)
+	}
+
+	// 3. RestoreAsNew
+	id, err := svc.RestoreAsNew(ctx, b.ID, func(id ids.WorkspaceID) error {
+		return ad.CreateWorkspace(ctx, admin.Workspace{ID: id, Name: "Copy", CreatedAt: time.Now().UTC(), CreatedBy: owner}, owner)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		n := e.Names(id)
+		e.PG.DropRoles(n.ReadLogin(), n.WriteLogin(), n.WriteRole(), n.ReadRole())
+	})
+
+	// Verify data in copied workspace
+	lCopy, err := e.Acquire(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var noteCount, ledgerCount int64
+	if err := lCopy.Read(ctx, func(q dbx.Querier) error {
+		if err := q.QueryRow(ctx, `SELECT count(*) FROM notes`).Scan(&noteCount); err != nil {
+			return err
+		}
+		return q.QueryRow(ctx, `SELECT count(*) FROM ledger`).Scan(&ledgerCount)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lCopy.Release()
+	if noteCount != 1 || ledgerCount != 20 {
+		t.Fatalf("restored data mismatch: notes=%d ledger=%d", noteCount, ledgerCount)
+	}
+
+	// 4. In-place Restore: mutate original, restore, verify reverted
+	lMain, err := e.Acquire(ctx, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lMain.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO notes (body) VALUES (?)`, "extra note"); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DROP TABLE ledger`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lMain.Release()
+
+	if err := svc.Restore(ctx, ws, b.ID, owner); err != nil {
+		t.Fatal(err)
+	}
+	svc.Wait()
+
+	// Verify original workspace restored
+	lRestored, err := e.Acquire(ctx, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lRestored.Read(ctx, func(q dbx.Querier) error {
+		if err := q.QueryRow(ctx, `SELECT count(*) FROM notes`).Scan(&noteCount); err != nil {
+			return err
+		}
+		return q.QueryRow(ctx, `SELECT count(*) FROM ledger`).Scan(&ledgerCount)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lRestored.Release()
+	if noteCount != 1 || ledgerCount != 20 {
+		t.Fatalf("after restore: notes=%d ledger=%d", noteCount, ledgerCount)
+	}
+
+	// Verify pre_restore backup created
+	all, err := ad.ListBackups(ctx, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preRestoreFound := false
+	for _, x := range all {
+		if x.Kind == admin.BackupPreRestore {
+			preRestoreFound = true
+			break
+		}
+	}
+	if !preRestoreFound {
+		t.Fatal("expected pre_restore backup after in-place restore")
+	}
+}
+
+func TestCrossDialectBackupRestore(t *testing.T) {
+	if !wstest.Postgres() {
+		t.Skip("PostgreSQL not enabled")
+	}
+	ctx := context.Background()
+	ePG := wstest.New(t)
+	ad := admintest.Open(t)
+	owner := ids.New()
+	if err := ad.CreateUser(ctx, admin.User{ID: owner, Email: "o@example.com", DisplayName: "O", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Create a SQLite workspace manager
+	sqliteDir := t.TempDir()
+	wmSQLite, err := workspace.NewManager(workspace.Config{
+		DataDir: sqliteDir,
+		Migrate: catalog.Migrate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = wmSQLite.Shutdown(ctx) })
+
+	wsSQLite := ids.NewWorkspaceID()
+	if err := wmSQLite.Create(ctx, wsSQLite); err != nil {
+		t.Fatal(err)
+	}
+	if err := ad.CreateWorkspace(ctx, admin.Workspace{ID: wsSQLite, Name: "SQLite WS", CreatedAt: time.Now().UTC(), CreatedBy: owner}, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	lLite, err := wmSQLite.Acquire(ctx, wsSQLite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lLite.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		if _, err := tx.Exec(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT NOT NULL)`); err != nil {
+			return err
+		}
+		for i := range 10 {
+			if _, err := tx.Exec(ctx, `INSERT INTO items (title) VALUES (?)`, fmt.Sprintf("item %d", i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	svc := &Service{
+		DataDir:    dir,
+		BackupDir:  filepath.Join(dir, "backups"),
+		Admin:      ad,
+		Workspaces: wmSQLite,
+		Key:        []byte(strings.Repeat("k", 32)),
+		AppVersion: "test",
+	}
+
+	bLite, err := svc.Snapshot(ctx, lLite, admin.BackupManual, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lLite.Release()
+
+	// 2. Restore SQLite backup into PostgreSQL workspace
+	svc.Workspaces = ePG.Manager
+	idPG, err := svc.RestoreAsNew(ctx, bLite.ID, func(id ids.WorkspaceID) error {
+		return ad.CreateWorkspace(ctx, admin.Workspace{ID: id, Name: "PG from SQLite", CreatedAt: time.Now().UTC(), CreatedBy: owner}, owner)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		n := ePG.Names(idPG)
+		ePG.PG.DropRoles(n.ReadLogin(), n.WriteLogin(), n.WriteRole(), n.ReadRole())
+	})
+
+	lPG, err := ePG.Acquire(ctx, idPG)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	if err := lPG.Read(ctx, func(q dbx.Querier) error {
+		return q.QueryRow(ctx, `SELECT count(*) FROM items`).Scan(&count)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lPG.Release()
+	if count != 10 {
+		t.Fatalf("expected 10 items in PostgreSQL, got %d", count)
+	}
+
+	// 3. Take backup from PostgreSQL workspace and restore as new into SQLite
+	lPG, err = ePG.Acquire(ctx, idPG)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bPG, err := svc.Snapshot(ctx, lPG, admin.BackupManual, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lPG.Release()
+
+	svc.Workspaces = wmSQLite
+	idLite, err := svc.RestoreAsNew(ctx, bPG.ID, func(id ids.WorkspaceID) error {
+		return ad.CreateWorkspace(ctx, admin.Workspace{ID: id, Name: "SQLite from PG", CreatedAt: time.Now().UTC(), CreatedBy: owner}, owner)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lLite2, err := wmSQLite.Acquire(ctx, idLite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var countLite int64
+	if err := lLite2.Read(ctx, func(q dbx.Querier) error {
+		return q.QueryRow(ctx, `SELECT count(*) FROM items`).Scan(&countLite)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lLite2.Release()
+	if countLite != 10 {
+		t.Fatalf("expected 10 items in SQLite restored from PG, got %d", countLite)
+	}
+}
+
+func TestPostgresCrashMatrix(t *testing.T) {
+	if !wstest.Postgres() {
+		t.Skip("PostgreSQL not enabled")
+	}
+	ctx := context.Background()
+	steps := []string{"prepared", "restoring", "swapped", "finish"}
+	for _, step := range steps {
+		t.Run(step, func(t *testing.T) {
+			e := wstest.New(t)
+			ad := admintest.Open(t)
+			owner := ids.New()
+			_ = ad.CreateUser(ctx, admin.User{ID: owner, Email: "o@example.com", DisplayName: "O", CreatedAt: time.Now().UTC()})
+			ws := e.Create(t)
+			_ = ad.CreateWorkspace(ctx, admin.Workspace{ID: ws, Name: "Main", CreatedAt: time.Now().UTC(), CreatedBy: owner}, owner)
+
+			dir := t.TempDir()
+			svc := &Service{
+				DataDir:    dir,
+				BackupDir:  filepath.Join(dir, "backups"),
+				Admin:      ad,
+				Workspaces: e.Manager,
+				Key:        []byte(strings.Repeat("k", 32)),
+				AppVersion: "test",
+			}
+
+			l, err := e.Acquire(ctx, ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+				_, err := tx.Exec(ctx, `CREATE TABLE items (id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, val TEXT)`)
+				if err != nil {
+					return err
+				}
+				_, err = tx.Exec(ctx, `INSERT INTO items (val) VALUES ('v1')`)
+				return err
+			})
+
+			b, err := svc.Snapshot(ctx, l, admin.BackupManual, owner)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Diverge live workspace
+			_ = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {
+				_, err := tx.Exec(ctx, `INSERT INTO items (val) VALUES ('v2')`)
+				return err
+			})
+			l.Release()
+
+			svc.hook = func(s string) error {
+				if s == step {
+					return errCrash
+				}
+				return nil
+			}
+
+			err = svc.Restore(ctx, ws, b.ID, owner)
+			if !errors.Is(err, errCrash) {
+				t.Fatalf("expected simulated crash at %s, got: %v", step, err)
+			}
+
+			// Recover
+			svc.hook = nil
+			if err := svc.Recover(ctx); err != nil {
+				t.Fatalf("recover failed: %v", err)
+			}
+
+			// Check workspace status
+			w, err := ad.GetWorkspace(ctx, ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if w.Status != admin.StatusActive {
+				t.Fatalf("expected status active, got %s", w.Status)
+			}
+
+			// Check row count:
+			// prepared, restoring -> old state ('v1', 'v2' => 2 rows)
+			// swapped, finish -> new state (snapshot 'v1' => 1 row)
+			lCheck, err := e.Acquire(ctx, ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var count int64
+			_ = lCheck.Read(ctx, func(q dbx.Querier) error {
+				return q.QueryRow(ctx, `SELECT count(*) FROM items`).Scan(&count)
+			})
+			lCheck.Release()
+
+			switch step {
+			case "prepared", "restoring":
+				if count != 2 {
+					t.Fatalf("crash at %s: expected old state (2 rows), got %d", step, count)
+				}
+			case "swapped", "finish":
+				if count != 1 {
+					t.Fatalf("crash at %s: expected new state (1 row), got %d", step, count)
+				}
+			}
+		})
 	}
 }

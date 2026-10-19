@@ -151,6 +151,8 @@ func StorageForm(t FieldType, v any) any {
 			return nil
 		}
 		return string(b)
+	case []byte:
+		return string(x)
 	}
 	return v
 }

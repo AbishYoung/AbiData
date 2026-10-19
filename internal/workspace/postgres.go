@@ -41,12 +41,17 @@ type PostgresConfig struct {
 	Sandbox *pgdb.Sandbox
 	// Migrate creates or migrates a workspace's system tables (catalog.MigratePostgres).
 	Migrate func(ctx context.Context, id ids.WorkspaceID, d dbx.Execer, n pgdb.Names) error
+	// Adopt provisions schema and roles for id and imports SQLite archive src into it.
+	Adopt func(ctx context.Context, id ids.WorkspaceID, src string) error
 	// QuotaSampleInterval rate-limits DB size quota sampling after writes.
 	// 0 means sample after every write.
 	QuotaSampleInterval time.Duration
 }
 
 func (m *Manager) pg() *PostgresConfig { return m.cfg.Postgres }
+
+// Postgres returns the manager's PostgreSQL configuration, or nil on SQLite.
+func (m *Manager) Postgres() *PostgresConfig { return m.cfg.Postgres }
 
 // Names returns a workspace's PostgreSQL object names.
 func (m *Manager) Names(id ids.WorkspaceID) pgdb.Names {

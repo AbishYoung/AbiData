@@ -215,9 +215,6 @@ func (l *Lease) Maintenance(ctx context.Context, fn func(c *sqlitex.Conn) error)
 // connections, runs fn with the file paths, then reopens (running migrations).
 // If other leases do not drain within drain, it gives up with WORKSPACE_BUSY.
 func (l *Lease) Exclusive(ctx context.Context, drain time.Duration, fn func(paths Paths) error) error {
-	if l.m.pg() != nil {
-		return ErrSQLiteOnly
-	}
 	if l.writing.Load() || ctx.Value(writeKey{l.h.id}) != nil {
 		return ErrNestedWrite
 	}
@@ -251,6 +248,26 @@ func (l *Lease) Exclusive(ctx context.Context, drain time.Duration, fn func(path
 			l.reopenAfterAbort()
 			return ctx.Err()
 		}
+	}
+
+	if m.pg() != nil {
+		m.mu.Lock()
+		h.state = stRestoring
+		m.mu.Unlock()
+		h.schemaGen.Add(1)
+		m.pg().Sandbox.Forget(m.Names(h.id))
+
+		fnErr := fn(h.paths)
+
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		h.drained = nil
+		h.scriptCtx, h.scriptStop = context.WithCancel(context.Background())
+		h.state = stOpen
+		if fnErr == nil {
+			_ = h.samplePGSize(context.WithoutCancel(ctx), m, true)
+		}
+		return fnErr
 	}
 
 	m.mu.Lock()

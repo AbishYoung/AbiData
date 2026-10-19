@@ -71,4 +71,13 @@ var (
 		AND name NOT LIKE '\_sys\_%' ESCAPE '\'`).
 		WithPostgres(`SELECT relname AS name FROM pg_class WHERE relkind IN ('r', 'p') AND relnamespace = current_schema()::regnamespace
 		AND relname NOT LIKE '\_sys\_%' ESCAPE '\'`)
+	sqlInterchangeFKOff           = sqlgen.RegisterSQLiteOnly("catalog.interchange.fkOff", `PRAGMA foreign_keys = OFF`)
+	sqlInterchangeFKOn            = sqlgen.RegisterSQLiteOnly("catalog.interchange.fkOn", `PRAGMA foreign_keys = ON`)
+	sqlInterchangeListSysTables   = sqlgen.RegisterSQLiteOnly("catalog.interchange.listSysTables", `SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE '_sys_%' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	sqlInterchangeClearSysMeta    = sqlgen.Register("catalog.interchange.clearSysMeta", `DELETE FROM _sys_meta`)
+	sqlInterchangePGTableExists   = sqlgen.RegisterPostgresOnly("catalog.interchange.pgTableExists", `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?)`)
+	sqlInterchangePGRawTables     = sqlgen.RegisterPostgresOnly("catalog.interchange.pgRawTables", `SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' AND table_name NOT LIKE '_sys_%' ORDER BY table_name`)
+	sqlInterchangePGColumns       = sqlgen.RegisterPostgresOnly("catalog.interchange.pgColumns", `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position`)
+	sqlInterchangeSQLiteRawTables = sqlgen.RegisterSQLiteOnly("catalog.interchange.sqliteRawTables", `SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sys_%' ORDER BY name`)
+	sqlInterchangeSchemaExists    = sqlgen.RegisterPostgresOnly("catalog.interchange.schemaExists", `SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = ?)`)
 )

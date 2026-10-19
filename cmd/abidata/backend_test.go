@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,8 +32,8 @@ func TestCheckBackend(t *testing.T) {
 func TestCheckBackendPostgres(t *testing.T) {
 	e := pgtest.New(t)
 	err := checkBackend(context.Background(), config.Config{DB: config.DBPostgres, DataDir: t.TempDir(), PostgresURL: e.AppURL()})
-	if !errors.Is(err, errPostgresWorkspaces) {
-		t.Fatalf("a server the app can run on is checked, then refused until Phase 3: %v", err)
+	if err != nil {
+		t.Fatalf("a server the app can run on should pass checkBackend: %v", err)
 	}
 	e.Superuser(t, `ALTER ROLE `+pgtest.Ident(e.Role)+` NOCREATEROLE`)
 	err = checkBackend(context.Background(), config.Config{DB: config.DBPostgres, DataDir: t.TempDir(), PostgresURL: e.AppURL()})

@@ -14,11 +14,6 @@ import (
 	"abidata/internal/pgdb"
 )
 
-// errPostgresWorkspaces is the answer to ABIDATA_DB=postgres until workspaces
-// run on PostgreSQL (ADR 0012 Phase 3): an install is never half on one
-// backend and half on the other.
-var errPostgresWorkspaces = errors.New("ABIDATA_DB=postgres: this version keeps workspaces on SQLite only; PostgreSQL workspaces arrive with ADR 0012 Phase 3")
-
 // checkBackend runs the startup checks of ADR 0012 §1 before anything is
 // created: the data directory must not hold an install of the other
 // backend, and a PostgreSQL server must be one the app can run on. It
@@ -45,5 +40,5 @@ func checkBackend(ctx context.Context, cfg config.Config) error {
 	if err := pgdb.CheckServer(ctx, pgdb.Pool(pool)); err != nil {
 		return err
 	}
-	return errPostgresWorkspaces
+	return nil
 }
