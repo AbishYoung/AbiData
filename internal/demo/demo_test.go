@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"abidata/internal/admin"
+	"abidata/internal/admin/admintest"
 	"abidata/internal/artifacts"
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
@@ -28,6 +29,7 @@ import (
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type rig struct {
@@ -47,18 +49,12 @@ func newRig(t *testing.T) *rig {
 	if err := os.MkdirAll(filepath.Join(dir, "system"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	adm, err := admin.Open(ctx, filepath.Join(dir, "system", "admin.db"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	adm := admintest.Open(t)
 	owner := ids.New()
 	if err := adm.CreateUser(ctx, admin.User{ID: owner, Email: "owner@example.com", DisplayName: "Owner", IsPlatformAdmin: true, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	wm, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
+	wm := wstest.New(t).Manager
 	schemas := catalog.NewCache()
 	engine := &catalog.Engine{Validators: []catalog.Validator{query.SchemaValidator, forms.SchemaValidator, reports.SchemaValidator},
 		AfterCommit: func(_ context.Context, l *workspace.Lease, s *catalog.Schema) { schemas.Put(l.ID(), s) }}
@@ -72,8 +68,6 @@ func newRig(t *testing.T) *rig {
 	sched := jobs.New(jobs.Config{Store: store, Executor: exec, Workers: 2})
 	t.Cleanup(func() {
 		sched.Wait()
-		_ = wm.Shutdown(ctx)
-		_ = adm.Close()
 	})
 	return &rig{ctx: ctx, adm: adm, wm: wm, owner: owner, sched: sched, dir: dir, b: &demo.Builder{
 		Admin: adm, Workspaces: wm, Schemas: schemas, Catalog: engine, Records: rec, Queries: qs, Scripts: ss,
@@ -134,7 +128,7 @@ func TestCreateBuildsNorthwind(t *testing.T) {
 	// Dates are relative to now: the newest order is recent, the oldest within ~6 months.
 	var newest, oldest string
 	if err := l.Read(r.ctx, func(q dbx.Querier) error {
-		return q.QueryRow(r.ctx, `SELECT max("Order_date"), min("Order_date") FROM "Orders"`).Scan(&newest, &oldest)
+		return q.QueryRow(r.ctx, `SELECT CAST(max("Order_date") AS TEXT), CAST(min("Order_date") AS TEXT) FROM "Orders"`).Scan(&newest, &oldest)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +262,7 @@ func TestJobScriptValidAndRuns(t *testing.T) {
 
 	// Corrupt the flag, run the job, and see it repaired.
 	if err := l.Write(r.ctx, workspace.Interactive, func(tx dbx.Tx) error {
-		_, err := tx.Exec(r.ctx, `UPDATE "Products" SET "Low_stock" = 0`)
+		_, err := tx.Exec(r.ctx, `UPDATE "Products" SET "Low_stock" = FALSE`)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -286,10 +280,10 @@ func TestJobScriptValidAndRuns(t *testing.T) {
 	if got.Status != jobs.StatusSucceeded {
 		t.Fatalf("run: %+v", got)
 	}
-	if n := count(t, r, l, `SELECT count(*) FROM "Products" WHERE "Low_stock" = 1`); n == 0 {
+	if n := count(t, r, l, `SELECT count(*) FROM "Products" WHERE "Low_stock"`); n == 0 {
 		t.Error("job did not set low-stock flags")
 	}
-	if n := count(t, r, l, `SELECT count(*) FROM "Products" WHERE "Low_stock" = 1 AND "Discontinued" = 1`); n != 0 {
+	if n := count(t, r, l, `SELECT count(*) FROM "Products" WHERE "Low_stock" AND "Discontinued"`); n != 0 {
 		t.Error("discontinued products must not be flagged")
 	}
 }
@@ -378,13 +372,20 @@ func TestDeterministicContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		l, _ := r.wm.Acquire(r.ctx, res.WorkspaceID)
-		if err := l.Read(r.ctx, func(q dbx.Querier) error {
-			return q.QueryRow(r.ctx, `SELECT group_concat("Order_ref" || "Order_date" || "Total" || "Status", ',') FROM (SELECT * FROM "Orders" ORDER BY id)`).Scan(&sums[i])
-		}); err != nil {
+		l, err := r.wm.Acquire(r.ctx, res.WorkspaceID)
+		if err != nil {
 			t.Fatal(err)
 		}
+		row := `"Order_ref" || CAST("Order_date" AS TEXT) || CAST("Total" AS TEXT) || "Status"`
+		agg := `SELECT group_concat(` + row + `, ',') FROM (SELECT * FROM "Orders" ORDER BY id) AS o`
+		if wstest.Postgres() {
+			agg = `SELECT string_agg(` + row + `, ',' ORDER BY id) FROM "Orders"`
+		}
+		err = l.Read(r.ctx, func(q dbx.Querier) error { return q.QueryRow(r.ctx, agg).Scan(&sums[i]) })
 		l.Release()
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	if sums[0] == "" || sums[0] != sums[1] {
 		t.Fatal("demo content differs between builds with the same clock")
@@ -485,14 +486,14 @@ func TestBiosecurityTablesAndData(t *testing.T) {
 		t.Errorf("%d sightings far from their supplier", n)
 	}
 	// Dates spread over about six months before the (real) seed time, none in the future.
-	var oldest, newest string
+	var oldest, newest any
 	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(r.ctx, `SELECT min("Observed_at"), max("Observed_at") FROM "Pest_sightings"`).Scan(&oldest, &newest)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	ot, err1 := time.Parse(time.RFC3339, oldest)
-	nt, err2 := time.Parse(time.RFC3339, newest)
+	ot, err1 := asTime(oldest)
+	nt, err2 := asTime(newest)
 	if err1 != nil || err2 != nil {
 		t.Fatalf("observed at: %q %q", oldest, newest)
 	}
@@ -516,13 +517,13 @@ func TestBiosecurityTablesAndData(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	var stamp string
+	var stamp any
 	if err := l.Read(r.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(r.ctx, `SELECT "Observed_at" FROM "Pest_sightings" ORDER BY id DESC LIMIT 1`).Scan(&stamp)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if st, err := time.Parse(time.RFC3339, stamp); err != nil || time.Since(st) > time.Minute || time.Since(st) < -time.Minute {
+	if st, err := asTime(stamp); err != nil || time.Since(st) > time.Minute || time.Since(st) < -time.Minute {
 		t.Errorf("default observed at: %q %v", stamp, err)
 	}
 }
@@ -564,7 +565,8 @@ func TestBiosecuritySpatialQueries(t *testing.T) {
 	if holeSightings < 2 {
 		t.Errorf("%d sightings in the hole of the Loire zone, want at least 2", holeSightings)
 	}
-	if n := count(t, r, l, `SELECT count(*) FROM "Quarantine_zones" WHERE json_array_length(json_extract("Boundary", '$.coordinates')) = 2`); n != 1 {
+	if n := count(t, r, l, jsonSQL(`SELECT count(*) FROM "Quarantine_zones" WHERE json_array_length(json_extract("Boundary", '$.coordinates')) = 2`,
+		`SELECT count(*) FROM "Quarantine_zones" WHERE jsonb_array_length("Boundary" -> 'coordinates') = 2`)); n != 1 {
 		t.Errorf("%d zones with a hole, want exactly 1", n)
 	}
 	// And some sightings are outside every zone.
@@ -622,10 +624,12 @@ func TestBiosecurityPhotos(t *testing.T) {
 	if n := count(t, r, l, `SELECT count(*) FROM _sys_file_refs WHERE table_id = '`+sig.ID+`' AND column_id = '`+photos.ID+`'`); n < with {
 		t.Errorf("%d file refs for %d sightings with photos", n, with)
 	}
-	if n := count(t, r, l, `SELECT count(*) FROM "Pest_sightings" WHERE json_array_length("Photos") > 3`); n != 0 {
+	if n := count(t, r, l, jsonSQL(`SELECT count(*) FROM "Pest_sightings" WHERE json_array_length("Photos") > 3`,
+		`SELECT count(*) FROM "Pest_sightings" WHERE jsonb_array_length("Photos") > 3`)); n != 0 {
 		t.Errorf("%d sightings with more than 3 photos", n)
 	}
-	if n := count(t, r, l, `SELECT count(*) FROM "Pest_sightings" WHERE json_array_length("Photos") >= 2`); n == 0 {
+	if n := count(t, r, l, jsonSQL(`SELECT count(*) FROM "Pest_sightings" WHERE json_array_length("Photos") >= 2`,
+		`SELECT count(*) FROM "Pest_sightings" WHERE jsonb_array_length("Photos") >= 2`)); n == 0 {
 		t.Error("no sighting has several photos")
 	}
 	if n := count(t, r, l, `SELECT count(*) FROM _sys_files WHERE state <> 'attached'`); n != 0 {
@@ -847,4 +851,21 @@ func TestSampleExpressionsParse(t *testing.T) {
 			t.Errorf("%v has no expressions to check", kind)
 		}
 	}
+}
+
+// jsonSQL picks the test's SQLite or PostgreSQL spelling of a JSON query.
+func jsonSQL(sqlite, postgres string) string {
+	if wstest.Postgres() {
+		return postgres
+	}
+	return sqlite
+}
+
+// asTime reads a stored date-time: RFC 3339 text on SQLite, a time on PostgreSQL.
+func asTime(v any) (time.Time, error) {
+	if t, ok := v.(time.Time); ok {
+		return t, nil
+	}
+	s, _ := v.(string)
+	return time.Parse(time.RFC3339, s)
 }

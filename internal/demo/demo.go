@@ -447,7 +447,7 @@ func (b *Builder) build(ctx context.Context, kind Kind, id ids.WorkspaceID, owne
 	O, P, L, E := q(ord.t.PhysicalName), q(prod.t.PhysicalName), q(lin.t.PhysicalName), q(emp.t.PhysicalName)
 	saved := []query.SavedInput{
 		{Name: "Sales by month", Kind: "sql", Description: "Order count and revenue per month, excluding cancelled orders.",
-			SQL: fmt.Sprintf(`SELECT substr(o.%s, 1, 7) AS Month, count(*) AS Orders, sum(o.%s) / 10000.0 AS Revenue FROM %s o `+
+			SQL: fmt.Sprintf(`SELECT substr(o.%s, 1, 7) AS "Month", count(*) AS "Orders", sum(o.%s) / 10000.0 AS "Revenue" FROM %s o `+
 				`WHERE o.%s <> 'Cancelled' GROUP BY 1 ORDER BY 1`,
 				q(ord.phys("Order date")), q(ord.phys("Total")), O, q(ord.phys("Status")))},
 		// Top customers and Open orders are visual queries, so the sample shows the designer: a join,
@@ -465,8 +465,8 @@ func (b *Builder) build(ctx context.Context, kind Kind, id ids.WorkspaceID, owne
 				Limit: 10,
 			}},
 		{Name: "Low stock", Kind: "sql", Description: "Active products at or below their reorder level.",
-			SQL: fmt.Sprintf(`SELECT p.%s AS Product, p.%s AS Category, p.%s AS "In stock", p.%s AS "Reorder level" FROM %s p `+
-				`WHERE p.%s <> 1 AND p.%s <= p.%s ORDER BY p.%s - p.%s`,
+			SQL: fmt.Sprintf(`SELECT p.%s AS "Product", p.%s AS "Category", p.%s AS "In stock", p.%s AS "Reorder level" FROM %s p `+
+				`WHERE NOT p.%s AND p.%s <= p.%s ORDER BY p.%s - p.%s`,
 				q(prod.phys("Product")), q(prod.phys("Category")), q(prod.phys("In stock")), q(prod.phys("Reorder level")), P,
 				q(prod.phys("Discontinued")), q(prod.phys("In stock")), q(prod.phys("Reorder level")), q(prod.phys("In stock")), q(prod.phys("Reorder level")))},
 		{Name: "Open orders", Kind: "visual", Description: "Orders that are not yet delivered or cancelled.",
@@ -482,13 +482,13 @@ func (b *Builder) build(ctx context.Context, kind Kind, id ids.WorkspaceID, owne
 				},
 			}},
 		{Name: "Revenue by category", Kind: "sql", Description: "Units sold and revenue per product category, from the order lines.",
-			SQL: fmt.Sprintf(`SELECT p.%s AS Category, sum(l.%s) AS Units, sum(l.%s) / 10000.0 AS Revenue FROM %s l `+
-				`JOIN %s p ON p.id = l.%s JOIN %s o ON o.id = l.%s WHERE o.%s <> 'Cancelled' GROUP BY 1 ORDER BY Revenue DESC`,
+			SQL: fmt.Sprintf(`SELECT p.%s AS "Category", sum(l.%s) AS "Units", sum(l.%s) / 10000.0 AS "Revenue" FROM %s l `+
+				`JOIN %s p ON p.id = l.%s JOIN %s o ON o.id = l.%s WHERE o.%s <> 'Cancelled' GROUP BY 1 ORDER BY "Revenue" DESC`,
 				q(prod.phys("Category")), q(lin.phys("Quantity")), q(lin.phys("Line total")), L, P, q(lin.phys("Product")),
 				O, q(lin.phys("Sales order")), q(ord.phys("Status")))},
 		{Name: "Sales by employee", Kind: "sql", Description: "Revenue per sales representative.",
-			SQL: fmt.Sprintf(`SELECT e.%s AS Employee, count(*) AS Orders, sum(o.%s) / 10000.0 AS Revenue FROM %s o JOIN %s e ON e.id = o.%s `+
-				`WHERE o.%s <> 'Cancelled' GROUP BY e.id ORDER BY Revenue DESC`,
+			SQL: fmt.Sprintf(`SELECT e.%s AS "Employee", count(*) AS "Orders", sum(o.%s) / 10000.0 AS "Revenue" FROM %s o JOIN %s e ON e.id = o.%s `+
+				`WHERE o.%s <> 'Cancelled' GROUP BY e.id ORDER BY "Revenue" DESC`,
 				q(emp.phys("Name")), q(ord.phys("Total")), O, E, q(ord.phys("Employee")), q(ord.phys("Status")))},
 	}
 	for _, in := range saved {
@@ -525,10 +525,10 @@ func lowStockScript(prod tbl) string {
 	// Lua long strings keep the SQL readable; identifiers come from the catalog.
 	return fmt.Sprintf(`-- Marks products whose stock has fallen to their reorder level.
 -- Runs daily (see Jobs). It only reads and writes this workspace: no network.
-db.exec([[UPDATE %[1]s SET %[2]s = CASE WHEN %[3]s <= %[4]s AND %[5]s <> 1 THEN 1 ELSE 0 END]])
+db.exec([[UPDATE %[1]s SET %[2]s = COALESCE(%[3]s <= %[4]s AND NOT %[5]s, FALSE)]])
 
-local low = db.query_value([[SELECT count(*) FROM %[1]s WHERE %[2]s = 1]])
-local total = db.query_value([[SELECT count(*) FROM %[1]s WHERE %[5]s <> 1]])
+local low = db.query_value([[SELECT count(*) FROM %[1]s WHERE %[2]s]])
+local total = db.query_value([[SELECT count(*) FROM %[1]s WHERE NOT %[5]s]])
 log.info("low-stock products", {low = low, active = total})
 
 artifacts.save("low-stock.csv", csv.encode({{"low_stock_products", low}, {"active_products", total}}))

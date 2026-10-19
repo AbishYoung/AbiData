@@ -15,7 +15,7 @@ import (
 	_ "abidata/internal/script/modules/geo"
 	_ "abidata/internal/script/modules/json"
 	_ "abidata/internal/script/modules/records"
-	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type fx struct {
@@ -28,19 +28,14 @@ type fx struct {
 func setup(t *testing.T) *fx {
 	t.Helper()
 	ctx := context.Background()
-	m, err := workspace.NewManager(workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := ids.NewWorkspaceID()
-	if err := m.Create(ctx, id); err != nil {
-		t.Fatal(err)
-	}
+	w := wstest.New(t)
+	m := w.Manager
+	id := w.Create(t)
 	l, err := m.Acquire(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { l.Release(); _ = m.Shutdown(ctx) })
+	t.Cleanup(l.Release)
 	e := &catalog.Engine{}
 	if _, err := e.Run(ctx, l, []catalog.Op{{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: "Sightings",
 		Columns: []catalog.ColumnSpec{
@@ -158,7 +153,7 @@ func TestGeoRecordsRoundTrip(t *testing.T) {
 	// db.query returns the stored GeoJSON text, which geo functions accept.
 	v = f.run(t, `
 		records.insert("Sightings", {Name = "c", Spot = geo.point(1, 2)})
-		local row = db.query_one("SELECT Spot FROM Sightings WHERE Name = 'c'")
+		local row = db.query_one([[SELECT "Spot" FROM "Sightings" WHERE "Name" = 'c']])
 		return type(row.Spot), geo.lat(row.Spot), geo.lon(row.Spot)`)
 	if v[0] != "string" || v[1] != int64(1) || v[2] != int64(2) {
 		t.Errorf("%#v", v)

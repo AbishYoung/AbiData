@@ -22,6 +22,7 @@ import (
 	_ "abidata/internal/ingest"
 	_ "abidata/internal/jobs"
 	_ "abidata/internal/ops"
+	_ "abidata/internal/pgtest"
 	_ "abidata/internal/query"
 	_ "abidata/internal/records"
 	_ "abidata/internal/reports"

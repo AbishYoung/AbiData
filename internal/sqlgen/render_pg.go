@@ -146,8 +146,12 @@ func (r *renderer) pgText(e Expr) {
 
 // ciCollation is the case-insensitive collation: SQLite's NOCASE, and on
 // PostgreSQL <prefix>_lib's abi_ci (found on the search path).
-func (r *renderer) ciCollation() string {
-	if r.pg() {
+func (r *renderer) ciCollation() string { return CICollation(r.d) }
+
+// CICollation is d's case-insensitive collation, for hand-written ORDER BY
+// clauses: NOCASE on SQLite, <prefix>_lib's abi_ci on PostgreSQL.
+func CICollation(d Dialect) string {
+	if d == Postgres {
 		return "abi_ci"
 	}
 	return "NOCASE"

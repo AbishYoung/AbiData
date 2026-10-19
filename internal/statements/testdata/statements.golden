@@ -139,7 +139,7 @@ ingest.createStagingSchema	workspace	portable
 ingest.readMeta	staging	portable	key,value
 ingest.saveMeta	staging	portable	
 ingest.setStatus	staging	portable	
-jobs.ByName	workspace	sqlite	id
+jobs.ByName	workspace	variant	id
 jobs.Delete	workspace	portable	
 jobs.Delete#2	workspace	portable	
 jobs.Put	workspace	portable	
@@ -154,6 +154,7 @@ ops.Reconcile	workspace	portable	id
 ops.Reconcile#2	workspace	portable	
 ops.Start	workspace	portable	
 ops.finish	workspace	portable	
+pgtest.prefixRoles	-	postgres	-
 query.Delete	workspace	portable	version
 query.Delete#2	workspace	portable	name
 query.RefreshCompiled	workspace	portable	value

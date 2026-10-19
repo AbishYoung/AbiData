@@ -10,6 +10,7 @@ import (
 	"abidata/internal/events"
 	"abidata/internal/fault"
 	"abidata/internal/ids"
+	"abidata/internal/pgdb"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
 )
@@ -74,7 +75,7 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Job, 
 func (s *Service) ByName(ctx context.Context, l *workspace.Lease, name string) (Job, error) {
 	var id string
 	err := l.Read(ctx, func(q dbx.Querier) error {
-		return q.QueryRow(ctx, sqlByName.SQL, name).Scan(&id)
+		return q.QueryRow(ctx, sqlByName.For(pgdb.DialectOf(q)), name).Scan(&id)
 	})
 	if dbx.IsNoRows(err) {
 		return Job{}, fault.Newf(fault.NotFound, "There is no job named %q.", name)

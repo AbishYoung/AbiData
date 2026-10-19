@@ -15,6 +15,7 @@ import (
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type filesRig struct {
@@ -32,19 +33,14 @@ func newFilesRig(t *testing.T) *filesRig {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
-	m, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ws := ids.NewWorkspaceID()
-	if err := m.Create(ctx, ws); err != nil {
-		t.Fatal(err)
-	}
+	w := wstest.New(t)
+	m := w.Manager
+	ws := w.Create(t)
 	l, err := m.Acquire(ctx, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { l.Release(); _ = m.Shutdown(ctx) })
+	t.Cleanup(l.Release)
 	cache := catalog.NewCache()
 	if _, err := (&catalog.Engine{}).Run(ctx, l, []catalog.Op{{Kind: catalog.OpCreateTable, Table: &catalog.TableSpec{DisplayName: "Reports",
 		Columns: []catalog.ColumnSpec{{DisplayName: "Title", Type: catalog.ShortText}, {DisplayName: "Attachment", Type: catalog.Attachments}}}}},

@@ -47,7 +47,7 @@ func rowFault(err error) bool {
 // mergeSQL renders the explicit-column write statement for plan p. It has one
 // positional placeholder per plan column, in plan order, so the applier runs
 // it once per row with that row's values.
-func mergeSQL(p *plan) (string, error) {
+func mergeSQL(d sqlgen.Dialect, p *plan) (string, error) {
 	t := p.Table
 	ins := &sqlgen.Insert{Table: t.PhysicalName, Rows: [][]sqlgen.Expr{make([]sqlgen.Expr, len(p.Cols))}}
 	for i, mc := range p.Cols {
@@ -60,7 +60,9 @@ func mergeSQL(p *plan) (string, error) {
 		case catalog.ShortText, catalog.LongText, catalog.Hyperlink:
 			textKey = true // text indexes are case-insensitive
 		}
-		set := []sqlgen.Assign{{Column: "_version", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Name: "_version"}, R: sqlgen.Lit{Value: 1}}}}
+		// The existing row's _version, named by its table: bare, PostgreSQL
+		// finds it ambiguous with excluded's.
+		set := []sqlgen.Assign{{Column: "_version", Value: sqlgen.Binary{Op: sqlgen.OpAdd, L: sqlgen.Col{Table: t.PhysicalName, Name: "_version"}, R: sqlgen.Lit{Value: 1}}}}
 		for _, mc := range p.Cols {
 			if mc.Col.ID != p.Key.ID {
 				set = append(set, sqlgen.Assign{Column: mc.Col.PhysicalName, Value: sqlgen.Excluded(mc.Col.PhysicalName)})
@@ -69,7 +71,7 @@ func mergeSQL(p *plan) (string, error) {
 		ins.OnConflict = &sqlgen.OnConflict{Target: []sqlgen.Col{{Name: p.Key.PhysicalName, CI: textKey}}, Set: set}
 		ins.Returning = []sqlgen.Column{{Expr: sqlgen.Col{Name: "_version"}}}
 	}
-	r, err := sqlgen.Render(sqlgen.SQLite, ins)
+	r, err := sqlgen.Render(d, ins)
 	if err != nil {
 		return "", fmt.Errorf("ingest: %w", err)
 	}
@@ -78,18 +80,19 @@ func mergeSQL(p *plan) (string, error) {
 
 // applier writes converted rows inside one transaction.
 type applier struct {
+	d      sqlgen.Dialect
 	p      *plan
 	sql    string
 	strict bool // any row failure aborts the whole merge
 	keyIdx int
 }
 
-func newApplier(p *plan, strict bool) (*applier, error) {
-	sql, err := mergeSQL(p)
+func newApplier(d sqlgen.Dialect, p *plan, strict bool) (*applier, error) {
+	sql, err := mergeSQL(d, p)
 	if err != nil {
 		return nil, err
 	}
-	a := &applier{p: p, sql: sql, strict: strict, keyIdx: -1}
+	a := &applier{d: d, p: p, sql: sql, strict: strict, keyIdx: -1}
 	for i, mc := range p.Cols {
 		if p.Key != nil && mc.Col.ID == p.Key.ID {
 			a.keyIdx = i
@@ -99,7 +102,20 @@ func newApplier(p *plan, strict bool) (*applier, error) {
 }
 
 func (a *applier) apply(ctx context.Context, tx dbx.Tx, res *MergeResult, n int64, vals []any) error {
+	if a.d != sqlgen.SQLite {
+		args := make([]any, len(vals))
+		for i, mc := range a.p.Cols {
+			args[i] = records.ArgValue(a.d, mc.Col, vals[i])
+		}
+		vals = args
+	}
 	var err error
+	write := func(fn func() error) error { return fn() }
+	if a.d != sqlgen.SQLite && !a.strict {
+		// A failed statement aborts a PostgreSQL transaction; a savepoint
+		// lets the row be skipped, as SQLite does.
+		write = func(fn func() error) error { return tx.Savepoint(ctx, fn) }
+	}
 	if a.p.Mode == ModeUpsert {
 		if vals[a.keyIdx] == nil {
 			re := RowError{Row: n, Column: a.p.Key.DisplayName, Code: string(fault.RequiredField), Message: fmt.Sprintf("%q is empty, so the row cannot be matched.", a.p.Key.DisplayName)}
@@ -110,7 +126,7 @@ func (a *applier) apply(ctx context.Context, tx dbx.Tx, res *MergeResult, n int6
 			return nil
 		}
 		var ver int64
-		if err = tx.QueryRow(ctx, a.sql, vals...).Scan(&ver); err == nil {
+		if err = write(func() error { return tx.QueryRow(ctx, a.sql, vals...).Scan(&ver) }); err == nil {
 			if ver == 1 {
 				res.Inserted++
 			} else {
@@ -119,7 +135,7 @@ func (a *applier) apply(ctx context.Context, tx dbx.Tx, res *MergeResult, n int6
 			return nil
 		}
 	} else {
-		if _, err = tx.Exec(ctx, a.sql, vals...); err == nil {
+		if err = write(func() error { _, err := tx.Exec(ctx, a.sql, vals...); return err }); err == nil {
 			res.Inserted++
 			return nil
 		}
@@ -147,6 +163,45 @@ func (a *applier) apply(ctx context.Context, tx dbx.Tx, res *MergeResult, n int6
 		return rowAbort(re)
 	}
 	res.addError(re)
+	return nil
+}
+
+// okRow is a converted row and its number in the file.
+type okRow struct {
+	n    int64
+	vals []any
+}
+
+// applyChunk applies rows that may be skipped one by one. On PostgreSQL each
+// would need its own savepoint, so the chunk is first tried in one; only when
+// a row fails is it written again row by row.
+func (a *applier) applyChunk(ctx context.Context, tx dbx.Tx, res *MergeResult, rows []okRow) error {
+	if a.d != sqlgen.SQLite && !a.strict {
+		fast := *a
+		fast.strict = true // the first failing row aborts the try
+		var trial MergeResult
+		err := tx.Savepoint(ctx, func() error {
+			for _, r := range rows {
+				if err := fast.apply(ctx, tx, &trial, r.n, r.vals); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err == nil {
+			res.Inserted += trial.Inserted
+			res.Updated += trial.Updated
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	for _, r := range rows {
+		if err := a.apply(ctx, tx, res, r.n, r.vals); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -178,12 +233,12 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 	if strict && total > AllOrNothingWarnRows {
 		res.Warnings = append(res.Warnings, "All-or-nothing held the workspace writer for the whole import.")
 	}
-	delStmt, err := sqlgen.Render(sqlgen.SQLite, &sqlgen.Delete{Table: p.Table.PhysicalName})
+	delStmt, err := sqlgen.Render(l.Dialect(), &sqlgen.Delete{Table: p.Table.PhysicalName})
 	if err != nil {
 		return res, fmt.Errorf("ingest: %w", err)
 	}
 	del := delStmt.SQL
-	a, err := newApplier(p, strict)
+	a, err := newApplier(l.Dialect(), p, strict)
 	if err != nil {
 		return res, err
 	}
@@ -247,11 +302,7 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 
 	first := true
 	err = readChunks(ctx, src, p, chunk, func(rows []stagedRow) error {
-		type ok struct {
-			n    int64
-			vals []any
-		}
-		good := make([]ok, 0, len(rows))
+		good := make([]okRow, 0, len(rows))
 		var conv []RowError
 		for _, r := range rows {
 			vals, re := convertRow(p, r.vals)
@@ -260,7 +311,7 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 				conv = append(conv, *re)
 				continue
 			}
-			good = append(good, ok{r.n, vals})
+			good = append(good, okRow{r.n, vals})
 		}
 		var local MergeResult
 		err := l.Write(ctx, workspace.Background, func(tx dbx.Tx) error {
@@ -270,12 +321,7 @@ func (s *Service) merge(ctx context.Context, l *workspace.Lease, src *sqlitex.Co
 					return err
 				}
 			}
-			for _, g := range good {
-				if err := a.apply(ctx, tx, &local, g.n, g.vals); err != nil {
-					return err
-				}
-			}
-			return nil
+			return a.applyChunk(ctx, tx, &local, good)
 		})
 		if err != nil {
 			return translateWrite(p.Table, err)
