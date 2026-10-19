@@ -28,6 +28,10 @@ updates:
     groups:
       web-minor:
         update-types: [minor, patch]
+    # typescript-eslint (<6.1) and openapi-typescript (^5) do not yet support TypeScript 6/7.
+    ignore:
+      - dependency-name: typescript
+        versions: [">= 6.a"]
     labels: [dependencies, web]
 
   - package-ecosystem: npm
@@ -41,6 +45,10 @@ updates:
     groups:
       e2e-minor:
         update-types: [minor, patch]
+    # Keep aligned with /web on TypeScript 5.x until web tooling supports >= 6.
+    ignore:
+      - dependency-name: typescript
+        versions: [">= 6.a"]
     labels: [dependencies, e2e]
 
   - package-ecosystem: github-actions
@@ -64,6 +72,10 @@ updates:
       day: monday
     cooldown:
       default-days: 14
+    # Dockerfile and CI pin the Node 24 Active LTS line; odd-numbered releases (25) are non-LTS.
+    ignore:
+      - dependency-name: node
+        versions: [">= 25.a"]
     labels: [dependencies, docker]
 
   - package-ecosystem: docker-compose
