@@ -1666,7 +1666,7 @@ export interface components {
         APIError: {
             error: {
                 /** @enum {string} */
-                code: "APP_ITEM_CHANGED" | "BACKUP_INVALID" | "BAD_REQUEST" | "CONCURRENT_MODIFICATION" | "DUPLICATE_VALUE" | "EGRESS_DENIED" | "EGRESS_FAILED" | "EGRESS_RESPONSE_TOO_LARGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "IMPORT_ROW_ERRORS" | "INTERNAL" | "LINKED_RECORDS" | "NOT_FOUND" | "QUOTA_EXCEEDED" | "RATE_LIMITED" | "REQUIRED_FIELD" | "RESTORE_FAILED" | "SCHEMA_CHANGE_BLOCKED" | "SCRIPT_ERROR" | "SCRIPT_LIMIT_EXCEEDED" | "SCRIPT_TIMEOUT" | "SQL_NOT_ALLOWED" | "UNAUTHENTICATED" | "VALIDATION_FAILED" | "WORKSPACE_BUSY" | "WORKSPACE_MAINTENANCE";
+                code: "APP_ITEM_CHANGED" | "BACKUP_INVALID" | "BAD_REQUEST" | "CONCURRENT_MODIFICATION" | "DUPLICATE_VALUE" | "EGRESS_DENIED" | "EGRESS_FAILED" | "EGRESS_RESPONSE_TOO_LARGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "IMPORT_ROW_ERRORS" | "INTERNAL" | "LINKED_RECORDS" | "NOT_FOUND" | "QUOTA_EXCEEDED" | "RATE_LIMITED" | "REQUIRED_FIELD" | "RESTORE_FAILED" | "SCHEMA_CHANGE_BLOCKED" | "SCRIPT_ERROR" | "SCRIPT_LIMIT_EXCEEDED" | "SCRIPT_TIMEOUT" | "SQL_NOT_ALLOWED" | "UNAUTHENTICATED" | "VALIDATION_FAILED" | "WORKSPACE_BUSY" | "WORKSPACE_MAINTENANCE" | "WORKSPACE_PROTECTED";
                 details?: {
                     [key: string]: unknown;
                 };
@@ -2582,6 +2582,8 @@ export interface components {
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
             status: string;
+            /** @description "blog" for the user's blog workspace (ADR 0017). */
+            system_kind?: string;
             workspace_id: string;
             workspace_name: string;
         };
@@ -3348,6 +3350,7 @@ export interface components {
             quota: components["schemas"]["Quota"];
             /** @enum {string} */
             status: "active" | "suspended" | "restoring" | "needs_repair" | "deleted";
+            system_kind?: string;
         };
         WorkspaceInfo: {
             id: string;
@@ -3355,6 +3358,7 @@ export interface components {
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
             status: string;
+            system_kind?: string;
         };
     };
     responses: never;
@@ -9462,6 +9466,15 @@ export interface operations {
                     "application/json": components["schemas"]["APIError"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
             /** @description Unprocessable Entity */
             422: {
                 headers: {
@@ -9536,6 +9549,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

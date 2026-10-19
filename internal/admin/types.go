@@ -102,14 +102,21 @@ type Quota struct {
 	MaxFileBytes      int64 `json:"max_file_bytes,omitempty"` // total bytes of attached files (ADR 0011); 0 = 5 GiB
 }
 
+// SystemKind marks a workspace the server manages for a user; "" is an ordinary workspace.
+type SystemKind string
+
+// KindBlog is a user's blog workspace (ADR 0017).
+const KindBlog SystemKind = "blog"
+
 // Workspace is the admin-side record of a workspace.
 type Workspace struct {
-	ID        ids.WorkspaceID
-	Name      string
-	Status    WorkspaceStatus
-	Quota     Quota
-	CreatedAt time.Time
-	CreatedBy string
+	ID         ids.WorkspaceID
+	Name       string
+	Status     WorkspaceStatus
+	Quota      Quota
+	CreatedAt  time.Time
+	CreatedBy  string
+	SystemKind SystemKind
 }
 
 // WorkspacePatch updates selected workspace fields; nil fields are unchanged.

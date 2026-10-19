@@ -118,7 +118,20 @@ func (s *demoServer) setup() []any {
 		s.t.Fatalf("setup: %d %v", st, me)
 	}
 	s.csrf, _ = me["csrf_token"].(string)
-	ms, _ := me["memberships"].([]any)
+	all, _ := me["memberships"].([]any)
+	// The administrator's own blog workspace (ADR 0017) is not a demo.
+	var ms []any
+	blogs := 0
+	for _, x := range all {
+		if m, _ := x.(map[string]any); m["system_kind"] == "blog" {
+			blogs++
+			continue
+		}
+		ms = append(ms, x)
+	}
+	if blogs != 1 {
+		s.t.Fatalf("%d blog workspaces after setup: %v", blogs, all)
+	}
 	return ms
 }
 
@@ -266,7 +279,8 @@ func TestDemoDisabledAndCLI(t *testing.T) {
 	if st != 200 {
 		t.Fatalf("login: %d %v", st, me)
 	}
-	if ms, _ := me["memberships"].([]any); len(ms) != 2 {
+	// The two demos and the administrator's blog.
+	if ms, _ := me["memberships"].([]any); len(ms) != 3 {
 		t.Fatalf("memberships: %v", me["memberships"])
 	}
 	s.stop()

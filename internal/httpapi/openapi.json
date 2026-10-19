@@ -35,7 +35,8 @@
                   "UNAUTHENTICATED",
                   "VALIDATION_FAILED",
                   "WORKSPACE_BUSY",
-                  "WORKSPACE_MAINTENANCE"
+                  "WORKSPACE_MAINTENANCE",
+                  "WORKSPACE_PROTECTED"
                 ],
                 "type": "string"
               },
@@ -3411,6 +3412,10 @@
           "status": {
             "type": "string"
           },
+          "system_kind": {
+            "description": "\"blog\" for the user's blog workspace (ADR 0017).",
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           },
@@ -6199,6 +6204,9 @@
               "deleted"
             ],
             "type": "string"
+          },
+          "system_kind": {
+            "type": "string"
           }
         },
         "required": [
@@ -6230,6 +6238,9 @@
             "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "system_kind": {
             "type": "string"
           }
         },
@@ -13967,6 +13978,16 @@
             },
             "description": "Not Found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -14073,6 +14094,16 @@
               }
             },
             "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {

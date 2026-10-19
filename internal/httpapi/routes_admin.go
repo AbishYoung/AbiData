@@ -27,10 +27,13 @@ type WorkspaceDTO struct {
 	Quota     admin.Quota `json:"quota"`
 	CreatedAt time.Time   `json:"created_at"`
 	CreatedBy string      `json:"created_by"`
+	// SystemKind is "blog" for a user's blog workspace (ADR 0017).
+	SystemKind string `json:"system_kind,omitempty"`
 }
 
 func workspaceDTO(w admin.Workspace) WorkspaceDTO {
-	return WorkspaceDTO{ID: string(w.ID), Name: w.Name, Status: string(w.Status), Quota: w.Quota, CreatedAt: w.CreatedAt, CreatedBy: w.CreatedBy}
+	return WorkspaceDTO{ID: string(w.ID), Name: w.Name, Status: string(w.Status), Quota: w.Quota, CreatedAt: w.CreatedAt, CreatedBy: w.CreatedBy,
+		SystemKind: string(w.SystemKind)}
 }
 
 // AdminUserDTO is the admin view of a user.
@@ -39,6 +42,32 @@ type AdminUserDTO struct {
 	Disabled    bool       `json:"disabled"`
 	CreatedAt   time.Time  `json:"created_at"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+}
+
+// provisionBlog gives a just-created user their blog (ADR 0017). If that
+// fails the user is removed again and the creation fails with the error.
+func (s *Server) provisionBlog(ctx context.Context, u admin.User) error {
+	if s.deps.Blogs == nil {
+		return nil
+	}
+	if _, err := s.deps.Blogs.EnsureBlog(detached(ctx), u.ID); err != nil {
+		s.log.ErrorContext(ctx, "provision blog for new user", "user_id", u.ID, "err", err)
+		if derr := s.deps.Admin.DeleteUser(detached(ctx), u.ID); derr != nil {
+			s.log.ErrorContext(ctx, "remove user after failed blog", "user_id", u.ID, "err", derr)
+		}
+		return err
+	}
+	return nil
+}
+
+// ensureBlogAtLogin repairs a missing blog when its user signs in. It never fails the login.
+func (s *Server) ensureBlogAtLogin(ctx context.Context, userID string) {
+	if s.deps.Blogs == nil {
+		return
+	}
+	if _, err := s.deps.Blogs.EnsureBlog(detached(ctx), userID); err != nil {
+		s.log.WarnContext(ctx, "ensure blog at login", "user_id", userID, "err", err)
+	}
 }
 
 func (s *Server) audit(ctx context.Context, action, kind, id string, details map[string]any) {
@@ -254,6 +283,9 @@ func (s *Server) registerAdmin(api huma.API) {
 		if err != nil {
 			return nil, err
 		}
+		if err := s.provisionBlog(ctx, u); err != nil {
+			return nil, err
+		}
 		s.audit(ctx, "user.create", "user", u.ID, map[string]any{"email": u.Email, "username": u.Username, "platform_admin": u.IsPlatformAdmin})
 		return &struct{ Body AdminUserDTO }{Body: AdminUserDTO{UserDTO: userDTO(u), CreatedAt: u.CreatedAt}}, nil
 	})
@@ -388,6 +420,8 @@ func mapAdminErr(err error) error {
 		return fault.E(fault.DuplicateValue)
 	case errors.Is(err, admin.ErrLastOwner):
 		return fault.New(fault.BadRequest, "A workspace must keep at least one owner.")
+	case errors.Is(err, admin.ErrProtected):
+		return fault.E(fault.WorkspaceProtected)
 	}
 	return err
 }

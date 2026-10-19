@@ -201,6 +201,15 @@ func (s *Store) TouchLogin(ctx context.Context, id string, at time.Time) error {
 	})
 }
 
+// DeleteUser removes a user outright. Only for undoing a creation whose
+// follow-up (the user's blog) failed; there is no user deletion otherwise.
+func (s *Store) DeleteUser(ctx context.Context, id string) error {
+	return s.Write(ctx, func(tx dbx.Tx) error {
+		_, err := tx.Exec(ctx, sqlDeleteUser.SQL, id)
+		return err
+	})
+}
+
 // GetUserByUsername finds a user by current username (case-insensitive).
 func (s *Store) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	var u User

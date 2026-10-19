@@ -51,6 +51,7 @@ const (
 	BackupInvalid          Code = "BACKUP_INVALID"
 	RateLimited            Code = "RATE_LIMITED"
 	AppItemChanged         Code = "APP_ITEM_CHANGED"
+	WorkspaceProtected     Code = "WORKSPACE_PROTECTED"
 	Internal               Code = "INTERNAL"
 )
 
@@ -94,6 +95,8 @@ var registry = map[Code]Entry{
 	BackupInvalid:   {http.StatusUnprocessableEntity, "Backup invalid", "The backup failed verification and cannot be restored.", "Choose a different backup.", false, false},
 	AppItemChanged: {http.StatusServiceUnavailable, "Being updated", "This page is being updated.",
 		"Try again later. If you manage this app, approve the changes in the app's settings.", true, false},
+	WorkspaceProtected: {http.StatusConflict, "Protected workspace", "This is a user's blog workspace. It belongs to that user alone and cannot be shared, transferred or deleted.",
+		"Use another workspace to work with other people.", false, false},
 	RateLimited: {http.StatusTooManyRequests, "Too many requests", "Too many requests were made in a short time.", "Wait a moment and try again.", true, false},
 	Internal:    {http.StatusInternalServerError, "Unexpected error", "An unexpected error occurred.", "Try again. If it keeps happening, contact an administrator with the request ID.", false, false},
 }

@@ -18,6 +18,7 @@ import (
 	"abidata/internal/artifacts"
 	"abidata/internal/auth"
 	"abidata/internal/backup"
+	"abidata/internal/blogs"
 	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/events"
@@ -108,7 +109,9 @@ func newEnv(t *testing.T) *env {
 		return w.Quota.MaxFileBytes
 	}}
 	backups.Files = fileSvc
-	s := New(Deps{Config: cfg, Files: fileSvc, Ingest: ingestSvc, Backups: backups, Logs: events.NewBus(100), Docs: testDocs(t), Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
+	blogSvc := &blogs.Provisioner{Admin: ad, Workspaces: wm, Catalog: engine, Schemas: schemas}
+	engine.Guard = blogSvc.Guard
+	s := New(Deps{Config: cfg, Blogs: blogSvc, Files: fileSvc, Ingest: ingestSvc, Backups: backups, Logs: events.NewBus(100), Docs: testDocs(t), Admin: ad, Auth: au, Workspaces: wm, Version: "test", SPA: spa,
 		Schemas: schemas, Catalog: engine, Events: hub, Records: recSvc,
 		Queries: querySvc, Scripts: scriptSvc, Jobs: jobSvc, Ops: opsSvc, Artifacts: arts,
 		Reports: &reports.Service{Schemas: schemas, Records: recSvc, Queries: querySvc, Scripts: scriptSvc, Runner: script.NewRunner(4, 4), Events: hub},

@@ -12,20 +12,27 @@ admin.CreateAPIKey#2	admin	portable	count(*)
 admin.CreateAPIKey#3	admin	portable	
 admin.CreateApp	admin	portable	count(*)
 admin.CreateApp#2	admin	portable	
+admin.CreateBlog	admin	portable	
 admin.CreateSession	admin	portable	
 admin.CreateWorkspace	admin	portable	
 admin.CreateWorkspace#2	admin	portable	
 admin.DeleteApp	admin	portable	
 admin.DeleteBackup	admin	portable	
 admin.DeleteSession	admin	portable	
+admin.DeleteUser	admin	portable	
 admin.DeleteUserSessions	admin	portable	
 admin.DropWorkspace	admin	portable	
+admin.GetBlog	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
+admin.GetBlogByUser	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
+admin.GetBlogByUsername	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
+admin.GetBlogByWorkspace	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
 admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_at,expires_at,ip,user_agent
 admin.GetSetting	admin	portable	value
 admin.InitUsername	admin	portable	
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
 admin.ListMembers	admin	portable	id,email,display_name,role
 admin.ListSettings	admin	portable	key,value
+admin.ListUsersWithoutBlog	admin	portable	id
 admin.Ping	admin	portable	1
 admin.PurgeSessions	admin	portable	
 admin.PurgeSessions#2	admin	portable	
@@ -35,6 +42,8 @@ admin.ResolveOldUsername	admin	portable	username
 admin.RevokeAPIKey	admin	portable	
 admin.SetAppTakenDown	admin	portable	
 admin.SetAppToken	admin	portable	
+admin.SetBlogPublished	admin	portable	
+admin.SetBlogPublished#2	admin	portable	
 admin.SetMembership	admin	portable	
 admin.SetPasswordHash	admin	portable	
 admin.SetUsername	admin	portable	username
@@ -45,6 +54,7 @@ admin.TouchAPIKey	admin	portable
 admin.TouchLogin	admin	portable	
 admin.TouchSession	admin	portable	
 admin.UpdateApp	admin	portable	
+admin.UpdateBlog	admin	portable	
 admin.UpdateUser	admin	portable	
 admin.UpdateWorkspace	admin	portable	
 admin.UsernameOwner	admin	portable	id
@@ -52,6 +62,7 @@ admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
 admin.migrate	admin	sqlite	application_id
 admin.migrate#2	admin	sqlite	user_version
 admin.readAttempts	admin	portable	count,window_start
+admin.refuseSystem	admin	portable	system_kind
 admin.writeAppItems	admin	portable	
 admin.writeAppItems#2	admin	portable	
 backup.finish	workspace	sqlite	quick_check
@@ -65,6 +76,8 @@ backup.listFiles#2	workspace	portable	sha256,MAX(size)
 backup.prepare	workspace	portable	
 backup.prepare#2	workspace	sqlite	journal_mode
 backup.snapshot	workspace	sqlite	
+blogs.ReadPins	workspace	portable	value
+blogs.writePins	workspace	portable	
 catalog.Cache.Get	workspace	portable	value
 catalog.Load	workspace	variant	id,physical_name,display_name,description,track_history,version
 catalog.Load#2	workspace	portable	id,table_id,physical_name,display_name,field_type,type_options,is_required,default_sql,validation_sql,validation_text,lookup_relationship_id,lookup_display_column_id,description,ordinal,is_hidden

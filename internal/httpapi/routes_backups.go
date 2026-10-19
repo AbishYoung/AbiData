@@ -194,7 +194,8 @@ func (s *Server) createdBy(ctx context.Context, userID string) (int, error) {
 	}
 	n := 0
 	for _, w := range all {
-		if w.CreatedBy == userID && w.Status != admin.StatusDeleted {
+		// The user's blog workspace (ADR 0017) is the server's, not a copy.
+		if w.CreatedBy == userID && w.Status != admin.StatusDeleted && w.SystemKind == "" {
 			n++
 		}
 	}

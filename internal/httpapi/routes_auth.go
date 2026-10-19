@@ -32,6 +32,7 @@ type MembershipDTO struct {
 	WorkspaceName string `json:"workspace_name"`
 	Role          string `json:"role" enum:"owner,builder,editor,viewer"`
 	Status        string `json:"status"`
+	SystemKind    string `json:"system_kind,omitempty" doc:"\"blog\" for the user's blog workspace (ADR 0017)."`
 }
 
 // MeBody describes the signed-in user.
@@ -60,7 +61,7 @@ func (s *Server) me(ctx context.Context, p auth.Principal) (MeBody, error) {
 	ms := make([]MembershipDTO, 0, len(acc))
 	for _, a := range acc {
 		ms = append(ms, MembershipDTO{WorkspaceID: string(a.Workspace.ID), WorkspaceName: a.Workspace.Name,
-			Role: string(a.Role), Status: string(a.Workspace.Status)})
+			Role: string(a.Role), Status: string(a.Workspace.Status), SystemKind: string(a.Workspace.SystemKind)})
 	}
 	maps, err := LoadMaps(ctx, s.deps.Admin)
 	if err != nil {
@@ -94,6 +95,7 @@ func (s *Server) registerAuth(api huma.API) {
 		if old, ok := PrincipalFrom(ctx); ok {
 			_ = s.deps.Auth.Logout(detached(ctx), old)
 		}
+		s.ensureBlogAtLogin(ctx, res.Principal.UserID)
 		body, err := s.me(ctx, res.Principal)
 		if err != nil {
 			return nil, err
@@ -193,6 +195,9 @@ func (s *Server) registerAuth(api huma.API) {
 		if err != nil {
 			return nil, err
 		}
+		// The setup token is spent, so a failed blog cannot undo the account:
+		// it is logged and retried at the next sign-in.
+		s.ensureBlogAtLogin(ctx, u.ID)
 		if s.deps.OnSetup != nil {
 			s.deps.OnSetup(detached(ctx), u)
 		}

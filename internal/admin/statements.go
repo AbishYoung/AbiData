@@ -70,8 +70,26 @@ var (
 			ON CONFLICT(username) DO UPDATE SET user_id = excluded.user_id, changed_at = excluded.changed_at, expires_at = excluded.expires_at`)
 	sqlSetPasswordHash = sqlgen.Register("admin.SetPasswordHash", `UPDATE _adm_users SET password_hash = ? WHERE id = ?`)
 	sqlTouchLogin      = sqlgen.Register("admin.TouchLogin", `UPDATE _adm_users SET last_login_at = ? WHERE id = ?`)
-	sqlCreateWorkspace = sqlgen.Register("admin.CreateWorkspace", `INSERT INTO _adm_workspaces (id, name, status, quota_json, created_at, created_by)
-			VALUES (?,?,?,?,?,?)`)
+	sqlCreateWorkspace = sqlgen.Register("admin.CreateWorkspace", `INSERT INTO _adm_workspaces (id, name, status, quota_json, created_at, created_by, system_kind)
+			VALUES (?,?,?,?,?,?,?)`)
+	sqlSystemKind  = sqlgen.Register("admin.refuseSystem", `SELECT system_kind FROM _adm_workspaces WHERE id = ?`)
+	sqlCreateBlog  = sqlgen.Register("admin.CreateBlog", `INSERT INTO _adm_blogs (id, user_id, workspace_id, title, created_at, updated_at) VALUES (?,?,?,?,?,?)`)
+	sqlUpdateBlog  = sqlgen.Register("admin.UpdateBlog", `UPDATE _adm_blogs SET title = ?, intro = ?, updated_at = ? WHERE id = ?`)
+	sqlPublishBlog = sqlgen.Register("admin.SetBlogPublished", `UPDATE _adm_blogs SET published = 1,
+			published_at = COALESCE(published_at, ?1), updated_at = ?1 WHERE id = ?2`)
+	sqlUnpublishBlog = sqlgen.Register("admin.SetBlogPublished#2", `UPDATE _adm_blogs SET published = 0, updated_at = ? WHERE id = ?`)
+	sqlBlogByUser    = sqlgen.Register("admin.GetBlogByUser", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id WHERE b.user_id = ?`)
+	sqlBlogByWorkspace = sqlgen.Register("admin.GetBlogByWorkspace", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id WHERE b.workspace_id = ?`)
+	sqlBlogByID = sqlgen.Register("admin.GetBlog", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id WHERE b.id = ?`)
+	sqlBlogByUsername = sqlgen.Register("admin.GetBlogByUsername", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id WHERE u.username = ?`)
+	sqlDeleteUser = sqlgen.Register("admin.DeleteUser", `DELETE FROM _adm_users WHERE id = ?`)
+	// Users without a blog, oldest first (the provisioning backfill).
+	sqlUsersWithoutBlog = sqlgen.Register("admin.ListUsersWithoutBlog", `SELECT u.id FROM _adm_users u
+			WHERE NOT EXISTS (SELECT 1 FROM _adm_blogs b WHERE b.user_id = u.id) ORDER BY u.created_at, u.id LIMIT ?`)
 	sqlCreateWorkspace2 = sqlgen.Register("admin.CreateWorkspace#2", `INSERT INTO _adm_memberships (workspace_id, user_id, role) VALUES (?,?,?)`)
 	sqlDropWorkspace    = sqlgen.Register("admin.DropWorkspace", `DELETE FROM _adm_workspaces WHERE id = ?`)
 	sqlUpdateWorkspace  = sqlgen.Register("admin.UpdateWorkspace", `UPDATE _adm_workspaces SET
