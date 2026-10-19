@@ -24,6 +24,10 @@ func (e *env) visit(path string, extra map[string]string) (int, string, http.Hea
 		e.t.Fatal(err)
 	}
 	for k, v := range extra {
+		if k == "Host" {
+			req.Host = v
+			continue
+		}
 		req.Header.Set(k, v)
 	}
 	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -236,6 +240,73 @@ func TestPublicBlogImages(t *testing.T) {
 	}
 }
 
+func TestPublicBlogCover(t *testing.T) {
+	e, ann, ws, _ := publicBlog(t)
+	base := "/api/v1/w/" + ws
+	upload := func(name string, data []byte) string {
+		t.Helper()
+		r := e.send(ann, "", "POST", base+"/files", data, "X-File-Name", name, "Content-Type", "application/octet-stream")
+		if r.status != 201 {
+			t.Fatalf("upload %d %s", r.status, r.body)
+		}
+		return r.json()["id"].(string)
+	}
+	cover, text := upload("cover.png", testPNG(16, 9)), upload("notes.txt", []byte("plain text"))
+	st, p, _ := ann.do("POST", base+"/blog/posts", map[string]any{"title": "Covered", "body_md": "Text."})
+	if st != 201 {
+		t.Fatalf("create %d %v", st, p)
+	}
+	path := fmt.Sprintf("%s/blog/posts/%v", base, p["id"])
+	for name, in := range map[string]map[string]any{
+		"no alt":     {"cover": cover},
+		"blank alt":  {"cover": cover, "cover_alt": "  "},
+		"not image":  {"cover": text, "cover_alt": "Notes"},
+		"not a file": {"cover": "nope", "cover_alt": "x"},
+	} {
+		in["_version"] = p["_version"]
+		if st, body, _ := ann.do("PATCH", path, in); st != 400 {
+			t.Errorf("%s: %d %v", name, st, body)
+		}
+	}
+	st, p, _ = ann.do("PATCH", path, map[string]any{"_version": p["_version"], "cover": cover, "cover_alt": "A <red> sky"})
+	if st != 200 || p["cover"] != cover || p["cover_alt"] != "A <red> sky" {
+		t.Fatalf("cover %d %v", st, p)
+	}
+	// A draft's cover is private.
+	if st, _, _ := e.visit("/b/ann/_files/"+cover, nil); st != 404 {
+		t.Fatalf("draft cover %d", st)
+	}
+	if st, _, _ := ann.do("PUT", path+"/status", map[string]any{"_version": p["_version"], "status": "published"}); st != 200 {
+		t.Fatal("publish")
+	}
+	if st, _, h := e.visit("/b/ann/_files/"+cover, nil); st != 200 || h.Get("Content-Type") != "image/png" {
+		t.Fatalf("cover image %d", st)
+	}
+	_, page, _ := e.visit("/b/ann/covered", nil)
+	src := "/b/ann/_files/" + cover
+	for _, want := range []string{`<figure class="cover"><img src="` + src + `" alt="A &lt;red&gt; sky"></figure>`,
+		`<meta property="og:image" content="` + testOrigin + src + `">`, `<meta name="twitter:card" content="summary_large_image">`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if _, j, _ := e.client().do("GET", "/api/v1/blogs/ann/posts/covered", nil); j["cover_url"] != testOrigin+src || j["cover_alt"] != "A <red> sky" {
+		t.Errorf("JSON %v", j)
+	}
+	// The cover column attaches the file, so the sweep keeps it.
+	if _, meta, _ := ann.do("GET", base+"/files/"+cover, nil); meta["state"] != "attached" {
+		t.Fatalf("file state %v", meta)
+	}
+	// Removing the cover clears it; the alt text may stay.
+	_, p, _ = ann.do("GET", path, nil)
+	if st, p, _ := ann.do("PATCH", path, map[string]any{"_version": p["_version"], "cover": ""}); st != 200 || p["cover"] != nil {
+		t.Fatalf("remove %d %v", st, p)
+	}
+	if st, _, _ := e.visit("/b/ann/_files/"+cover, nil); st != 404 {
+		t.Errorf("removed cover %d", st)
+	}
+}
+
 func TestPublicBlogJSON(t *testing.T) {
 	e, _, _, _ := publicBlog(t)
 	anon := e.client()
@@ -277,6 +348,68 @@ func TestBlogAccessReadsNoCredentials(t *testing.T) {
 	}
 	if n < 2 {
 		t.Fatalf("only %d blog operations", n)
+	}
+}
+
+func TestPublicBlogFeed(t *testing.T) {
+	e, _, _, _ := publicBlog(t)
+	st, feed, h := e.visit("/b/ann/feed.xml", nil)
+	if st != 200 || !strings.HasPrefix(h.Get("Content-Type"), "application/atom+xml") || h.Get("ETag") == "" ||
+		!strings.Contains(feed, `<feed xmlns="http://www.w3.org/2005/Atom">`) || !strings.Contains(feed, "<title>Hello World</title>") ||
+		!strings.Contains(feed, `<summary type="text">About Hello World</summary>`) || !strings.Contains(feed, `href="`+testOrigin+`/b/ann/hello-world"`) {
+		t.Fatalf("feed %d %v\n%s", st, h, feed)
+	}
+	// Published posts only, and summaries, never bodies.
+	for _, absent := range []string{"Quiet One", "Secret Draft", "bold", "script"} {
+		if strings.Contains(feed, absent) {
+			t.Errorf("feed contains %q", absent)
+		}
+	}
+	if _, home, _ := e.visit("/b/ann", nil); !strings.Contains(home, `<link rel="alternate" type="application/atom+xml" href="/b/ann/feed.xml">`) {
+		t.Error("home has no feed link")
+	}
+	if st, _, _ := e.visit("/b/nobody/feed.xml", nil); st != 404 {
+		t.Errorf("unknown feed %d", st)
+	}
+}
+
+// TestBlogHost: with ABIDATA_BLOG_HOST, blogs live on that host alone and
+// the app's host sends readers there.
+func TestBlogHost(t *testing.T) {
+	e, _, _, _ := publicBlog(t)
+	e.s.deps.Config.BlogHost = "blogs.test"
+	if st, _, h := e.visit("/b/ann/hello-world?x=1", nil); st != 301 || h.Get("Location") != "http://blogs.test/b/ann/hello-world?x=1" {
+		t.Fatalf("app host %d %v", st, h)
+	}
+	st, page, _ := e.visit("/b/ann/hello-world", map[string]string{"Host": "blogs.test"})
+	if st != 200 || !strings.Contains(page, `<link rel="canonical" href="http://blogs.test/b/ann/hello-world">`) {
+		t.Fatalf("blog host %d %s", st, page)
+	}
+	for _, p := range []string{"/", "/api/v1/auth/me", "/login", "/api/v1/admin/blogs"} {
+		if st, body, _ := e.visit(p, map[string]string{"Host": "blogs.test"}); st != 404 || body != string(blogs.NotFoundPage) {
+			t.Errorf("%s on the blog host: %d", p, st)
+		}
+	}
+	if st, _, _ := e.visit("/api/v1/blogs/ann", map[string]string{"Host": "blogs.test"}); st != 200 {
+		t.Errorf("JSON on the blog host: %d", st)
+	}
+	// Reports may come from a page on the blog host, but not from elsewhere.
+	for origin, want := range map[string]int{"http://blogs.test": 202, "http://evil.test": 403} {
+		req, err := http.NewRequest(http.MethodPost, e.srv.URL+"/api/v1/blogs/ann/report", strings.NewReader(`{"reason_code":"spam"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Host = "blogs.test"
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("report from %s: %d, want %d", origin, resp.StatusCode, want)
+		}
 	}
 }
 

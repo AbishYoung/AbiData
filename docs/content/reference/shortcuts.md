@@ -15,7 +15,7 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 | Open the command palette | `⌘ K` | `Ctrl+K` | Everywhere |
 | Open the documentation | `?` | `?` | Everywhere, except in text fields, editors and datasheets |
 | Open the context menu of the focused item (the same as a right-click) | `⇧ F10` | `Shift+F10` | Navigation pane, document tabs, datasheets, query results and designers |
-| Save the design | `⌘ S` | `Ctrl+S` | Table design, queries, forms, reports, scripts, jobs |
+| Save the design or post | `⌘ S` | `Ctrl+S` | Table design, queries, forms, reports, scripts, jobs, blog editor and settings |
 
 ## Navigation
 
@@ -105,6 +105,14 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 |---|---|---|---|
 | Next search match | `Enter` | `Enter` | Job run log search |
 | Previous search match | `⇧ Enter` | `Shift+Enter` | Job run log search |
+
+## Blog
+
+| Action | Mac | Windows / Linux | Where it applies |
+|---|---|---|---|
+| Format selection as bold | `⌘ B` | `Ctrl+B` | Blog post body |
+| Format selection as italic | `⌘ I` | `Ctrl+I` | Blog post body |
+| Insert a Markdown link | `⌘ K` | `Ctrl+K` | Blog post body |
 
 ## Admin
 

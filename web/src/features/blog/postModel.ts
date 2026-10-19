@@ -7,6 +7,7 @@ export const MAX_TITLE = 200;
 export const MAX_SUMMARY = 300;
 export const MAX_BODY_BYTES = 200 * 1024;
 export const MAX_SLUG = 80;
+export const MAX_COVER_ALT = 200;
 
 const TRANSLIT: Record<string, string> = { ß: "ss", æ: "ae", Æ: "ae", ø: "o", Ø: "o", œ: "oe", Œ: "oe", đ: "d", Đ: "d", ł: "l", Ł: "l", þ: "th", Þ: "th", ð: "d", Ð: "d", ı: "i", "&": " and " };
 
@@ -118,12 +119,33 @@ export function bodySizeNote(bytes: number): string | null {
   return bytes > MAX_BODY_BYTES ? `${kb(bytes)} of ${kb(MAX_BODY_BYTES)}: too long to save.` : `${kb(bytes)} of ${kb(MAX_BODY_BYTES)}.`;
 }
 
+/** Word count and reading-time summary for the post body, or null when empty. */
+export function readingStats(s: string): string | null {
+  const words = s
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  if (words === 0) return null;
+  const mins = Math.max(1, Math.round(words / 220));
+  return `${words.toLocaleString("en")} ${words === 1 ? "word" : "words"} · ~${mins} min read`;
+}
+
 export type MarkdownKind = "heading" | "bold" | "italic" | "link" | "list" | "quote" | "code" | "image";
 
 export interface TextEdit {
   text: string;
   selStart: number;
   selEnd: number;
+}
+
+/** Inserts an uploaded workspace image at the selection, selecting the alt text so the author can describe it. */
+export function insertUploadedImage(text: string, selStart: number, selEnd: number, fileId: string, filename: string): TextEdit {
+  const sel = text.slice(selStart, selEnd).trim();
+  const stem = filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+  const alt = sel || stem || "description";
+  const snippet = `![${alt}](attachment:${fileId})`;
+  const next = text.slice(0, selStart) + snippet + text.slice(selEnd);
+  return { text: next, selStart: selStart + 2, selEnd: selStart + 2 + alt.length };
 }
 
 /** Applies a toolbar button to the textarea's text and selection. */

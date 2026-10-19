@@ -66,6 +66,21 @@ func TestDemoWorkspaceFlag(t *testing.T) {
 	}
 }
 
+func TestBlogHost(t *testing.T) {
+	c, err := loadWith(map[string]string{"ABIDATA_PUBLIC_URL": "https://app.example", "ABIDATA_BLOG_HOST": "Blogs.Example:8443"}, nil)
+	if err != nil || c.BlogHost != "blogs.example:8443" || c.BlogBaseURL() != "https://blogs.example:8443" {
+		t.Fatalf("%+v %v", c.BlogHost, err)
+	}
+	if c, _ := loadWith(nil, nil); c.BlogBaseURL() != c.PublicURL {
+		t.Fatal("no blog host: the public URL")
+	}
+	for _, v := range []string{"https://blogs.example", "blogs.example/b", "app.example", "u@blogs.example"} {
+		if _, err := loadWith(map[string]string{"ABIDATA_PUBLIC_URL": "https://app.example", "ABIDATA_BLOG_HOST": v}, nil); err == nil || !strings.Contains(err.Error(), "ABIDATA_BLOG_HOST") {
+			t.Errorf("%q: %v", v, err)
+		}
+	}
+}
+
 func TestValidValues(t *testing.T) {
 	key := base64.StdEncoding.EncodeToString(make([]byte, 32))
 	c, err := loadWith(map[string]string{

@@ -8,6 +8,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/pgdb"
+	"abidata/internal/records"
 	"abidata/internal/sqlgen"
 )
 
@@ -24,6 +25,8 @@ type Post struct {
 	BodyBytes   int64
 	Status      string
 	PublishedAt *time.Time
+	Cover       string // a file id, or ""
+	CoverAlt    string
 }
 
 // Problem says why the renderer would refuse the post ("" when it would not):
@@ -66,11 +69,17 @@ func readPosts(ctx context.Context, db dbx.Querier, s *catalog.Schema, pins Pins
 		if !ok {
 			return sqlgen.Col{Name: role}
 		}
+		if c.Type == catalog.Attachments {
+			return sqlgen.Col{Name: c.PhysicalName, Type: sqlgen.Attachments}
+		}
 		return sqlgen.Col{Name: c.PhysicalName}
 	}
 	if m := pins.Missing(s); len(m) > 0 {
 		return nil, errDamaged
 	}
+	_, hasCover := pins.Columns["cover"]
+	_, hasAlt := pins.Columns["cover_alt"]
+	hasCover = hasCover && hasAlt
 	cols := []sqlgen.Column{
 		{Expr: sqlgen.Col{Name: "id"}}, {Expr: sqlgen.Col{Name: "_version"}},
 		{Expr: col("title")}, {Expr: col("slug")}, {Expr: col("summary")}, {Expr: col("status")}, {Expr: col("published_at")},
@@ -78,6 +87,9 @@ func readPosts(ctx context.Context, db dbx.Querier, s *catalog.Schema, pins Pins
 	}
 	if q.withBody {
 		cols = append(cols, sqlgen.Column{Expr: col("body_md")})
+	}
+	if hasCover {
+		cols = append(cols, sqlgen.Column{Expr: col("cover")}, sqlgen.Column{Expr: col("cover_alt")})
 	}
 	sel := &sqlgen.Select{Columns: cols, From: sqlgen.Table{Name: t.PhysicalName}, OrderBy: q.order}
 	if q.where != nil {
@@ -105,8 +117,16 @@ func readPosts(ctx context.Context, db dbx.Querier, s *catalog.Schema, pins Pins
 		if q.withBody {
 			dest = append(dest, &body)
 		}
+		var cover any
+		var coverAlt *string
+		if hasCover {
+			dest = append(dest, &cover, &coverAlt)
+		}
 		if err := rows.Scan(dest...); err != nil {
 			return nil, err
+		}
+		if files := records.AttachmentIDs(textOf(catalog.StorageForm(catalog.Attachments, cover))); len(files) > 0 {
+			p.Cover, p.CoverAlt = files[0], deref(coverAlt)
 		}
 		p.Title, p.Slug, p.Summary, p.Status, p.Body = deref(title), deref(slug), deref(summary), deref(status), deref(body)
 		if size != nil {
@@ -124,6 +144,14 @@ func readPosts(ctx context.Context, db dbx.Querier, s *catalog.Schema, pins Pins
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// textOf turns a stored text value as a driver returns it into a string.
+func textOf(v any) any {
+	if b, ok := v.([]byte); ok {
+		return string(b)
+	}
+	return v
 }
 
 func deref(s *string) string {

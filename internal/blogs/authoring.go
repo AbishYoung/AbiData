@@ -117,6 +117,8 @@ type BlogPost struct {
 	Problem     string     `json:"problem,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 	PublicURL   string     `json:"public_url" doc:"Where the post is (or would be) served."`
+	Cover       string     `json:"cover,omitempty" doc:"The cover image's workspace file id."`
+	CoverAlt    string     `json:"cover_alt,omitempty"`
 	Takedown    *Takedown  `json:"takedown,omitempty" doc:"An administrator's active take-down of this post."`
 }
 
@@ -127,6 +129,8 @@ type PostInput struct {
 	Summary     *string `json:"summary,omitempty" maxLength:"300"`
 	BodyMD      *string `json:"body_md,omitempty" maxLength:"204800"`
 	PublishedAt *string `json:"published_at,omitempty" maxLength:"40" doc:"RFC 3339; changes the date shown, for back-dating."`
+	Cover       *string `json:"cover,omitempty" maxLength:"26" doc:"A workspace image file id for the cover; empty removes it."`
+	CoverAlt    *string `json:"cover_alt,omitempty" maxLength:"200" doc:"The cover's alt text; required with a cover."`
 }
 
 // SlugCheck is the answer to a slug check.
@@ -348,7 +352,7 @@ func (s *Service) getPost(ctx context.Context, l *workspace.Lease, sch *catalog.
 	}
 	return BlogPost{ID: p.ID, Version: p.Version, Title: p.Title, Slug: p.Slug, Summary: p.Summary, BodyMD: p.Body,
 		Status: p.Status, Chip: chip(p, downs[p.Slug]), Problem: p.Problem(), PublishedAt: p.PublishedAt,
-		PublicURL: s.HomeURL(b.Username) + "/" + p.Slug, Takedown: downs[p.Slug]}, nil
+		PublicURL: s.HomeURL(b.Username) + "/" + p.Slug, Takedown: downs[p.Slug], Cover: p.Cover, CoverAlt: p.CoverAlt}, nil
 }
 
 func (in PostInput) fields(pins Pins) (map[string]any, error) {
@@ -381,6 +385,29 @@ func (in PostInput) fields(pins Pins) (map[string]any, error) {
 		} else {
 			f[c["published_at"]] = *in.PublishedAt
 		}
+	}
+	if in.Cover != nil || in.CoverAlt != nil {
+		if _, ok := c["cover"]; !ok {
+			return nil, fault.New(fault.BadRequest, "This blog gets its cover field the next time you sign in.").
+				WithDetails(map[string]any{"field": "cover"})
+		}
+	}
+	if in.Cover != nil {
+		switch id := strings.TrimSpace(*in.Cover); {
+		case id == "":
+			f[c["cover"]] = nil
+		case !ids.Valid(id):
+			return nil, fault.New(fault.BadRequest, "The cover must be a workspace file.").WithDetails(map[string]any{"field": "cover"})
+		default:
+			f[c["cover"]] = []any{id}
+		}
+	}
+	if in.CoverAlt != nil {
+		alt := strings.TrimSpace(*in.CoverAlt)
+		if utf8.RuneCountInString(alt) > MaxCoverAlt {
+			return nil, fault.Newf(fault.BadRequest, "The alt text can be at most %d characters.", MaxCoverAlt).WithDetails(map[string]any{"field": "cover_alt"})
+		}
+		f[c["cover_alt"]] = alt
 	}
 	return f, nil
 }

@@ -10,6 +10,7 @@ import { LogoMark } from "@/components/brand/Logo";
 import { Badge, buttonClass, Skeleton, StatusPage } from "@/components/ui";
 import { alertBox, menu, menuItem, menuSeparator } from "@/components/styles";
 import { UserMenu } from "@/features/nav/UserMenu";
+import { HelpButton } from "@/features/docs/HelpButton";
 import { blogKeys, getBlog, type BlogInfo } from "./blogApi";
 import { PostList } from "./PostList";
 import { PostEditor } from "./PostEditor";
@@ -147,6 +148,7 @@ function BlogTopBar({ ws, me, info, current }: { ws: string; me: Me; info: BlogI
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+        {!compact && <HelpButton />}
         <UserMenu me={me} />
       </div>
     </header>

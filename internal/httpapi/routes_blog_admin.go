@@ -97,7 +97,7 @@ type BlogReportRequest struct {
 
 func (s *Server) adminBlogSummary(b admin.BlogSummary) AdminBlogSummary {
 	return AdminBlogSummary{ID: b.ID, Username: b.Username, Title: b.Title, WorkspaceID: string(b.WorkspaceID), Published: b.Published,
-		PublishedAt: b.PublishedAt, PublicURL: strings.TrimRight(s.deps.Config.PublicURL, "/") + "/b/" + b.Username,
+		PublishedAt: b.PublishedAt, PublicURL: strings.TrimRight(s.deps.Config.BlogBaseURL(), "/") + "/b/" + b.Username,
 		ActiveTakedowns: b.ActiveTakedowns, OpenReports: b.OpenReports}
 }
 

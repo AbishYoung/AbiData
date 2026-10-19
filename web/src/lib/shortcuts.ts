@@ -78,7 +78,10 @@ export type ShortcutId =
   | "dialog.close"
   | "docs.search"
   | "docs.move"
-  | "docs.edge";
+  | "docs.edge"
+  | "blog.bold"
+  | "blog.italic"
+  | "blog.link";
 
 /** The areas the docs page groups shortcuts by. */
 export type ShortcutArea =
@@ -91,6 +94,7 @@ export type ShortcutArea =
   | "Reports"
   | "Scripts"
   | "Jobs"
+  | "Blog"
   | "Admin"
   | "Dialogs and panels";
 
@@ -105,6 +109,7 @@ export const AREAS: readonly ShortcutArea[] = [
   "Reports",
   "Scripts",
   "Jobs",
+  "Blog",
   "Admin",
   "Dialogs and panels",
 ];
@@ -130,7 +135,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "palette", area: "Global", action: "Open the command palette", keys: "Mod+K", scope: "Everywhere" },
   { id: "docs", area: "Global", action: "Open the documentation", keys: "?", scope: "Everywhere, except in text fields, editors and datasheets" },
   { id: "menu.open", area: "Global", action: "Open the context menu of the focused item (the same as a right-click)", keys: "Shift+F10", scope: "Navigation pane, document tabs, datasheets, query results and designers" },
-  { id: "design.save", area: "Global", action: "Save the design", keys: "Mod+S", scope: "Table design, queries, forms, reports, scripts, jobs" },
+  { id: "design.save", area: "Global", action: "Save the design or post", keys: "Mod+S", scope: "Table design, queries, forms, reports, scripts, jobs, blog editor and settings" },
 
   { id: "tab.close", area: "Navigation", action: "Close the focused tab", keys: "Delete", scope: "Tab strip" },
   { id: "splitter.move", area: "Navigation", action: "Resize the panes on either side of a splitter", keys: "Arrows", scope: "Splitters in the form and report designers (Shift: bigger steps)" },
@@ -193,6 +198,10 @@ export const SHORTCUTS: readonly Shortcut[] = [
 
   { id: "log.next", area: "Jobs", action: "Next search match", keys: "Enter", scope: "Job run log search" },
   { id: "log.prev", area: "Jobs", action: "Previous search match", keys: "Shift+Enter", scope: "Job run log search" },
+
+  { id: "blog.bold", area: "Blog", action: "Format selection as bold", keys: "Mod+B", scope: "Blog post body" },
+  { id: "blog.italic", area: "Blog", action: "Format selection as italic", keys: "Mod+I", scope: "Blog post body" },
+  { id: "blog.link", area: "Blog", action: "Insert a Markdown link", keys: "Mod+K", scope: "Blog post body" },
 
   { id: "chart.move", area: "Admin", action: "Move the crosshair to the previous or next point (Shift: ten points)", keys: "Left", scope: "Admin dashboard charts (Right: next point)" },
   { id: "chart.edge", area: "Admin", action: "Move the crosshair to the first point (End: last point)", keys: "Home", scope: "Admin dashboard charts" },

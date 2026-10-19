@@ -35,7 +35,51 @@ func (s *Server) mountPublicBlogs(r chi.Router) {
 		})
 		r.MethodFunc(m, "/b/{user}/{slug}", s.blogPost)
 		r.MethodFunc(m, "/b/{user}/_files/{id}", s.blogFile)
+		r.MethodFunc(m, "/b/{user}/feed.xml", s.blogFeed)
 	}
+}
+
+// blogFeed serves the Atom feed: the newest published posts, summaries only.
+func (s *Server) blogFeed(w http.ResponseWriter, r *http.Request) {
+	user := chi.URLParam(r, "user")
+	if s.blogLimited(w, r, strings.ToLower(user)) {
+		return
+	}
+	rd := s.blogReader()
+	b, err := rd.Blog(r.Context(), user)
+	var mv *blogs.Moved
+	if errors.As(err, &mv) {
+		mv.Slug = "feed.xml"
+	}
+	if err != nil {
+		s.blogFail(w, r, err)
+		return
+	}
+	posts, err := rd.Home(r.Context(), b, blogs.FeedPosts)
+	if err != nil {
+		s.blogFail(w, r, err)
+		return
+	}
+	etag := strings.Replace(blogs.HomeETag(b, posts), `W/"h-`, `W/"f-`, 1)
+	blogHeaders(w)
+	h := w.Header()
+	h.Set("Cache-Control", blogCacheControl)
+	h.Set("ETag", etag)
+	if inm := r.Header.Get("If-None-Match"); inm != "" && etagMatches(inm, etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	body, err := blogs.RenderFeed(s.deps.Config.BlogBaseURL(), b, posts)
+	if err != nil {
+		h.Del("ETag")
+		s.blogFail(w, r, err)
+		return
+	}
+	h.Set("Content-Type", "application/atom+xml; charset=utf-8")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, _ = w.Write(body) //nolint:gosec // encoding/xml output served as application/atom+xml under a no-script CSP
 }
 
 // blogFile serves an image of a served post. The file must be referred to by
@@ -93,6 +137,38 @@ func (s *Server) blogFile(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", blogCacheControl)
 	h.Set("ETag", `"`+meta.SHA256+`"`)
 	http.ServeContent(w, r, "", meta.CreatedAt, f)
+}
+
+// isBlogPath reports whether a path belongs to the public blogs.
+func isBlogPath(p string) bool {
+	return strings.HasPrefix(p, "/b/") || strings.HasPrefix(p, "/api/v1/blogs/")
+}
+
+// blogHostGate applies ABIDATA_BLOG_HOST: that host serves the public blogs
+// and nothing else, so the app's session cookie never travels with a blog
+// page, and blog pages on the app's host move there.
+func (s *Server) blogHostGate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := s.deps.Config.BlogHost
+		switch {
+		case host == "":
+		case strings.EqualFold(r.Host, host):
+			if !isBlogPath(r.URL.Path) && r.URL.Path != "/healthz" {
+				blogHeaders(w)
+				w.Header().Set("Cache-Control", "no-store")
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write(blogs.NotFoundPage)
+				return
+			}
+		case strings.HasPrefix(r.URL.Path, "/b/") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+			w.Header().Set("Cache-Control", "public, max-age=300")
+			// The target is the configured blog origin; only the path, which starts with /b/, comes from the request.
+			http.Redirect(w, r, s.deps.Config.BlogBaseURL()+r.URL.RequestURI(), http.StatusMovedPermanently) //nolint:gosec // see above
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // blogReader reads with the install switch as it stands now.
@@ -220,7 +296,7 @@ func (s *Server) blogHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.blogPage(w, r, b.ID, blogs.HomeETag(b, posts), false, func() ([]byte, error) {
-		return blogs.RenderHome(s.deps.Config.PublicURL, b, posts)
+		return blogs.RenderHome(s.deps.Config.BlogBaseURL(), b, posts)
 	})
 }
 
@@ -246,6 +322,6 @@ func (s *Server) blogPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.blogPage(w, r, b.ID, blogs.PostETag(b, p), p.Status == blogs.StatusUnlisted, func() ([]byte, error) {
-		return blogs.RenderPost(s.deps.Config.PublicURL, b, p)
+		return blogs.RenderPost(s.deps.Config.BlogBaseURL(), b, p)
 	})
 }

@@ -480,6 +480,94 @@ export async function shoot(ctx) {
     await c.close();
   }
 
+  const blogShots = ["blog-editor", "public-blog-post"];
+  if (blogShots.some(want)) {
+    const me = await call("GET", "/api/v1/auth/me");
+    const blogWs = me.memberships.find((m) => m.system_kind === "blog")?.workspace_id;
+    const blogUsername = me.user?.username;
+    if (blogWs) {
+      await call("PUT", "/api/v1/admin/settings/public-blogs", { enabled: true });
+      await call("PATCH", `/api/v1/w/${blogWs}/blog`, {
+        title: "Field Notes from Northwind",
+        intro: "Dispatches on cold-chain logistics, supplier audits, and regional inventory data.",
+      });
+      await call("PUT", `/api/v1/w/${blogWs}/blog/published`, { published: true });
+      // Create a clean cover image for the post so the editor and public view show cover features.
+      const coverPage = await browser.newPage();
+      await coverPage.setViewportSize({ width: 800, height: 240 });
+      await coverPage.setContent(`
+        <!doctype html>
+        <html>
+        <head>
+          <style>
+            body { margin: 0; background: linear-gradient(135deg, #1e293b 0%, #0f172a 60%, #1e3a5f 100%); display: flex; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100vh; overflow: hidden; }
+            .grid { position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px); background-size: 20px 20px; }
+            .content { position: relative; z-index: 1; text-align: center; }
+            .tag { display: inline-block; padding: 4px 10px; border-radius: 9999px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px; }
+            h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: #ffffff; }
+            p { margin: 4px 0 0; font-size: 12px; color: #94a3b8; }
+          </style>
+        </head>
+        <body>
+          <div class="grid"></div>
+          <div class="content">
+            <span class="tag">Freight Operations</span>
+            <h1>North Atlantic &amp; Baltic Shipping Lanes</h1>
+            <p>Seasonal schedules, port turnarounds and cold-storage buffer metrics</p>
+          </div>
+        </body>
+        </html>
+      `);
+      const coverBuf = await coverPage.screenshot({ type: "png" });
+      await coverPage.close();
+
+      const uploaded = await call("POST", `/api/v1/w/${blogWs}/files`, coverBuf, {
+        "X-File-Name": "shipping-corridors.png",
+        "Content-Type": "application/octet-stream",
+      });
+
+      const post = await call("POST", `/api/v1/w/${blogWs}/blog/posts`, {
+        title: "Autumn freight routes and lead times",
+        slug: "autumn-freight-routes",
+        summary: "What changed across our Atlantic and Baltic shipping lanes this quarter, with updated transit tables.",
+        cover: uploaded.id,
+        cover_alt: "North Atlantic & Baltic shipping lanes schedule banner",
+        body_md: [
+          "Every October we review transit times across our primary refrigerated lanes before winter schedules take effect.",
+          "",
+          "## Transit summary by corridor",
+          "",
+          "| Corridor | Carrier | Median days | Variance |",
+          "| :--- | :--- | ---: | ---: |",
+          "| Gothenburg – Cork | Nordic Sea | 3.4 | +0.2 |",
+          "| Rotterdam – Bilbao | Iberia Line | 2.8 | -0.1 |",
+          "| Halifax – Liverpool | Atlantic Fast | 6.1 | +0.4 |",
+          "",
+          "> Cold-storage buffer stock in Cork was raised by **15%** ahead of the November storm window.",
+        ].join("\n"),
+      });
+      await call("PUT", `/api/v1/w/${blogWs}/blog/posts/${post.id}/status`, { _version: post._version, status: "published" });
+      if (want("blog-editor")) {
+        const { c, page } = await desktop("light");
+        await page.goto(`${base}/w/${blogWs}/blog/posts/${post.id}`);
+        await page.getByLabel(/^Title/).waitFor();
+        await page.frameLocator('iframe[title="Preview"]').getByRole("heading", { name: "Autumn freight routes and lead times" }).waitFor();
+        await save(page, "blog-editor");
+        await c.close();
+      }
+      if (want("public-blog-post") && blogUsername) {
+        const c = await browser.newContext({ viewport: { width: 1440, height: 1200 }, deviceScaleFactor: 2, timezoneId: "UTC", locale: "en-US" });
+        const p = await c.newPage();
+        await p.goto(`${base}/b/${blogUsername}/autumn-freight-routes`);
+        await p.getByRole("heading", { name: "Autumn freight routes and lead times", level: 1 }).waitFor();
+        await p.locator("figure.cover img").waitFor();
+        const footer = await p.locator("footer.site-footer").first().boundingBox();
+        await save(p, "public-blog-post", footer ? { clip: { x: 0, y: 0, width: DESKTOP.width, height: Math.ceil(footer.y + footer.height + 40) } } : {});
+        await c.close();
+      }
+    }
+  }
+
   await admin.close();
   console.log(`${written.length} images in ${out}`);
 }

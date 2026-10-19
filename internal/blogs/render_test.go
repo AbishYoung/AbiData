@@ -124,3 +124,24 @@ func TestRenderPages(t *testing.T) {
 		t.Error("other blog purged")
 	}
 }
+
+func TestRenderFeed(t *testing.T) {
+	at := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+	b := admin.Blog{ID: "B1", Username: "ann", UpdatedAt: at.Add(-time.Hour)}
+	posts := []Post{{Title: "A <b>&", Slug: "a", Summary: "Sum <i>", Body: "secret body", PublishedAt: &at}, {Title: "B", Slug: "b"}}
+	feed, err := RenderFeed("https://blog.example/", b, posts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := string(feed)
+	for _, want := range []string{`<feed xmlns="http://www.w3.org/2005/Atom">`, "<id>https://blog.example/b/ann</id>", "<updated>2026-05-01T09:00:00Z</updated>",
+		`<link href="https://blog.example/b/ann/feed.xml" rel="self" type="application/atom+xml"></link>`, "<title>A &lt;b&gt;&amp;</title>",
+		`<summary type="text">Sum &lt;i&gt;</summary>`, "<published>2026-05-01T09:00:00Z</published>", `<link href="https://blog.example/b/ann/b"></link>`} {
+		if !strings.Contains(f, want) {
+			t.Errorf("feed lacks %q:\n%s", want, f)
+		}
+	}
+	if strings.Contains(f, "secret body") || strings.Count(f, "<summary") != 1 {
+		t.Errorf("feed carries bodies or empty summaries:\n%s", f)
+	}
+}

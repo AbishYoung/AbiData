@@ -1,10 +1,8 @@
 # ADR 0017: User blogs: a public blog for every user
 
-Status: Proposed · 2026-10-18
+Status: Accepted · 2026-10-19
 
 Revised 2026-10-18: blog-specific authoring UI. The blog stays a workspace in the user's list, but posts are written in a dedicated blog UI (posts, editor, settings) instead of the generic datasheet and form. The generic tools stay reachable behind an "Open as workspace" link.
-
-Nothing here is implemented. This ADR records the idea, the choices that look right today and a phased plan, so the owner can accept, change or reject it before any code is written.
 
 ## Context
 Every user should have a place to publish writing, served to the public at `HOST/b/USERNAME/...`. Everything is private until the user publishes it. Platform administrators must be able to pull public content down.

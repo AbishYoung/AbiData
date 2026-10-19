@@ -5,6 +5,7 @@ export const ADMIN_TABS = [
   { id: "users", label: "Users" },
   { id: "api-keys", label: "API keys" },
   { id: "apps", label: "Public apps" },
+  { id: "blogs", label: "Blogs" },
   { id: "settings", label: "Settings" },
   { id: "logs", label: "Live logs" },
 ] as const;

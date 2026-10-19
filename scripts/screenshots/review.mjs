@@ -51,6 +51,58 @@ export async function review(ctx) {
     results.errors.push({ screen: "public-app setup", error: String(e) });
   }
 
+  let blogWs = "";
+  let blogUsername = "";
+  let blogPostId = 0;
+  try {
+    const me = await call("GET", "/api/v1/auth/me");
+    blogWs = me.memberships.find((m) => m.system_kind === "blog")?.workspace_id ?? "";
+    blogUsername = me.user?.username ?? "";
+    if (blogWs) {
+      await call("PUT", "/api/v1/admin/settings/public-blogs", { enabled: true });
+      await call("PATCH", `/api/v1/w/${blogWs}/blog`, {
+        title: "Field Notes from Northwind",
+        intro: "Dispatches on cold-chain logistics, supplier audits, and regional inventory data.\n\nPublished from our ABIdata workspace.",
+      });
+      await call("PUT", `/api/v1/w/${blogWs}/blog/published`, { published: true });
+      const post1 = await call("POST", `/api/v1/w/${blogWs}/blog/posts`, {
+        title: "Autumn freight routes and lead times",
+        slug: "autumn-freight-routes",
+        summary: "What changed across our Atlantic and Baltic shipping lanes this quarter, with updated transit tables.",
+        body_md: [
+          "Every October we review transit times across our primary refrigerated lanes before winter schedules take effect.",
+          "",
+          "## Transit summary by corridor",
+          "",
+          "| Corridor | Carrier | Median days | Variance |",
+          "| :--- | :--- | ---: | ---: |",
+          "| Gothenburg – Cork | Nordic Sea | 3.4 | +0.2 |",
+          "| Rotterdam – Bilbao | Iberia Line | 2.8 | -0.1 |",
+          "| Halifax – Liverpool | Atlantic Fast | 6.1 | +0.4 |",
+          "",
+          "> Cold-storage buffer stock in Cork was raised by **15%** ahead of the November storm window.",
+          "",
+          "### Verification query",
+          "",
+          "```sql",
+          "SELECT ship_country, COUNT(*) AS orders, AVG(freight) AS avg_freight",
+          "FROM orders",
+          "GROUP BY ship_country;",
+          "```",
+        ].join("\n"),
+      });
+      blogPostId = post1.id;
+      await call("PUT", `/api/v1/w/${blogWs}/blog/posts/${post1.id}/status`, { _version: post1._version, status: "published" });
+      await call("POST", `/api/v1/w/${blogWs}/blog/posts`, {
+        title: "Q4 supplier packaging checklist",
+        summary: "Draft notes for new insulated pallet liners.",
+        body_md: "Drafting the updated inspection checklist for **insulated liners** and temperature loggers.",
+      });
+    }
+  } catch (e) {
+    results.errors.push({ screen: "blog setup", error: String(e) });
+  }
+
   const settle = async (page) => {
     await page.addStyleTag({ content: STYLE }).catch(() => {});
     await page.evaluate(() => document.fonts.ready).catch(() => {});
@@ -61,7 +113,8 @@ export async function review(ctx) {
     await settle(page);
     const file = `${screen}-${variant}.png`;
     await page.screenshot({ path: join(out, file), type: "png" });
-    const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+    // Exclude the sandboxed preview iframe (which runs with no allow-scripts); the rendered HTML is scanned on public-blog-post.
+    const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).exclude('iframe[title="Preview"]').analyze();
     results.screens[`${screen}-${variant}`] = {
       file,
       violations: scan.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length, targets: v.nodes.slice(0, 3).map((n) => n.target.join(" ")) })),
@@ -144,6 +197,16 @@ export async function review(ctx) {
           await page.goto(appLink);
           await page.getByRole("link", { name: "Update your details" }).click();
           await page.getByTestId("public-form").waitFor();
+        });
+      }
+      if (blogUsername) {
+        await step(page, "public-blog-home", variant, async () => {
+          await page.goto(`${base}/b/${blogUsername}`);
+          await page.getByRole("heading", { name: "Field Notes from Northwind", level: 1 }).waitFor();
+        });
+        await step(page, "public-blog-post", variant, async () => {
+          await page.goto(`${base}/b/${blogUsername}/autumn-freight-routes`);
+          await page.getByRole("heading", { name: "Autumn freight routes and lead times", level: 1 }).waitFor();
         });
       }
 
@@ -265,13 +328,40 @@ export async function review(ctx) {
         await page.getByRole("heading", { name: "Workspace settings" }).waitFor();
         await page.getByText("Lena Fischer").waitFor();
       });
-      for (const [tab, name] of [["Overview", "admin-overview"], ["Workspaces", "admin-workspaces"], ["Users", "admin-users"], ["Settings", "admin-settings"], ["Live logs", "admin-logs"]]) {
-        if (compact && tab !== "Overview" && tab !== "Users") continue;
+      if (blogWs) {
+        await step(page, "blog-posts", variant, async () => {
+          await page.goto(`${base}/w/${blogWs}/blog`);
+          await page.getByRole("heading", { name: "Posts" }).waitFor();
+          await page.getByRole("link", { name: "Autumn freight routes and lead times" }).waitFor();
+        });
+        await step(page, "blog-editor", variant, async () => {
+          await page.goto(`${base}/w/${blogWs}/blog/posts/${blogPostId}`);
+          await page.getByLabel(/^Title/).waitFor();
+          if (!compact) await page.locator('iframe[title="Preview"]').waitFor();
+        });
+        await step(page, "blog-settings", variant, async () => {
+          await page.goto(`${base}/w/${blogWs}/blog/settings`);
+          await page.getByRole("heading", { name: "Blog settings" }).waitFor();
+        });
+      }
+      for (const [tab, name] of [
+        ["Overview", "admin-overview"],
+        ["Workspaces", "admin-workspaces"],
+        ["Users", "admin-users"],
+        ["Blogs", "admin-blogs"],
+        ["Settings", "admin-settings"],
+        ["Live logs", "admin-logs"],
+      ]) {
+        if (compact && tab !== "Overview" && tab !== "Users" && tab !== "Blogs") continue;
         await step(page, name, variant, async () => {
           await page.goto(`${base}/admin`);
           await page.getByRole("heading", { name: "Admin console" }).waitFor();
           await tap(page.getByRole("tab", { name: tab }));
           await page.getByRole("tab", { name: tab, selected: true }).waitFor();
+          if (tab === "Blogs" && blogUsername) {
+            await page.getByRole("button", { name: `Open @${blogUsername}` }).click();
+            await page.getByRole("heading", { name: "Published posts" }).waitFor();
+          }
         });
       }
       await c.close();

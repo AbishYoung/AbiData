@@ -25,6 +25,8 @@ type PublicBlogPost struct {
 	Summary     string     `json:"summary"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 	URL         string     `json:"url"`
+	CoverURL    string     `json:"cover_url,omitempty" doc:"The cover image, if the post has one."`
+	CoverAlt    string     `json:"cover_alt,omitempty"`
 }
 
 // PublicBlog is a public blog's home.
@@ -86,9 +88,13 @@ type publicBlogPostOut struct {
 func (s *Server) registerPublicBlogs(api huma.API) {
 	meta := map[string]any{metaAccess: "blog"}
 	tags := []string{"public blogs"}
-	base := func() string { return strings.TrimRight(s.deps.Config.PublicURL, "/") }
+	base := func() string { return strings.TrimRight(s.deps.Config.BlogBaseURL(), "/") }
 	postOf := func(user string, p blogs.Post) PublicBlogPost {
-		return PublicBlogPost{Title: p.Title, Slug: p.Slug, Summary: p.Summary, PublishedAt: p.PublishedAt, URL: base() + "/b/" + user + "/" + p.Slug}
+		out := PublicBlogPost{Title: p.Title, Slug: p.Slug, Summary: p.Summary, PublishedAt: p.PublishedAt, URL: base() + "/b/" + user + "/" + p.Slug}
+		if p.Cover != "" {
+			out.CoverURL, out.CoverAlt = base()+blogs.PublicImageURL(user)(p.Cover), p.CoverAlt
+		}
+		return out
 	}
 
 	huma.Register(api, huma.Operation{OperationID: "publicBlog", Method: http.MethodGet, Path: "/api/v1/blogs/{username}", Tags: tags, Metadata: meta,

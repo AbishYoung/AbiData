@@ -7,6 +7,7 @@ import { askToConfirm, Badge, Button, buttonClass, EmptyState, Input, Skeleton }
 import { alertBox, infoBox, menu, menuItem } from "@/components/styles";
 import { blogKeys, deletePost, getPost, listPosts, type BlogInfo, type BlogPostSummary } from "./blogApi";
 import { CHIP_LABEL, CHIP_TONE } from "./postModel";
+import { TakedownBanner } from "./TakedownBanner";
 
 const FILTERS = [
   { value: "", label: "All" },
@@ -79,6 +80,7 @@ export function PostList({ ws, info, status, q, onSearch }: { ws: string; info: 
           New post
         </Link>
       </div>
+      {info.takedown && <TakedownBanner takedown={info.takedown} scope="blog" />}
       {!info.published && (
         <p className={`${infoBox} m-0`}>
           Your blog is off. Published posts are not visible until you turn it on in{" "}

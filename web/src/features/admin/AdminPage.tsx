@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Tabs } from "radix-ui";
-import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, ScrollText, Settings, ShieldCheck, ShieldOff, Users, type LucideIcon } from "lucide-react";
+import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, PenLine, ScrollText, Settings, ShieldCheck, ShieldOff, Users, type LucideIcon } from "lucide-react";
 import { buttonClass, StatusPage } from "@/components/ui";
 import { LogoMark } from "@/components/brand/Logo";
 import { pageTitle } from "@/components/styles";
@@ -14,6 +14,7 @@ import { SettingsTab } from "./SettingsTab";
 import { LogsTab } from "./LogsTab";
 import { AdminApiKeysTab } from "@/features/apikeys/AdminApiKeysTab";
 import { AdminAppsTab } from "@/features/apps/AdminAppsTab";
+import { AdminBlogsTab } from "@/features/blog/AdminBlogsTab";
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   overview: LayoutDashboard,
@@ -21,6 +22,7 @@ const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   users: Users,
   "api-keys": KeyRound,
   apps: Globe,
+  blogs: PenLine,
   settings: Settings,
   logs: ScrollText,
 };
@@ -100,6 +102,9 @@ export function AdminPage({ me, tab, onTabChange }: { me: Me; tab: AdminTab; onT
           </Tabs.Content>
           <Tabs.Content value="apps">
             <AdminAppsTab />
+          </Tabs.Content>
+          <Tabs.Content value="blogs">
+            <AdminBlogsTab />
           </Tabs.Content>
           <Tabs.Content value="settings">
             <SettingsTab />
