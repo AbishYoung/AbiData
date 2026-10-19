@@ -72,7 +72,8 @@ func TestGoSourceSelectsReverseDependencies(t *testing.T) {
 	if want := []string{"apps", "files-geo", "forms"}; !slices.Equal(p.E2EAreas, want) {
 		t.Fatalf("areas = %v, want %v", p.E2EAreas, want)
 	}
-	if !p.Image || p.Web() || p.WebStatic || p.Postgres {
+	// Forms runs on PostgreSQL too (ADR 0012 Phase 3).
+	if !p.Image || p.Web() || p.WebStatic || !p.Postgres {
 		t.Fatalf("unexpected layers: %+v", p)
 	}
 }
