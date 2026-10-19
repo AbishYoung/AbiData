@@ -11,6 +11,6 @@
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.64.0",
     "pdfjs-dist": "6.3.289",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   }
 }
