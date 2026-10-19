@@ -97,7 +97,8 @@ func (s *Server) blogFile(w http.ResponseWriter, r *http.Request) {
 
 // blogReader reads with the install switch as it stands now.
 func (s *Server) blogReader() *blogs.Reader {
-	return &blogs.Reader{Admin: s.deps.Admin, Workspaces: s.deps.Workspaces, Schemas: s.deps.Schemas, Switch: s.blogSwitch()}
+	return &blogs.Reader{Admin: s.deps.Admin, Workspaces: s.deps.Workspaces, Schemas: s.deps.Schemas, Switch: s.blogSwitch(),
+		TakenDown: s.deps.Admin.TakenDown}
 }
 
 func blogHeaders(w http.ResponseWriter) {

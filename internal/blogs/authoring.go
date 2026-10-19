@@ -46,6 +46,44 @@ type BlogInfo struct {
 	Username           string     `json:"username"`
 	PublicURL          string     `json:"public_url"`
 	PublicBlogsEnabled bool       `json:"public_blogs_enabled" doc:"The install-wide switch. Off: no blog is served, whatever the owner's switches say."`
+	Takedown           *Takedown  `json:"takedown,omitempty" doc:"An administrator's active take-down of the whole blog."`
+}
+
+// Takedown is an active take-down as the blog's owner sees it.
+type Takedown struct {
+	ReasonCode string    `json:"reason_code"`
+	Reason     string    `json:"reason" doc:"The reason in words."`
+	Note       string    `json:"note" doc:"The administrator's note to the owner."`
+	At         time.Time `json:"at"`
+}
+
+// ReasonText is a take-down or report reason in words.
+var ReasonText = map[string]string{
+	"spam": "Spam", "phishing": "Phishing", "malware": "Malware", "illegal": "Illegal content",
+	"harassment": "Harassment", "copyright": "Copyright", "other": "Other",
+}
+
+// activeTakedowns returns the blog's active take-down (nil if none) and the
+// posts' by slug.
+func (s *Service) activeTakedowns(ctx context.Context, blogID string) (*Takedown, map[string]*Takedown, error) {
+	all, err := s.Admin.Takedowns(ctx, blogID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var blog *Takedown
+	posts := map[string]*Takedown{}
+	for _, td := range all {
+		if td.RestoredAt != nil {
+			continue
+		}
+		t := &Takedown{ReasonCode: td.ReasonCode, Reason: ReasonText[td.ReasonCode], Note: td.Note, At: td.TakenDownAt}
+		if td.PostSlug == "" {
+			blog = t
+		} else {
+			posts[td.PostSlug] = t
+		}
+	}
+	return blog, posts, nil
 }
 
 // BlogPostSummary is one row of the post list.
@@ -79,6 +117,7 @@ type BlogPost struct {
 	Problem     string     `json:"problem,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 	PublicURL   string     `json:"public_url" doc:"Where the post is (or would be) served."`
+	Takedown    *Takedown  `json:"takedown,omitempty" doc:"An administrator's active take-down of this post."`
 }
 
 // PostInput is what the editor sends; nil fields are unchanged.
@@ -131,10 +170,14 @@ func (s *Service) HomeURL(username string) string {
 }
 
 // Info returns the blog home.
-func (s *Service) Info(ctx context.Context, b admin.Blog) BlogInfo {
+func (s *Service) Info(ctx context.Context, b admin.Blog) (BlogInfo, error) {
+	td, _, err := s.activeTakedowns(ctx, b.ID)
+	if err != nil {
+		return BlogInfo{}, err
+	}
 	return BlogInfo{ID: b.ID, WorkspaceID: string(b.WorkspaceID), Title: b.Title, Intro: b.Intro, Published: b.Published,
 		PublishedAt: b.PublishedAt, Username: b.Username, PublicURL: s.HomeURL(b.Username),
-		PublicBlogsEnabled: s.PublicEnabled != nil && s.PublicEnabled(ctx)}
+		PublicBlogsEnabled: s.PublicEnabled != nil && s.PublicEnabled(ctx), Takedown: td}, nil
 }
 
 // UpdateInfo sets the blog's title and intro.
@@ -162,13 +205,13 @@ func (s *Service) reload(ctx context.Context, b admin.Blog) (BlogInfo, error) {
 	if err != nil {
 		return BlogInfo{}, err
 	}
-	return s.Info(ctx, b), nil
+	return s.Info(ctx, b)
 }
 
 // SetPublished switches the blog on or off. It is rate-limited and audited.
 func (s *Service) SetPublished(ctx context.Context, b admin.Blog, userID string, on bool) (BlogInfo, error) {
 	if on == b.Published {
-		return s.Info(ctx, b), nil
+		return s.Info(ctx, b)
 	}
 	if err := s.limiter().spend("user:"+userID, PublishesPerHour, s.now()); err != nil {
 		return BlogInfo{}, err
@@ -208,7 +251,10 @@ func (s *Service) open(ctx context.Context, l *workspace.Lease) (*catalog.Schema
 	return sch, pins, nil
 }
 
-func chip(p Post) string {
+func chip(p Post, down *Takedown) string {
+	if down != nil {
+		return ChipTakenDown
+	}
 	if p.Problem() != "" {
 		return ChipNeedsAttention
 	}
@@ -217,8 +263,12 @@ func chip(p Post) string {
 
 // ListPosts returns a page of the post list, newest edit first. status
 // filters by chip ("" for all); q matches titles, ignoring case.
-func (s *Service) ListPosts(ctx context.Context, l *workspace.Lease, status, q, cursor string) (BlogPostList, error) {
+func (s *Service) ListPosts(ctx context.Context, l *workspace.Lease, b admin.Blog, status, q, cursor string) (BlogPostList, error) {
 	sch, pins, err := s.open(ctx, l)
+	if err != nil {
+		return BlogPostList{}, err
+	}
+	_, downs, err := s.activeTakedowns(ctx, b.ID)
 	if err != nil {
 		return BlogPostList{}, err
 	}
@@ -238,7 +288,7 @@ func (s *Service) ListPosts(ctx context.Context, l *workspace.Lease, status, q, 
 	q = strings.ToLower(strings.TrimSpace(q))
 	items := []BlogPostSummary{}
 	for _, p := range posts {
-		c := chip(p)
+		c := chip(p, downs[p.Slug])
 		if (status != "" && c != status) || (q != "" && !strings.Contains(strings.ToLower(p.Title), q)) {
 			continue
 		}
@@ -292,9 +342,13 @@ func (s *Service) getPost(ctx context.Context, l *workspace.Lease, sch *catalog.
 		return BlogPost{}, fault.E(fault.NotFound)
 	}
 	p := posts[0]
+	_, downs, err := s.activeTakedowns(ctx, b.ID)
+	if err != nil {
+		return BlogPost{}, err
+	}
 	return BlogPost{ID: p.ID, Version: p.Version, Title: p.Title, Slug: p.Slug, Summary: p.Summary, BodyMD: p.Body,
-		Status: p.Status, Chip: chip(p), Problem: p.Problem(), PublishedAt: p.PublishedAt,
-		PublicURL: s.HomeURL(b.Username) + "/" + p.Slug}, nil
+		Status: p.Status, Chip: chip(p, downs[p.Slug]), Problem: p.Problem(), PublishedAt: p.PublishedAt,
+		PublicURL: s.HomeURL(b.Username) + "/" + p.Slug, Takedown: downs[p.Slug]}, nil
 }
 
 func (in PostInput) fields(pins Pins) (map[string]any, error) {
@@ -385,6 +439,15 @@ func (s *Service) SetStatus(ctx context.Context, l *workspace.Lease, b admin.Blo
 	}
 	if status != StatusDraft && cur.Problem != "" {
 		return BlogPost{}, fault.New(fault.BadRequest, cur.Problem+" Fix it before publishing.")
+	}
+	if status != StatusDraft {
+		blogDown, _, err := s.activeTakedowns(ctx, b.ID)
+		if err != nil {
+			return BlogPost{}, err
+		}
+		if cur.Takedown != nil || blogDown != nil {
+			return BlogPost{}, fault.New(fault.BadRequest, "An administrator took this down. You can still edit it, but it cannot be published until an administrator restores it after a review.")
+		}
 	}
 	if err := s.limiter().spend("user:"+actor.UserID, PublishesPerHour, s.now()); err != nil {
 		return BlogPost{}, err

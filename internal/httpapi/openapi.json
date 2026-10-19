@@ -251,6 +251,201 @@
         ],
         "type": "object"
       },
+      "AdminBlog": {
+        "additionalProperties": false,
+        "properties": {
+          "active_takedowns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "damaged": {
+            "description": "The posts table is missing or changed, so nothing is served.",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "intro": {
+            "type": "string"
+          },
+          "open_reports": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/AdminBlogPost"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "public_url": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "published_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/AdminBlogReport"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "takedowns": {
+            "items": {
+              "$ref": "#/components/schemas/AdminTakedown"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intro",
+          "posts",
+          "takedowns",
+          "reports",
+          "damaged",
+          "id",
+          "username",
+          "title",
+          "workspace_id",
+          "published",
+          "public_url",
+          "active_takedowns",
+          "open_reports"
+        ],
+        "type": "object"
+      },
+      "AdminBlogPost": {
+        "additionalProperties": false,
+        "properties": {
+          "published_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "taken_down": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "slug",
+          "status",
+          "url",
+          "taken_down"
+        ],
+        "type": "object"
+      },
+      "AdminBlogReport": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "post_slug": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "resolved_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason_code",
+          "message",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "AdminBlogSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "active_takedowns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "open_reports": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "public_url": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "published_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "title",
+          "workspace_id",
+          "published",
+          "public_url",
+          "active_takedowns",
+          "open_reports"
+        ],
+        "type": "object"
+      },
       "AdminCreateUserRequest": {
         "additionalProperties": false,
         "properties": {
@@ -310,6 +505,24 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/AppOut"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "AdminListBlogsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminBlogSummary"
             },
             "type": [
               "array",
@@ -467,6 +680,17 @@
         ],
         "type": "object"
       },
+      "AdminRestoreBlogRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "post_slug": {
+            "description": "Empty for the whole blog.",
+            "maxLength": 80,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AdminStats": {
         "additionalProperties": false,
         "properties": {
@@ -507,6 +731,46 @@
           "users",
           "heap_bytes",
           "goroutines"
+        ],
+        "type": "object"
+      },
+      "AdminTakedown": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "post_slug": {
+            "description": "Empty for the whole blog.",
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "restored_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "restored_by": {
+            "type": "string"
+          },
+          "taken_down_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "taken_down_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason_code",
+          "note",
+          "taken_down_by",
+          "taken_down_at"
         ],
         "type": "object"
       },
@@ -1079,6 +1343,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "takedown": {
+            "$ref": "#/components/schemas/Takedown",
+            "description": "An administrator's active take-down of the whole blog."
+          },
           "title": {
             "type": "string"
           },
@@ -1149,6 +1417,10 @@
           },
           "summary": {
             "type": "string"
+          },
+          "takedown": {
+            "$ref": "#/components/schemas/Takedown",
+            "description": "An administrator's active take-down of this post."
           },
           "title": {
             "type": "string"
@@ -1233,6 +1505,35 @@
           "slug",
           "status",
           "chip"
+        ],
+        "type": "object"
+      },
+      "BlogReportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "post_slug": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "spam",
+              "phishing",
+              "malware",
+              "illegal",
+              "harassment",
+              "copyright",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
         ],
         "type": "object"
       },
@@ -6424,6 +6725,64 @@
         ],
         "type": "object"
       },
+      "Takedown": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "note": {
+            "description": "The administrator's note to the owner.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "The reason in words.",
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "reason",
+          "note",
+          "at"
+        ],
+        "type": "object"
+      },
+      "TakedownRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "Shown to the blog's owner.",
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "post_slug": {
+            "description": "Empty to take down the whole blog.",
+            "maxLength": 80,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "spam",
+              "phishing",
+              "malware",
+              "illegal",
+              "harassment",
+              "copyright",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "type": "object"
+      },
       "TypeOptions": {
         "additionalProperties": false,
         "properties": {
@@ -7098,6 +7457,463 @@
           }
         },
         "summary": "Take an app down: its link stops working and its owners cannot turn it back on",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blogs": {
+      "get": {
+        "operationId": "adminListBlogs",
+        "parameters": [
+          {
+            "description": "Part of a username.",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Part of a username.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only blogs with an active take-down, or with open reports.",
+            "explode": false,
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "description": "Only blogs with an active take-down, or with open reports.",
+              "enum": [
+                "taken_down",
+                "reported",
+                ""
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminListBlogsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Blogs by username, optionally only those taken down or reported",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blogs/{id}": {
+      "get": {
+        "operationId": "adminGetBlog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBlog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "A blog's published posts, take-downs and reports (drafts only through workspace access)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blogs/{id}/reports/resolve": {
+      "post": {
+        "operationId": "adminResolveBlogReports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBlog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Mark a blog's open reports as handled",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blogs/{id}/restore": {
+      "post": {
+        "operationId": "adminRestoreBlog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRestoreBlogRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBlog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "End the active take-down of a blog or one post",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blogs/{id}/take-down": {
+      "post": {
+        "operationId": "adminTakeDownBlog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBlog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Take a blog or one post down; it is not served until restored",
         "tags": [
           "admin"
         ]
@@ -9993,6 +10809,92 @@
         },
         "security": [],
         "summary": "One published or unlisted post, rendered",
+        "tags": [
+          "public blogs"
+        ]
+      }
+    },
+    "/api/v1/blogs/{username}/report": {
+      "post": {
+        "operationId": "publicBlogReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlogReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [],
+        "summary": "Report a blog or one of its posts to the administrators",
         "tags": [
           "public blogs"
         ]

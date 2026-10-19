@@ -218,6 +218,27 @@ func (r *Reader) Home(ctx context.Context, b admin.Blog, limit int) ([]Post, err
 	return out, nil
 }
 
+// PublicPosts lists a blog's published and unlisted posts, newest first,
+// whatever the blog's switches and take-downs say: the administrator's view
+// of what the blog shows or would show. Drafts are never read.
+func (r *Reader) PublicPosts(ctx context.Context, b admin.Blog) ([]Post, error) {
+	l, sch, pins, err := r.open(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	defer l.Release()
+	var posts []Post
+	err = l.Read(ctx, func(db dbx.Querier) error {
+		posts, err = readPosts(ctx, db, sch, pins, postQuery{
+			where: func(col func(string) sqlgen.Col) sqlgen.Expr { return statusIs(col, StatusPublished, StatusUnlisted) },
+			order: []sqlgen.Order{{Expr: sqlgen.Col{Name: physical(sch, pins, "published_at")}, Desc: true, Nulls: sqlgen.NullsLast}, {Expr: sqlgen.Col{Name: "id"}, Desc: true}},
+			limit: 500,
+		})
+		return err
+	})
+	return posts, err
+}
+
 // Post returns one served post with its body. An old slug of a served post
 // answers *Moved; everything else that is not served is ErrHidden.
 func (r *Reader) Post(ctx context.Context, b admin.Blog, slug string) (Post, error) {
