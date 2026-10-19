@@ -131,6 +131,16 @@ var (
 			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL))
 			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL))
 			ORDER BY u.username LIMIT ?`)
+	// On PostgreSQL usernames have a nondeterministic collation, which LIKE refuses before version 18.
+	sqlListBlogsPG = sqlgen.RegisterPostgresOnly("admin.pgListBlogs", `SELECT b.id, b.user_id, b.workspace_id, b.slug, b.title, b.intro, b.published, b.published_at,
+			b.created_at, b.updated_at, u.username,
+			(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),
+			(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
+			FROM _adm_blogs b JOIN _adm_users u ON u.id = b.user_id
+			WHERE u.username COLLATE "C" LIKE ?
+			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL))
+			AND (? = 0 OR EXISTS (SELECT 1 FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL))
+			ORDER BY u.username LIMIT ?`)
 	sqlMigrate  = sqlgen.RegisterSQLiteOnly("admin.migrate", "PRAGMA application_id")
 	sqlMigrate2 = sqlgen.RegisterSQLiteOnly("admin.migrate#2", "PRAGMA user_version")
 	sqlPing     = sqlgen.Register("admin.Ping", "SELECT 1")

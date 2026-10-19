@@ -196,9 +196,13 @@ func (s *Store) ListBlogs(ctx context.Context, q string, takenDown, reported boo
 		}
 		return 0
 	}
+	stmt := sqlListBlogs
+	if s.pg != nil {
+		stmt = sqlListBlogsPG
+	}
 	out := []BlogSummary{}
 	err := s.Read(ctx, func(c dbx.Querier) error {
-		rows, err := c.Query(ctx, sqlListBlogs.SQL, pattern, flag(takenDown), flag(reported), limit)
+		rows, err := c.Query(ctx, stmt.SQL, pattern, flag(takenDown), flag(reported), limit)
 		if err != nil {
 			return err
 		}

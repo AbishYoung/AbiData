@@ -71,6 +71,7 @@ admin.UsernameOwner	admin	portable	id
 admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
 admin.migrate	admin	sqlite	application_id
 admin.migrate#2	admin	sqlite	user_version
+admin.pgListBlogs	-	postgres	-
 admin.readAttempts	admin	portable	count,window_start
 admin.refuseSystem	admin	portable	system_kind
 admin.writeAppItems	admin	portable	
