@@ -175,15 +175,25 @@ export function PickerPage({ me: initial }: { me: Me }) {
         ) : (
           <ul className="mt-6 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map((m) => (
-              <li key={m.workspace_id}>
+              <li key={m.workspace_id} className="relative">
+                {m.system_kind === "blog" && (
+                  // The blog opens in the blog UI; the generic shell stays one link away (ADR 0017).
+                  <Link
+                    to="/w/$ws"
+                    params={{ ws: m.workspace_id }}
+                    className="absolute right-3 top-3 z-10 rounded px-1.5 py-0.5 text-xs font-medium text-fg-muted underline hover:text-fg"
+                  >
+                    Open as workspace
+                  </Link>
+                )}
                 <Link
-                  to="/w/$ws"
+                  to={m.system_kind === "blog" ? "/w/$ws/blog" : "/w/$ws"}
                   params={{ ws: m.workspace_id }}
                   className={`${card} group flex h-full flex-col gap-4 p-4 transition-[border-color,box-shadow] duration-150 hover:border-accent/50 hover:shadow-md`}
                 >
                   <span className="flex items-center gap-3">
                     <WorkspaceAvatar name={m.workspace_name} size="xl" />
-                    <span className="min-w-0 flex-1 truncate text-base font-semibold text-fg">
+                    <span className={`min-w-0 flex-1 truncate text-base font-semibold text-fg ${m.system_kind === "blog" ? "pr-28" : ""}`}>
                       {m.workspace_name}
                     </span>
                   </span>

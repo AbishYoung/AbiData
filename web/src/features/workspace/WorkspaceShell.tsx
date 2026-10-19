@@ -365,6 +365,20 @@ function TabContent({ ws, role, onOpenNav }: { ws: string; role: WorkspaceRole |
   );
 }
 
+/** A blog workspace in the generic shell points back to the blog editor (ADR 0017). */
+function BlogBanner({ ws, kind }: { ws: string; kind: string | undefined }) {
+  if (kind !== "blog") return null;
+  return (
+    <p role="note" className={`${infoBox} m-2 shrink-0`}>
+      This is your blog's workspace. Write posts in the{" "}
+      <Link to="/w/$ws/blog" params={{ ws }} className="font-medium text-accent underline">
+        blog editor
+      </Link>
+      .
+    </p>
+  );
+}
+
 export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   const openTab = useTabs((s) => s.open);
   const live = useLiveStore((s) => s.state);
@@ -416,6 +430,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
             </div>
           ) : (
             <>
+              <BlogBanner ws={ws} kind={workspace.data?.system_kind} />
               <TabStrip ws={ws} role={role} />
               <TabContent ws={ws} role={role} onOpenNav={() => setNavOpen(true)} />
             </>
@@ -470,6 +485,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
             </div>
           ) : (
             <>
+              <BlogBanner ws={ws} kind={workspace.data?.system_kind} />
               <TabStrip ws={ws} role={role} />
               <TabContent ws={ws} role={role} />
             </>

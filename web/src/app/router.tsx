@@ -23,6 +23,9 @@ import { Button, buttonClass, StatusPage } from "@/components/ui";
 const AdminPage = suspended<ComponentProps<typeof import("@/features/admin/AdminPage").AdminPage>>(() =>
   import("@/features/admin/AdminPage").then((m) => ({ default: m.AdminPage })),
 );
+const BlogApp = suspended<ComponentProps<typeof import("@/features/blog/BlogApp").BlogApp>>(() =>
+  import("@/features/blog/BlogApp").then((m) => ({ default: m.BlogApp })),
+);
 const PublicAppPage = suspended<ComponentProps<typeof import("@/features/apps/PublicAppPage").PublicAppPage>>(() =>
   import("@/features/apps/PublicAppPage").then((m) => ({ default: m.PublicAppPage })),
 );
@@ -131,6 +134,70 @@ const workspaceRoute = createRoute({
   },
 });
 
+// The blog UI (ADR 0017): the user's own blog workspace, outside the generic shell.
+const blogShortcutRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/blog",
+  beforeLoad: ({ context }) => {
+    const blog = (context.me.memberships ?? []).find((m) => m.system_kind === "blog");
+    throw blog ? redirect({ to: "/w/$ws/blog", params: { ws: blog.workspace_id } }) : redirect({ to: "/" });
+  },
+});
+
+const blogListRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/w/$ws/blog",
+  validateSearch: (search: Record<string, unknown>): { status?: string; q?: string } => ({
+    ...(typeof search.status === "string" && search.status ? { status: search.status } : {}),
+    ...(typeof search.q === "string" && search.q ? { q: search.q } : {}),
+  }),
+  component: function BlogListPage() {
+    const { ws } = blogListRoute.useParams();
+    const { me } = blogListRoute.useRouteContext();
+    const search = blogListRoute.useSearch();
+    const navigate = blogListRoute.useNavigate();
+    return (
+      <BlogApp
+        ws={ws}
+        me={me}
+        screen={{ kind: "list", status: search.status ?? "", q: search.q ?? "" }}
+        onSearch={(status, q) => void navigate({ search: { ...(status ? { status } : {}), ...(q ? { q } : {}) }, replace: true })}
+      />
+    );
+  },
+});
+
+const blogNewRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/w/$ws/blog/new",
+  component: function BlogNewPage() {
+    const { ws } = blogNewRoute.useParams();
+    const { me } = blogNewRoute.useRouteContext();
+    return <BlogApp ws={ws} me={me} screen={{ kind: "new" }} />;
+  },
+});
+
+const blogPostRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/w/$ws/blog/posts/$id",
+  component: function BlogPostPage() {
+    const { ws, id } = blogPostRoute.useParams();
+    const { me } = blogPostRoute.useRouteContext();
+    const n = Number(id);
+    return <BlogApp ws={ws} me={me} screen={Number.isSafeInteger(n) && n > 0 ? { kind: "post", id: n } : { kind: "missing" }} />;
+  },
+});
+
+const blogSettingsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/w/$ws/blog/settings",
+  component: function BlogSettingsPage() {
+    const { ws } = blogSettingsRoute.useParams();
+    const { me } = blogSettingsRoute.useRouteContext();
+    return <BlogApp ws={ws} me={me} screen={{ kind: "settings" }} />;
+  },
+});
+
 const adminRoute = createRoute({
   getParentRoute: () => authRoute,
   path: "/admin",
@@ -181,7 +248,16 @@ const routeTree = rootRoute.addChildren([
   setupRoute,
   publicAppRoute,
   publicAppItemRoute,
-  authRoute.addChildren([indexRoute, workspaceRoute, adminRoute]),
+  authRoute.addChildren([
+    indexRoute,
+    workspaceRoute,
+    blogShortcutRoute,
+    blogListRoute,
+    blogNewRoute,
+    blogPostRoute,
+    blogSettingsRoute,
+    adminRoute,
+  ]),
 ]);
 
 export const router = createRouter({ routeTree, context: { queryClient } });
