@@ -50,6 +50,29 @@ type Service struct {
 	Schemas *catalog.Cache
 	Events  Publisher
 	Now     func() time.Time
+	// Hook, when set, may rewrite the fields of every insert and update
+	// (ADR 0017's post rules); see WriteHook.
+	Hook WriteHook
+}
+
+// WriteHook may rewrite an insert's (id 0) or update's fields, keyed by
+// column id in API form, inside the write transaction and before they are
+// decoded. current reads the row being updated. It returns changed=false to
+// write the fields as given.
+type WriteHook func(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.Table, id int64, fields map[string]any,
+	current func() (Row, error)) (out map[string]any, changed bool, err error)
+
+// hooked runs the Hook for one write and returns the columns and values to write.
+func (s *Service) hooked(ctx context.Context, tx dbx.Tx, sch *catalog.Schema, t *catalog.Table, id int64, fields map[string]any,
+	cols []catalog.Column, vals []any) ([]catalog.Column, []any, error) {
+	if s.Hook == nil {
+		return cols, vals, nil
+	}
+	out, changed, err := s.Hook(ctx, tx, sch, t, id, fields, func() (Row, error) { return getRow(ctx, tx, sch, t, id) })
+	if err != nil || !changed {
+		return cols, vals, err
+	}
+	return decodeFields(t, out)
 }
 
 // Idempotency identifies a retried mutation (D17).
@@ -490,6 +513,10 @@ func (s *Service) Insert(ctx context.Context, l *workspace.Lease, tableID string
 	}
 	raw, err := s.mutation(ctx, l, idem, map[string]any{"op": "insert", "table": tableID, "fields": fields},
 		func(tx dbx.Tx) (any, *change, error) {
+			cols, vals, err := s.hooked(ctx, tx, sch, t, 0, fields, cols, vals)
+			if err != nil {
+				return nil, nil, err
+			}
 			r, err := insertRow(ctx, tx, sch, t, cols, vals)
 			if err != nil {
 				return nil, nil, err
@@ -542,6 +569,10 @@ func (s *Service) Update(ctx context.Context, l *workspace.Lease, tableID string
 	}
 	raw, err := s.mutation(ctx, l, idem, map[string]any{"op": "update", "table": tableID, "id": id, "version": expectedVersion, "fields": fields},
 		func(tx dbx.Tx) (any, *change, error) {
+			cols, vals, err := s.hooked(ctx, tx, sch, t, id, fields, cols, vals)
+			if err != nil {
+				return nil, nil, err
+			}
 			r, before, err := updateRow(ctx, tx, sch, t, id, expectedVersion, cols, vals, t.TrackHistory)
 			if err != nil {
 				return nil, nil, err
@@ -698,7 +729,11 @@ func (s *Service) Batch(ctx context.Context, l *workspace.Lease, tableID string,
 				switch op.Op {
 				case "insert":
 					var r Row
-					r, err = insertRow(ctx, tx, sch, t, preps[i].cols, preps[i].vals)
+					cols, vals, herr := s.hooked(ctx, tx, sch, t, 0, op.Fields, preps[i].cols, preps[i].vals)
+					if herr != nil {
+						return nil, nil, withIndex(herr, i)
+					}
+					r, err = insertRow(ctx, tx, sch, t, cols, vals)
 					if err == nil {
 						err = s.history(ctx, tx, t, r.ID, r.Version, "insert", actor, nil, &r)
 						out[i] = BatchResult{Op: op.Op, Row: &r, ID: r.ID}
@@ -707,7 +742,11 @@ func (s *Service) Batch(ctx context.Context, l *workspace.Lease, tableID string,
 				case "update":
 					var r Row
 					var before *Row
-					r, before, err = updateRow(ctx, tx, sch, t, op.ID, op.Version, preps[i].cols, preps[i].vals, t.TrackHistory)
+					cols, vals, herr := s.hooked(ctx, tx, sch, t, op.ID, op.Fields, preps[i].cols, preps[i].vals)
+					if herr != nil {
+						return nil, nil, withIndex(herr, i)
+					}
+					r, before, err = updateRow(ctx, tx, sch, t, op.ID, op.Version, cols, vals, t.TrackHistory)
 					if err == nil {
 						err = s.history(ctx, tx, t, r.ID, r.Version, "update", actor, before, &r)
 						out[i] = BatchResult{Op: op.Op, Row: &r, ID: r.ID}
@@ -771,6 +810,9 @@ func (s *Service) InsertTx(ctx context.Context, tx dbx.Tx, ws string, sch *catal
 	if err != nil {
 		return TxResult{}, err
 	}
+	if cols, vals, err = s.hooked(ctx, tx, sch, t, 0, fields, cols, vals); err != nil {
+		return TxResult{}, err
+	}
 	r, err := insertRow(ctx, tx, sch, t, cols, vals)
 	if err != nil {
 		return TxResult{}, translate(t, err)
@@ -785,6 +827,9 @@ func (s *Service) InsertTx(ctx context.Context, tx dbx.Tx, ws string, sch *catal
 func (s *Service) UpdateTx(ctx context.Context, tx dbx.Tx, ws string, sch *catalog.Schema, t *catalog.Table, id, expectedVersion int64, fields map[string]any, actor Actor) (TxResult, error) {
 	cols, vals, err := decodeFields(t, fields)
 	if err != nil {
+		return TxResult{}, err
+	}
+	if cols, vals, err = s.hooked(ctx, tx, sch, t, id, fields, cols, vals); err != nil {
 		return TxResult{}, err
 	}
 	r, before, err := updateRow(ctx, tx, sch, t, id, expectedVersion, cols, vals, t.TrackHistory)
