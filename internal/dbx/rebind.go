@@ -62,6 +62,24 @@ func RebindText(sql string) (string, error) {
 	return p.sql, nil
 }
 
+// Params lists sql's parameters in order of first use, as SQLite's Describe
+// reports them: a named one as ":name", a positional one as "?N".
+func Params(sql string) ([]string, error) {
+	p, err := parsed(sql)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(p.slots))
+	for i, s := range p.slots {
+		if s.name != "" {
+			out[i] = ":" + s.name
+		} else {
+			out[i] = "?" + strconv.Itoa(s.pos)
+		}
+	}
+	return out, nil
+}
+
 type slot struct {
 	pos  int    // 1-based positional arg, or 0
 	name string // named parameter, or ""

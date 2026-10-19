@@ -24,4 +24,8 @@ var (
 	sqlRefreshCompiled  = sqlgen.Register("query.RefreshCompiled", `SELECT value FROM _sys_meta WHERE key = 'query_compiler'`)
 	sqlRefreshCompiled2 = sqlgen.Register("query.RefreshCompiled#2", `INSERT INTO _sys_meta(key, value) VALUES ('query_compiler', ?)
 			ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+	sqlPGDescribe    = sqlgen.RegisterPostgresOnly("query.pgDescribe", `SELECT current_schema()`)
+	sqlPGOriginTypes = sqlgen.RegisterPostgresOnly("query.pgOriginTypes", `SELECT c.oid::bigint, a.attnum::bigint, c.relname::text, a.attname::text
+		FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+		WHERE c.oid = ANY(CAST(? AS oid[])) AND c.relnamespace = current_schema()::regnamespace AND a.attnum > 0`)
 )

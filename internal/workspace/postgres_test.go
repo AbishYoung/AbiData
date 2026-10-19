@@ -299,3 +299,47 @@ func TestPostgresStatementsKeyedBySchema(t *testing.T) {
 		t.Fatalf("after the type change: %v", va)
 	}
 }
+
+// TestPostgresUserQuery: user SQL runs as the workspace's read role, reads
+// only, and sees nothing of the system tables.
+func TestPostgresUserQuery(t *testing.T) {
+	m := newPGMgr(t, pgTestMigrate)
+	ctx := context.Background()
+	id := m.create(t)
+	l, err := m.Acquire(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Release()
+	n := m.Names(id)
+	if err := l.WriteWith(ctx, Interactive, WriteOptions{SchemaChange: true}, func(tx dbx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO t (v) VALUES (5), (7)`); err != nil {
+			return err
+		}
+		return pgdb.GrantUserTable(ctx, tx, n, "t")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lim := pgdb.Limits{Timeout: 5 * time.Second, MaxRows: 10}
+	res, err := l.UserQuery(ctx, `SELECT v FROM t WHERE v > :min ORDER BY v`, []any{dbx.Named{Name: ":min", Value: int64(5)}}, lim)
+	if err != nil || len(res.Rows) != 1 || res.Rows[0][0] != int64(7) || res.Origins[0].TableOID == 0 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	cols, _, err := l.DescribeUserQuery(ctx, "SELECT v AS value, id FROM t -- trailing comment")
+	if err != nil || len(cols) != 2 || cols[0] != "value" {
+		t.Fatalf("describe: %v %v", cols, err)
+	}
+	for _, bad := range []string{
+		`DELETE FROM t`,
+		`WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d`,
+		`SELECT * FROM _sys_schema`,
+		`SELECT 1; SELECT 2`,
+	} {
+		if _, err := l.UserQuery(ctx, bad, nil, lim); err == nil {
+			t.Errorf("ran: %s", bad)
+		}
+		if _, _, err := l.DescribeUserQuery(ctx, bad); err == nil {
+			t.Errorf("described: %s", bad)
+		}
+	}
+}

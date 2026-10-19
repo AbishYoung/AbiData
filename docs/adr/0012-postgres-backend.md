@@ -362,6 +362,15 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
 - **Errors.** `fault.Classify` maps PostgreSQL's SQLSTATEs to the same codes and details as SQLite's errors: unique (the columns, from the error detail), foreign key and restrict, check (the constraint name), not null (the column), lock and serialization failures, cancellation, privileges and data exceptions. The records layer's messages are therefore the same on both.
 - **Tests.** `internal/workspace/wstest` opens a manager on the backend `ABIDATA_TEST_DB` selects. The records suite runs on both backends, including a test of every field type through inserts, filters, sorting and error messages.
 
+**Phase 3, part 6 (as built): user SQL and saved queries.**
+
+- **Running.** Console SQL and saved queries run in the sandbox (`Lease.UserQuery`): the workspace's `_sqlr` login, a READ ONLY transaction, a cursor and the row and time limits. Result columns are typed from the columns they read, as SQLite's column origins type them, then by the server's types.
+- **Checks.** Saving a query or changing the schema checks SQL without running it (`pgdb.DescribeIn`): inside the caller's transaction, as the read role, the SQL is prepared and planned with `EXPLAIN (GENERIC_PLAN)`. Preparing alone checks no privileges.
+- **What is refused.** The roles stand in for SQLite's authorizer. System tables and other workspaces are SQL_NOT_ALLOWED (insufficient privilege), as are several statements at once and anything that does not start as a query. Builders' read access to `_sys_*` is not available on PostgreSQL yet.
+- **Visual queries** compile for the lease's dialect. Yes/no criteria are inlined as booleans.
+- **Not yet:** positional `?` parameters in SQL queries (only `:name`), and yes/no parameters given as 0 or 1.
+- **Tests.** A parity test runs the same visual queries and console SQL on a SQLite and a PostgreSQL workspace and compares columns, types and rows.
+
 ## Consequences
 
 **Settled decisions that change** when this is accepted (each needs an amendment in ADR 0000):

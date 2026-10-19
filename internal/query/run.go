@@ -16,6 +16,7 @@ import (
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
 	"abidata/internal/fault"
+	"abidata/internal/sqlgen"
 	"abidata/internal/sqlitex"
 	"abidata/internal/workspace"
 )
@@ -65,6 +66,9 @@ func RunTyped(ctx context.Context, l *workspace.Lease, p Policy, sch *catalog.Sc
 	p.Write = false
 	ctx, cancel := context.WithTimeout(ctx, MaxDuration)
 	defer cancel()
+	if l.Dialect() != sqlgen.SQLite {
+		return runPG(ctx, l, sch, hints, sql, params, maxRows)
+	}
 	var res Result
 	err := l.ReadConn(ctx, func(c *sqlitex.Conn) error {
 		var denial Denial

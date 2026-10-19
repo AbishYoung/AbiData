@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"abidata/internal/dbx"
@@ -52,7 +53,7 @@ func (n Names) base() string   { return n.Prefix + "_ws_" + strings.ToLower(n.Wo
 func (n Names) Schema() string { return n.base() }
 
 // ReadRole may read the workspace's user tables.
-func (n Names) ReadRole() string { return n.base() + "_read" }
+func (n Names) ReadRole() string { return ReadRoleOf(n.Schema()) }
 
 // WriteRole adds INSERT, UPDATE and DELETE on user tables (Lua db.exec).
 func (n Names) WriteRole() string { return n.base() + "_write" }
@@ -62,6 +63,9 @@ func (n Names) ReadLogin() string { return n.base() + "_sqlr" }
 
 // WriteLogin is the role Lua db.exec connects as in write contexts.
 func (n Names) WriteLogin() string { return n.base() + "_sqlw" }
+
+// ReadRoleOf is the read role of the workspace whose schema is schema.
+func ReadRoleOf(schema string) string { return schema + "_read" }
 
 // Lib is the install's shared function schema.
 func (n Names) Lib() string { return n.Prefix + "_lib" }
@@ -108,6 +112,8 @@ func ProvisionWorkspace(ctx context.Context, c dbx.Execer, database string, n Na
 		`GRANT ` + r + `, ` + w + ` TO CURRENT_USER`,
 		`GRANT CONNECT ON DATABASE ` + ident(database) + ` TO ` + lr + `, ` + lw,
 		`GRANT USAGE ON SCHEMA ` + s + ` TO ` + r,
+		// Generated SQL calls <prefix>_lib's functions, as user SQL may.
+		`GRANT USAGE ON SCHEMA ` + ident(n.Lib()) + ` TO ` + r,
 	} {
 		if _, err := c.Exec(ctx, q); err != nil {
 			return fmt.Errorf("pgdb: provision %s: %w", n.Workspace, err)
@@ -140,8 +146,16 @@ func DropWorkspace(ctx context.Context, c dbx.Execer, n Names) error {
 	if err := c.QueryRow(ctx, `SELECT current_database()`).Scan(&database); err != nil {
 		return fmt.Errorf("pgdb: drop %s: %w", n.Workspace, err)
 	}
-	// CONNECT on the database would keep a login from being dropped.
+	// CONNECT on the database, and USAGE on <prefix>_lib, would keep the
+	// roles from being dropped.
 	var qs []string
+	var read bool
+	if err := c.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ?)`, n.ReadRole()).Scan(&read); err != nil {
+		return fmt.Errorf("pgdb: drop %s: %w", n.Workspace, err)
+	}
+	if read {
+		qs = append(qs, `REVOKE USAGE ON SCHEMA `+ident(n.Lib())+` FROM `+ident(n.ReadRole()))
+	}
 	for _, login := range []string{n.ReadLogin(), n.WriteLogin()} {
 		var exists bool
 		if err := c.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ?)`, login).Scan(&exists); err != nil {
@@ -197,8 +211,25 @@ type Limits struct {
 // Result is a sandboxed query's output.
 type Result struct {
 	Columns   []string
+	Origins   []Origin // per column
 	Rows      [][]any
 	Truncated bool
+}
+
+// Origin is where a result column comes from: a table column (TableOID and
+// Attr, zero for an expression) and the column's type.
+type Origin struct {
+	TableOID uint32
+	Attr     uint16
+	TypeOID  uint32
+}
+
+func origins(fs []pgconn.FieldDescription) []Origin {
+	out := make([]Origin, len(fs))
+	for i, f := range fs {
+		out[i] = Origin{TableOID: f.TableOID, Attr: f.TableAttributeNumber, TypeOID: f.DataTypeOID}
+	}
+	return out
 }
 
 // Sandbox runs user-typed SQL for workspaces, each on its own small pool
@@ -354,6 +385,7 @@ func (s *Sandbox) Query(ctx context.Context, n Names, sql string, args []any, li
 	for _, f := range rows.FieldDescriptions() {
 		out.Columns = append(out.Columns, f.Name)
 	}
+	out.Origins = origins(rows.FieldDescriptions())
 	for rows.Next() {
 		v, err := rows.Values()
 		if err != nil {
@@ -366,4 +398,75 @@ func (s *Sandbox) Query(ctx context.Context, n Names, sql string, args []any, li
 		out.Rows = append(out.Rows, v)
 	}
 	return out, rows.Err()
+}
+
+// Describe checks that sql is one statement that only reads, as the
+// workspace's read role on its own login, and returns its result columns
+// without running it.
+func (s *Sandbox) Describe(ctx context.Context, n Names, sql string) ([]string, []Origin, error) {
+	p, err := s.pool(ctx, n.ReadLogin())
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	tx, err := p.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, `SET LOCAL search_path = `+ident(n.Schema())+`, `+ident(n.Lib())); err != nil {
+		return nil, nil, err
+	}
+	return DescribeIn(ctx, WrapTx(tx), n.ReadRole(), sql)
+}
+
+// errDescribed rolls back DescribeIn's savepoint.
+var errDescribed = errors.New("pgdb: described")
+
+// DescribeIn checks, inside tx and as role, that sql is one statement that
+// only reads, and returns its result columns without running it. It runs in
+// a savepoint that is rolled back, which also ends the role, so it can check
+// user SQL inside the app's own transaction: a schema change checks saved
+// queries against the schema it is about to commit.
+//
+// The statement is prepared as a subquery, which PostgreSQL allows only for
+// a SELECT, VALUES or WITH without data-modifying parts; the newline keeps a
+// trailing comment from swallowing the closing parenthesis. Preparing checks
+// no privileges, so the statement is also planned (EXPLAIN GENERIC_PLAN, which
+// needs no parameter values), which does.
+func DescribeIn(ctx context.Context, tx Tx, role, sql string) (columns []string, orig []Origin, err error) {
+	body, err := dbx.RebindText(strings.TrimRight(strings.TrimSpace(sql), ";"))
+	if err != nil {
+		return nil, nil, err
+	}
+	wrapped := "SELECT * FROM (\n" + body + "\n) AS abidata_q"
+	err = tx.Savepoint(ctx, func() error {
+		for _, q := range []string{`SET LOCAL ROLE ` + ident(role), `SET LOCAL statement_timeout = 5000`} {
+			if _, err := tx.tx.Exec(ctx, q); err != nil {
+				return err
+			}
+		}
+		sd, err := tx.tx.Conn().Prepare(ctx, "", wrapped)
+		if err != nil {
+			return err
+		}
+		plan, err := tx.tx.Query(ctx, "EXPLAIN (GENERIC_PLAN, COSTS OFF) "+wrapped, pgx.QueryExecModeExec)
+		if err == nil {
+			plan.Close()
+			err = plan.Err()
+		}
+		if err != nil {
+			return err
+		}
+		for _, f := range sd.Fields {
+			columns = append(columns, f.Name)
+		}
+		orig = origins(sd.Fields)
+		return errDescribed
+	})
+	if errors.Is(err, errDescribed) {
+		return columns, orig, nil
+	}
+	return nil, nil, err
 }

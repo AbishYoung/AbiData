@@ -139,6 +139,8 @@ query.RefreshCompiled	workspace	portable	value
 query.RefreshCompiled#2	workspace	portable	
 query.Usages	workspace	portable	dependent_kind,dependent_id,confidence,coalesce((SELECT name FROM _sys_queries WHERE id = d.dependent_id), (SELECT name FROM _sys_forms WHERE id = d.dependent_id), (SELECT name FROM _sys_reports WHERE id = d.dependent_id), (SELECT name FROM _sys_scripts WHERE id = d.dependent_id), d.dependent_id)
 query.loadAll	workspace	portable	id,name,kind,visual_model,sql_text,dialect,parameters,description,version,updated_at,updated_by
+query.pgDescribe	-	postgres	-
+query.pgOriginTypes	-	postgres	-
 query.recompileDependents	workspace	portable	dependent_id
 query.save	workspace	portable	
 query.writeDeps	workspace	portable	
