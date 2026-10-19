@@ -346,7 +346,11 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
   - Foreign keys stay on. Children's keys to the table would keep it from being dropped, so they are dropped first. They, and the table's own keys, are added back `NOT VALID`. Before the change commits, the rows are checked against each such key, as `pragma_foreign_key_check` does on SQLite: orphans are reported as `fk_violation`, and keys that hold are validated.
   - There is no `INSERT OR IGNORE`. The copy runs as one statement in a savepoint. When a row breaks a rule, `<prefix>_lib`'s `abi_copy_rows` copies row by row in subtransactions and reports the rows it left out, as SQLite's copy does. Only the app's role may call it.
   - The identity continues past the old table's last value and its largest id, as AUTOINCREMENT does. A failed insert still uses up an id on PostgreSQL, since sequences are not rolled back, so IDs can have gaps. They are never reused.
-- **Not yet:** changing a field's type, which needs the conversions SQLite runs in Go, is refused on PostgreSQL with a message saying so.
+
+**Phase 3, part 4 (as built): type conversions and statement caching.**
+
+- **Conversions.** SQLite converts in the rebuild's copy through Go functions registered on the connection. PostgreSQL has no such functions, so the same Go rules (`catalog.ConvertValue`) run over every row's old value, read in SQLite's storage forms (0/1, text dates). The results wait in a temporary table dropped at commit, and the copy casts them into the new column. Both backends therefore report the same failures and samples, and unconvertible values become empty, or No for yes/no.
+- **Statement caching.** pgx caches prepared statements per connection, by their text. A cached statement fails once its result types change ("cached plan must not change result type"): after a column changes type, or when the same text runs in another workspace's schema on a pooled connection. Workspace transactions therefore key their statements with a comment naming the schema and a per-workspace schema version (`pgdb.DB.Keyed`). A write marked `WriteOptions.SchemaChange`, as every catalog change is, prepares nothing and bumps the version.
 
 ## Consequences
 

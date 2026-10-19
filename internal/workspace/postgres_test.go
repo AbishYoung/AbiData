@@ -241,3 +241,61 @@ func TestPostgresDrop(t *testing.T) {
 		t.Fatalf("%d roles left, %v", roles, err)
 	}
 }
+
+// TestPostgresStatementsKeyedBySchema: the same statement text in two
+// workspaces whose tables differ, and in one workspace before and after a
+// type change, must not reuse a prepared statement whose result type no
+// longer fits ("cached plan must not change result type").
+func TestPostgresStatementsKeyedBySchema(t *testing.T) {
+	m := newPGMgr(t, pgTestMigrate)
+	ctx := context.Background()
+	a, b := m.create(t), m.create(t)
+	lease := func(id ids.WorkspaceID) *Lease {
+		l, err := m.Acquire(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(l.Release)
+		return l
+	}
+	la, lb := lease(a), lease(b)
+	write := func(l *Lease, schemaChange bool, sql string) {
+		t.Helper()
+		if err := l.WriteWith(ctx, Interactive, WriteOptions{SchemaChange: schemaChange}, func(tx dbx.Tx) error {
+			_, err := tx.Exec(ctx, sql)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(la, true, `CREATE TABLE u (x bigint); INSERT INTO u VALUES (1)`)
+	write(lb, true, `CREATE TABLE u (x text); INSERT INTO u VALUES ('one')`)
+	read := func(l *Lease) any {
+		t.Helper()
+		var v any
+		// Several times, so the statement is cached on whichever connections serve it.
+		for range 3 {
+			if err := l.Read(ctx, func(q dbx.Querier) error {
+				rows, err := q.Query(ctx, `SELECT x FROM u WHERE x IS NOT NULL`, nil...)
+				if err != nil {
+					return err
+				}
+				defer rows.Close()
+				for rows.Next() {
+					v = rows.Values()[0]
+				}
+				return rows.Err()
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return v
+	}
+	if va, vb := read(la), read(lb); va != int64(1) || vb != "one" {
+		t.Fatalf("a %v, b %v", va, vb)
+	}
+	write(la, true, `ALTER TABLE u ALTER COLUMN x TYPE text`)
+	if va := read(la); va != "1" {
+		t.Fatalf("after the type change: %v", va)
+	}
+}

@@ -84,10 +84,10 @@ func (e *Engine) Run(ctx context.Context, l *workspace.Lease, ops []Op, mode Mod
 	d := l.Dialect()
 	// SQLite rebuilds tables with foreign keys off and Go conversion helpers;
 	// PostgreSQL keeps its constraints on and converts in SQL.
-	opts := workspace.WriteOptions{ForeignKeysOff: true, Setup: registerConvertFuncs}
+	opts := workspace.WriteOptions{ForeignKeysOff: true, Setup: registerConvertFuncs, SchemaChange: true}
 	var pg *pgdb.Names
 	if n, ok := l.Postgres(); ok {
-		opts, pg = workspace.WriteOptions{}, &n
+		opts, pg = workspace.WriteOptions{SchemaChange: true}, &n
 	}
 	err := l.WriteWith(ctx, workspace.Interactive, opts,
 		func(tx dbx.Tx) error {
@@ -194,7 +194,9 @@ type planner struct {
 	ctx        context.Context
 	tx         dbx.Tx
 	d          sqlgen.Dialect
-	pg         *pgdb.Names // the workspace's names on PostgreSQL; nil on SQLite
+	pg         *pgdb.Names              // the workspace's names on PostgreSQL; nil on SQLite
+	pgConv     map[string]*pgConversion // PostgreSQL: converted values by column ID
+	convSeq    int
 	s          *Schema
 	report     *ImpactReport
 	now        func() time.Time
@@ -1344,7 +1346,7 @@ func (p *planner) rebuild(before, after *Table, conv map[string]convSpec) error 
 // conversionFailures reports rows whose values cannot convert from old to nc.
 func (p *planner) conversionFailures(t *Table, old, nc Column) error {
 	if p.pg != nil {
-		return errPGConvert
+		return p.pgConvert(t, old, nc)
 	}
 	col := sqlgen.Col{Name: old.PhysicalName}
 	where := sqlgen.And{sqlgen.IsNull{X: col, Negate: true}, sqlgen.Not{X: convertCall("abidata_convert_ok", old.Type, nc.Type, old.PhysicalName)}}

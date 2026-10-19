@@ -108,6 +108,9 @@ type WriteOptions struct {
 	// Setup runs on the writer before BEGIN (e.g. registering DIRECTONLY helper
 	// functions); its cleanup runs after COMMIT or ROLLBACK.
 	Setup func(c *sqlitex.Conn) (cleanup func(), err error)
+	// SchemaChange marks a transaction that may change tables: statements
+	// cached before it are not reused after it.
+	SchemaChange bool
 }
 
 // WriteWith is Write with connection options.
@@ -150,7 +153,7 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 		return err
 	}
 	if l.m.pg() != nil {
-		return l.pgWrite(context.WithValue(ctx, writeKey{l.h.id}, true), p, fn)
+		return l.pgWrite(context.WithValue(ctx, writeKey{l.h.id}, true), p, opts.SchemaChange, fn)
 	}
 	w := l.h.writer
 	if opts.ForeignKeysOff {
@@ -169,7 +172,7 @@ func (l *Lease) WriteWith(ctx context.Context, p Priority, opts WriteOptions, fn
 		}
 	}
 	err := w.Immediate(context.WithValue(ctx, writeKey{l.h.id}, true), func(tx *sqlitex.Tx) error { return fn(tx) })
-	if opts.ForeignKeysOff || opts.Setup != nil {
+	if opts.ForeignKeysOff || opts.Setup != nil || opts.SchemaChange {
 		w.ClearStmtCache() // DDL may have changed what cached statements refer to
 	}
 	if w.Broken() {

@@ -142,13 +142,24 @@ func (l *Lease) pgRead(ctx context.Context, fn func(q dbx.Querier) error) error 
 		return fault.Classify(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	return fn(pgdb.WrapTx(tx))
+	return fn(l.keyed(tx, false))
+}
+
+// keyed wraps tx with statements keyed by the workspace's schema and its
+// version, so a statement prepared for another workspace, or before a schema
+// change, is never reused (see pgdb.DB.Keyed). A schema change prepares nothing.
+func (l *Lease) keyed(tx pgx.Tx, schemaChange bool) pgdb.Tx {
+	return pgdb.WrapTx(tx).Keyed(fmt.Sprintf("%s v%d", l.m.Names(l.h.id).Schema(), l.h.schemaGen.Load()), schemaChange)
 }
 
 // pgWrite runs fn in a transaction holding the workspace's writer row. The
 // caller holds the gate; an interactive wait for the row is bounded as the
 // gate's is.
-func (l *Lease) pgWrite(ctx context.Context, p Priority, fn func(tx dbx.Tx) error) error {
+func (l *Lease) pgWrite(ctx context.Context, p Priority, schemaChange bool, fn func(tx dbx.Tx) error) error {
+	if schemaChange {
+		// Statements prepared before the change may no longer fit, whether it commits or not.
+		defer l.h.schemaGen.Add(1)
+	}
 	tx, err := l.m.begin(ctx, l.h.id, pgx.TxOptions{})
 	if err != nil {
 		return err
@@ -171,7 +182,7 @@ func (l *Lease) pgWrite(ctx context.Context, p Priority, fn func(tx dbx.Tx) erro
 			return err
 		}
 	}
-	if err := fn(pgdb.WrapTx(tx)); err != nil {
+	if err := fn(l.keyed(tx, schemaChange)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
