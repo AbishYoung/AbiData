@@ -10,12 +10,14 @@ import { alertBox, btn, btnPrimary, input } from "@/components/styles";
 import { adminKeys, createUser, listUsers, updateUser, type AdminUser } from "./adminApi";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { ErrorBox, Field, td, th } from "./ui";
+import { normalizeUsername, usernameProblem } from "@/features/account/username";
 
 export const MIN_PASSWORD = 10;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface FormValues {
   email: string;
+  username: string;
   display_name: string;
   password: string;
   is_platform_admin: boolean;
@@ -41,17 +43,25 @@ function NewUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
     handleSubmit,
     setError,
     formState: { errors },
-  } = useForm<FormValues>({ defaultValues: { email: "", display_name: "", password: "", is_platform_admin: false } });
+  } = useForm<FormValues>({ defaultValues: { email: "", username: "", display_name: "", password: "", is_platform_admin: false } });
   const create = useMutation({
     meta: { inline: true },
     mutationFn: (v: FormValues) =>
-      createUser({ email: v.email.trim(), display_name: v.display_name.trim(), password: v.password, ...(v.is_platform_admin ? { is_platform_admin: true } : {}) }),
+      createUser({
+        email: v.email.trim(),
+        ...(v.username.trim() ? { username: normalizeUsername(v.username) } : {}),
+        display_name: v.display_name.trim(),
+        password: v.password,
+        ...(v.is_platform_admin ? { is_platform_admin: true } : {}),
+      }),
     onSuccess: async (u) => {
       await qc.invalidateQueries({ queryKey: adminKeys.users });
       onCreated(`Created the user ${u.email}.`);
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.code === "DUPLICATE_VALUE") setError("email", { type: "server", message: "A user with this email already exists." }, { shouldFocus: true });
+      if (e instanceof ApiError && e.code === "DUPLICATE_VALUE" && /username/i.test(e.message)) setError("username", { type: "server", message: e.message }, { shouldFocus: true });
+      else if (e instanceof ApiError && e.code === "DUPLICATE_VALUE") setError("email", { type: "server", message: "A user with this email already exists." }, { shouldFocus: true });
+      else if (e instanceof ApiError && /username/i.test(e.message)) setError("username", { type: "server", message: e.message }, { shouldFocus: true });
       else setTopError(e instanceof ApiError ? e.message : "The user could not be created.");
     },
   });
@@ -80,6 +90,17 @@ function NewUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
               autoComplete="off"
               {...aria}
               {...register("email", { validate: (x) => (EMAIL.test(x.trim()) ? true : "Enter a valid email address.") })}
+            />
+          )}
+        </Field>
+        <Field id="user-username" label="Username (optional)" hint="Public, part of the user's blog address. Left empty, it is made from the email." error={errors.username?.message}>
+          {(aria) => (
+            <input
+              className={input}
+              autoComplete="off"
+              spellCheck={false}
+              {...aria}
+              {...register("username", { validate: (x) => (x.trim() === "" ? true : (usernameProblem(x) ?? true)) })}
             />
           )}
         </Field>
@@ -174,6 +195,7 @@ export function UsersTab({ selfId }: { selfId: string }) {
           <thead>
             <tr role="row">
               <th scope="col" role="columnheader" className={th}>Email</th>
+              <th scope="col" role="columnheader" className={th}>Username</th>
               <th scope="col" role="columnheader" className={th}>Name</th>
               <th scope="col" role="columnheader" className={th}>Role</th>
               <th scope="col" role="columnheader" className={th}>Status</th>
@@ -192,6 +214,7 @@ export function UsersTab({ selfId }: { selfId: string }) {
                     {u.email}
                     {self ? " (you)" : ""}
                   </th>
+                  <td role="cell" data-label="Username" className={td}>{u.username}</td>
                   <td role="cell" data-label="Name" className={td}>{u.display_name}</td>
                   <td role="cell" data-label="Role" className={td}>{u.is_platform_admin ? "Platform admin" : "User"}</td>
                   <td role="cell" data-label="Status" className={td}>{u.disabled ? "Disabled" : "Active"}</td>

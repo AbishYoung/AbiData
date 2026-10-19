@@ -21,6 +21,7 @@ var (
 type UserDTO struct {
 	ID              string `json:"id"`
 	Email           string `json:"email"`
+	Username        string `json:"username" doc:"Public, URL-safe name (blogs). Login uses the email."`
 	DisplayName     string `json:"display_name"`
 	IsPlatformAdmin bool   `json:"is_platform_admin"`
 }
@@ -65,12 +66,12 @@ func (s *Server) me(ctx context.Context, p auth.Principal) (MeBody, error) {
 	if err != nil {
 		return MeBody{}, err
 	}
-	return MeBody{User: UserDTO{ID: p.UserID, Email: p.Email, DisplayName: p.DisplayName, IsPlatformAdmin: p.IsPlatformAdmin},
+	return MeBody{User: UserDTO{ID: p.UserID, Email: p.Email, Username: p.Username, DisplayName: p.DisplayName, IsPlatformAdmin: p.IsPlatformAdmin},
 		CSRFToken: p.CSRFToken, Memberships: ms, Maps: maps}, nil
 }
 
 func userDTO(u admin.User) UserDTO {
-	return UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, IsPlatformAdmin: u.IsPlatformAdmin}
+	return UserDTO{ID: u.ID, Email: u.Email, Username: u.Username, DisplayName: u.DisplayName, IsPlatformAdmin: u.IsPlatformAdmin}
 }
 
 func (s *Server) registerAuth(api huma.API) {
@@ -141,6 +142,26 @@ func (s *Server) registerAuth(api huma.API) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "changeUsername", Method: http.MethodPut, Path: "/api/v1/auth/username", Tags: []string{"auth"},
+		Summary: "Change your username (once per 30 days; the old one redirects for 90 days)", Errors: []int{400, 401, 403, 409},
+	}, func(ctx context.Context, in *struct {
+		Body struct {
+			Username string `json:"username" maxLength:"64"`
+		}
+	}) (*struct{ Body UserDTO }, error) {
+		p, _ := PrincipalFrom(ctx)
+		before := p.Username
+		u, err := s.deps.Auth.ChangeUsername(ctx, p.UserID, in.Body.Username, false)
+		if err != nil {
+			return nil, mapAdminErr(err)
+		}
+		if u.Username != before {
+			s.audit(ctx, "user.rename", "user", u.ID, map[string]any{"from": before, "to": u.Username})
+		}
+		return &struct{ Body UserDTO }{Body: userDTO(u)}, nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "setupStatus", Method: http.MethodGet, Path: "/api/v1/auth/setup", Tags: []string{"auth"},
 		Summary: "Whether first-admin setup is pending", Metadata: public,
 	}, func(ctx context.Context, _ *struct{}) (*struct {
@@ -163,11 +184,12 @@ func (s *Server) registerAuth(api huma.API) {
 	}, func(ctx context.Context, in *struct {
 		Body struct {
 			Token       string `json:"token" maxLength:"128"`
+			Username    string `json:"username,omitempty" maxLength:"64" doc:"Optional; derived from the email when empty."`
 			DisplayName string `json:"display_name" maxLength:"200"`
 			Password    string `json:"password" maxLength:"1024"`
 		}
 	}) (*meOutput, error) {
-		u, err := s.deps.Auth.CompleteBootstrap(ctx, in.Body.Token, in.Body.DisplayName, in.Body.Password)
+		u, err := s.deps.Auth.CompleteBootstrap(ctx, in.Body.Token, in.Body.Username, in.Body.DisplayName, in.Body.Password)
 		if err != nil {
 			return nil, err
 		}

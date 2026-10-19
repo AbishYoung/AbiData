@@ -167,14 +167,14 @@ func TestBootstrapOneTime(t *testing.T) {
 	if err != nil || tok == "" {
 		t.Fatal(tok, err)
 	}
-	if _, err := s.CompleteBootstrap(ctx, "wrong", "Root", "long-enough-pw"); code(err) != fault.Forbidden {
+	if _, err := s.CompleteBootstrap(ctx, "wrong", "", "Root", "long-enough-pw"); code(err) != fault.Forbidden {
 		t.Fatal("wrong token accepted")
 	}
-	u, err := s.CompleteBootstrap(ctx, tok, "Root", "long-enough-pw")
+	u, err := s.CompleteBootstrap(ctx, tok, "", "Root", "long-enough-pw")
 	if err != nil || !u.IsPlatformAdmin {
 		t.Fatal(u, err)
 	}
-	if _, err := s.CompleteBootstrap(ctx, tok, "Root", "long-enough-pw"); code(err) != fault.Forbidden {
+	if _, err := s.CompleteBootstrap(ctx, tok, "", "Root", "long-enough-pw"); code(err) != fault.Forbidden {
 		t.Fatal("token reused")
 	}
 	if tok2, _ := s.PrepareBootstrap(ctx, "root@example.com"); tok2 != "" {

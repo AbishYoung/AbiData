@@ -524,6 +524,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/username": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change your username (once per 30 days; the old one redirects for 90 days) */
+        put: operations["changeUsername"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/docs": {
         parameters: {
             query?: never;
@@ -1722,6 +1739,8 @@ export interface components {
             email: string;
             is_platform_admin?: boolean;
             password: string;
+            /** @description Optional; derived from the email when empty. */
+            username?: string;
         };
         AdminCreateWorkspaceRequest: {
             name: string;
@@ -1786,6 +1805,8 @@ export interface components {
             disabled?: boolean;
             display_name?: string;
             is_platform_admin?: boolean;
+            /** @description Not limited to once per 30 days; the old name still redirects for 90 days. */
+            username?: string;
         };
         AdminUpdateWorkspaceRequest: {
             name?: string;
@@ -1803,6 +1824,8 @@ export interface components {
             is_platform_admin: boolean;
             /** Format: date-time */
             last_login_at?: string;
+            /** @description Public, URL-safe name (blogs). Login uses the email. */
+            username: string;
         };
         Aggregate: {
             /** @enum {string} */
@@ -1933,6 +1956,9 @@ export interface components {
             current_password: string;
             new_password: string;
         };
+        ChangeUsernameRequest: {
+            username: string;
+        };
         CheckRequest: {
             /** @enum {string} */
             kind: "module" | "form_module" | "report_module" | "job";
@@ -1996,6 +2022,8 @@ export interface components {
             display_name: string;
             password: string;
             token: string;
+            /** @description Optional; derived from the email when empty. */
+            username?: string;
         };
         Confirm: {
             continuation: string;
@@ -3291,6 +3319,8 @@ export interface components {
             email: string;
             id: string;
             is_platform_admin: boolean;
+            /** @description Public, URL-safe name (blogs). Login uses the email. */
+            username: string;
         };
         ValidationResult: {
             /**
@@ -5669,6 +5699,84 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    changeUsername: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeUsernameRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDTO"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

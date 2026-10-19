@@ -1,6 +1,7 @@
 import { DropdownMenu } from "radix-ui";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  AtSign,
   Check,
   ChevronDown,
   CircleHelp,
@@ -21,6 +22,7 @@ import { useDensityStore } from "@/lib/density";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { openDocs } from "@/features/docs/docsStore";
 import { openChangePassword } from "@/features/account/ChangePasswordDialog";
+import { openChangeUsername } from "@/features/account/ChangeUsernameDialog";
 import { btn, menu, menuItem, menuSeparator } from "@/components/styles";
 
 const item = menuItem;
@@ -81,6 +83,11 @@ export function UserMenu({
             {me.user.display_name && (
               <p className="m-0 truncate text-xs text-fg-muted">
                 {me.user.email}
+              </p>
+            )}
+            {me.user.username && (
+              <p className="m-0 truncate text-xs text-fg-muted">
+                @{me.user.username}
               </p>
             )}
           </div>
@@ -178,6 +185,10 @@ export function UserMenu({
           >
             <KeyRound size={16} aria-hidden="true" />
             Change password…
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={item} onSelect={() => setTimeout(openChangeUsername, 0)}>
+            <AtSign size={16} aria-hidden="true" />
+            Change username…
           </DropdownMenu.Item>
           <DropdownMenu.Item className={item} onSelect={() => logout.mutate()}>
             <LogOut size={16} aria-hidden="true" />

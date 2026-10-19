@@ -66,6 +66,10 @@ type User struct {
 	Disabled        bool
 	CreatedAt       time.Time
 	LastLoginAt     *time.Time
+	// Username is the public, URL-safe name (ADR 0017); empty only for users
+	// created before usernames, until the boot backfill names them.
+	Username          string
+	UsernameChangedAt *time.Time
 }
 
 // UserPatch updates selected user fields; nil fields are unchanged.
@@ -164,6 +168,13 @@ type Repository interface {
 	UpdateUser(ctx context.Context, id string, p UserPatch) error
 	SetPasswordHash(ctx context.Context, id, hash string) error
 	TouchLogin(ctx context.Context, id string, at time.Time) error
+	GetUserByUsername(ctx context.Context, username string) (User, error) // case-insensitive
+	ListUsersWithoutUsername(ctx context.Context) ([]User, error)         // oldest first
+	// UsernameOwner returns who holds name, current or reserved; ErrNotFound if free.
+	UsernameOwner(ctx context.Context, name string, now time.Time) (string, error)
+	ResolveOldUsername(ctx context.Context, old string, now time.Time) (string, error)
+	InitUsername(ctx context.Context, id, name string) error
+	SetUsername(ctx context.Context, id, name string, now, holdUntil time.Time) error // ErrConflict if taken
 
 	// Sessions
 	CreateSession(ctx context.Context, s Session) error

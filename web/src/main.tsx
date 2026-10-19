@@ -14,6 +14,7 @@ import { DocsHost } from "./features/docs/DocsHost";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { GlobalShortcuts } from "./features/palette/GlobalShortcuts";
 import { ChangePasswordHost } from "./features/account/ChangePasswordDialog";
+import { ChangeUsernameHost } from "./features/account/ChangeUsernameDialog";
 import { AppToasts } from "./components/AppToasts";
 import { applyTheme, loadThemePref } from "./lib/theme";
 import { registerServiceWorker } from "./lib/pwa";
@@ -35,6 +36,7 @@ createRoot(rootElement).render(
       <DocsHost />
       <GlobalShortcuts />
       <ChangePasswordHost />
+      <ChangeUsernameHost />
       <AppToasts />
     </QueryClientProvider>
   </StrictMode>,

@@ -267,6 +267,11 @@
           "password": {
             "maxLength": 1024,
             "type": "string"
+          },
+          "username": {
+            "description": "Optional; derived from the email when empty.",
+            "maxLength": 64,
+            "type": "string"
           }
         },
         "required": [
@@ -516,6 +521,11 @@
           },
           "is_platform_admin": {
             "type": "boolean"
+          },
+          "username": {
+            "description": "Not limited to once per 30 days; the old name still redirects for 90 days.",
+            "maxLength": 64,
+            "type": "string"
           }
         },
         "type": "object"
@@ -565,6 +575,10 @@
           "last_login_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "username": {
+            "description": "Public, URL-safe name (blogs). Login uses the email.",
+            "type": "string"
           }
         },
         "required": [
@@ -572,6 +586,7 @@
           "created_at",
           "id",
           "email",
+          "username",
           "display_name",
           "is_platform_admin"
         ],
@@ -1079,6 +1094,19 @@
         ],
         "type": "object"
       },
+      "ChangeUsernameRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "type": "object"
+      },
       "CheckRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1311,6 +1339,11 @@
           },
           "token": {
             "maxLength": 128,
+            "type": "string"
+          },
+          "username": {
+            "description": "Optional; derived from the email when empty.",
+            "maxLength": 64,
             "type": "string"
           }
         },
@@ -6063,11 +6096,16 @@
           },
           "is_platform_admin": {
             "type": "boolean"
+          },
+          "username": {
+            "description": "Public, URL-safe name (blogs). Login uses the email.",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "email",
+          "username",
           "display_name",
           "is_platform_admin"
         ],
@@ -9081,6 +9119,97 @@
           }
         },
         "summary": "Create the first platform admin with the one-time setup token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/username": {
+      "put": {
+        "operationId": "changeUsername",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeUsernameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDTO"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Change your username (once per 30 days; the old one redirects for 90 days)",
         "tags": [
           "auth"
         ]
