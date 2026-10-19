@@ -25,6 +25,7 @@ import (
 	"abidata/internal/ids"
 	"abidata/internal/records"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type rig struct {
@@ -48,19 +49,13 @@ func newRig(t *testing.T) *rig {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
-	m, err := workspace.NewManager(workspace.Config{DataDir: dir, Migrate: catalog.Migrate})
+	w := wstest.New(t)
+	m := w.Manager
+	l, err := w.Acquire(ctx, w.Create(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := ids.NewWorkspaceID()
-	if err := m.Create(ctx, id); err != nil {
-		t.Fatal(err)
-	}
-	l, err := m.Acquire(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { l.Release(); _ = m.Shutdown(ctx) })
+	t.Cleanup(l.Release)
 	r := &rig{t: t, ctx: ctx, dir: dir, m: m, l: l, cache: catalog.NewCache(), eng: &catalog.Engine{}, now: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)}
 	r.svc = &files.Service{DataDir: dir, Now: func() time.Time { return r.now }, Quota: func(ids.WorkspaceID) int64 { return r.quota }}
 	r.rec = &records.Service{Schemas: r.cache, Now: func() time.Time { return r.now }}
@@ -657,7 +652,11 @@ func TestRefsConsistentUnderConcurrentWrites(t *testing.T) {
 
 	want := map[string]bool{}
 	err := r.l.Read(r.ctx, func(q dbx.Querier) error {
-		rs, err := q.Query(r.ctx, `SELECT t.id, j.value FROM `+catalog.Quote(r.tbl.PhysicalName)+` t, json_each(t.`+catalog.Quote(r.att.PhysicalName)+`) j`)
+		each := `json_each(t.` + catalog.Quote(r.att.PhysicalName) + `) j`
+		if wstest.Postgres() {
+			each = `jsonb_array_elements_text(t.` + catalog.Quote(r.att.PhysicalName) + `) j(value)`
+		}
+		rs, err := q.Query(r.ctx, `SELECT t.id, j.value FROM `+catalog.Quote(r.tbl.PhysicalName)+` t, `+each)
 		if err != nil {
 			return err
 		}

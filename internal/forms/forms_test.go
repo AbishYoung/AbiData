@@ -11,7 +11,6 @@ import (
 	"abidata/internal/admin"
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
-	"abidata/internal/ids"
 	"abidata/internal/query"
 	"abidata/internal/records"
 	"abidata/internal/script"
@@ -20,6 +19,7 @@ import (
 	_ "abidata/internal/script/modules/ui"
 	"abidata/internal/scripts"
 	"abidata/internal/workspace"
+	"abidata/internal/workspace/wstest"
 )
 
 type fx struct {
@@ -38,17 +38,12 @@ func col(t *catalog.Table, phys string) string {
 func setup(t *testing.T) *fx {
 	t.Helper()
 	ctx := context.Background()
-	m, err := workspace.NewManager(workspace.Config{DataDir: t.TempDir(), Migrate: catalog.Migrate})
+	w := wstest.New(t)
+	l, err := w.Acquire(ctx, w.Create(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := ids.NewWorkspaceID()
-	_ = m.Create(ctx, id)
-	l, err := m.Acquire(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { l.Release(); _ = m.Shutdown(ctx) })
+	t.Cleanup(l.Release)
 	cache := catalog.NewCache()
 	e := &catalog.Engine{}
 	apply := func(ops ...catalog.Op) {
@@ -84,7 +79,7 @@ func yes(b bool) *bool { return &b }
 const orderModule = `
 local function order_total(id)
   if id == nil then return 0 end
-  return db.query_value('SELECT coalesce(sum(Qty * UnitPrice), 0) FROM Lines WHERE OrderId = :id', {id = id})
+  return db.query_value('SELECT coalesce(sum("Qty" * "UnitPrice"), 0) FROM "Lines" WHERE "OrderId" = :id', {id = id})
 end
 
 function on_load()
@@ -135,7 +130,7 @@ func (f *fx) createForms(t *testing.T) (orderForm, lineForm Form) {
 				{ID: "o4", Name: "Lines", Type: "subform", Y: 100, W: 600, H: 200,
 					Subform: &Subform{FormID: lineForm.ID, LinkMasterColumnID: "id", LinkChildColumnID: col(f.lines, "OrderId")}},
 				{ID: "o5", Name: "Total", Type: "textbox", Y: 310, W: 200, H: 24,
-					Calc: &Calc{LuaExpr: "db.query_value('SELECT coalesce(sum(Qty * UnitPrice), 0) FROM Lines WHERE OrderId = :id', {id = id}) / 10000"}},
+					Calc: &Calc{LuaExpr: "db.query_value('SELECT coalesce(sum(\"Qty\" * \"UnitPrice\"), 0) FROM \"Lines\" WHERE \"OrderId\" = :id', {id = id}) / 10000"}},
 				{ID: "o6", Name: "Ship", Type: "button", Y: 340, W: 100, H: 24, Caption: "Ship", Events: map[string]string{"click": "on_ship_click"}},
 			}}}}}, "bu")
 	if err != nil {
