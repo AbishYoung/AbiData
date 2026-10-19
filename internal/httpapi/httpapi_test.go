@@ -80,6 +80,7 @@ func newEnv(t *testing.T) *env {
 	}
 	hub := events.NewHub(1000)
 	recSvc := &records.Service{Schemas: nil, Events: hub}
+	recSvc.Hook = (&blogs.Rules{Records: recSvc}).Hook
 	querySvc := &query.Service{Events: hub}
 	scriptSvc := &scripts.Service{Events: hub}
 	schemas := catalog.NewCache()

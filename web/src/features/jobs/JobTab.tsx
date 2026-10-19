@@ -152,6 +152,8 @@ function JobEditor({ ws, tabKey, job }: { ws: string; tabKey: string; job: Job |
         if (!generated) throw new Error("template needs a table");
         const script = await createJobScript(ws, body.name, generated.source);
         // From here on the job uses the new script, so a failed job save is not retried with a second copy.
+        // It goes into the cached list at once: the select needs its option before script_id is set.
+        qc.setQueryData<Script[]>(scriptKeys.list(ws), (old) => [...(old ?? []).filter((s) => s.id !== script.id), script]);
         void qc.invalidateQueries({ queryKey: scriptKeys.all(ws) });
         setChoice(NO_TEMPLATE);
         setValue("script_id", script.id);

@@ -181,6 +181,8 @@ func serve() error {
 		return err
 	}
 	recSvc := &records.Service{Schemas: schemas, Events: hub}
+	// Blog posts follow the same rules from every write path (ADR 0017).
+	recSvc.Hook = (&blogs.Rules{Records: recSvc}).Hook
 	querySvc := &query.Service{Schemas: schemas, Events: hub}
 	scriptSvc := &scripts.Service{Events: hub}
 	runner := script.NewRunner(2*runtime.GOMAXPROCS(0), 0)
