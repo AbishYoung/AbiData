@@ -23,12 +23,31 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: make lint
-      - run: make test-go-unit
-      - run: make test-web
+      - run: npm --prefix web ci
+      - run: npm --prefix web test -- --run
+      - run: go test -short ./...
+
+  build-web:
+    needs: test-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web assets
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+      - uses: actions/upload-artifact@v6
+        with:
+          name: web-dist
+          path: web/dist
 
   build-binaries:
-    needs: test-gate
+    needs: [test-gate, build-web]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -54,13 +73,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v6
+      - uses: actions/download-artifact@v7
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Build web application
-        run: make web-build
+          name: web-dist
+          path: web/dist
       - name: Build binary
         env:
           GOOS: ${{ matrix.os }}
