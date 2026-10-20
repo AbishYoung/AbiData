@@ -66,12 +66,18 @@ test("shows the changes of a record, newest first, from the datasheet", async ({
   const nameCell = await cellAt(grid, n, "Name");
   await nameCell.click();
   await page.keyboard.type("Widget B");
-  await page.keyboard.press("Shift+Enter");
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/rows/") && r.request().method() === "PATCH" && r.ok()),
+    page.keyboard.press("Shift+Enter"),
+  ]);
   await expect(nameCell).toHaveText("Widget B");
   const priceCell = await cellAt(grid, n, "Price");
   await priceCell.click();
   await page.keyboard.type("2.25");
-  await page.keyboard.press("Shift+Enter");
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/rows/") && r.request().method() === "PATCH" && r.ok()),
+    page.keyboard.press("Shift+Enter"),
+  ]);
   await expect(priceCell).toContainText("2.25");
 
   await (await cellAt(grid, n, "Name")).click();
