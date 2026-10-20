@@ -51,7 +51,7 @@ func createDemo(ctx context.Context, b *demo.Builder, kind demo.Kind, u admin.Us
 func demoCmd(args []string) error {
 	fs := flag.NewFlagSet("demo", flag.ContinueOnError)
 	owner := fs.String("owner", "", "email of the user who will own the workspace (required)")
-	which := fs.String("kind", "all", "which sample to create: traders (Northwind Traders), invasives (Northwind Invasives) or all")
+	which := fs.String("kind", "all", "which sample to create: traders (Northwind Traders), invasives (Biosecurity Watch) or all")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

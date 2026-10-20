@@ -661,7 +661,7 @@
         "additionalProperties": false,
         "properties": {
           "kind": {
-            "description": "Which sample: traders (Northwind Traders) or invasives (Northwind Invasives).",
+            "description": "Which sample: traders (Northwind Traders) or invasives (Biosecurity Watch).",
             "enum": [
               "traders",
               "invasives"
@@ -8046,7 +8046,7 @@
     },
     "/api/v1/admin/demo-workspaces": {
       "post": {
-        "description": "Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.",
+        "description": "Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Biosecurity Watch), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.",
         "operationId": "adminProvisionDemos",
         "requestBody": {
           "content": {

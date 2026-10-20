@@ -145,7 +145,7 @@ func buildBinary(t *testing.T) string {
 }
 
 // TestSetupCreatesDemoWorkspace: on a fresh install the first-run setup also
-// creates the Northwind Traders and Northwind Invasives workspaces, owned by the
+// creates the Northwind Traders and Biosecurity Watch workspaces, owned by the
 // new administrator, with their tables, rows and saved queries; `abidata demo`
 // is then a no-op.
 func TestSetupCreatesDemoWorkspace(t *testing.T) {
@@ -167,7 +167,7 @@ func TestSetupCreatesDemoWorkspace(t *testing.T) {
 		}
 		byName[mem["workspace_name"].(string)] = mem["workspace_id"].(string)
 	}
-	ws, inv := byName["Northwind Traders"], byName["Northwind Invasives"]
+	ws, inv := byName["Northwind Traders"], byName["Biosecurity Watch"]
 	if ws == "" || inv == "" {
 		t.Fatalf("memberships after setup: %v", ms)
 	}
@@ -263,13 +263,13 @@ func TestDemoDisabledAndCLI(t *testing.T) {
 	}
 	cli = exec.Command(bin, "demo", "--owner", "admin@example.com", "--kind", "invasives")
 	cli.Env = s.env
-	if out, err := cli.CombinedOutput(); err != nil || !strings.Contains(string(out), `created workspace "Northwind Invasives"`) || strings.Contains(string(out), "Traders") {
+	if out, err := cli.CombinedOutput(); err != nil || !strings.Contains(string(out), `created workspace "Biosecurity Watch"`) || strings.Contains(string(out), "Traders") {
 		t.Fatalf("abidata demo --kind invasives: %v %s", err, out)
 	}
 	cli = exec.Command(bin, "demo", "--owner", "admin@example.com")
 	cli.Env = s.env
 	if out, err := cli.CombinedOutput(); err != nil || !strings.Contains(string(out), `created workspace "Northwind Traders"`) ||
-		!strings.Contains(string(out), `"Northwind Invasives" already exists`) {
+		!strings.Contains(string(out), `"Biosecurity Watch" already exists`) {
 		t.Fatalf("abidata demo: %v %s", err, out)
 	}
 

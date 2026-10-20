@@ -29,7 +29,7 @@ Each object opens in a tab. Builders and owners also get a view switcher above t
 
 ## Where to start {#start}
 
-When the first administrator is created on the setup page, AbiData also creates two sample workspaces. Open **Northwind Traders** to see tables, queries, a form, a report and a scheduled job working together. It has the tables **Employees**, **Customers**, **Products**, **Orders** and **Order lines**, the queries **Sales by month**, **Top customers**, **Low stock**, **Open orders**, **Revenue by category** and **Sales by employee**, the form **Customer details**, the report **Product catalogue** and the job **Refresh low-stock flags**. **Northwind Invasives** shows maps, areas and photos; see [Example: invasive species](/docs/guide/example-invasive-species).
+When the first administrator is created on the setup page, AbiData also creates two sample workspaces. Open **Northwind Traders** to see tables, queries, a form, a report and a scheduled job working together. It has the tables **Employees**, **Customers**, **Products**, **Orders** and **Order lines**, the queries **Sales by month**, **Top customers**, **Low stock**, **Open orders**, **Revenue by category** and **Sales by employee**, the form **Customer details**, the report **Product catalogue** and the job **Refresh low-stock flags**. **Biosecurity Watch** shows maps, areas and photos; see [Example: invasive species](/docs/guide/example-invasive-species).
 
 To build your own workspace:
 

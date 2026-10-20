@@ -123,14 +123,14 @@ func TestIsDemoName(t *testing.T) {
 		"Northwind Traders Ltd":          false,
 		"Northwind Traders ()":           false,
 		"My Northwind Traders":           false,
-		"Northwind Invasives (Ada)":      false,
+		"Biosecurity Watch (Ada)":        false,
 	} {
 		if got := demo.Traders.IsDemoName(name); got != want {
 			t.Errorf("Traders.IsDemoName(%q) = %v, want %v", name, got, want)
 		}
 	}
-	if !demo.Invasives.IsDemoName("Northwind Invasives (Ada)") || demo.Invasives.IsDemoName("Northwind Traders (Ada)") {
-		t.Error("Invasives.IsDemoName must match only Northwind Invasives copies")
+	if !demo.Invasives.IsDemoName("Biosecurity Watch (Ada)") || demo.Invasives.IsDemoName("Northwind Traders (Ada)") {
+		t.Error("Invasives.IsDemoName must match only Biosecurity Watch copies")
 	}
 }
 
@@ -150,10 +150,10 @@ func TestProvisionAllIsPerSample(t *testing.T) {
 	}
 	found := false
 	for _, w := range mustList(t, r) {
-		found = found || w.Name == "Northwind Invasives (Owner)"
+		found = found || w.Name == "Biosecurity Watch (Owner)"
 	}
 	if !found {
-		t.Error(`want a workspace named "Northwind Invasives (Owner)"`)
+		t.Error(`want a workspace named "Biosecurity Watch (Owner)"`)
 	}
 	if _, err := r.b.ProvisionAll(r.ctx, demo.Kind("")); err == nil {
 		t.Error("an empty kind must be refused")

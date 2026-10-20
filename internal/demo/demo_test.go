@@ -355,7 +355,7 @@ func TestInvasivesIsItsOwnWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"Pest sightings", "Quarantine zones", "Species", "Suppliers"}; !slices.Equal(tables, want) {
-		t.Fatalf("Northwind Invasives tables = %q, want %q", tables, want)
+		t.Fatalf("Biosecurity Watch tables = %q, want %q", tables, want)
 	}
 	if _, err := r.b.Create(r.ctx, demo.Kind("nope"), r.owner); err == nil {
 		t.Error("an unknown kind must be refused")
@@ -392,7 +392,7 @@ func TestDeterministicContent(t *testing.T) {
 	}
 }
 
-// bioRig builds the Northwind Invasives sample and opens its workspace.
+// bioRig builds the Biosecurity Watch sample and opens its workspace.
 func bioRig(t *testing.T) (*rig, *workspace.Lease, *catalog.Schema) {
 	t.Helper()
 	r := newRig(t)
@@ -743,7 +743,7 @@ func TestBiosecurityFormsAndReport(t *testing.T) {
 		t.Errorf("the zone map should overlay the sightings: %+v", m.Map)
 	}
 	if len(byName) != 2 {
-		t.Errorf("Northwind Invasives forms: %d, want Record a sighting and Quarantine zone", len(byName))
+		t.Errorf("Biosecurity Watch forms: %d, want Record a sighting and Quarantine zone", len(byName))
 	}
 
 	rl, err := r.b.Reports.List(r.ctx, l)

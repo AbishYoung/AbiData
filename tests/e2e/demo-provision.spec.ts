@@ -5,7 +5,7 @@ import { apiPost, signInAs } from "./queries-helpers";
 
 // The admin "<sample> for everyone…" actions, one per sample workspace. They run on the demo
 // server (see playwright.config.ts), whose administrator already owns the shared Northwind Traders
-// and Northwind Invasives workspaces, so the other specs' empty install is not filled with samples.
+// and Biosecurity Watch workspaces, so the other specs' empty install is not filled with samples.
 
 test.describe.configure({ mode: "serial" });
 test.use({ baseURL: process.env.E2E_DEMO_BASE_URL });
@@ -17,7 +17,7 @@ const PASSWORD = randomUUID();
 
 const SAMPLES = [
   { name: "Northwind Traders", tables: ["Customers", "Employees", "Order lines", "Orders", "Products"] },
-  { name: "Northwind Invasives", tables: ["Pest sightings", "Quarantine zones", "Species", "Suppliers"] },
+  { name: "Biosecurity Watch", tables: ["Pest sightings", "Quarantine zones", "Species", "Suppliers"] },
 ];
 
 test("an administrator gives every user their own copy of each sample, one button per sample", async ({ page }) => {

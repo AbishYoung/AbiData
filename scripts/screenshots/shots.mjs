@@ -210,11 +210,11 @@ export async function shoot(ctx) {
       await save(page, "report-viewer");
     }
 
-    // The Northwind Invasives sample workspace (maps, zones and photos).
+    // The Biosecurity Watch sample workspace (maps, zones and photos).
     const bio = want("sighting-form") || want("zone-editor") || want("biosecurity-report");
     if (bio) {
       await page.goto(`${base}/`);
-      await openWorkspace(page, "Northwind Invasives");
+      await openWorkspace(page, "Biosecurity Watch");
       // A tall window so the whole form (map, photos, notes) is in one capture.
       await page.setViewportSize({ width: 1440, height: 1440 });
     }
