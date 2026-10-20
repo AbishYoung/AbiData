@@ -10,8 +10,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
 import { AddDialog } from "@/features/members/MembersPanel";
-import { roleAccessSummary, roleLabel } from "@/features/members/memberLogic";
-import type { MemberRole } from "@/features/members/membersApi";
+import { roleAccessSummary } from "@/features/members/memberLogic";
 import {
   badge,
   badgeAccent,
@@ -351,7 +350,7 @@ export function PickerPage({ me: initial }: { me: Me }) {
                     ) : (
                       <Tip label={ROLE_HELP[m.role] ?? m.role}>
                         <span className={m.role === "owner" ? badge : badgeAccent}>
-                          {roleLabel(m.role as MemberRole)}
+                          Role: {m.role}
                         </span>
                       </Tip>
                     )}

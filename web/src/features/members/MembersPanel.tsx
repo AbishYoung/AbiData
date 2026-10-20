@@ -59,38 +59,39 @@ export function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () =>
             <span className="mb-1.5 block text-xs font-medium text-fg-muted">
               Available platform users ({candidates.length})
             </span>
-            <div
-              className="flex max-h-36 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-2/50 p-1.5"
+            <ul
               role="list"
               aria-label="Available platform users"
+              className="m-0 flex max-h-36 list-none flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-2/50 p-1.5"
             >
               {candidates.map((c) => {
                 const selected = email.trim().toLowerCase() === c.email.toLowerCase();
                 return (
-                  <button
-                    key={c.user_id}
-                    type="button"
-                    onClick={() => {
-                      setEmail(c.email);
-                      setEmailErr(null);
-                    }}
-                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-3 ${
-                      selected ? "bg-accent-soft font-medium text-accent" : "text-fg"
-                    }`}
-                    aria-label={`Select ${c.display_name} (${c.email})`}
-                  >
-                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-fg-muted">
-                      {initials(c.display_name, c.email)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-medium text-fg">{c.display_name}</span>
-                      {c.username && <span className="ml-1 text-fg-subtle">@{c.username}</span>}
-                      <span className="ml-1.5 text-fg-muted">({c.email})</span>
-                    </span>
-                  </button>
+                  <li key={c.user_id} role="listitem">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail(c.email);
+                        setEmailErr(null);
+                      }}
+                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-3 ${
+                        selected ? "bg-accent-soft font-medium text-accent" : "text-fg"
+                      }`}
+                      aria-label={`Select ${c.display_name} (${c.email})`}
+                    >
+                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-fg-muted">
+                        {initials(c.display_name, c.email)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium text-fg">{c.display_name}</span>
+                        {c.username && <span className="ml-1 text-fg-subtle">@{c.username}</span>}
+                        <span className="ml-1.5 text-fg-muted">({c.email})</span>
+                      </span>
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         )}
         <div>
