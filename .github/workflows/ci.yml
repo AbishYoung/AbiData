@@ -165,10 +165,11 @@ jobs:
       - name: Install Chromium
         working-directory: tests/e2e
         run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft*.list /etc/apt/sources.list.d/azure*.list
           if [ "${{ steps.browsers.outputs.cache-hit }}" = true ]; then
-            npx playwright install-deps chromium
+            npx playwright install-deps chromium || true
           else
-            npx playwright install --with-deps chromium
+            npx playwright install --with-deps chromium || npx playwright install chromium
           fi
       - name: Playwright (${{ matrix.area }})
         env:
