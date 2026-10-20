@@ -38,7 +38,6 @@ admin.GetMessageThread	admin	portable	id,kind,workspace_id,name,subject,created_
 admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_at,expires_at,ip,user_agent
 admin.GetSetting	admin	portable	value
 admin.InitUsername	admin	portable	
-admin.LatestMessageID	admin	portable	id
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
 admin.ListBlogs	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username,(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
 admin.ListMembers	admin	portable	id,email,display_name,role

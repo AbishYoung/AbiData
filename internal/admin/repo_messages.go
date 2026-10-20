@@ -335,7 +335,8 @@ func (s *Store) ListMessageThreads(ctx context.Context, userID string, f Message
 		box = "inbox"
 	}
 	qLower := strings.ToLower(strings.TrimSpace(f.Query))
-	likePattern := "%" + strings.NewReplacer(`\`, "", "%", "", "_", "").Replace(qLower) + "%"
+	qClean := strings.TrimPrefix(qLower, "@")
+	likePattern := "%" + strings.NewReplacer(`\`, "", "%", "", "_", "").Replace(qClean) + "%"
 
 	var matched []MessageThread
 	var unreadCount int
@@ -376,7 +377,7 @@ func (s *Store) ListMessageThreads(ctx context.Context, userID string, f Message
 				if r.thread.Archived || !r.thread.Unread {
 					continue
 				}
-			case "workspace":
+			case "workspace", "workspaces":
 				if r.thread.Archived || r.thread.Kind != KindWorkspaceThread {
 					continue
 				}
@@ -423,13 +424,14 @@ func (s *Store) ListMessageThreads(ctx context.Context, userID string, f Message
 }
 
 func threadMatchesMetadata(t MessageThread, qLower string) bool {
+	qClean := strings.TrimPrefix(qLower, "@")
 	if strings.Contains(strings.ToLower(t.Subject), qLower) ||
 		strings.Contains(strings.ToLower(t.WorkspaceName), qLower) ||
 		strings.Contains(strings.ToLower(t.Snippet), qLower) {
 		return true
 	}
 	return slices.ContainsFunc(t.Participants, func(p MessageParticipant) bool {
-		return strings.Contains(strings.ToLower(p.Username), qLower) ||
+		return strings.Contains(strings.ToLower(p.Username), qClean) ||
 			strings.Contains(strings.ToLower(p.DisplayName), qLower) ||
 			strings.Contains(strings.ToLower(p.Email), qLower)
 	})
@@ -468,11 +470,6 @@ func (s *Store) ReplyMessageThread(ctx context.Context, p ReplyThreadParams) (Me
 			}
 			if cnt == 0 {
 				return fmt.Errorf("parent message: %w", ErrNotFound)
-			}
-		} else {
-			var latest string
-			if err := tx.QueryRow(ctx, sqlLatestMessageID.SQL, string(p.ThreadID)).Scan(&latest); err == nil {
-				parentID = ids.MessageID(latest)
 			}
 		}
 
@@ -532,6 +529,11 @@ func (s *Store) PatchMessageThreadState(ctx context.Context, threadID ids.Thread
 		), false)
 		if err != nil {
 			return notFoundIfNoRows(err, "message thread")
+		}
+		if raw.thread.Kind == KindWorkspaceThread {
+			if _, err := tx.Exec(ctx, sqlEnsureWorkspaceParticipants.SQL, string(threadID), string(raw.thread.WorkspaceID)); err != nil {
+				return err
+			}
 		}
 		var lastRead any
 		if raw.lastRead != nil {

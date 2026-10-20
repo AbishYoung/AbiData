@@ -8,6 +8,13 @@ import { ConfirmHost } from "@/components/ui";
 import type { Me } from "@/lib/session";
 import type { MessageThreadDetail, MessageThreadSummary } from "./messagesApi";
 
+const isCompactMock = vi.hoisted(() => vi.fn(() => false));
+vi.mock("@/lib/useMediaQuery", () => ({
+  useIsCompact: () => isCompactMock(),
+  useMediaQuery: () => false,
+  COMPACT_QUERY: "(max-width: 767px)",
+}));
+
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -135,6 +142,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(() => {
   queryClient.clear();
+  isCompactMock.mockReturnValue(false);
   Object.values(api).forEach((fn) => fn.mockReset());
   navigate.mockReset();
   api.getUnreadMessageCount.mockResolvedValue(0);
@@ -302,5 +310,125 @@ describe("MessagesPage", () => {
         body: "Adding index on Orders.ShippedDate.",
       }),
     );
+  });
+
+  it("targets a specific message with parent_id and allows canceling target", async () => {
+    const user = userEvent.setup();
+    const summary = makeThreadSummary();
+    const detail = makeThreadDetail();
+    api.listMessageThreads.mockResolvedValue({
+      items: [summary],
+      unread_count: 0,
+    });
+    api.getMessageThread.mockResolvedValue(detail);
+    api.replyMessageThread.mockResolvedValue(detail);
+
+    wrap(<MessagesPage me={me} />);
+
+    // Wait for message to load.
+    await screen.findByText("Did the Q3 shipment numbers match?");
+
+    // Click "Reply" on message 1.
+    const replyBtn = screen.getByRole("button", {
+      name: /Reply to message 1 from Sam Rivera/,
+    });
+    await user.click(replyBtn);
+
+    // Indicator "Replying to Sam Rivera" should appear.
+    expect(screen.getByText(/Replying to/)).toBeInTheDocument();
+
+    const replyInput = screen.getByLabelText("Reply to thread");
+    await user.type(replyInput, "Specific response to message 1.");
+    await user.click(screen.getByRole("button", { name: "Send reply" }));
+
+    await waitFor(() =>
+      expect(api.replyMessageThread).toHaveBeenCalledWith(detail.id, {
+        body: "Specific response to message 1.",
+        parent_id: detail.messages?.[0]?.id,
+      }),
+    );
+
+    // Now test canceling the reply target.
+    await user.click(replyBtn);
+    expect(screen.getByText(/Replying to/)).toBeInTheDocument();
+
+    const cancelTargetBtn = screen.getByRole("button", {
+      name: "Cancel specific reply target",
+    });
+    await user.click(cancelTargetBtn);
+    expect(screen.queryByText(/Replying to/)).not.toBeInTheDocument();
+
+    await user.type(replyInput, "General reply without parent.");
+    await user.click(screen.getByRole("button", { name: "Send reply" }));
+
+    await waitFor(() =>
+      expect(api.replyMessageThread).toHaveBeenCalledWith(detail.id, {
+        body: "General reply without parent.",
+      }),
+    );
+  });
+
+  it("renders (you) indicator when displaying a note-to-self direct thread", async () => {
+    const selfSummary = makeThreadSummary({
+      subject: "Personal notes",
+      participants: [
+        {
+          id: "u1",
+          username: "priya",
+          display_name: "Priya Nair",
+          email: "priya@example.com",
+        },
+      ],
+    });
+    api.listMessageThreads.mockResolvedValue({
+      items: [selfSummary],
+      unread_count: 0,
+    });
+    api.getMessageThread.mockResolvedValue(makeThreadDetail(selfSummary));
+
+    wrap(<MessagesPage me={me} />);
+
+    expect(await screen.findByText(/@priya \(you\)/)).toBeInTheDocument();
+  });
+
+  it("smoothly switches between thread list and reader on compact mobile screens", async () => {
+    isCompactMock.mockReturnValue(true);
+    const user = userEvent.setup();
+    const summary = makeThreadSummary();
+    const detail = makeThreadDetail();
+    api.listMessageThreads.mockResolvedValue({
+      items: [summary],
+      unread_count: 0,
+    });
+    api.getMessageThread.mockResolvedValue(detail);
+
+    wrap(<MessagesPage me={me} />);
+
+    // On compact screens, the thread row is visible, but reader is not auto-selected.
+    const threadRowBtn = await screen.findByRole("button", {
+      name: /Supplier shipment reconciliation/,
+    });
+    expect(threadRowBtn).toBeInTheDocument();
+    expect(screen.queryByText("Back to threads")).not.toBeInTheDocument();
+
+    // Tap thread to open.
+    await user.click(threadRowBtn);
+
+    // Reader is now visible with Back button; thread list is hidden.
+    const backBtn = await screen.findByRole("button", {
+      name: "Back to threads",
+    });
+    expect(backBtn).toBeInTheDocument();
+    expect(
+      screen.getByText("Did the Q3 shipment numbers match?"),
+    ).toBeInTheDocument();
+
+    // Tap Back to return to thread list.
+    await user.click(backBtn);
+    expect(
+      await screen.findByRole("button", {
+        name: /Supplier shipment reconciliation/,
+      }),
+    ).toBeInTheDocument();
   });
 });

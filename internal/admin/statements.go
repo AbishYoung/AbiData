@@ -216,7 +216,6 @@ var (
 			WHERE p.thread_id = ?
 			ORDER BY u.display_name, u.id`)
 	sqlCheckMessageInThread = sqlgen.Register("admin.CheckMessageInThread", `SELECT count(*) FROM _adm_messages WHERE id = ? AND thread_id = ?`)
-	sqlLatestMessageID      = sqlgen.Register("admin.LatestMessageID", `SELECT id FROM _adm_messages WHERE thread_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`)
 	sqlBumpMessageThread    = sqlgen.Register("admin.BumpMessageThread", `UPDATE _adm_message_threads SET last_message_at = ?, message_count = message_count + 1 WHERE id = ?`)
 	sqlUnarchiveThreadAll   = sqlgen.Register("admin.UnarchiveThreadAll", `UPDATE _adm_message_participants SET archived_at = NULL WHERE thread_id = ?`)
 	sqlThreadMatchesBody    = sqlgen.Register("admin.ThreadMatchesBody", `SELECT count(*) FROM _adm_messages WHERE thread_id = ? AND lower(body) LIKE ?`)

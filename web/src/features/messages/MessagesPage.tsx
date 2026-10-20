@@ -96,7 +96,13 @@ function formatParticipantSummary(
   const others = participants.filter((p) => p.id !== myUserId);
   const target = others.length > 0 ? others : participants;
   return target
-    .map((p) => (p.username ? `@${p.username}` : p.display_name || p.email))
+    .map((p) => {
+      const name = p.username ? `@${p.username}` : p.display_name || p.email;
+      if (others.length === 0 && p.id === myUserId) {
+        return `${name} (you)`;
+      }
+      return name;
+    })
     .join(", ");
 }
 
@@ -446,6 +452,7 @@ function ThreadReaderPane({
   const [replyToMsg, setReplyToMsg] = useState<MessageItem | null>(null);
   const [replyError, setReplyError] = useState<string | null>(null);
   const autoMarkedRef = useRef<string | null>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
   const detailQuery = useQuery({
     queryKey: messageKeys.thread(threadId),
@@ -634,7 +641,10 @@ function ThreadReaderPane({
                     size="sm"
                     variant="ghost"
                     aria-label={`Reply to message ${idx + 1} from ${senderName}`}
-                    onClick={() => setReplyToMsg(m)}
+                    onClick={() => {
+                      setReplyToMsg(m);
+                      replyInputRef.current?.focus();
+                    }}
                   >
                     <CornerUpLeft size={13} aria-hidden="true" />
                     Reply
@@ -642,7 +652,7 @@ function ThreadReaderPane({
                 </div>
               </div>
 
-              {parent && idx > 0 && (
+              {parent && (
                 <div className="mt-2 flex items-center gap-1.5 rounded-md border-l-2 border-accent bg-surface-2/70 px-2.5 py-1 text-xs text-fg-muted">
                   <CornerUpLeft size={12} aria-hidden="true" className="shrink-0" />
                   <span className="truncate">
@@ -655,7 +665,7 @@ function ThreadReaderPane({
                 </div>
               )}
 
-              <div className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-fg">
+              <div className="mt-2.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-fg">
                 {m.body}
               </div>
             </li>
@@ -689,6 +699,7 @@ function ThreadReaderPane({
 
         <Field label="Reply to thread" error={replyError}>
           <Textarea
+            ref={replyInputRef}
             rows={3}
             value={replyBody}
             onChange={(e) => setReplyBody(e.target.value)}

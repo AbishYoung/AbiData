@@ -74,7 +74,7 @@ func TestDirectMessageThreads(t *testing.T) {
 		t.Fatalf("u1 archived: %+v, %v", u1Arch, err)
 	}
 
-	// Recipient u2 replies -> unarchives for u1, marks unread for u1, marks read for u2!
+	// Recipient u2 replies to thread as a whole -> unarchives for u1, marks unread for u1, marks read for u2!
 	reply, err := s.ReplyMessageThread(ctx, ReplyThreadParams{
 		ThreadID: thr.ID,
 		SenderID: "u2",
@@ -84,32 +84,57 @@ func TestDirectMessageThreads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply.ParentID != thr.Messages[0].ID {
-		t.Fatalf("reply parent = %q, want %q", reply.ParentID, thr.Messages[0].ID)
+	if reply.ParentID != "" {
+		t.Fatalf("general thread reply parent = %q, want empty", reply.ParentID)
 	}
 
-	// u2 now has 0 unread; u1 has 1 unread and thread is back in u1's inbox.
-	if n, _ := s.CountUnreadThreads(ctx, "u2"); n != 0 {
-		t.Fatalf("u2 unread after replying = %d, want 0", n)
+	// Targeted reply to a specific message sets ParentID.
+	targetReply, err := s.ReplyMessageThread(ctx, ReplyThreadParams{
+		ThreadID: thr.ID,
+		SenderID: "u1",
+		ParentID: reply.ID,
+		Body:     "Thanks Bob, appreciate the quick turnaround.",
+		Now:      t0.Add(3 * time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	u1Inbox, u1Unread, err := s.ListMessageThreads(ctx, "u1", MessageThreadFilter{Box: "inbox"})
-	if err != nil || u1Unread != 1 || len(u1Inbox) != 1 || !u1Inbox[0].Unread || u1Inbox[0].Archived || u1Inbox[0].MessageCount != 2 {
-		t.Fatalf("u1 inbox after reply: %+v, unread=%d, err=%v", u1Inbox, u1Unread, err)
+	if targetReply.ParentID != reply.ID {
+		t.Fatalf("targeted reply parent = %q, want %q", targetReply.ParentID, reply.ID)
 	}
 
-	// u1 marks it read, then marks it unread again.
+	// Reply referencing non-existent parent message fails with ErrNotFound.
+	if _, err := s.ReplyMessageThread(ctx, ReplyThreadParams{
+		ThreadID: thr.ID,
+		SenderID: "u1",
+		ParentID: "msg_nonexistent",
+		Body:     "Should fail",
+		Now:      t0.Add(4 * time.Minute),
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("reply with bogus parent = %v, want ErrNotFound", err)
+	}
+
+	// u1 now has 0 unread (replied); u2 has 1 unread.
+	if n, _ := s.CountUnreadThreads(ctx, "u1"); n != 0 {
+		t.Fatalf("u1 unread after replying = %d, want 0", n)
+	}
+	if n, _ := s.CountUnreadThreads(ctx, "u2"); n != 1 {
+		t.Fatalf("u2 unread after u1 reply = %d, want 1", n)
+	}
+
+	// u2 marks it read, then marks it unread again.
 	readTrue := true
-	afterRead, err := s.PatchMessageThreadState(ctx, thr.ID, "u1", ThreadStatePatch{Read: &readTrue, Now: t0.Add(3 * time.Minute)})
+	afterRead, err := s.PatchMessageThreadState(ctx, thr.ID, "u2", ThreadStatePatch{Read: &readTrue, Now: t0.Add(5 * time.Minute)})
 	if err != nil || afterRead.Unread {
 		t.Fatalf("after mark read: %+v, %v", afterRead, err)
 	}
 	readFalse := false
-	afterUnread, err := s.PatchMessageThreadState(ctx, thr.ID, "u1", ThreadStatePatch{Read: &readFalse, Now: t0.Add(4 * time.Minute)})
+	afterUnread, err := s.PatchMessageThreadState(ctx, thr.ID, "u2", ThreadStatePatch{Read: &readFalse, Now: t0.Add(6 * time.Minute)})
 	if err != nil || !afterUnread.Unread {
 		t.Fatalf("after mark unread: %+v, %v", afterUnread, err)
 	}
 
-	// Search by message body and by participant username.
+	// Search by message body and by participant username (both with and without @).
 	foundBody, _, err := s.ListMessageThreads(ctx, "u1", MessageThreadFilter{Box: "inbox", Query: "verified"})
 	if err != nil || len(foundBody) != 1 {
 		t.Fatalf("search body: %+v, %v", foundBody, err)
@@ -118,9 +143,45 @@ func TestDirectMessageThreads(t *testing.T) {
 	if err != nil || len(foundUser) != 1 {
 		t.Fatalf("search user: %+v, %v", foundUser, err)
 	}
+	foundAtUser, _, err := s.ListMessageThreads(ctx, "u1", MessageThreadFilter{Box: "inbox", Query: "@bob"})
+	if err != nil || len(foundAtUser) != 1 {
+		t.Fatalf("search @user: %+v, %v", foundAtUser, err)
+	}
 	none, _, err := s.ListMessageThreads(ctx, "u1", MessageThreadFilter{Box: "inbox", Query: "nonexistent-term"})
 	if err != nil || len(none) != 0 {
 		t.Fatalf("search none: %+v, %v", none, err)
+	}
+
+	// Self-messaging: user can create a direct thread to themselves (note to self).
+	selfThr, err := s.CreateMessageThread(ctx, CreateThreadParams{
+		Kind:         KindDirectThread,
+		SenderID:     "u1",
+		RecipientIDs: []string{"u1"},
+		Subject:      "Personal task list",
+		Body:         "Remember to deploy on Friday.",
+		Now:          t0.Add(7 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("create self thread: %v", err)
+	}
+	if len(selfThr.Participants) != 1 || selfThr.Participants[0].UserID != "u1" || selfThr.Unread {
+		t.Fatalf("self thread: %+v", selfThr)
+	}
+
+	// Duplicate recipients in recipient list are cleanly deduplicated.
+	dupThr, err := s.CreateMessageThread(ctx, CreateThreadParams{
+		Kind:         KindDirectThread,
+		SenderID:     "u1",
+		RecipientIDs: []string{"u2", "u2", "u1"},
+		Subject:      "Deduplication test",
+		Body:         "Testing duplicate recipient IDs.",
+		Now:          t0.Add(8 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("create dup thread: %v", err)
+	}
+	if len(dupThr.Participants) != 2 {
+		t.Fatalf("expected 2 distinct participants in dup thread, got %+v", dupThr.Participants)
 	}
 }
 
@@ -191,5 +252,13 @@ func TestWorkspaceMessageThreads(t *testing.T) {
 	// Non-member u4 still cannot see the workspace thread.
 	if _, err := s.GetMessageThread(ctx, thr.ID, "u4"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("non-member u4 GetMessageThread = %v, want ErrNotFound", err)
+	}
+
+	// When u3 is removed from the workspace, u3 immediately loses access to the thread.
+	if err := s.DeleteMembership(ctx, ws.ID, "u3"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetMessageThread(ctx, thr.ID, "u3"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("removed member u3 GetMessageThread = %v, want ErrNotFound", err)
 	}
 }

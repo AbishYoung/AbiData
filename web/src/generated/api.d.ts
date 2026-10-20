@@ -7367,7 +7367,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Mailbox filter; defaults to inbox. */
-                box?: "inbox" | "unread" | "workspace" | "sent" | "archived" | "";
+                box?: "inbox" | "unread" | "workspace" | "workspaces" | "sent" | "archived" | "";
                 /** @description Filter to a single workspace's threads. */
                 workspace_id?: string;
                 /** @description Search subject, message body or participants. */

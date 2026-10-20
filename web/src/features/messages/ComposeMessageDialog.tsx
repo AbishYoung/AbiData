@@ -231,7 +231,7 @@ export function ComposeMessageDialog({
               >
                 {recipients.map((r) => (
                   <span key={r} className={`${badgeAccent} gap-1 pr-1`}>
-                    <span>@{r.replace(/^@/, "")}</span>
+                    <span>{r.includes("@") ? r : `@${r.replace(/^@/, "")}`}</span>
                     <button
                       type="button"
                       aria-label={`Remove ${r}`}

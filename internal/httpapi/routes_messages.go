@@ -137,8 +137,30 @@ func (s *Server) resolveRecipientUser(ctx context.Context, raw string) (admin.Us
 	if trimmed == "" {
 		return admin.User{}, fault.New(fault.BadRequest, "Recipient cannot be empty.")
 	}
-	lookup := strings.TrimPrefix(trimmed, "@")
-	if u, err := s.deps.Admin.GetUser(ctx, lookup); err == nil {
+	if strings.HasPrefix(trimmed, "@") {
+		username := strings.TrimPrefix(trimmed, "@")
+		if u, err := s.deps.Admin.GetUserByUsername(ctx, username); err == nil {
+			if u.Disabled {
+				return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
+			}
+			return u, nil
+		} else if !errors.Is(err, admin.ErrNotFound) {
+			return admin.User{}, err
+		}
+		return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("No active user matches %q.", raw))
+	}
+	if strings.Contains(trimmed, "@") {
+		if u, err := s.deps.Admin.GetUserByEmail(ctx, trimmed); err == nil {
+			if u.Disabled {
+				return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
+			}
+			return u, nil
+		} else if !errors.Is(err, admin.ErrNotFound) {
+			return admin.User{}, err
+		}
+		return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("No active user matches %q.", raw))
+	}
+	if u, err := s.deps.Admin.GetUser(ctx, trimmed); err == nil {
 		if u.Disabled {
 			return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
 		}
@@ -146,15 +168,7 @@ func (s *Server) resolveRecipientUser(ctx context.Context, raw string) (admin.Us
 	} else if !errors.Is(err, admin.ErrNotFound) {
 		return admin.User{}, err
 	}
-	if u, err := s.deps.Admin.GetUserByUsername(ctx, lookup); err == nil {
-		if u.Disabled {
-			return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
-		}
-		return u, nil
-	} else if !errors.Is(err, admin.ErrNotFound) {
-		return admin.User{}, err
-	}
-	if u, err := s.deps.Admin.GetUserByEmail(ctx, trimmed); err == nil {
+	if u, err := s.deps.Admin.GetUserByUsername(ctx, trimmed); err == nil {
 		if u.Disabled {
 			return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
 		}
@@ -245,7 +259,7 @@ func (s *Server) registerMessages(api huma.API) {
 		OperationID: "listMessageThreads", Method: http.MethodGet, Path: "/api/v1/messages/threads", Tags: tags, Metadata: sessionOnly,
 		Summary: "List message threads for the signed-in user", Errors: []int{400, 401, 403, 404},
 	}, func(ctx context.Context, in *struct {
-		Box         string `query:"box" enum:"inbox,unread,workspace,sent,archived," doc:"Mailbox filter; defaults to inbox."`
+		Box         string `query:"box" enum:"inbox,unread,workspace,workspaces,sent,archived," doc:"Mailbox filter; defaults to inbox."`
 		WorkspaceID string `query:"workspace_id" maxLength:"64" doc:"Filter to a single workspace's threads."`
 		Q           string `query:"q" maxLength:"200" doc:"Search subject, message body or participants."`
 	}) (*struct {
@@ -263,8 +277,12 @@ func (s *Server) registerMessages(api huma.API) {
 			}
 			wsID = m.Workspace.ID
 		}
+		box := in.Box
+		if box == "workspaces" {
+			box = "workspace"
+		}
 		threads, unread, err := s.deps.Admin.ListMessageThreads(ctx, p.UserID, admin.MessageThreadFilter{
-			Box:         in.Box,
+			Box:         box,
 			WorkspaceID: wsID,
 			Query:       in.Q,
 		})
@@ -327,13 +345,17 @@ func (s *Server) registerMessages(api huma.API) {
 			if len(in.Body.Recipients) > admin.MaxDirectRecipients {
 				return nil, fault.New(fault.BadRequest, "Too many recipients.")
 			}
+			seen := make(map[string]bool)
 			recipientIDs := make([]string, 0, len(in.Body.Recipients))
 			for _, r := range in.Body.Recipients {
 				u, err := s.resolveRecipientUser(ctx, r)
 				if err != nil {
 					return nil, err
 				}
-				recipientIDs = append(recipientIDs, u.ID)
+				if !seen[u.ID] {
+					seen[u.ID] = true
+					recipientIDs = append(recipientIDs, u.ID)
+				}
 			}
 			params.RecipientIDs = recipientIDs
 		case admin.KindWorkspaceThread:
