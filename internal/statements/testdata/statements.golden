@@ -1,12 +1,15 @@
 admin.Audit	admin	portable	
 admin.BlogReports	admin	portable	id,blog_id,post_slug,reason_code,message,created_at,resolved_by,resolved_at
+admin.BumpMessageThread	admin	portable	
 admin.ChangeMembership	admin	portable	role
 admin.ChangeMembership#2	admin	portable	count(*)
 admin.ChangeMembership#3	admin	portable	
 admin.ChangeMembership#4	admin	portable	
+admin.CheckMessageInThread	admin	portable	count(*)
 admin.ClearLoginAttempts	admin	portable	
 admin.ClearLoginAttemptsPrefix	admin	portable	
 admin.Close	admin	sqlite	busy,log,checkpointed
+admin.CountUnreadThreads	admin	portable	count(*)
 admin.CountUsers	admin	portable	count(*)
 admin.CreateAPIKey	admin	portable	
 admin.CreateAPIKey#2	admin	portable	count(*)
@@ -15,6 +18,8 @@ admin.CreateApp	admin	portable	count(*)
 admin.CreateApp#2	admin	portable	
 admin.CreateBlog	admin	portable	
 admin.CreateBlogReport	admin	portable	
+admin.CreateMessage	admin	portable	
+admin.CreateMessageThread	admin	portable	
 admin.CreateSession	admin	portable	
 admin.CreateWorkspace	admin	portable	
 admin.CreateWorkspace#2	admin	portable	
@@ -24,10 +29,12 @@ admin.DeleteSession	admin	portable
 admin.DeleteUser	admin	portable	
 admin.DeleteUserSessions	admin	portable	
 admin.DropWorkspace	admin	portable	
+admin.EnsureWorkspaceParticipants	admin	portable	
 admin.GetBlog	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
 admin.GetBlogByUser	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
 admin.GetBlogByUsername	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
 admin.GetBlogByWorkspace	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username
+admin.GetMessageThread	admin	portable	id,kind,workspace_id,name,subject,created_by,created_at,last_message_at,message_count,last_read_at,archived_at
 admin.GetSession	admin	portable	id_hash,user_id,csrf_token,created_at,last_seen_at,expires_at,ip,user_agent
 admin.GetSetting	admin	portable	value
 admin.InitUsername	admin	portable	
@@ -35,8 +42,12 @@ admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
 admin.ListBlogs	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username,(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
 admin.ListCandidateMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name
 admin.ListMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name,role
+admin.ListMessageThreads	admin	portable	id,kind,workspace_id,name,subject,created_by,created_at,last_message_at,message_count,last_read_at,archived_at,(SELECT count(*) FROM _adm_messages sm WHERE sm.thread_id = t.id AND sm.sender_id = :uid)
 admin.ListSettings	admin	portable	key,value
+admin.ListThreadMessages	admin	portable	id,thread_id,parent_id,sender_id,username,display_name,body,created_at
 admin.ListUsersWithoutBlog	admin	portable	id
+admin.LoadLastMessage	admin	portable	id,sender_id,username,display_name,body
+admin.LoadThreadParticipants	admin	portable	id,username,display_name,email
 admin.Ping	admin	portable	1
 admin.PurgeSessions	admin	portable	
 admin.PurgeSessions#2	admin	portable	
@@ -61,13 +72,16 @@ admin.TakeDown	admin	portable
 admin.Takedowns	admin	portable	id,blog_id,post_slug,reason_code,note,taken_down_by,taken_down_at,restored_by,restored_at
 admin.TakenDown	admin	portable	count(*)
 admin.TakenDown#2	admin	portable	count(*)
+admin.ThreadMatchesBody	admin	portable	count(*)
 admin.TouchAPIKey	admin	portable	
 admin.TouchLogin	admin	portable	
 admin.TouchSession	admin	portable	
+admin.UnarchiveThreadAll	admin	portable	
 admin.UpdateApp	admin	portable	
 admin.UpdateBlog	admin	portable	
 admin.UpdateUser	admin	portable	
 admin.UpdateWorkspace	admin	portable	
+admin.UpsertMessageParticipant	admin	portable	
 admin.UsernameOwner	admin	portable	id
 admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
 admin.migrate	admin	sqlite	application_id

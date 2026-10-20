@@ -6,6 +6,7 @@ import { DropdownMenu } from "radix-ui";
 import { api } from "@/lib/api";
 import { ME_KEY, useMe, type Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
+import { MessagesHeaderLink } from "@/features/messages/MessagesHeaderLink";
 import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
@@ -151,7 +152,10 @@ export function PickerPage({ me: initial }: { me: Me }) {
     <div className="flex min-h-full flex-col bg-bg">
       <header className="flex h-12 items-center justify-between border-b border-border bg-surface px-4 shadow-xs">
         <Logo size={26} />
-        <UserMenu me={me} />
+        <div className="flex items-center gap-1.5">
+          <MessagesHeaderLink />
+          <UserMenu me={me} />
+        </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-3">

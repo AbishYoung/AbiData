@@ -14,6 +14,7 @@ import { NavDrawer } from "@/features/nav/NavDrawer";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { useFocusOpenedTab } from "./focusOpened";
 import { UserMenu } from "@/features/nav/UserMenu";
+import { MessagesHeaderLink } from "@/features/messages/MessagesHeaderLink";
 import { DatasheetTab } from "@/features/datasheet/DatasheetTab";
 import { QueryTab } from "@/features/queries/QueryTab";
 import { useSavedQueries } from "@/features/queries/savedQueries";
@@ -416,6 +417,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
           <button type="button" className={iconBtn} aria-label="Search commands" onClick={() => usePalette.getState().setOpen(true)}>
             <Search size={18} aria-hidden="true" />
           </button>
+          <MessagesHeaderLink ws={ws} compact />
           <UserMenu
             me={me}
             {...(role === "owner"
@@ -474,6 +476,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         )}
         <div className="ml-auto flex items-center gap-1.5">
           <PaletteTrigger />
+          <MessagesHeaderLink ws={ws} />
           <HelpButton />
           <UserMenu
             me={me}

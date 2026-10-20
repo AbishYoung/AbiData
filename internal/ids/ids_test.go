@@ -18,6 +18,23 @@ func TestParseWorkspaceID(t *testing.T) {
 	}
 }
 
+func TestParseThreadAndMessageID(t *testing.T) {
+	tid := NewThreadID()
+	if got, err := ParseThreadID(tid.String()); err != nil || got != tid {
+		t.Fatalf("ParseThreadID(%q) = %q, %v", tid, got, err)
+	}
+	mid := NewMessageID()
+	if got, err := ParseMessageID(mid.String()); err != nil || got != mid {
+		t.Fatalf("ParseMessageID(%q) = %q, %v", mid, got, err)
+	}
+	if _, err := ParseThreadID(mid.String()); err == nil {
+		t.Errorf("ParseThreadID accepted MessageID %q", mid)
+	}
+	if _, err := ParseMessageID(tid.String()); err == nil {
+		t.Errorf("ParseMessageID accepted ThreadID %q", tid)
+	}
+}
+
 func TestSafeJoin(t *testing.T) {
 	base := t.TempDir()
 	if p, err := SafeJoin(base, "workspaces", New()+".db"); err != nil || filepath.Dir(filepath.Dir(p)) != base {

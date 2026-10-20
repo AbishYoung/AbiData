@@ -746,6 +746,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/messages/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Directory of active users and the caller's workspaces for composing messages */
+        get: operations["listMessageRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List message threads for the signed-in user */
+        get: operations["listMessageThreads"];
+        put?: never;
+        /** Start a new direct or workspace message thread */
+        post: operations["createMessageThread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/threads/{threadId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a message thread with all its messages */
+        get: operations["getMessageThread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark a thread read/unread or archive/unarchive it */
+        patch: operations["patchMessageThread"];
+        trace?: never;
+    };
+    "/api/v1/messages/threads/{threadId}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reply to a message thread */
+        post: operations["replyMessageThread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count of unarchived unread message threads for the signed-in user */
+        get: operations["getUnreadMessageCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/w/{ws}": {
         parameters: {
             query?: never;
@@ -2529,6 +2616,15 @@ export interface components {
             /** @enum {string} */
             role: "viewer" | "editor" | "builder";
         };
+        CreateMessageThreadRequest: {
+            body: string;
+            /** @enum {string} */
+            kind: "direct" | "workspace";
+            /** @description User IDs, usernames or emails (for direct threads). */
+            recipients?: string[] | null;
+            subject: string;
+            workspace_id?: string;
+        };
         Criterion: {
             /** @enum {string} */
             op: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "like" | "contains" | "starts" | "ends" | "in" | "between" | "is_null" | "not_null" | "within";
@@ -2709,6 +2805,10 @@ export interface components {
             params?: components["schemas"]["ParamDoc"][] | null;
             returns?: string;
             signature: string;
+        };
+        GetUnreadMessageCountResponse: {
+            /** Format: int64 */
+            unread_count: number;
         };
         Global: {
             allow_http?: boolean;
@@ -2944,6 +3044,15 @@ export interface components {
         ListMembersResponse: {
             items: components["schemas"]["MemberDTO"][] | null;
         };
+        ListMessageRecipientsResponse: {
+            users: components["schemas"]["MessageRecipientUserDTO"][] | null;
+            workspaces: components["schemas"]["MessageRecipientWorkspaceDTO"][] | null;
+        };
+        ListMessageThreadsResponse: {
+            items: components["schemas"]["MessageThreadSummaryDTO"][] | null;
+            /** Format: int64 */
+            unread_count: number;
+        };
         ListQueriesResponse: {
             items: components["schemas"]["Saved"][] | null;
         };
@@ -3035,6 +3144,80 @@ export interface components {
             system_kind?: string;
             workspace_id: string;
             workspace_name: string;
+        };
+        MessageDTO: {
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+            id: string;
+            parent_id?: string;
+            sender_display_name: string;
+            sender_id: string;
+            sender_username: string;
+            thread_id: string;
+        };
+        MessageParticipantDTO: {
+            display_name: string;
+            email: string;
+            id: string;
+            username: string;
+        };
+        MessageRecipientUserDTO: {
+            display_name: string;
+            email: string;
+            id: string;
+            username: string;
+        };
+        MessageRecipientWorkspaceDTO: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            role: "owner" | "builder" | "editor" | "viewer";
+        };
+        MessageThreadDetailDTO: {
+            archived: boolean;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            id: string;
+            /** @enum {string} */
+            kind: "direct" | "workspace";
+            /** Format: date-time */
+            last_message_at: string;
+            last_sender_display_name: string;
+            last_sender_id: string;
+            last_sender_username: string;
+            /** Format: int64 */
+            message_count: number;
+            messages: components["schemas"]["MessageDTO"][] | null;
+            participants: components["schemas"]["MessageParticipantDTO"][] | null;
+            snippet: string;
+            subject: string;
+            unread: boolean;
+            workspace_id?: string;
+            workspace_name?: string;
+        };
+        MessageThreadSummaryDTO: {
+            archived: boolean;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            id: string;
+            /** @enum {string} */
+            kind: "direct" | "workspace";
+            /** Format: date-time */
+            last_message_at: string;
+            last_sender_display_name: string;
+            last_sender_id: string;
+            last_sender_username: string;
+            /** Format: int64 */
+            message_count: number;
+            participants: components["schemas"]["MessageParticipantDTO"][] | null;
+            snippet: string;
+            subject: string;
+            unread: boolean;
+            workspace_id?: string;
+            workspace_name?: string;
         };
         Meta: {
             /** @description Detected from the content, never taken from the client. */
@@ -3293,6 +3476,10 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        PatchMessageThreadRequest: {
+            archived?: boolean;
+            read?: boolean;
+        };
         Policy: {
             enabled: boolean;
             /**
@@ -3461,6 +3648,11 @@ export interface components {
             name: string;
             on_delete?: string;
             parent_table_id: string;
+        };
+        ReplyMessageThreadRequest: {
+            body: string;
+            /** @description Optional message ID being replied to; defaults to the latest message. */
+            parent_id?: string;
         };
         Report: {
             id: string;
@@ -7142,6 +7334,486 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listMessageRecipients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListMessageRecipientsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listMessageThreads: {
+        parameters: {
+            query?: {
+                /** @description Mailbox filter; defaults to inbox. */
+                box?: "inbox" | "unread" | "workspace" | "workspaces" | "sent" | "archived" | "";
+                /** @description Filter to a single workspace's threads. */
+                workspace_id?: string;
+                /** @description Search subject, message body or participants. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListMessageThreadsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    createMessageThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMessageThreadRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageThreadDetailDTO"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getMessageThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                threadId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageThreadDetailDTO"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    patchMessageThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                threadId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchMessageThreadRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageThreadDetailDTO"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    replyMessageThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                threadId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplyMessageThreadRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageThreadDetailDTO"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getUnreadMessageCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetUnreadMessageCountResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

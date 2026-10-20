@@ -149,4 +149,78 @@ var (
 	sqlMigrate2 = sqlgen.RegisterSQLiteOnly("admin.migrate#2", "PRAGMA user_version")
 	sqlPing     = sqlgen.Register("admin.Ping", "SELECT 1")
 	sqlClose    = sqlgen.RegisterSQLiteOnly("admin.Close", "PRAGMA wal_checkpoint(TRUNCATE)")
+
+	// Internal messaging (user-to-user and workspace threads).
+	sqlCreateMessageThread = sqlgen.Register("admin.CreateMessageThread", `INSERT INTO _adm_message_threads
+			(id, kind, workspace_id, subject, created_by, created_at, last_message_at, message_count)
+			VALUES (?,?,?,?,?,?,?,1)`)
+	sqlCreateMessage = sqlgen.Register("admin.CreateMessage", `INSERT INTO _adm_messages
+			(id, thread_id, parent_id, sender_id, body, created_at)
+			VALUES (?,?,?,?,?,?)`)
+	sqlUpsertMessageParticipant = sqlgen.Register("admin.UpsertMessageParticipant", `INSERT INTO _adm_message_participants
+			(thread_id, user_id, last_read_at, archived_at) VALUES (?,?,?,?)
+			ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at, archived_at = excluded.archived_at`)
+	sqlEnsureWorkspaceParticipants = sqlgen.Register("admin.EnsureWorkspaceParticipants", `INSERT INTO _adm_message_participants
+			(thread_id, user_id, last_read_at, archived_at)
+			SELECT ?, m.user_id, NULL, NULL FROM _adm_memberships m WHERE m.workspace_id = ?
+			ON CONFLICT(thread_id, user_id) DO NOTHING`)
+	sqlGetMessageThread = sqlgen.Register("admin.GetMessageThread", `SELECT t.id, t.kind, t.workspace_id, w.name, t.subject, t.created_by,
+			t.created_at, t.last_message_at, t.message_count, p.last_read_at, p.archived_at
+			FROM _adm_message_threads t
+			LEFT JOIN _adm_workspaces w ON w.id = t.workspace_id
+			LEFT JOIN _adm_message_participants p ON p.thread_id = t.id AND p.user_id = :uid
+			WHERE t.id = :tid
+			AND (
+				(t.kind = 'direct' AND p.user_id IS NOT NULL)
+				OR (t.kind = 'workspace' AND w.status <> 'deleted' AND EXISTS (
+					SELECT 1 FROM _adm_memberships wm WHERE wm.workspace_id = t.workspace_id AND wm.user_id = :uid
+				))
+			)`)
+	sqlListMessageThreads = sqlgen.Register("admin.ListMessageThreads", `SELECT t.id, t.kind, t.workspace_id, w.name, t.subject, t.created_by,
+			t.created_at, t.last_message_at, t.message_count, p.last_read_at, p.archived_at,
+			(SELECT count(*) FROM _adm_messages sm WHERE sm.thread_id = t.id AND sm.sender_id = :uid)
+			FROM _adm_message_threads t
+			LEFT JOIN _adm_workspaces w ON w.id = t.workspace_id
+			LEFT JOIN _adm_message_participants p ON p.thread_id = t.id AND p.user_id = :uid
+			WHERE (
+				(t.kind = 'direct' AND p.user_id IS NOT NULL)
+				OR (t.kind = 'workspace' AND w.status <> 'deleted' AND EXISTS (
+					SELECT 1 FROM _adm_memberships wm WHERE wm.workspace_id = t.workspace_id AND wm.user_id = :uid
+				))
+			)
+			ORDER BY t.last_message_at DESC, t.id DESC
+			LIMIT 200`)
+	sqlCountUnreadThreads = sqlgen.Register("admin.CountUnreadThreads", `SELECT count(*)
+			FROM _adm_message_threads t
+			LEFT JOIN _adm_workspaces w ON w.id = t.workspace_id
+			LEFT JOIN _adm_message_participants p ON p.thread_id = t.id AND p.user_id = :uid
+			WHERE (
+				(t.kind = 'direct' AND p.user_id IS NOT NULL)
+				OR (t.kind = 'workspace' AND w.status <> 'deleted' AND EXISTS (
+					SELECT 1 FROM _adm_memberships wm WHERE wm.workspace_id = t.workspace_id AND wm.user_id = :uid
+				))
+			)
+			AND p.archived_at IS NULL
+			AND (p.last_read_at IS NULL OR p.last_read_at < t.last_message_at)`)
+	sqlListThreadMessages = sqlgen.Register("admin.ListThreadMessages", `SELECT m.id, m.thread_id, m.parent_id, m.sender_id,
+			u.username, u.display_name, m.body, m.created_at
+			FROM _adm_messages m
+			JOIN _adm_users u ON u.id = m.sender_id
+			WHERE m.thread_id = ?
+			ORDER BY m.created_at ASC, m.id ASC`)
+	sqlLoadLastMessage = sqlgen.Register("admin.LoadLastMessage", `SELECT m.id, m.sender_id, u.username, u.display_name, m.body
+			FROM _adm_messages m
+			JOIN _adm_users u ON u.id = m.sender_id
+			WHERE m.thread_id = ?
+			ORDER BY m.created_at DESC, m.id DESC
+			LIMIT 1`)
+	sqlLoadThreadParticipants = sqlgen.Register("admin.LoadThreadParticipants", `SELECT u.id, u.username, u.display_name, u.email
+			FROM _adm_message_participants p
+			JOIN _adm_users u ON u.id = p.user_id
+			WHERE p.thread_id = ?
+			ORDER BY u.display_name, u.id`)
+	sqlCheckMessageInThread = sqlgen.Register("admin.CheckMessageInThread", `SELECT count(*) FROM _adm_messages WHERE id = ? AND thread_id = ?`)
+	sqlBumpMessageThread    = sqlgen.Register("admin.BumpMessageThread", `UPDATE _adm_message_threads SET last_message_at = ?, message_count = message_count + 1 WHERE id = ?`)
+	sqlUnarchiveThreadAll   = sqlgen.Register("admin.UnarchiveThreadAll", `UPDATE _adm_message_participants SET archived_at = NULL WHERE thread_id = ?`)
+	sqlThreadMatchesBody    = sqlgen.Register("admin.ThreadMatchesBody", `SELECT count(*) FROM _adm_messages WHERE thread_id = ? AND lower(body) LIKE ?`)
 )
