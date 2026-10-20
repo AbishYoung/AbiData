@@ -117,7 +117,8 @@ test("a bot with the key reads and writes its workspace and nothing else", async
   // Another workspace looks like it does not exist; so does a wrong key.
   const foreign = await request.get(`/api/v1/w/${otherWs}/schema`, { headers: auth });
   expect(foreign.status()).toBe(404);
-  const wrong = await request.get(rows, { headers: { Authorization: `Bearer ${token.slice(0, -1)}x` } });
+  const badToken = token.slice(0, -1) + (token.endsWith("x") ? "y" : "x");
+  const wrong = await request.get(rows, { headers: { Authorization: `Bearer ${badToken}` } });
   expect(wrong.status()).toBe(401);
   expect((await wrong.json()).error.code).toBe("UNAUTHENTICATED");
 });
