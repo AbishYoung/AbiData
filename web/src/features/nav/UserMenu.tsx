@@ -7,6 +7,7 @@ import {
   CircleHelp,
   KeyRound,
   LogOut,
+  Mail,
   Monitor,
   Moon,
   PenLine,
@@ -114,6 +115,11 @@ export function UserMenu({
               <DropdownMenu.Separator className={menuSeparator} />
             </>
           )}
+          <DropdownMenu.Item className={item} onSelect={() => void navigate({ to: "/messages" })}>
+            <Mail size={16} aria-hidden="true" />
+            Messages
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator className={menuSeparator} />
           {(me.memberships ?? []).some((m) => m.system_kind === "blog") && (
             <>
               <DropdownMenu.Item className={item} onSelect={() => void navigate({ to: "/blog" })}>

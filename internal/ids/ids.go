@@ -17,6 +17,12 @@ import (
 // WorkspaceID is a server-generated ULID naming one workspace and its file.
 type WorkspaceID string
 
+// ThreadID is a server-generated prefixed ULID ("thr_<ulid>") naming a message thread.
+type ThreadID string
+
+// MessageID is a server-generated prefixed ULID ("msg_<ulid>") naming a message.
+type MessageID string
+
 var ulidRe = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}$`)
 
 // ErrInvalidID is returned for identifiers that are not canonical ULIDs.
@@ -27,6 +33,12 @@ func New() string { return ulid.Make().String() }
 
 // NewWorkspaceID returns a fresh workspace ID.
 func NewWorkspaceID() WorkspaceID { return WorkspaceID(New()) }
+
+// NewThreadID returns a fresh thread ID ("thr_<ulid>").
+func NewThreadID() ThreadID { return ThreadID("thr_" + New()) }
+
+// NewMessageID returns a fresh message ID ("msg_<ulid>").
+func NewMessageID() MessageID { return MessageID("msg_" + New()) }
 
 // Valid reports whether s is a canonical upper-case ULID.
 func Valid(s string) bool { return ulidRe.MatchString(s) }
@@ -39,7 +51,27 @@ func ParseWorkspaceID(s string) (WorkspaceID, error) {
 	return WorkspaceID(s), nil
 }
 
+// ParseThreadID validates s as "thr_<ulid>".
+func ParseThreadID(s string) (ThreadID, error) {
+	rest, ok := strings.CutPrefix(s, "thr_")
+	if !ok || !Valid(rest) {
+		return "", ErrInvalidID
+	}
+	return ThreadID(s), nil
+}
+
+// ParseMessageID validates s as "msg_<ulid>".
+func ParseMessageID(s string) (MessageID, error) {
+	rest, ok := strings.CutPrefix(s, "msg_")
+	if !ok || !Valid(rest) {
+		return "", ErrInvalidID
+	}
+	return MessageID(s), nil
+}
+
 func (id WorkspaceID) String() string { return string(id) }
+func (id ThreadID) String() string    { return string(id) }
+func (id MessageID) String() string   { return string(id) }
 
 // Token returns n random bytes encoded as unpadded base64url.
 func Token(n int) string {

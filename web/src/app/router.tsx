@@ -26,6 +26,9 @@ const AdminPage = suspended<ComponentProps<typeof import("@/features/admin/Admin
 const BlogApp = suspended<ComponentProps<typeof import("@/features/blog/BlogApp").BlogApp>>(() =>
   import("@/features/blog/BlogApp").then((m) => ({ default: m.BlogApp })),
 );
+const MessagesPage = suspended<ComponentProps<typeof import("@/features/messages/MessagesPage").MessagesPage>>(() =>
+  import("@/features/messages/MessagesPage").then((m) => ({ default: m.MessagesPage })),
+);
 const PublicAppPage = suspended<ComponentProps<typeof import("@/features/apps/PublicAppPage").PublicAppPage>>(() =>
   import("@/features/apps/PublicAppPage").then((m) => ({ default: m.PublicAppPage })),
 );
@@ -131,6 +134,36 @@ const workspaceRoute = createRoute({
     const { ws } = workspaceRoute.useParams();
     const { me } = workspaceRoute.useRouteContext();
     return <WorkspaceShell ws={ws} me={me} />;
+  },
+});
+
+const messagesRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/messages",
+  validateSearch: (search: Record<string, unknown>): { ws?: string; thread?: string } => ({
+    ...(typeof search.ws === "string" && search.ws ? { ws: search.ws } : {}),
+    ...(typeof search.thread === "string" && search.thread ? { thread: search.thread } : {}),
+  }),
+  component: function MessagesRoutePage() {
+    const { me } = messagesRoute.useRouteContext();
+    const search = messagesRoute.useSearch();
+    return (
+      <MessagesPage
+        me={me}
+        {...(search.ws ? { initialWorkspaceId: search.ws } : {})}
+        {...(search.thread ? { initialThreadId: search.thread } : {})}
+      />
+    );
+  },
+});
+
+const workspaceMessagesRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: "/w/$ws/messages",
+  component: function WorkspaceMessagesRoutePage() {
+    const { ws } = workspaceMessagesRoute.useParams();
+    const { me } = workspaceMessagesRoute.useRouteContext();
+    return <MessagesPage me={me} fixedWorkspaceId={ws} />;
   },
 });
 
@@ -251,6 +284,8 @@ const routeTree = rootRoute.addChildren([
   authRoute.addChildren([
     indexRoute,
     workspaceRoute,
+    messagesRoute,
+    workspaceMessagesRoute,
     blogShortcutRoute,
     blogListRoute,
     blogNewRoute,

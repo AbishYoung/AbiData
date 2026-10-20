@@ -29,7 +29,7 @@ const (
 // that could pass for the platform. A test checks every router.tsx segment is here.
 var reservedUsernames = map[string]bool{
 	"a": true, "abidata": true, "admin": true, "api": true, "assets": true, "b": true, "blog": true,
-	"docs": true, "healthz": true, "login": true, "logout": true, "metrics": true, "readyz": true,
+	"docs": true, "healthz": true, "login": true, "logout": true, "messages": true, "metrics": true, "readyz": true,
 	"root": true, "setup": true, "static": true, "support": true, "system": true, "w": true, "www": true,
 }
 
