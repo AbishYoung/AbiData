@@ -40,9 +40,9 @@ admin.GetSetting	admin	portable	value
 admin.InitUsername	admin	portable	
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
 admin.ListBlogs	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username,(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
-admin.ListMessageThreads	admin	portable	id,kind,workspace_id,name,subject,created_by,created_at,last_message_at,message_count,last_read_at,archived_at,(SELECT count(*) FROM _adm_messages sm WHERE sm.thread_id = t.id AND sm.sender_id = :uid)
 admin.ListCandidateMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name
 admin.ListMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name,role
+admin.ListMessageThreads	admin	portable	id,kind,workspace_id,name,subject,created_by,created_at,last_message_at,message_count,last_read_at,archived_at,(SELECT count(*) FROM _adm_messages sm WHERE sm.thread_id = t.id AND sm.sender_id = :uid)
 admin.ListSettings	admin	portable	key,value
 admin.ListThreadMessages	admin	portable	id,thread_id,parent_id,sender_id,username,display_name,body,created_at
 admin.ListUsersWithoutBlog	admin	portable	id
