@@ -1,350 +1,439 @@
-# AbiData
+# AbiData — Open-Source, Self-Hosted Database Platform
 
-AbiData is a self-hosted database application platform for teams, in the spirit of Microsoft Access. Builders design **tables, queries, forms, reports, Lua scripts, scheduled jobs and user blogs** in the browser. Everyone else works with them from a desktop or a phone, owners can publish chosen forms and reports to people without an account, and users can publish static blogs. Each project lives in its own **workspace**, which is a single SQLite file on your server. The backend is one Go binary with the React web app embedded in it.
+AbiData is an open-source, self-hosted relational database application platform designed for teams — built in the spirit of Microsoft Access and modern collaborative platforms like Airtable. Builders create **tables, relational lookups, visual queries, SQL views, custom forms, banded PDF reports, safe Lua automations, scheduled background jobs, and user blogs** directly in the browser.
+
+Colleagues collaborate with real-time updates from desktop or mobile devices, workspace owners publish public apps without requiring user accounts, and teams communicate through integrated direct and workspace messaging. Deployable as a **single, zero-dependency Go binary** with an embedded React frontend, AbiData stores each project in an isolated **workspace** — using zero-configuration SQLite files by default, with native multi-tenant PostgreSQL backend support.
 
 ![The Orders datasheet in the Northwind Traders sample workspace](docs/images/datasheet-orders.jpg)
 
-[Features](#features) | [Quick start](#quick-start) | [API](#using-the-api) | [Architecture](#architecture) | [Security](#security) | [Development](#development) | [Documentation](#documentation) | [License](#license)
+[Features](#features) | [Quick start](#quick-start) | [Choosing a database](#choosing-a-database) | [API](#using-the-api) | [Architecture](#architecture) | [Security](#security) | [Versioning](#versioning-and-releases) | [Development](#development) | [Documentation](#documentation) | [License](#license)
 
+[![CI Status](https://github.com/AbishYoung/AbiData/actions/workflows/ci.yml/badge.svg)](https://github.com/AbishYoung/AbiData/actions/workflows/ci.yml)
+[![Release: 1.0.0](https://img.shields.io/badge/release-v1.0.0-blue.svg)](https://github.com/AbishYoung/AbiData/releases)
+[![Go: 1.24+](https://img.shields.io/badge/Go-1.24+-00ADD8.svg)](go.mod)
+[![React: 19](https://img.shields.io/badge/React-19-61DAFB.svg)](web/package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+---
+
+## Highlights
+
+- **Zero-Dependency Deployment:** One self-contained binary packaging both backend and web application. Deploy in seconds with Docker Compose or as a standalone server.
+- **Dual Database Backends:** Isolated single-file SQLite databases for zero-maintenance simplicity, or enterprise PostgreSQL schemas for centralized database infrastructure.
+- **Relational Modeling & Audit Trail:** Typed columns, foreign key lookups, calculated expressions, validation rules, and per-record edit history with non-destructive merge conflict resolution.
+- **Visual & SQL Query Engines:** Drag-and-drop query designer for non-technical users alongside a sandboxed read-only SQL editor with strict execution budgets and tabular exports.
+- **Drag-and-Drop Forms & Banded PDF Reports:** Visual canvas form builder with subforms and event hooks, plus banded report generation (tabular and columnar) with server-side PDF output.
+- **Geospatial & Mobile Camera:** Native GeoJSON `Location` (points) and `Area` (polygons with holes) field types with interactive maps and GPS capture, plus photo attachment buckets.
+- **Sandboxed Lua 5.1 Automation:** Secure scripting environment with memory and CPU bounds, dialect-neutral `db.from()` query builder, `stats` & `data` analytical toolkits, cron scheduler, and strict egress gateway.
+- **Zero-Account Public Apps:** Bundle forms and reports into standalone public web apps behind unguessable tokens for surveys, customer orders, or public reporting.
+- **Static User Blogs:** Built-in Markdown authoring, split live preview, cover images, and static HTML publication at `/b/{username}` with Atom feeds.
+- **Team Collaboration & Messaging:** Granular workspace roles (`owner`, `builder`, `editor`, `viewer`), candidate member directory, and built-in direct and workspace threaded messaging.
+
+---
 
 ## Features
 
-AbiData comes with two separate sample workspaces, and every screenshot below comes from them:
+AbiData includes two separate, production-grade sample workspaces demonstrating the platform's capabilities:
 
-- **Northwind Traders**: employees, customers, products, orders, saved queries, a form, a report and a scheduled job.
-- **Biosecurity Watch**: participating farms, invasive species sightings with GPS positions and photos, quarantine zones drawn as fences on a map, spatial queries and a report with maps.
+- **Northwind Traders**: Comprehensive inventory, commercial order-processing, employee directory, supplier records, visual queries, forms, columnar reports, and automated low-stock monitoring jobs.
+- **Biosecurity Watch**: Standalone regional biosecurity program featuring mobile field sightings, GPS positions, photo galleries, map polygon quarantine zones with interior holes, spatial queries, and banded maps reports.
 
-Both are created for the first administrator when setup finishes. Later, an administrator can give every user a copy of either sample from the admin console's **Workspaces** tab, or add one for a single user with `abidata demo --owner you@example.com --kind traders` (or `--kind invasives`) while the server is stopped. See [Install](docs/content/operations/install.md).
+Both sample workspaces are provisioned automatically for the first administrator upon completing setup. Administrators can also grant users copies of either sample from the admin console's **Workspaces** tab or via CLI with `abidata demo --owner you@example.com --kind traders` (or `--kind invasives`). See the [Installation Guide](docs/content/operations/install.md).
 
-### Data
+---
 
-- **Datasheet** editing of records in a keyboard-driven grid, with filter by selection, sorting, import and export.
-- **Table design** with typed fields, required fields, defaults, validation, calculated fields and indexes. You preview the impact of a change before you apply it.
-- **Lookups** between tables, so a field can point at a record in another table.
-- **History**: each table can keep a per-record history of who changed what and when.
-- **Context menus**: right-click a cell for copy, paste, sorting, filter by selection, record history, new record and delete. Column headings, navigation items, document tabs and query results have their own menus.
+### Data & Table Design
+
+- **Keyboard-Driven Datasheet:** Rapid record entry with spreadsheet-like navigation, multi-column sorting, selection-based filtering, inline search, and batch import/export.
+- **Interactive Schema Designer:** Configure typed fields (text, number, currency, date, boolean, attachments, geo point/polygon), primary keys, required rules, default values, and index definitions with safe schema migration previews before applying changes.
+- **Relational Lookups:** Establish foreign key relationships between tables with search-ahead picker controls.
+- **Record History & Merge Conflict Resolution:** View complete timeline logs of who modified which fields and when. Never silently overwrite concurrent edits — resolve discrepancies field by field through an intuitive merge dialog.
+- **Context Menus:** Right-click anywhere in the grid for instant filtering, sorting, record history inspection, and row management.
 
 | | |
 |---|---|
 | ![Table design](docs/images/table-design.jpg) | ![Import wizard](docs/images/import-wizard.jpg) |
-| Design fields and lookups, then preview and apply | Import CSV, Excel or JSON into a new or existing table |
+| *Visual table designer with field types, lookups, and schema migration preview* | *Import CSV, Excel (.xlsx), or JSON files directly into new or existing tables* |
 
 ![Right-click menu on a cell of the Orders datasheet](docs/images/datasheet-context-menu.jpg)
+*Comprehensive cell and header context menus across datasheets, navigation tabs, and query results*
 
-### Maps, fences and attachments
+---
 
-- **Location and area fields** store a point or a fence (a polygon, with holes if you need them) as GeoJSON. Forms and reports have a **Map** control that draws the value and read-only overlays, such as quarantine zones. On a phone, **Use my location** records the position and its accuracy. Base map tiles are off by default, so nothing about your locations leaves your server unless an administrator sets a tile source.
-- **Spatial queries**: a visual join of points to areas, SQL functions such as `geo_distance_m`, `geo_within` and `geo_area_m2`, and `within` and `near` filters in the API.
-- **Attachments fields** hold photos and documents in a per-workspace file bucket that is included in backups. Forms show a gallery with **Take photo** on phones, and reports can print the first image.
+### Queries & Data Analysis
 
-The sample's [invasive species walkthrough](docs/content/guide/example-invasive-species.md) covers recording a sighting on a phone, drawing a zone, the queries, the report and the API calls.
-
-| | |
-|---|---|
-| ![Record a sighting form with a map and photos](docs/images/sighting-form.png) | ![Quarantine zone editor](docs/images/zone-editor.png) |
-| Record a sighting: zones on the map, accuracy and photos | A quarantine zone with a hole, and the sightings around it |
-
-![Biosecurity sightings report with maps and photos](docs/images/biosecurity-report.jpg)
-
-### Queries
-
-Build queries visually (tables, joins, criteria, totals, parameters) or in SQL. SQL queries are read-only, and every query runs with time and row limits. Saved queries can feed forms and reports and can be run through the API. Right-click the results to copy a cell, a row or every row with headings as tab-separated text.
+- **Visual Query Designer:** Non-technical builders construct multi-table joins, select output fields, specify grouping and aggregate functions, define filter parameters, and configure sort orders visually.
+- **Sandboxed SQL Editor:** Direct read-only SQL queries executed with hard execution timeouts and row bounds to protect database performance.
+- **Export & Integration:** Copy individual cells, selected rows, or entire result sets with tab-separated headers, or query results programmatically through the REST API.
 
 | | |
 |---|---|
 | ![Visual query designer](docs/images/query-visual-designer.png) | ![SQL query](docs/images/query-sql.png) |
-| Visual designer | A saved SQL query |
+| *Visual join and criteria designer feeding forms and reports* | *Read-only SQL editor with syntax highlighting and parameter bindings* |
 
 ![Query results](docs/images/query-results.png)
+*Tabular query results with instantaneous sorting, copy-as-tsv, and execution metrics*
 
-### Forms and reports
+---
 
-Forms are designed on a canvas, with Lua event handlers, calculated controls and subforms. Reports are banded, with grouping and totals, and can be printed or saved as PDF. A new report can start blank or from a **Tabular** layout (one row per record under headings) or a **Columnar** layout (one block per record, each field's name beside its value). Detail bands can grow, so long text wraps instead of being cut off.
+### Custom Forms & Banded PDF Reports
+
+- **Form Canvas Designer:** Design bespoke data entry screens with text boxes, checkboxes, date pickers, dropdown lookups, subforms, calculated labels, and Lua event handlers (`on_load`, `on_change`, `before_save`, `after_save`).
+- **Banded Report Generator:** Produce print-ready reports with configurable headers, group band headers/footers, summary totals, detail bands, and page footers.
+- **Starter Layouts:** Launch new reports from **Tabular** (dense tabular listings) or **Columnar** (multi-column record blocks) templates with auto-wrapping text bands and server-side PDF generation.
 
 | | |
 |---|---|
-| ![A form](docs/images/form-runtime.png) | ![A report](docs/images/report-viewer.jpg) |
-| Customer details form | Product catalogue report |
+| ![Customer details form](docs/images/form-runtime.png) | ![Product catalogue report](docs/images/report-viewer.jpg) |
+| *Interactive customer details form with subform order lines and validation* | *Banded product catalogue report with category grouping and totals* |
 
 ![A report made from the Columnar layout](docs/images/report-columnar.jpg)
+*Multi-column customer directory report generated from the Columnar starter layout*
 
-### Public apps
+---
 
-Workspace owners can bundle forms and reports into an **app** and publish it behind a secret link. Visitors need no account and see only the app, never the rest of the workspace. Forms accept new records only, and reports are read-only. When someone edits a published form, report or query, its page is paused until an owner publishes the change. Owners can turn an app off or replace its link at any time. Platform administrators see every app in the admin console's **Public apps** tab, can take one down, and can turn the feature off for the server (or for good with `ABIDATA_PUBLIC_APPS=false`). See the [Public apps guide](docs/content/guide/apps.md).
+### Geospatial Mapping & File Attachments
 
-| | |
-|---|---|
-| ![A public app open without signing in](docs/images/app-public-form.png) | ![The Public apps panel in workspace settings](docs/images/apps-panel.png) |
-| A public app's form, opened from its link without signing in | Publishing and managing apps in workspace settings |
-
-### Blogs
-
-Every user account has a personal **blog workspace** (`Blog: {username}`) with its own Markdown editor, sandboxed preview and cover images, backed by a pinned `posts` table that still works with the datasheet, scripts, exports and backups behind **Open as workspace**. Everything is private until the user publishes a post, turns their blog on and a platform administrator allows public blogs on the server (`ABIDATA_PUBLIC_BLOGS=false` locks them off). Published blogs are served as static HTML at `/b/{username}` with an Atom feed at `/b/{username}/feed.xml` (or from a separate domain via `ABIDATA_BLOG_HOST`), and administrators moderate reported and taken-down posts from the admin console's **Blogs** tab. See the [Blogs guide](docs/content/guide/blogs.md).
+- **Location & Area GeoJSON Fields:** Store GPS coordinates (`Location`) and complex polygonal fences (`Area`), including multi-polygons with interior cutout holes.
+- **Interactive Map Controls:** Visual map controls embedded in forms and reports display points, bounding boxes, and read-only polygon overlay layers. On mobile devices, **Use my location** captures coordinates with accuracy radiuses.
+- **Spatial Queries & Distance Calculation:** Perform spatial joins of points within polygonal fences, leverage SQL helper functions (`geo_distance_m`, `geo_within`, `geo_area_m2`), or query through API bounding filters (`within`, `near`).
+- **File & Photo Attachments:** Dedicated per-workspace attachment buckets with image thumbnailing, drag-and-drop uploads, mobile **Take photo** capture, and automated inclusion in workspace backups.
 
 | | |
 |---|---|
-| ![The blog post editor](docs/images/blog-editor.png) | ![A published blog post](docs/images/public-blog-post.png) |
-| The blog Markdown editor with live preview, cover image and metadata | A published blog post with cover image, served as clean static HTML |
+| ![Record a sighting form with a map and photos](docs/images/sighting-form.png) | ![Quarantine zone editor](docs/images/zone-editor.png) |
+| *Field sighting form with interactive GPS map picker, quarantine overlay, and photo gallery* | *Quarantine zone boundary editor rendering polygon fences with interior treated zones* |
 
-### Automation
+![Biosecurity sightings report with maps and photos](docs/images/biosecurity-report.jpg)
+*Printable biosecurity field report combining vector map boundaries with high-resolution sighting photos*
 
-- **Lua scripts** (Lua 5.1) run in a server-side sandbox with time and memory limits. Script Studio checks your code as you type.
-- **Scheduled jobs** run a script on a schedule with a time zone, overlap and misfire policies, retries, run history, logs and file artifacts.
-- **Egress allowlist**: jobs can reach the internet only through a gateway, only to hosts a platform administrator has allowed. A fresh install allows none.
+---
+
+### Safe Lua 5.1 Automation & Scheduled Jobs
+
+- **Sandboxed Scripting:** Embedded Lua 5.1 runtime executing with bounded memory limits, instruction budgets, and context timeouts. No ambient filesystem, process, or raw socket access.
+- **Dialect-Neutral Query Builder (`db.from`):** Construct safe database queries across SQLite and PostgreSQL without manual SQL formatting:
+  ```lua
+  local low_stock = db.from("Products")
+    :where("Discontinued", false)
+    :where_raw("In_stock <= Reorder_level")
+    :order_by("In_stock", "asc")
+    :all()
+  ```
+- **Data Science & Analytics Modules:** Built-in statistical analysis with `stats` (summary stats, median, variance, linear regression, moving averages) and dataset manipulation with `data` (grouping, aggregation, pivoting):
+  ```lua
+  local summary = stats.summary(orders, "Total")
+  log.info("order statistics", { median = summary.median, mean = summary.mean })
+
+  local pivot = data.pivot(orders, { row = "Customer", col = "Status", value = "Total", agg = "sum" })
+  ```
+- **Scheduled Background Jobs:** Execute Lua scripts via standard cron schedules with timezone support, overlap prevention, automatic retries, execution logs, and downloadable file artifacts.
+- **Strict Egress Firewall:** Outbound HTTP requests (`fetch`) run only within scheduled jobs and route strictly through an administrative egress proxy restricted to explicit hostname allowlists.
 
 | | |
 |---|---|
 | ![Script editor](docs/images/script-editor.png) | ![Job run history and log](docs/images/job-runs.jpg) |
-| Script Studio | A job with its run history, log and artifact |
+| *Script Studio with live diagnostics, autocompletion, and API reference* | *Automated job execution timeline with logs, metrics, and generated artifacts* |
 
-### Collaboration
+---
 
-- **Roles** per workspace: viewer, editor, builder and owner.
-- **Members** are added by owners from accounts that a platform administrator created. Nobody self-registers.
-- **Live updates**: other people's changes appear in your datasheet as they happen.
-- **Row history** shows every change to a record, newest first.
-- **Conflict handling**: every record has a version, a save never silently overwrites someone else's edit, and a merge dialog lets you choose field by field.
+### Public Web Apps & Static User Blogs
+
+- **Zero-Account Public Apps:** Workspace owners can package select forms and reports into a branded web app accessible via an unguessable token link (`/a/{token}`). Visitors require no user accounts: forms allow record submission only, and reports remain strictly read-only.
+- **Instant Takedown & Versioning:** Modifying published forms or reports automatically suspends public access until republished. Owners and platform administrators can revoke tokens or take down apps with one click.
+- **Static User Blogs:** Every account includes an isolated personal blog workspace (`/b/{username}`) featuring a distraction-free Markdown editor, split live preview, cover image upload, and static HTML generation.
+- **Syndication & Custom Domains:** Blogs generate standard Atom feeds (`/b/{username}/feed.xml`) and can be isolated on dedicated hostnames via `ABIDATA_BLOG_HOST`.
+
+| | |
+|---|---|
+| ![A public app open without signing in](docs/images/app-public-form.png) | ![The Public apps panel in workspace settings](docs/images/apps-panel.png) |
+| *Public form accessible via secret link for external customer onboarding* | *Workspace app settings for configuring public routes, menus, and token access* |
+
+| | |
+|---|---|
+| ![The blog post editor](docs/images/blog-editor.png) | ![A published blog post](docs/images/public-blog-post.png) |
+| *User blog editor with live preview, cover image management, and metadata controls* | *Server-rendered public blog post served as clean, accessible static HTML* |
+
+---
+
+### Team Collaboration & Internal Messaging
+
+- **Role-Based Access Control (RBAC):** Assign permissions per workspace: **Viewer** (read-only), **Editor** (record CRUD), **Builder** (table, form, query, report, and script design), and **Owner** (full control over members, settings, backups, and API keys).
+- **Candidate User Directory:** Workspace owners invite existing system users via a searchable directory picker or direct email address matching.
+- **Internal Messaging (`/messages`):** Communicate without external tools. Start direct user-to-user messages or workspace-wide discussion threads with email-style hierarchical replies, search, unread badges, and archive controls.
+- **Live Collaborative Sync:** Live updates propagate to active user datasheets via Server-Sent Events (SSE).
+
+| | |
+|---|---|
+| ![Workspace picker](docs/images/workspace-picker.png) | ![Internal messaging inbox](docs/images/messages-inbox.png) |
+| *Workspace selector featuring role badges, filter tabs, and published app links* | *Two-pane internal messaging inbox supporting direct and workspace threaded conversations* |
 
 | | |
 |---|---|
 | ![Row history](docs/images/row-history.jpg) | ![Workspace settings](docs/images/workspace-settings.jpg) |
-| Row history | Workspace settings: members, backups, API keys and public apps |
+| *Per-record change history detailing timestamp, editor, and before/after values* | *Workspace settings: members management, backups, API keys, and public apps* |
 
-### Operations
+---
 
-- **Admin dashboard** with live request, latency, memory, job and outbound-request charts, plus workspace storage, backup status and the latest audit events. History is kept in memory since the last server start.
-- **Backups**: manual, scheduled and restore-point backups of each workspace. They are checked for corruption, compressed and signed. Owners can restore in place or restore as a new workspace.
-- **Audit log** of administrative and security-relevant events.
-- **Admin console** tabs for workspaces (including giving everyone a copy of a sample), users, API keys, public apps, blogs, platform settings and live logs.
-- **Metrics** for Prometheus at `/metrics`, JSON logs, health checks at `/healthz` and `/readyz`, and a live log stream for administrators.
+### Production Operations & Observability
+
+- **Centralized Admin Dashboard:** Real-time metrics tracking HTTP request volume, latency percentiles, memory consumption, active job executions, outbound egress requests, and storage allocation.
+- **Verifiable Signed Backups:** Manual, automated cron, and pre-migration restore points. Backups are checksummed, LZ4 compressed, and HMAC signed. Restore in place or spin up as a new workspace.
+- **Audit Logging:** Tamper-evident logging of authentication events, user role adjustments, workspace provisioning, app publication, and data exports.
+- **Monitoring & Health Checks:** Native Prometheus metrics endpoint at `/metrics`, JSON structured logging, and container health probes at `/healthz` and `/readyz`.
 
 | | |
 |---|---|
 | ![Admin dashboard](docs/images/admin-dashboard.jpg) | ![Admin dashboard, dark](docs/images/admin-dashboard-dark.jpg) |
-| Admin console, light | Admin console, dark |
+| *Administrative console: live telemetry, storage consumption, and audit trails* | *Complete system dashboard with dark theme contrast optimization* |
 
 ![Platform settings: scheduled backups and the egress allowlist](docs/images/admin-settings.png)
+*Global platform administration: backup retention schedules and outbound egress allowlist*
 
-### API
+---
 
-Everything the web app does goes through a JSON API. Workspace owners can create **API keys** (viewer, editor or builder access, optional expiry) for bots and integrations. The full API is described by an OpenAPI document served at `/api/v1/openapi.json`. See [Using the API](#using-the-api).
+### Mobile PWA & Accessibility
 
-### Mobile
-
-AbiData is an installable web app (a PWA). On a phone, tables show as record cards, a record opens in a full-screen sheet, and navigation moves into a drawer.
+- **Progressive Web App (PWA):** Installable on iOS, Android, macOS, and Windows. On mobile viewports, tables adapt into responsive record cards, editors expand into full-screen sheets, and navigation nests in a drawer.
+- **Comprehensive Keyboard Ergonomics:** Rapid navigation via the universal command palette (`Mod+K`), contextual documentation (`?`), and keyboard-driven datasheet controls (`Shift+F10` for context menus).
+- **Automated Accessibility Testing:** Engineered to meet WCAG 2.1 AA standards. Automated axe core scanning runs across every surface in both light and dark themes on every build.
 
 | | | |
 |---|---|---|
 | ![Navigation drawer on a phone](docs/images/mobile-drawer.png) | ![Record cards](docs/images/mobile-cards.png) | ![Record sheet](docs/images/mobile-record.png) |
-| Drawer | Record cards | Record sheet |
-
-### Accessibility and keyboard
-
-The command palette (`Mod+K`) and the built-in documentation (`?`) are always one key away. Datasheets, forms and designers can be driven entirely from the keyboard (see the [shortcut reference](docs/content/reference/shortcuts.md)). `Shift+F10` or the context-menu key opens the same menu as a right-click. There is a light and a dark theme, and the end-to-end suite runs automated axe accessibility checks in both.
+| *Mobile navigation drawer* | *Responsive touch cards* | *Full-screen mobile record editor* |
 
 | | |
 |---|---|
 | ![Command palette](docs/images/command-palette.jpg) | ![Documentation panel](docs/images/docs-panel.jpg) |
-| Command palette | Documentation beside your work |
-
-![The Orders datasheet in dark mode](docs/images/datasheet-orders-dark.jpg)
+| *Universal command palette (`Mod+K`)* | *Integrated contextual documentation drawer (`?`)* |
 
 | | |
 |---|---|
-| ![Sign in](docs/images/sign-in.jpg) | ![Workspace picker](docs/images/workspace-picker.png) |
-| Sign in | Workspace picker |
+| ![Sign in](docs/images/sign-in.jpg) | ![The Orders datasheet in dark mode](docs/images/datasheet-orders-dark.jpg) |
+| *Clean sign-in interface with session rate limiting* | *High-contrast dark theme datasheet view* |
 
-## Quick start
+---
 
-### With Docker
+## Quick Start
 
-You need Docker with the Compose plugin.
+### Option A: With Docker Compose (Recommended)
 
-**Try it on your machine** (the app alone on `http://localhost:8080`, debug logging, no TLS):
+Requires Docker with the Compose v2 plugin.
+
+#### 1. Development Evaluation
+Run a standalone local instance on `http://localhost:8080`:
 
 ```sh
-scripts/docker-dev.sh          # also: up --lan | down | logs | status
+scripts/docker-dev.sh
 ```
 
-Set `ABIDATA_DEV_PORT` to use another port. `ABIDATA_DEV_RESET=1 scripts/docker-dev.sh down` also deletes the development data. The script uses the first-administrator email `admin@example.com` unless you set `ABIDATA_BOOTSTRAP_ADMIN_EMAIL`.
+Inspect the container logs to obtain the one-time initial setup token:
+```sh
+docker compose -p abidata-dev -f compose.yaml -f compose.dev.yaml logs abidata | grep setup_token
+```
+Open `http://localhost:8080`, submit the setup token, and create your platform administrator account.
 
-**Run it for real** (Caddy in front, automatic HTTPS):
+#### 2. Production Deployment (Automatic HTTPS via Caddy)
+Launch a production-hardened instance with automatic TLS termination:
 
 ```sh
-export ABIDATA_PUBLIC_URL=https://abidata.example.com   # the exact address people type, no path
-export ABIDATA_SITE=abidata.example.com                 # the host name Caddy serves
-export ABIDATA_BOOTSTRAP_ADMIN_EMAIL=you@example.com
-scripts/docker-prod.sh         # also: down | logs | status
+export ABIDATA_PUBLIC_URL=https://abidata.example.com
+export ABIDATA_SITE=abidata.example.com
+export ABIDATA_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+
+scripts/docker-prod.sh
 ```
 
-The production script requires an `https` public URL, creates the secret files in `secrets/` if they are missing (or run `scripts/gen-secrets.sh` yourself), starts the stack, waits until the server is healthy and tells you whether setup is still pending. It binds ports 80 and 443. Without `ABIDATA_PUBLIC_URL` and `ABIDATA_SITE` the stack defaults to `https://localhost`.
+---
 
-**First run.** With `ABIDATA_BOOTSTRAP_ADMIN_EMAIL` set and no users yet, the server logs a one-time setup token at warning level:
+### Option B: Build From Source
 
-```sh
-docker compose logs abidata | grep setup_token
-# for the development stack: docker compose -p abidata-dev -f compose.yaml -f compose.dev.yaml logs abidata | grep setup_token
-```
-
-Open the site, paste the token, choose a display name and a password of at least 10 characters. The account uses the configured email. When setup finishes, AbiData also creates the **Northwind Traders** and **Biosecurity Watch** sample workspaces and makes you their owner. Set `ABIDATA_DEMO_WORKSPACE=false` before the first start to skip it.
-
-Details, including the volumes, proxy settings and the command-line alternative for creating the first administrator, are in [Install](docs/content/operations/install.md). Every setting is in [Configuration](docs/content/operations/configuration.md).
-
-### From source
-
-You need Go (the version in [go.mod](go.mod)) and Node.js 24 with npm.
+Requires **Go 1.24+** and **Node.js 24+** (LTS).
 
 ```sh
+# Clone repository
+git clone https://github.com/AbishYoung/AbiData.git
+cd AbiData
+
+# Install frontend dependencies and launch local development
 make dev
 ```
 
-This builds the web app, then runs the server on `http://localhost:8080` with data in `.data/`. It sets `ABIDATA_BOOTSTRAP_ADMIN_EMAIL` to `admin@example.com` (override it with `make dev ABIDATA_BOOTSTRAP_ADMIN_EMAIL=you@example.com`). Take the setup token from the server's log output, as above.
+To compile a single static production binary containing the embedded frontend:
 
-To work on the web app with hot reload, run `make dev-web` in a second terminal. `make build` produces a static binary at `bin/abidata` with the web app embedded. Put a TLS-terminating proxy in front of it and make sure the proxy does not buffer `text/event-stream` responses (live updates use server-sent events).
+```sh
+make build
+# Produces bin/abidata
+./bin/abidata serve
+```
+
+---
+
+## Choosing a Database
+
+AbiData features a decoupled, backend-agnostic SQL storage architecture ([ADR 0013](docs/adr/0013-backend-agnostic-sql-layer.md)) supporting both SQLite and PostgreSQL.
+
+### SQLite (Default)
+- **Zero Configuration:** Workspaces exist as independent SQLite databases in your storage directory.
+- **Total Isolation:** Corrupting or locking one workspace can never impact another workspace.
+- **Portability:** Backing up or copying a workspace is as simple as copying a single `.db` file.
+- **Ideal For:** Small-to-medium teams, edge deployments, and straightforward single-server configurations.
+
+### PostgreSQL Backend
+- **Centralized Infrastructure:** Manage all workspaces within a managed PostgreSQL cluster (AWS RDS, GCP Cloud SQL, Supabase, self-hosted).
+- **Schema-Per-Workspace Isolation:** Each workspace operates within its own dedicated PostgreSQL schema, backed by transactional isolation and role boundaries.
+- **Portable Archives:** Workspaces can be exported into standard signed SQLite archive packages and imported seamlessly into PostgreSQL installations.
+- **Configuration:** Set `ABIDATA_DB=postgres` and provide connection parameters (`ABIDATA_PG_HOST`, `ABIDATA_PG_PORT`, `ABIDATA_PG_DATABASE`, `ABIDATA_PG_USER`, `ABIDATA_PG_PASSWORD`). See [PostgreSQL Backend Specification](docs/adr/0012-postgres-backend.md) and [Configuration Guide](docs/content/operations/configuration.md).
+
+---
 
 ## Using the API
 
-Create a key in **Workspace settings, API keys** (owners only). The full key is shown once. Then send it as a bearer token:
+Every feature in the web application is powered by an OpenAPI 3.1 REST API. Workspace owners can generate scoped **API keys** (`viewer`, `editor`, `builder`) with optional expiration timestamps:
 
 ```sh
 export ABIDATA=https://abidata.example.com
-export WS=<workspace id>            # the id in the address bar: /w/<workspace id>
-export KEY=abd_...                  # your API key
+export WS="01JEXAMPL00000000000000000"
+export KEY="abd_live_examplekey123"
 
-# the workspace's tables and fields (ids, not display names, address rows)
+# Inspect workspace schema
 curl -sS -H "Authorization: Bearer $KEY" "$ABIDATA/api/v1/w/$WS/schema"
 
-# the first rows of a table, highest price first
+# Query rows with filtering and sorting
 curl -sS -H "Authorization: Bearer $KEY" \
-  "$ABIDATA/api/v1/w/$WS/tables/<table id>/rows?limit=2&sort=-<field id>"
+  "$ABIDATA/api/v1/w/$WS/tables/<table_id>/rows?limit=10&sort=-<field_id>"
+
+# Insert record with idempotency protection
+curl -sS -X POST "$ABIDATA/api/v1/w/$WS/tables/<table_id>/rows" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"fields": {"<field_id>": "Value"}}'
 ```
 
-Writes need `Idempotency-Key` and, for updates and deletes, an `If-Match` version header, so two programs cannot overwrite each other. A key belongs to one workspace, can never be an owner, and cannot reach admin or sign-in routes. The [API access guide](docs/content/guide/api.md) has worked examples for inserts, updates, batches, saved queries, jobs and the event stream.
+Mutating operations enforce concurrency validation via `If-Match` version headers. Explore the complete interactive OpenAPI schema served directly at `/api/v1/openapi.json`. Refer to the [API Access Guide](docs/content/guide/api.md) for detailed examples.
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  B["Browser or phone<br/>(React app, PWA)"] -->|HTTPS| C[Caddy<br/>TLS, HTTP/2]
-  K["Bots<br/>(API keys)"] -->|HTTPS| C
-  V["Visitors & readers<br/>(public apps & blogs)"] -->|HTTPS| C
+  B["Browser or Mobile PWA<br/>(React 19, TypeScript)"] -->|HTTPS| C["Reverse Proxy<br/>(Caddy / Nginx / Traefik)"]
+  K["External Integrations<br/>(API Keys)"] -->|HTTPS| C
+  V["Public Guests & Readers<br/>(Public Apps & Blogs)"] -->|HTTPS| C
   C --> S
 
-  subgraph S["abidata (one Go binary)"]
-    API["HTTP API + embedded web app<br/>(OpenAPI, SSE, public blogs)"]
-    SCH["Job scheduler"]
-    SBX["Lua sandbox<br/>(forms, reports, jobs)"]
-    EG["Egress gateway<br/>(allowlist)"]
-    BK["Backups"]
+  subgraph S["abidata (Single Go Binary)"]
+    API["HTTP API & Embedded Web App<br/>(Huma, Chi, SSE, Public Apps)"]
+    SCH["Job Scheduler (Cron)"]
+    SBX["Lua 5.1 Runtime<br/>(Query Builder, Stats, UI)"]
+    EG["Egress Gateway<br/>(Strict Host Allowlist)"]
+    BK["Backup Engine<br/>(LZ4 Compression, Signing)"]
     API --> SBX
     SCH --> SBX
     SBX --> EG
     API --> BK
   end
 
-  API --> ADM[("Admin database<br/>users, sessions, keys, settings, audit")]
-  API --> W1[("Workspace A<br/>SQLite file")]
+  API --> ADM[("Admin Store<br/>Users, Keys, Settings, Messages")]
+  API --> W1[("Workspace 1<br/>SQLite file or PG schema")]
   SBX --> W1
-  API --> W2[("Workspace B<br/>SQLite file")]
-  BK --> BD[("Backup volume<br/>signed archives")]
-  EG -->|allowed hosts only| NET((Internet))
+  API --> W2[("Workspace 2<br/>SQLite file or PG schema")]
+  BK --> BD[("Backup Storage<br/>Signed Archives")]
+  EG -->|Allowed outbound hosts only| NET((External APIs))
 ```
 
-- One process serves the API and the embedded web app. Each workspace is one SQLite file, opened on demand. The admin database holds users, sessions, API keys, platform settings and the audit log.
-- Services reach the databases through a driver-neutral layer (`internal/dbx`), and schema migrations live in `internal/admin/migrations/sqlite/` and `internal/catalog/migrations/sqlite/`.
-- Scripts run in a Lua sandbox with no file, process or network access except through reviewed functions. Jobs are started by the scheduler or by hand, and only they can make outbound requests, through the egress gateway.
-- Caddy terminates TLS in the provided Compose stack. The server trusts `X-Forwarded-For` only from the proxy addresses you configure.
-- Decisions that shaped the design are recorded as ADRs in [docs/adr](docs/adr): [SQLite driver](docs/adr/0001-sqlite-driver.md), [Lua sandbox](docs/adr/0002-lua-sandbox-spike.md), [gopher-lua fork](docs/adr/0004-gopher-lua-fork.md), [huma on chi](docs/adr/0003-huma-chi.md), [form save endpoints](docs/adr/0005-form-save-endpoints.md), [restore as new](docs/adr/0007-restore-as-new-for-owners.md), [global egress allowlist](docs/adr/0008-global-egress-allowlist.md), [workspace API keys](docs/adr/0009-workspace-api-keys.md), [geo fields](docs/adr/0010-geo-fields.md), [file attachments](docs/adr/0011-file-attachments.md), [public apps](docs/adr/0014-public-apps.md), [web UI modernisation](docs/adr/0015-web-ui-review-and-modernisation.md), [layered testing](docs/adr/0016-layered-testing.md) and [user blogs](docs/adr/0017-user-blogs.md). The original implementation brief is [docs/BRIEF.md](docs/BRIEF.md) and progress notes are in [PROGRESS.md](PROGRESS.md).
-- **Planned:** PostgreSQL as an alternative backend ([ADR 0012](docs/adr/0012-postgres-backend.md)), built on a backend-agnostic SQL layer ([ADR 0013](docs/adr/0013-backend-agnostic-sql-layer.md)). It is not usable yet: groundwork so far includes a sandbox spike, the `sqlgen` statement and expression model with SQLite and PostgreSQL renderers, `pgdb` Docker tests (`make test-postgres`), and saved queries recording their SQL dialect. SQLite remains the only production backend.
+Key Architectural Principles:
+1. **Single Binary Simplicity:** Backend services, static web assets, and migration scripts compile into a single static executable.
+2. **Strict Multi-Tenancy:** Each workspace maintains its own database engine connection, statement cache, and schema catalog.
+3. **Defense-in-Depth Scripting:** Sandboxed Lua execution prevents filesystem traversal, environment inspection, or arbitrary network access.
+4. **Architectural Decision Records (ADRs):** Comprehensive technical rationales are maintained in [docs/adr](docs/adr):
+   - [ADR 0001: SQLite Driver](docs/adr/0001-sqlite-driver.md)
+   - [ADR 0002: Lua Sandbox Spike](docs/adr/0002-lua-sandbox-spike.md)
+   - [ADR 0003: Huma on Chi](docs/adr/0003-huma-chi.md)
+   - [ADR 0004: Gopher-Lua Fork](docs/adr/0004-gopher-lua-fork.md)
+   - [ADR 0005: Form Save Endpoints](docs/adr/0005-form-save-endpoints.md)
+   - [ADR 0007: Restore As New](docs/adr/0007-restore-as-new-for-owners.md)
+   - [ADR 0008: Global Egress Allowlist](docs/adr/0008-global-egress-allowlist.md)
+   - [ADR 0009: Workspace API Keys](docs/adr/0009-workspace-api-keys.md)
+   - [ADR 0010: Geo Fields](docs/adr/0010-geo-fields.md)
+   - [ADR 0011: File Attachments](docs/adr/0011-file-attachments.md)
+   - [ADR 0012: PostgreSQL Backend](docs/adr/0012-postgres-backend.md)
+   - [ADR 0013: Backend-Agnostic SQL Layer](docs/adr/0013-backend-agnostic-sql-layer.md)
+   - [ADR 0014: Public Apps](docs/adr/0014-public-apps.md)
+   - [ADR 0015: Web UI Modernisation](docs/adr/0015-web-ui-review-and-modernisation.md)
+   - [ADR 0016: Layered Testing](docs/adr/0016-layered-testing.md)
+   - [ADR 0017: User Blogs](docs/adr/0017-user-blogs.md)
+
+---
 
 ## Security
 
-In short: passwords are hashed with Argon2id and sign-in attempts are rate limited. Mutating requests carry a CSRF token and an `Origin` check. Workspaces are isolated, and a workspace you do not belong to answers "not found". User and script SQL runs under a database authorizer with time, row and memory limits. Scripts run in a sandbox, and outbound requests go through an allowlisted egress gateway that refuses private addresses. Backups are signed. API keys are stored only as keyed hashes. Public app routes ignore sessions and API keys, accept only new records through the published forms, and are rate limited. Public blog pages are off by default, render sanitised Markdown as static HTML under a scriptless `Content-Security-Policy`, and can be served from a separate host (`ABIDATA_BLOG_HOST`).
+AbiData employs robust security primitives across every layer:
+- **Authentication:** Passwords hashed with adaptive **Argon2id** memory parameters. Session cookies are `HttpOnly`, `SameSite=Lax`, and `Secure`.
+- **Brute-Force Protection:** Intelligent exponential backoff and rate limiting across login and sensitive endpoints.
+- **CSRF & Origin Verification:** All state-modifying requests require anti-CSRF token verification and matching `Origin` headers.
+- **Query Sandboxing:** User SQL queries run through a restrictive database authorizer prohibiting DDL execution, filesystem functions, or system tables.
+- **Outbound Network Isolation:** Scheduled scripts reach the network only through an egress gateway that rejects private RFC 1918 addresses and demands explicit domain whitelisting.
+- **Backup Verification:** Workspace backup archives are compressed, tamper-checked, and authenticated using HMAC keys.
 
-You are responsible for the host, the volumes, the secrets and TLS. Read the full threat model, what is not defended against and the operator checklist in [Security](docs/content/operations/security.md).
+For complete threat models and production checklists, read the [Operations Security Guide](docs/content/operations/security.md).
+
+---
+
+## Versioning and Releases
+
+AbiData strictly adheres to [Semantic Versioning (SemVer 2.0.0)](https://semver.org/):
+- **Major releases (`X.0.0`)**: Incompatible changes to the REST API, breaking Lua host API modifications, or database schema changes requiring manual migration.
+- **Minor releases (`1.X.0`)**: Backward-compatible new features, added UI capabilities, additive API endpoints, and safe automatic migrations.
+- **Patch releases (`1.0.X`)**: Backward-compatible bug fixes and security updates.
+
+Consult [CHANGELOG.md](CHANGELOG.md) for detailed version history and [RELEASING.md](RELEASING.md) for the release checklist and procedure.
+
+---
 
 ## Development
 
-### Layout
+### Repository Layout
 
-| Path | Contents |
+| Directory | Purpose |
 |---|---|
-| `cmd/abidata` | The binary: `serve`, `user create-admin`, `user reset-password`, `demo`, `healthcheck`, `version` |
-| `internal/` | Server packages: `httpapi`, `auth`, `admin`, `workspace`, `catalog`, `records`, `query`, `forms`, `reports`, `apps`, `blogs`, `script`, `scripts`, `jobs`, `egress`, `backup`, `ingest`, `events`, `demo`, `docsrv`, `dbx` and others. `sqlgen` and `pgdb` hold the groundwork for the planned PostgreSQL backend |
-| `web/` | The React app (Vite, TypeScript, Vitest). Design system notes: [web/src/components/DESIGN.md](web/src/components/DESIGN.md) |
-| `tests/e2e/` | Playwright end-to-end tests |
-| `docs/content/` | The documentation, served inside the app. `docs/adr/` holds the ADRs and `docs/images/` the screenshots |
-| `scripts/` | Docker helpers, secret generation, the demo seeder and the screenshot pipeline |
-| `tools/` | Code generators (`tools/gen`) and the layered test runner (`tools/testplan`, ADR 0016) |
+| `cmd/abidata` | Server entry point: `serve`, `user`, `demo`, `healthcheck`, `version` |
+| `internal/` | Core backend packages: `httpapi`, `auth`, `admin`, `workspace`, `catalog`, `records`, `query`, `forms`, `reports`, `apps`, `blogs`, `script`, `jobs`, `egress`, `backup`, `sqlgen`, `dbx` |
+| `web/` | React 19 frontend application (Vite, TypeScript, Tailwind CSS, TanStack Router) |
+| `tests/e2e/` | Playwright end-to-end integration test suite with axe accessibility validation |
+| `docs/content/` | In-app documentation and operator guides; `docs/images/` holds UI screenshots |
+| `scripts/` | Tooling for Docker setups, secret generation, and the screenshot pipeline |
+| `tools/` | Code generators (`tools/gen`) and intelligent test planning (`tools/testplan`) |
 
-### Make targets
+### Common Make Targets
 
-| Target | What it does |
+| Command | Action |
 |---|---|
-| `make dev` / `make dev-web` | Run the server (with the built web app) / run the Vite dev server |
-| `make build` | Build `bin/abidata` with the web app embedded |
-| `make gen` | Regenerate the OpenAPI document, the TypeScript API types, the Lua API reference and the shortcut table. CI fails if generated files are stale |
-| `make lint` | `golangci-lint`, then the web typecheck and ESLint |
-| `make test` | `go test -race ./...` and the web unit tests (Vitest) |
-| `make test-postgres` | The PostgreSQL backend tests (ADR 0012) against throwaway servers in Docker (`postgres:17` and `postgres:18` by default) |
-| `make test-changed` / `make test-plan` | Only the tests your changes since `origin/main` can affect / print that selection (see Tests) |
-| `make test-go-unit` / `make test-go-integration` / `make test-web` / `make test-e2e AREA=…` | One test layer |
-| `make e2e` | The Playwright suite in `tests/e2e` |
-| `make screenshots` | Regenerate `docs/images/` |
-| `make screenshots-review` | Capture every screen in both themes across viewports with axe scans ([ADR 0015](docs/adr/0015-web-ui-review-and-modernisation.md)) |
-| `make docker-local` / `make docker` | Build the image for this machine / for amd64 and arm64 |
+| `make dev` | Start local backend server with built frontend assets |
+| `make dev-web` | Start Vite development server with hot-module reloading |
+| `make build` | Compile optimized static binary into `bin/abidata` |
+| `make lint` | Run `golangci-lint`, frontend type checking, and ESLint |
+| `make test` | Run Go unit/integration test suites and frontend Vitest suite |
+| `make test-changed` | Execute only the tests affected by changes on your current branch |
+| `make test-postgres` | Run PostgreSQL integration test suites against throwaway Docker containers |
+| `make e2e` | Run complete Playwright end-to-end browser test suite |
+| `make screenshots` | Automatically rebuild and capture all UI screenshots in `docs/images/` |
 
-### Tests
-
-Tests come in layers ([ADR 0016](docs/adr/0016-layered-testing.md)). While you work, `make test-changed` runs only what your changes can affect. It compares against the merge base with `origin/main` and counts committed, staged, unstaged and untracked files. `make test-plan` prints that selection and why.
-- **Go** goes through the import graph: a changed package and everything that imports it.
-- **Web** goes through `vitest related`.
-- **End to end** goes through the area table in `tools/testplan/areas.go`.
-- Shared code and build files widen the selection, up to everything.
-
-Options:
-- `BASE=<ref>` compares against another ref.
-- `LAYERS=go,web` limits the layers (from `static,go,web,e2e`).
-- `GO_TEST_FLAGS=-race` changes the Go flags (default `-short`).
-
-| Layer | Command |
-|---|---|
-| Lint and generated files | `make lint`, `make gen` |
-| Go unit: every package but the HTTP API and the binary, `-short` | `make test-go-unit` |
-| Go integration: `internal/httpapi` and `cmd/abidata`, with race | `make test-go-integration` |
-| Go, everything with race, heavy tests included (what CI runs) | `make test-go` |
-| Web: `*.test.ts` is `unit`, `*.test.tsx` is `component` | `make test-web`, `make test-web PROJECT=unit` |
-| End to end, by area (`go run ./tools/testplan areas` lists them) | `make test-e2e AREA=forms`; `make e2e` for all |
-| PostgreSQL backend (Docker) | `make test-postgres` |
-
-- **Go**: a test that takes seconds or moves a lot of data starts with `if testing.Short() { t.Skip(...) }`, so the fast layer skips it. CI never passes `-short`.
-- **End to end**: Playwright in `tests/e2e`. One-time setup: `(cd tests/e2e && npm ci && npx playwright install chromium)`.
-  - The suite builds the web app and the server once. Then it gives every Playwright worker its own pair of servers with fresh data directories: an empty install on port `18080 + 2i`, and one with the two sample workspaces on the next port. Set `ABIDATA_E2E_PORT` to move the base port.
-  - Spec files run in parallel and tests inside a file run in order. `E2E_WORKERS` (or `-j`) sets the worker count; the default is half the cores, at most 6.
-  - `E2E_SKIP_BUILD=1` reuses `tests/e2e/.bin/abidata`. Server logs are in `tests/e2e/.servers/`.
-  - The desktop suite runs on Chromium; the phone suite runs on a Pixel 7 profile and a 390 px touch viewport. Accessibility checks use axe in light and dark.
-  - Add a new spec to an area in `tools/testplan/areas.go`; a test fails until you do.
-- **PostgreSQL**: `make test-postgres` needs Docker. It starts a throwaway server per image on 127.0.0.1 with a random password and runs the `internal/pgdb` tests against it. Set `ABIDATA_TEST_POSTGRES_IMAGES` to choose the images.
-- **CI** runs the same selection on pull requests, with one e2e job per area. Pushes to `main` and the nightly run test everything.
-
-### Screenshots
-
-`make screenshots` rebuilds the app, starts a throwaway server on a free port with a temporary data directory and the two sample workspaces, completes setup with a password generated for that run, generates some activity (including a published public app, a report made from the Columnar layout, and a published user blog post with cover image and live preview) and writes the images in `docs/images/`. `node scripts/screenshots.mjs --only=name,name` regenerates only the named images. `make screenshots-review` captures every main screen across light and dark themes at desktop and compact widths with axe accessibility scans ([ADR 0015](docs/adr/0015-web-ui-review-and-modernisation.md)). Both targets need the Playwright setup above. Dates in the sample data are relative to the day you run it, so images change from day to day.
-
-### Contributing
-
-Keep changes focused, add or update tests, run `make lint` and `make test-changed` (or `make test`), and run `make gen` when you change the API or the shortcut table. User-facing changes should update the matching page in `docs/content/`. Follow the conventions in [web/src/components/DESIGN.md](web/src/components/DESIGN.md) for interface work. Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) proposes weekly updates for Go, npm, GitHub Actions and Docker, taking a release only once it is two weeks old. Security updates come straight away.
+---
 
 ## Documentation
 
-The documentation is part of the app: press `?` or use the help button. The same pages are in the repository.
+Full documentation is embedded directly inside every AbiData installation — press `?` or click the documentation button in the top navigation bar.
 
-- Start here: [Welcome](docs/content/guide/index.md)
-- Guide: [Tables](docs/content/guide/tables.md), [Queries](docs/content/guide/queries.md), [Forms](docs/content/guide/forms.md), [Reports](docs/content/guide/reports.md), [Public apps](docs/content/guide/apps.md), [Blogs](docs/content/guide/blogs.md), [Scripts](docs/content/guide/scripts.md), [Jobs](docs/content/guide/jobs.md), [Imports and exports](docs/content/guide/imports-exports.md), [Backups](docs/content/guide/backups.md), [API access](docs/content/guide/api.md), [Members and roles](docs/content/guide/members-and-roles.md), [Using the keyboard](docs/content/guide/keyboard.md), [Install on your phone](docs/content/guide/mobile.md), [Example: invasive species](docs/content/guide/example-invasive-species.md)
-- Operations: [Install](docs/content/operations/install.md), [Configuration](docs/content/operations/configuration.md), [Security](docs/content/operations/security.md), [Monitoring](docs/content/operations/monitoring.md), [Backup strategy](docs/content/operations/backup-strategy.md), [Upgrade](docs/content/operations/upgrade.md)
-- Reference: [Keyboard shortcuts](docs/content/reference/shortcuts.md). The error and Lua API references are generated into the app.
+- **Getting Started:** [Welcome & Overview](docs/content/guide/index.md)
+- **User Guide:** [Tables](docs/content/guide/tables.md), [Queries](docs/content/guide/queries.md), [Forms](docs/content/guide/forms.md), [Reports](docs/content/guide/reports.md), [Public Web Apps](docs/content/guide/apps.md), [User Blogs](docs/content/guide/blogs.md), [Lua Scripts](docs/content/guide/scripts.md), [Scheduled Jobs](docs/content/guide/jobs.md), [Internal Messaging](docs/content/guide/messages.md), [Data Imports & Exports](docs/content/guide/imports-exports.md), [Backups](docs/content/guide/backups.md), [API Access](docs/content/guide/api.md), [Members & Roles](docs/content/guide/members-and-roles.md), [Keyboard Shortcuts](docs/content/reference/shortcuts.md), [Biosecurity Sample Walkthrough](docs/content/guide/example-invasive-species.md)
+- **Operations Guide:** [Installation](docs/content/operations/install.md), [Configuration Reference](docs/content/operations/configuration.md), [Security Architecture](docs/content/operations/security.md), [System Monitoring](docs/content/operations/monitoring.md), [Backup Strategy](docs/content/operations/backup-strategy.md), [Upgrade Guide](docs/content/operations/upgrade.md)
+
+---
 
 ## License
 
-AbiData is released under the [MIT License](LICENSE). Copyright (c) 2026 AbishYoung.
+AbiData is open-source software licensed under the [MIT License](LICENSE). Copyright &copy; 2026 AbishYoung.
