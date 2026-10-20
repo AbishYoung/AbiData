@@ -37,6 +37,188 @@
     ]
   },
   {
+    "name": "crypto",
+    "doc": "Pure cryptographic hashing, HMAC signatures, binary encoding and secure random generators. Evaluated in-memory with zero network or DNS lookups.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "sha256",
+        "signature": "crypto.sha256(data) → string",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Data to hash."
+          }
+        ],
+        "returns": "hex-encoded SHA-256 digest (64 characters)",
+        "doc": "Calculates the SHA-256 hash of a string.",
+        "example": "local hash = crypto.sha256(\"hello world\")"
+      },
+      {
+        "name": "sha512",
+        "signature": "crypto.sha512(data) → string",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Data to hash."
+          }
+        ],
+        "returns": "hex-encoded SHA-512 digest (128 characters)",
+        "doc": "Calculates the SHA-512 hash of a string.",
+        "example": "local hash = crypto.sha512(\"hello world\")"
+      },
+      {
+        "name": "hmac_sha256",
+        "signature": "crypto.hmac_sha256(key, message) → string",
+        "params": [
+          {
+            "name": "key",
+            "type": "string",
+            "doc": "Secret key."
+          },
+          {
+            "name": "message",
+            "type": "string",
+            "doc": "Message payload."
+          }
+        ],
+        "returns": "hex-encoded HMAC-SHA256 signature",
+        "doc": "Calculates an HMAC-SHA256 signature.",
+        "example": "local sig = crypto.hmac_sha256(\"secret-key\", \"payload\")"
+      },
+      {
+        "name": "hmac_sha512",
+        "signature": "crypto.hmac_sha512(key, message) → string",
+        "params": [
+          {
+            "name": "key",
+            "type": "string",
+            "doc": "Secret key."
+          },
+          {
+            "name": "message",
+            "type": "string",
+            "doc": "Message payload."
+          }
+        ],
+        "returns": "hex-encoded HMAC-SHA512 signature",
+        "doc": "Calculates an HMAC-SHA512 signature.",
+        "example": "local sig = crypto.hmac_sha512(\"secret-key\", \"payload\")"
+      },
+      {
+        "name": "base64_encode",
+        "signature": "crypto.base64_encode(data) → string",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Data to encode."
+          }
+        ],
+        "returns": "standard Base64-encoded string (RFC 4648 §4)",
+        "doc": "Encodes a string using standard Base64 with padding.",
+        "example": "local b64 = crypto.base64_encode(\"credentials:secret\")"
+      },
+      {
+        "name": "base64_decode",
+        "signature": "crypto.base64_decode(data) → string|nil, err",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Base64-encoded string."
+          }
+        ],
+        "returns": "decoded string (or nil, error)",
+        "doc": "Decodes a standard Base64 string.",
+        "example": "local plain, err = crypto.base64_decode(\"Y3JlZGVudGlhbHM6c2VjcmV0\")"
+      },
+      {
+        "name": "base64url_encode",
+        "signature": "crypto.base64url_encode(data) → string",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Data to encode."
+          }
+        ],
+        "returns": "unpadded URL-safe Base64-encoded string (RFC 4648 §5)",
+        "doc": "Encodes a string using unpadded URL-safe Base64.",
+        "example": "local enc = crypto.base64url_encode('{\"alg\":\"none\"}')"
+      },
+      {
+        "name": "base64url_decode",
+        "signature": "crypto.base64url_decode(data) → string|nil, err",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "URL-safe Base64-encoded string."
+          }
+        ],
+        "returns": "decoded string (or nil, error)",
+        "doc": "Decodes an unpadded or padded URL-safe Base64 string.",
+        "example": "local plain, err = crypto.base64url_decode(\"eyJhbGciOiJub25lIn0\")"
+      },
+      {
+        "name": "hex_encode",
+        "signature": "crypto.hex_encode(data) → string",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Raw bytes or string."
+          }
+        ],
+        "returns": "lowercase hexadecimal string",
+        "doc": "Encodes bytes to a hexadecimal string.",
+        "example": "local h = crypto.hex_encode(\"abc\")"
+      },
+      {
+        "name": "hex_decode",
+        "signature": "crypto.hex_decode(data) → string|nil, err",
+        "params": [
+          {
+            "name": "data",
+            "type": "string",
+            "doc": "Hexadecimal string."
+          }
+        ],
+        "returns": "decoded string (or nil, error)",
+        "doc": "Decodes a hexadecimal string to raw bytes.",
+        "example": "local raw, err = crypto.hex_decode(\"616263\")"
+      },
+      {
+        "name": "random_hex",
+        "signature": "crypto.random_hex(n) → string",
+        "params": [
+          {
+            "name": "n",
+            "type": "number",
+            "doc": "Number of random bytes (at least 1, at most 1024)."
+          }
+        ],
+        "returns": "hexadecimal string of length 2n",
+        "doc": "Generates cryptographically secure random bytes as a hex string.",
+        "example": "local token = crypto.random_hex(16)"
+      },
+      {
+        "name": "uuid",
+        "signature": "crypto.uuid() → string",
+        "returns": "canonical lowercase RFC 4122 v4 UUID string",
+        "doc": "Generates a cryptographically random RFC 4122 v4 UUID.",
+        "example": "local id = crypto.uuid()"
+      }
+    ]
+  },
+  {
     "name": "csv",
     "doc": "CSV parsing and writing (RFC 4180 quoting). All cell values are strings when parsing; a leading UTF-8 byte-order mark is ignored. Rows may have differing lengths. Unknown option names raise an error.",
     "contexts": [
@@ -116,6 +298,269 @@
         ],
         "doc": "Encodes rows as CSV text with LF line endings and standard quoting.",
         "example": "return csv.encode({{sku = \"A1\", qty = 2}}, {columns = {\"sku\", \"qty\"}})  -- \"sku,qty\\nA1,2\\n\""
+      }
+    ]
+  },
+  {
+    "name": "data",
+    "doc": "Tabular dataset manipulation: grouping, multi-metric aggregation, pivot tables, sorting and transformations on row arrays.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "group_by",
+        "signature": "data.group_by(rows, key) → table",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "doc": "Field name to group by."
+          }
+        ],
+        "returns": "table mapping each distinct group key value to an array of matching rows",
+        "doc": "Groups an array of rows by a key field.",
+        "example": "local byRegion = data.group_by(customers, \"Region\")"
+      },
+      {
+        "name": "aggregate",
+        "signature": "data.aggregate(rows, spec) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "spec",
+            "type": "table",
+            "doc": "{by?: string|array, metrics: table}: metrics maps output column name to agg function (\"count\", \"sum\", \"avg\", \"min\", \"max\", \"median\", \"first\", \"last\") or {field, fn}."
+          }
+        ],
+        "returns": "array of aggregated row tables",
+        "doc": "Performs grouped rollups with multiple metric aggregations in a single pass.",
+        "example": "local summary = data.aggregate(orders, {\n  by = \"Region\",\n  metrics = {\n    order_count = \"count\",\n    total_sales = {field = \"Total\", fn = \"sum\"},\n    avg_sales = {field = \"Total\", fn = \"avg\"},\n  }\n})"
+      },
+      {
+        "name": "summarize",
+        "signature": "data.summarize(rows, spec) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "spec",
+            "type": "table",
+            "doc": "Aggregation specification (alias for data.aggregate)."
+          }
+        ],
+        "returns": "array of aggregated row tables",
+        "doc": "Alias for data.aggregate.",
+        "example": "local summary = data.summarize(orders, {by = \"Category\", metrics = {revenue = \"sum\"}})"
+      },
+      {
+        "name": "pivot",
+        "signature": "data.pivot(rows, spec) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "spec",
+            "type": "table",
+            "doc": "{row: string, col: string, value: string, agg?: string}."
+          }
+        ],
+        "returns": "array of pivot table row tables (with row key, column keys, and total)",
+        "doc": "Generates a two-dimensional pivot table from tabular rows.",
+        "example": "local pt = data.pivot(sales, {row = \"Region\", col = \"Quarter\", value = \"Amount\", agg = \"sum\"})"
+      },
+      {
+        "name": "sort_by",
+        "signature": "data.sort_by(rows, spec [, desc]) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "spec",
+            "type": "string|table",
+            "doc": "Field name or array of field names (prefix with \"-\" for descending)."
+          },
+          {
+            "name": "desc",
+            "type": "boolean",
+            "doc": "True to sort descending (when spec is a single field name).",
+            "optional": true
+          }
+        ],
+        "returns": "new array containing sorted rows",
+        "doc": "Sorts an array of row tables by one or multiple fields.",
+        "example": "local sorted = data.sort_by(products, {\"Category\", \"-Price\"})"
+      },
+      {
+        "name": "pluck",
+        "signature": "data.pluck(rows, field) → array",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name to extract."
+          }
+        ],
+        "returns": "1-indexed array of values",
+        "doc": "Extracts a single column from an array of row tables.",
+        "example": "local ids = data.pluck(users, \"id\")"
+      },
+      {
+        "name": "index_by",
+        "signature": "data.index_by(rows, key) → table",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "doc": "Field name whose values serve as keys."
+          }
+        ],
+        "returns": "table mapping key values to their corresponding row tables",
+        "doc": "Indexes an array of rows by a unique key field.",
+        "example": "local userMap = data.index_by(users, \"id\")"
+      },
+      {
+        "name": "distinct",
+        "signature": "data.distinct(rows [, field]) → array",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables or array of scalar values."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name to extract distinct values of.",
+            "optional": true
+          }
+        ],
+        "returns": "array of distinct values or deduplicated rows",
+        "doc": "Returns unique elements or distinct values of a field.",
+        "example": "local cities = data.distinct(customers, \"City\")"
+      },
+      {
+        "name": "frequencies",
+        "signature": "data.frequencies(rows [, field]) → array",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables or scalar values."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name to count frequencies for.",
+            "optional": true
+          }
+        ],
+        "returns": "array of {value, count, ratio} sorted descending by count",
+        "doc": "Computes frequency counts and proportions.",
+        "example": "local statusCounts = data.frequencies(orders, \"Status\")"
+      },
+      {
+        "name": "top_n",
+        "signature": "data.top_n(rows, n, field [, desc]) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "n",
+            "type": "number",
+            "doc": "Maximum number of rows to return."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name to rank by."
+          },
+          {
+            "name": "desc",
+            "type": "boolean",
+            "doc": "True for highest first (default true).",
+            "optional": true
+          }
+        ],
+        "returns": "array of up to n row tables",
+        "doc": "Returns the top n rows ranked by a field.",
+        "example": "local top5 = data.top_n(customers, 5, \"TotalSpent\")"
+      },
+      {
+        "name": "filter",
+        "signature": "data.filter(rows, predicate) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "predicate",
+            "type": "function|table",
+            "doc": "Function returning boolean or table of matching key-values."
+          }
+        ],
+        "returns": "filtered array of row tables",
+        "doc": "Filters rows using a predicate function or match table.",
+        "example": "local active = data.filter(users, {Active = true})"
+      },
+      {
+        "name": "slice",
+        "signature": "data.slice(rows, start, count) → rows",
+        "params": [
+          {
+            "name": "rows",
+            "type": "table",
+            "doc": "Array of row tables."
+          },
+          {
+            "name": "start",
+            "type": "number",
+            "doc": "1-indexed starting position."
+          },
+          {
+            "name": "count",
+            "type": "number",
+            "doc": "Number of rows to take."
+          }
+        ],
+        "returns": "sub-array of row tables",
+        "doc": "Extracts a slice of rows.",
+        "example": "local page1 = data.slice(rows, 1, 10)"
       }
     ]
   },
@@ -442,6 +887,26 @@
         "signature": "db.is_null(v) → boolean",
         "doc": "True for nil and db.NULL.",
         "example": "if db.is_null(record.ShippedAt) then … end"
+      },
+      {
+        "name": "from",
+        "signature": "db.from(table) → builder",
+        "doc": "Starts a dialect-neutral query builder on table.",
+        "example": "local rows = db.from(\"Orders\"):where(\"Status\", \"Open\"):order(\"-Ordered\"):limit(10):all()"
+      },
+      {
+        "name": "scalar",
+        "signature": "db.scalar(sql, params?) → value|nil",
+        "returns": "first column of the first row, or nil when there are no rows",
+        "doc": "Runs a read query and returns a single value.",
+        "example": "local n = db.scalar(\"SELECT count(*) FROM Orders\")"
+      },
+      {
+        "name": "pluck",
+        "signature": "db.pluck(sql, params?) → array",
+        "returns": "array of values from the first column across all rows",
+        "doc": "Runs a read query and returns a 1-indexed list of the first column across all rows.",
+        "example": "local ids = db.pluck(\"SELECT id FROM Orders WHERE Status = 'Open'\")"
       }
     ],
     "values": [
@@ -545,7 +1010,7 @@
     "functions": [
       {
         "name": "fetch",
-        "signature": "fetch(url, {method, headers, body, timeout_ms, max_bytes}?) → response",
+        "signature": "fetch(url, {method, headers, query, params, body, json, form, bearer, basic_auth, timeout_ms, max_bytes}?) → response",
         "params": [
           {
             "name": "url",
@@ -555,11 +1020,11 @@
           {
             "name": "options",
             "type": "table",
-            "doc": "method (default GET); headers (string → string); body (string); timeout_ms (default 10000, at most 30000); max_bytes (default 2 MiB, at most 10 MiB).",
+            "doc": "method (default GET); headers (string → string); query/params (table of query parameters); body (string); json (value encoded as application/json); form (table encoded as application/x-www-form-urlencoded); bearer (string token); basic_auth ({username, password}); timeout_ms (default 10000, at most 30000); max_bytes (default 2 MiB, at most 10 MiB).",
             "optional": true
           }
         ],
-        "returns": "{status, ok, headers, body, json()}: ok is true for 2xx; header names are lower-case; response:json() decodes the body like json.decode.",
+        "returns": "{status, ok, headers, body, json(), text(), header(name)}: ok is true for 2xx; header names are lower-case; response:json() decodes the body; response:text() returns body string; response:header(name) returns a header value case-insensitively.",
         "errors": [
           "EGRESS_DENIED: host, port or address not allowed",
           "EGRESS_RESPONSE_TOO_LARGE: body larger than max_bytes",
@@ -567,7 +1032,107 @@
           "RATE_LIMITED: too many requests from this workspace"
         ],
         "doc": "Sends the request and reads the whole response.",
-        "example": "local r = fetch(\"https://api.example.com/rates\", {headers = {Accept = \"application/json\"}})\nif r.ok then log.info(\"rates\", {count = #r:json().items}) end"
+        "example": "local r = fetch(\"https://api.example.com/rates\", {params = {base = \"USD\"}})\nif r.ok then log.info(\"rates\", {count = #r:json().items}) end"
+      },
+      {
+        "name": "get",
+        "signature": "fetch.get(url, options?) → response",
+        "params": [
+          {
+            "name": "url",
+            "type": "string",
+            "doc": "Absolute https URL."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "Request options (headers, query/params, bearer, etc.).",
+            "optional": true
+          }
+        ],
+        "returns": "response table",
+        "doc": "Convenience helper for fetch(url, {method = \"GET\", ...}).",
+        "example": "local r = fetch.get(\"https://api.example.com/users\", {params = {active = \"true\"}})"
+      },
+      {
+        "name": "post",
+        "signature": "fetch.post(url, options?) → response",
+        "params": [
+          {
+            "name": "url",
+            "type": "string",
+            "doc": "Absolute https URL."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "Request options (body, json, form, headers, etc.).",
+            "optional": true
+          }
+        ],
+        "returns": "response table",
+        "doc": "Convenience helper for fetch(url, {method = \"POST\", ...}).",
+        "example": "local r = fetch.post(\"https://api.example.com/items\", {json = {name = \"Widget\", price = 19.99}})"
+      },
+      {
+        "name": "put",
+        "signature": "fetch.put(url, options?) → response",
+        "params": [
+          {
+            "name": "url",
+            "type": "string",
+            "doc": "Absolute https URL."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "Request options (body, json, headers, etc.).",
+            "optional": true
+          }
+        ],
+        "returns": "response table",
+        "doc": "Convenience helper for fetch(url, {method = \"PUT\", ...}).",
+        "example": "local r = fetch.put(\"https://api.example.com/items/12\", {json = {name = \"Updated Widget\"}})"
+      },
+      {
+        "name": "patch",
+        "signature": "fetch.patch(url, options?) → response",
+        "params": [
+          {
+            "name": "url",
+            "type": "string",
+            "doc": "Absolute https URL."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "Request options (body, json, headers, etc.).",
+            "optional": true
+          }
+        ],
+        "returns": "response table",
+        "doc": "Convenience helper for fetch(url, {method = \"PATCH\", ...}).",
+        "example": "local r = fetch.patch(\"https://api.example.com/items/12\", {json = {price = 24.99}})"
+      },
+      {
+        "name": "delete",
+        "signature": "fetch.delete(url, options?) → response",
+        "params": [
+          {
+            "name": "url",
+            "type": "string",
+            "doc": "Absolute https URL."
+          },
+          {
+            "name": "options",
+            "type": "table",
+            "doc": "Request options (headers, query/params, etc.).",
+            "optional": true
+          }
+        ],
+        "returns": "response table",
+        "doc": "Convenience helper for fetch(url, {method = \"DELETE\", ...}).",
+        "example": "local r = fetch.delete(\"https://api.example.com/items/12\")"
       }
     ],
     "global": true
@@ -1121,6 +1686,24 @@
         "signature": "record.set(field, value)",
         "doc": "Assigns a field.",
         "example": "record.set(\"Status\", \"Approved\")"
+      },
+      {
+        "name": "changed_fields",
+        "signature": "record.changed_fields() → fields",
+        "doc": "Returns a list of fields assigned during this event.",
+        "example": "local fields = record.changed_fields()"
+      },
+      {
+        "name": "reset",
+        "signature": "record.reset(field?)",
+        "doc": "Discards changes to a field or the entire record buffer.",
+        "example": "record.reset(\"Status\")"
+      },
+      {
+        "name": "to_table",
+        "signature": "record.to_table() → table",
+        "doc": "Returns a snapshot of all current record values as a plain Lua table.",
+        "example": "local snapshot = record.to_table()"
       }
     ],
     "values": [
@@ -1164,6 +1747,27 @@
         "example": "local c = records.get(\"Customers\", record.Customer)"
       },
       {
+        "name": "find_one",
+        "signature": "records.find_one(table, where) → row|nil",
+        "returns": "first matching row table or nil",
+        "doc": "Finds the first row matching the where filter.",
+        "example": "local u = records.find_one(\"Customers\", {Email = \"alice@example.com\"})"
+      },
+      {
+        "name": "count",
+        "signature": "records.count(table, where?) → number",
+        "returns": "integer count of matching rows",
+        "doc": "Counts rows matching the where filter (or all rows if where is omitted).",
+        "example": "local n = records.count(\"Orders\", {Status = \"Open\"})"
+      },
+      {
+        "name": "exists",
+        "signature": "records.exists(table, where?) → boolean",
+        "returns": "true if at least one matching row exists",
+        "doc": "Reports whether any rows match the where filter.",
+        "example": "if records.exists(\"Customers\", {City = \"Paris\"}) then … end"
+      },
+      {
         "name": "insert",
         "signature": "records.insert(table, values) → id",
         "errors": [
@@ -1180,6 +1784,22 @@
         ]
       },
       {
+        "name": "insert_many",
+        "signature": "records.insert_many(table, rows) → ids",
+        "errors": [
+          "REQUIRED_FIELD",
+          "VALIDATION_FAILED",
+          "DUPLICATE_VALUE",
+          "LINKED_RECORDS"
+        ],
+        "doc": "Creates multiple rows inside a transaction and returns an array of their ids.",
+        "example": "local ids = records.insert_many(\"Items\", {{Name = \"A\"}, {Name = \"B\"}})",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
         "name": "update",
         "signature": "records.update(table, id, values, {version?}) → version",
         "errors": [
@@ -1189,6 +1809,34 @@
         ],
         "doc": "Changes fields of a row. With version, fails if the row changed since that version; without it, applies to the current version.",
         "example": "records.update(\"Orders\", id, {Status = \"Shipped\"})",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "update_many",
+        "signature": "records.update_many(table, where, values) → {changes}",
+        "errors": [
+          "VALIDATION_FAILED",
+          "BAD_REQUEST"
+        ],
+        "doc": "Updates every row matching where with the given field values.",
+        "example": "records.update_many(\"Orders\", {Status = \"Open\"}, {Status = \"Processing\"})",
+        "contexts": [
+          "ui_event",
+          "job"
+        ]
+      },
+      {
+        "name": "upsert",
+        "signature": "records.upsert(table, match, values) → id",
+        "errors": [
+          "VALIDATION_FAILED",
+          "REQUIRED_FIELD"
+        ],
+        "doc": "Finds a row matching match and updates it with values, or inserts a new row merging match and values.",
+        "example": "records.upsert(\"Counters\", {Key = \"views\"}, {Count = 1})",
         "contexts": [
           "ui_event",
           "job"
@@ -1239,6 +1887,509 @@
     ]
   },
   {
+    "name": "stats",
+    "doc": "Descriptive statistics, linear regression, time-series moving averages and distribution analysis. All functions accept either an array of numbers or (rows, field_name).",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "sum",
+        "signature": "stats.sum(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "sum of elements, or nil if empty",
+        "doc": "Calculates the sum of numbers.",
+        "example": "local total = stats.sum({10, 20, 30})"
+      },
+      {
+        "name": "mean",
+        "signature": "stats.mean(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "arithmetic mean (average), or nil if empty",
+        "doc": "Calculates the arithmetic mean.",
+        "example": "local avg = stats.mean(orders, \"Total\")"
+      },
+      {
+        "name": "median",
+        "signature": "stats.median(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "median value, or nil if empty",
+        "doc": "Calculates the median (50th percentile).",
+        "example": "local med = stats.median({1, 3, 3, 6, 7, 8, 9})"
+      },
+      {
+        "name": "mode",
+        "signature": "stats.mode(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "most frequent value, or nil if empty",
+        "doc": "Finds the mode (most common value).",
+        "example": "local m = stats.mode({1, 2, 2, 3})"
+      },
+      {
+        "name": "min",
+        "signature": "stats.min(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "minimum value, or nil if empty",
+        "doc": "Finds the minimum value.",
+        "example": "local low = stats.min(rates)"
+      },
+      {
+        "name": "max",
+        "signature": "stats.max(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "maximum value, or nil if empty",
+        "doc": "Finds the maximum value.",
+        "example": "local high = stats.max(rates)"
+      },
+      {
+        "name": "range",
+        "signature": "stats.range(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "difference between max and min, or nil if empty",
+        "doc": "Calculates the range (max - min).",
+        "example": "local span = stats.range({10, 2, 8})"
+      },
+      {
+        "name": "variance",
+        "signature": "stats.variance(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "sample variance (n-1 denominator), or nil if count \u003c 2",
+        "doc": "Calculates the unbiased sample variance.",
+        "example": "local v = stats.variance({2, 4, 4, 4, 5, 5, 7, 9})"
+      },
+      {
+        "name": "pvariance",
+        "signature": "stats.pvariance(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "population variance (n denominator), or nil if empty",
+        "doc": "Calculates the population variance.",
+        "example": "local pv = stats.pvariance({2, 4, 4, 4, 5, 5, 7, 9})"
+      },
+      {
+        "name": "stdev",
+        "signature": "stats.stdev(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "sample standard deviation, or nil if count \u003c 2",
+        "doc": "Calculates the sample standard deviation.",
+        "example": "local s = stats.stdev(sales, \"Amount\")"
+      },
+      {
+        "name": "pstdev",
+        "signature": "stats.pstdev(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "population standard deviation, or nil if empty",
+        "doc": "Calculates the population standard deviation.",
+        "example": "local ps = stats.pstdev(populationScores)"
+      },
+      {
+        "name": "percentile",
+        "signature": "stats.percentile(xs, p [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "p",
+            "type": "number",
+            "doc": "Percentile (0 to 100, or 0.0 to 1.0)."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "interpolated percentile value, or nil if empty",
+        "doc": "Calculates the p-th percentile using linear interpolation.",
+        "example": "local p95 = stats.percentile(latencies, 95)"
+      },
+      {
+        "name": "quantiles",
+        "signature": "stats.quantiles(xs, probs [, field]) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "probs",
+            "type": "table",
+            "doc": "Array of probabilities (e.g. {0.25, 0.5, 0.75})."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "array of quantile values",
+        "doc": "Calculates multiple percentiles in a single pass.",
+        "example": "local q = stats.quantiles(scores, {0.25, 0.5, 0.75})"
+      },
+      {
+        "name": "iqr",
+        "signature": "stats.iqr(xs [, field]) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "interquartile range (Q75 - Q25), or nil if empty",
+        "doc": "Calculates the interquartile range.",
+        "example": "local spread = stats.iqr(prices)"
+      },
+      {
+        "name": "summary",
+        "signature": "stats.summary(xs [, field]) → table|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "{count, sum, mean, stdev, min, q25, median, q75, max, iqr} or nil if empty",
+        "doc": "Returns a comprehensive summary table of descriptive statistics.",
+        "example": "local s = stats.summary(orders, \"Total\")\nlog.info(\"stats\", {avg = s.mean, median = s.median, iqr = s.iqr})"
+      },
+      {
+        "name": "zscores",
+        "signature": "stats.zscores(xs [, field]) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "array of standardized z-scores ((x - mean) / stdev)",
+        "doc": "Calculates the z-score for each value.",
+        "example": "local z = stats.zscores({10, 20, 30, 40, 50})"
+      },
+      {
+        "name": "correl",
+        "signature": "stats.correl(xs, ys) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "First array of numbers."
+          },
+          {
+            "name": "ys",
+            "type": "table",
+            "doc": "Second array of numbers."
+          }
+        ],
+        "returns": "Pearson correlation coefficient r (-1.0 to 1.0), or nil if undefined",
+        "doc": "Calculates the Pearson product-moment correlation coefficient.",
+        "example": "local r = stats.correl(adSpend, revenue)"
+      },
+      {
+        "name": "covariance",
+        "signature": "stats.covariance(xs, ys) → number|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "First array of numbers."
+          },
+          {
+            "name": "ys",
+            "type": "table",
+            "doc": "Second array of numbers."
+          }
+        ],
+        "returns": "sample covariance, or nil if count \u003c 2",
+        "doc": "Calculates the sample covariance between two variables.",
+        "example": "local cov = stats.covariance(xs, ys)"
+      },
+      {
+        "name": "linreg",
+        "signature": "stats.linreg(xs, ys) → table|nil",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Independent variable values (x)."
+          },
+          {
+            "name": "ys",
+            "type": "table",
+            "doc": "Dependent variable values (y)."
+          }
+        ],
+        "returns": "{slope, intercept, r, r2} or nil if insufficient points",
+        "doc": "Calculates ordinary least-squares linear regression (y = slope * x + intercept).",
+        "example": "local fit = stats.linreg(x, y)\nlocal forecast = fit.slope * nextX + fit.intercept"
+      },
+      {
+        "name": "moving_avg",
+        "signature": "stats.moving_avg(xs, window) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers."
+          },
+          {
+            "name": "window",
+            "type": "number",
+            "doc": "Window size in elements."
+          }
+        ],
+        "returns": "array of simple moving averages of length (#xs - window + 1)",
+        "doc": "Calculates the simple moving average over a sliding window.",
+        "example": "local sma = stats.moving_avg(dailyRevenue, 7)"
+      },
+      {
+        "name": "ema",
+        "signature": "stats.ema(xs, alpha) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers."
+          },
+          {
+            "name": "alpha",
+            "type": "number",
+            "doc": "Smoothing factor between 0.0 and 1.0."
+          }
+        ],
+        "returns": "array of exponential moving averages of same length as xs",
+        "doc": "Calculates the exponential moving average (EMA).",
+        "example": "local ema = stats.ema(prices, 0.2)"
+      },
+      {
+        "name": "cumsum",
+        "signature": "stats.cumsum(xs) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers."
+          }
+        ],
+        "returns": "array of cumulative sums",
+        "doc": "Calculates the cumulative sum.",
+        "example": "local running = stats.cumsum({1, 2, 3, 4}) -- {1, 3, 6, 10}"
+      },
+      {
+        "name": "diffs",
+        "signature": "stats.diffs(xs) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers."
+          }
+        ],
+        "returns": "array of differences x[i] - x[i-1]",
+        "doc": "Calculates discrete differences between consecutive elements.",
+        "example": "local d = stats.diffs({10, 15, 12}) -- {5, -3}"
+      },
+      {
+        "name": "pct_change",
+        "signature": "stats.pct_change(xs) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers."
+          }
+        ],
+        "returns": "array of percentage changes (x[i] - x[i-1]) / x[i-1]",
+        "doc": "Calculates percentage changes between consecutive elements.",
+        "example": "local p = stats.pct_change({100, 110, 99}) -- {0.1, -0.1}"
+      },
+      {
+        "name": "histogram",
+        "signature": "stats.histogram(xs, bins [, field]) → table",
+        "params": [
+          {
+            "name": "xs",
+            "type": "table",
+            "doc": "Array of numbers or array of row tables."
+          },
+          {
+            "name": "bins",
+            "type": "number",
+            "doc": "Number of equal-width bins (at least 1)."
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "doc": "Field name if xs is an array of row tables.",
+            "optional": true
+          }
+        ],
+        "returns": "array of bin tables: { {min, max, count, ratio}, ... }",
+        "doc": "Computes equal-width frequency bins across the dataset's range.",
+        "example": "local bins = stats.histogram(ages, 5)"
+      }
+    ]
+  },
+  {
     "name": "ui",
     "doc": "Change the form: control properties, focus, navigation and confirmations.",
     "contexts": [
@@ -1254,7 +2405,7 @@
       {
         "name": "set",
         "signature": "ui.set(name, props)",
-        "doc": "Changes control properties: visible, enabled, locked, required (booleans), caption, tooltip (text), tone (\"default\"|\"warning\"|\"danger\"|\"success\"), value (unbound controls).",
+        "doc": "Changes control properties: visible, enabled, locked, required (booleans), caption, tooltip, error (text), tone (\"default\"|\"warning\"|\"danger\"|\"success\"), value (unbound controls).",
         "example": "ui.set(\"Approve\", {visible = record.Total \u003e 5000})"
       },
       {
@@ -1282,6 +2433,12 @@
         "example": "ui.open_report(\"Invoice\", {params = {order_id = record.id}})"
       },
       {
+        "name": "open_url",
+        "signature": "ui.open_url(url, target?)",
+        "doc": "Opens an external URL in the browser.",
+        "example": "ui.open_url(\"https://example.com/docs\", \"_blank\")"
+      },
+      {
         "name": "close",
         "signature": "ui.close()",
         "doc": "Closes the form.",
@@ -1294,6 +2451,12 @@
         "example": "ui.requery(\"Lines\")"
       },
       {
+        "name": "refresh",
+        "signature": "ui.refresh()",
+        "doc": "Alias for ui.requery(); reloads the form's record source.",
+        "example": "ui.refresh()"
+      },
+      {
         "name": "cancel",
         "signature": "ui.cancel(message)",
         "doc": "Cancels the pending action (save, insert, delete) in before_* events and shows message.",
@@ -1304,6 +2467,167 @@
         "signature": "ui.confirm(message, continuation)",
         "doc": "Asks the user to confirm. When answered, the form calls the handler function named continuation with event.answer set.",
         "example": "ui.confirm(\"Delete all lines?\", \"on_delete_lines\")"
+      },
+      {
+        "name": "set_error",
+        "signature": "ui.set_error(control, message)",
+        "doc": "Sets an inline validation error message on a control.",
+        "example": "ui.set_error(\"Email\", \"Invalid email address format.\")"
+      },
+      {
+        "name": "clear_error",
+        "signature": "ui.clear_error(control)",
+        "doc": "Clears any inline validation error on a control.",
+        "example": "ui.clear_error(\"Email\")"
+      },
+      {
+        "name": "clear_errors",
+        "signature": "ui.clear_errors()",
+        "doc": "Clears inline validation errors from all controls on the form.",
+        "example": "ui.clear_errors()"
+      },
+      {
+        "name": "set_visible",
+        "signature": "ui.set_visible(control, visible)",
+        "doc": "Shows or hides a control.",
+        "example": "ui.set_visible(\"ShippingAddress\", record.NeedsDelivery)"
+      },
+      {
+        "name": "set_enabled",
+        "signature": "ui.set_enabled(control, enabled)",
+        "doc": "Enables or disables a control.",
+        "example": "ui.set_enabled(\"SubmitBtn\", record.is_dirty)"
+      },
+      {
+        "name": "set_read_only",
+        "signature": "ui.set_read_only(control, read_only)",
+        "doc": "Locks or unlocks a control for editing.",
+        "example": "ui.set_read_only(\"UnitPrice\", not user.is_admin)"
+      },
+      {
+        "name": "set_locked",
+        "signature": "ui.set_locked(control, locked)",
+        "doc": "Locks or unlocks a control (alias for set_read_only).",
+        "example": "ui.set_locked(\"Qty\", true)"
+      },
+      {
+        "name": "set_required",
+        "signature": "ui.set_required(control, required)",
+        "doc": "Marks a control as required or optional.",
+        "example": "ui.set_required(\"Reason\", record.Status == \"Rejected\")"
+      },
+      {
+        "name": "set_label",
+        "signature": "ui.set_label(control, text)",
+        "doc": "Sets the caption or label text of a control.",
+        "example": "ui.set_label(\"SaveBtn\", \"Update Record\")"
+      },
+      {
+        "name": "set_caption",
+        "signature": "ui.set_caption(control, text)",
+        "doc": "Sets the caption text of a control (alias for set_label).",
+        "example": "ui.set_caption(\"Title\", \"Edit Mode\")"
+      },
+      {
+        "name": "set_value",
+        "signature": "ui.set_value(control, value)",
+        "doc": "Sets the value of an unbound control.",
+        "example": "ui.set_value(\"SearchBox\", \"\")"
+      }
+    ]
+  },
+  {
+    "name": "url",
+    "doc": "Pure URL parsing, building and percent-encoding helpers. Evaluated entirely in-memory with zero network or DNS lookups.",
+    "contexts": [
+      "ui_event",
+      "report",
+      "job"
+    ],
+    "functions": [
+      {
+        "name": "parse",
+        "signature": "url.parse(str) → table|nil, err",
+        "params": [
+          {
+            "name": "str",
+            "type": "string",
+            "doc": "URL string to parse."
+          }
+        ],
+        "returns": "table with scheme, host, hostname, port, path, query, raw_query, fragment (or nil, err)",
+        "doc": "Parses a URL string into its components.",
+        "example": "local u = url.parse(\"https://api.example.com:8443/v1/items?tag=new#section\")\nlog.info(\"parsed\", {host = u.hostname, port = u.port, tag = u.query.tag})"
+      },
+      {
+        "name": "build",
+        "signature": "url.build(components) → string",
+        "params": [
+          {
+            "name": "components",
+            "type": "table",
+            "doc": "Table with scheme, host (or hostname, port), path, query or raw_query, fragment."
+          }
+        ],
+        "returns": "reconstructed URL string",
+        "doc": "Constructs a URL string from component parts.",
+        "example": "local s = url.build({scheme = \"https\", host = \"api.example.com\", path = \"/v1/search\", query = {q = \"widgets\"}})"
+      },
+      {
+        "name": "encode",
+        "signature": "url.encode(str) → string",
+        "params": [
+          {
+            "name": "str",
+            "type": "string",
+            "doc": "Text to percent-encode for query/path."
+          }
+        ],
+        "returns": "percent-encoded string",
+        "doc": "Percent-encodes a string according to RFC 3986.",
+        "example": "local enc = url.encode(\"hello world \u0026 goodbye\")"
+      },
+      {
+        "name": "decode",
+        "signature": "url.decode(str) → string|nil, err",
+        "params": [
+          {
+            "name": "str",
+            "type": "string",
+            "doc": "Percent-encoded string to decode."
+          }
+        ],
+        "returns": "decoded string (or nil, error on malformed escapes)",
+        "doc": "Decodes a percent-encoded string.",
+        "example": "local dec = url.decode(\"hello%20world\")"
+      },
+      {
+        "name": "query_encode",
+        "signature": "url.query_encode(params) → string",
+        "params": [
+          {
+            "name": "params",
+            "type": "table",
+            "doc": "Table mapping query parameter keys to scalar values or arrays."
+          }
+        ],
+        "returns": "encoded query string (without leading '?')",
+        "doc": "Encodes a table of parameters into a URL query string, sorted stably by key.",
+        "example": "local qs = url.query_encode({page = 1, sort = \"desc\", tags = {\"alpha\", \"beta\"}})"
+      },
+      {
+        "name": "query_decode",
+        "signature": "url.query_decode(str) → table",
+        "params": [
+          {
+            "name": "str",
+            "type": "string",
+            "doc": "Query string with or without leading '?'."
+          }
+        ],
+        "returns": "table of query parameters (lists for multi-value keys)",
+        "doc": "Decodes a URL query string into a Lua table.",
+        "example": "local params = url.query_decode(\"page=1\u0026sort=desc\")"
       }
     ]
   },
