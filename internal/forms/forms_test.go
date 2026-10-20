@@ -251,3 +251,89 @@ func TestFormValidationAndSchemaImpact(t *testing.T) {
 		t.Fatalf("form binding not reported: %+v", rep.Breaking)
 	}
 }
+
+func TestUIAndRecordErgonomics(t *testing.T) {
+	f := setup(t)
+	mod := `
+function on_click()
+	ui.set_error("Customer", "Customer is required")
+	ui.set_visible("Status", false)
+	ui.set_enabled("Status", false)
+	ui.set_read_only("Customer", true)
+	ui.set_required("Customer", true)
+	ui.set_caption("Customer", "Client")
+	ui.set_value("Customer", 42)
+	ui.open_url("https://example.com/help", "_blank")
+	ui.refresh()
+
+	record.set("Status", "Processing")
+	local ch = record.changed_fields()
+	local snap = record.to_table()
+	record.reset("Status")
+end
+`
+	form, err := f.svc.Put(f.ctx, f.l, "", 0, FormInput{
+		Name: "TestErgonomics", SourceKind: "table", SourceID: f.orders.ID, ModuleSource: mod,
+		Layout: Layout{
+			Width: 300,
+			Sections: Sections{Detail: Section{Height: 100, Controls: []Control{
+				{ID: "c1", Name: "Customer", Type: "textbox", W: 50, H: 20, Bind: &Bind{ColumnID: col(f.orders, "Customer")}},
+				{ID: "c2", Name: "Status", Type: "textbox", W: 50, H: 20, Bind: &Bind{ColumnID: col(f.orders, "Status")}},
+				{ID: "btn", Name: "TestBtn", Type: "button", W: 50, H: 20, Events: map[string]string{"click": "on_click"}},
+			}}},
+		},
+	}, "editor")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := f.svc.Event(f.ctx, f.l, f.editor, form.ID, EventRequest{
+		Event: "click", Control: "TestBtn",
+		Record:   map[string]any{col(f.orders, "Customer"): 1, col(f.orders, "Status"): "Open"},
+		RecordID: 1, RecordVersion: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify patches
+	patchesByControl := map[string]map[string]any{}
+	for _, p := range resp.Patches {
+		if patchesByControl[p.Control] == nil {
+			patchesByControl[p.Control] = map[string]any{}
+		}
+		for k, v := range p.Props {
+			patchesByControl[p.Control][k] = v
+		}
+	}
+
+	custPatches := patchesByControl["Customer"]
+	if custPatches["error"] != "Customer is required" {
+		t.Fatalf("expected error patch, got %v", custPatches["error"])
+	}
+	if custPatches["locked"] != true {
+		t.Fatalf("expected locked patch, got %v", custPatches["locked"])
+	}
+	if custPatches["required"] != true {
+		t.Fatalf("expected required patch, got %v", custPatches["required"])
+	}
+	if custPatches["caption"] != "Client" {
+		t.Fatalf("expected caption patch, got %v", custPatches["caption"])
+	}
+
+	statusPatches := patchesByControl["Status"]
+	if statusPatches["visible"] != false {
+		t.Fatalf("expected visible false patch, got %v", statusPatches["visible"])
+	}
+	if statusPatches["enabled"] != false {
+		t.Fatalf("expected enabled false patch, got %v", statusPatches["enabled"])
+	}
+
+	// Verify navigation & requery
+	if resp.Navigate["url"] != "https://example.com/help" || resp.Navigate["target"] != "_blank" {
+		t.Fatalf("expected open_url navigation, got %v", resp.Navigate)
+	}
+	if len(resp.Requery) == 0 || resp.Requery[0] != "*" {
+		t.Fatalf("expected requery *, got %v", resp.Requery)
+	}
+}

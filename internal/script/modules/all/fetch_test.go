@@ -33,11 +33,11 @@ func TestFetch(t *testing.T) {
 	res, err := runWith(t, script.Job, d, `
 		local r = fetch("https://api.test/x", {method = "POST", headers = {Accept = "application/json"}, body = "hi", timeout_ms = 1500, max_bytes = 1024})
 		local j = r:json()
-		return r.status, r.ok, r.headers["content-type"], #j.items, json.encode(j.empty), j.n == json.null`)
+		return r.status, r.ok, r.headers["content-type"], #j.items, json.encode(j.empty), j.n == json.null, r:text(), r:header("Content-Type")`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []any{int64(201), true, "application/json", int64(3), "[]", true}
+	want := []any{int64(201), true, "application/json", int64(3), "[]", true, `{"items":[1,2,3],"empty":[],"n":null}`, "application/json"}
 	for i, w := range want {
 		if res.Values[i] != w {
 			t.Fatalf("value %d: %#v, want %#v (all %#v)", i, res.Values[i], w, res.Values)
@@ -82,5 +82,106 @@ func TestFetch(t *testing.T) {
 	_, err = runWith(t, script.Job, &host.Data{}, `fetch("https://api.test/")`)
 	if fault.Classify(err).Code != fault.EgressDenied {
 		t.Fatalf("no gateway: %v", err)
+	}
+}
+
+func TestFetchErgonomicOptions(t *testing.T) {
+	var lastReq egress.Request
+	d := &host.Data{Fetch: func(_ context.Context, req egress.Request) (*egress.Response, error) {
+		lastReq = req
+		return &egress.Response{Status: 200, Headers: map[string]string{"content-type": "application/json"}, Body: []byte(`{"ok":true}`)}, nil
+	}}
+
+	// Query params merging
+	_, err := runWith(t, script.Job, d, `
+		fetch("https://api.test/items?filter=active", {params = {page = 2, sort = "desc"}})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(lastReq.URL, "filter=active") || !strings.Contains(lastReq.URL, "page=2") || !strings.Contains(lastReq.URL, "sort=desc") {
+		t.Fatalf("query params not merged: %s", lastReq.URL)
+	}
+
+	// JSON encoding
+	_, err = runWith(t, script.Job, d, `
+		fetch.post("https://api.test/create", {json = {name = "Widget", price = 42}})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lastReq.Method != "POST" {
+		t.Fatalf("expected POST, got %s", lastReq.Method)
+	}
+	if lastReq.Headers["content-type"] != "application/json" {
+		t.Fatalf("expected application/json header, got %v", lastReq.Headers)
+	}
+	if !strings.Contains(string(lastReq.Body), `"Widget"`) || !strings.Contains(string(lastReq.Body), `42`) {
+		t.Fatalf("json body incorrect: %s", string(lastReq.Body))
+	}
+
+	// Form encoding
+	_, err = runWith(t, script.Job, d, `
+		fetch.post("https://api.test/form", {form = {user = "alice", mode = "fast"}})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lastReq.Headers["content-type"] != "application/x-www-form-urlencoded" {
+		t.Fatalf("expected form urlencoded header, got %v", lastReq.Headers)
+	}
+	if !strings.Contains(string(lastReq.Body), "user=alice") || !strings.Contains(string(lastReq.Body), "mode=fast") {
+		t.Fatalf("form body incorrect: %s", string(lastReq.Body))
+	}
+
+	// Bearer auth
+	_, err = runWith(t, script.Job, d, `
+		fetch.get("https://api.test/me", {bearer = "tok_xyz123"})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lastReq.Headers["authorization"] != "Bearer tok_xyz123" {
+		t.Fatalf("expected Bearer auth header, got %v", lastReq.Headers)
+	}
+
+	// Basic auth
+	_, err = runWith(t, script.Job, d, `
+		fetch.get("https://api.test/secret", {basic_auth = {username = "admin", password = "secret"}})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(lastReq.Headers["authorization"], "Basic ") {
+		t.Fatalf("expected Basic auth header, got %v", lastReq.Headers)
+	}
+
+	// HTTP method helpers: put, patch, delete
+	for _, m := range []string{"put", "patch", "delete"} {
+		_, err = runWith(t, script.Job, d, `fetch.`+m+`("https://api.test/item/1")`)
+		if err != nil {
+			t.Fatalf("fetch.%s failed: %v", m, err)
+		}
+		if lastReq.Method != strings.ToUpper(m) {
+			t.Fatalf("expected method %s, got %s", strings.ToUpper(m), lastReq.Method)
+		}
+	}
+}
+
+func TestFetchSecurityEgressBlockedInNonJobContexts(t *testing.T) {
+	d := &host.Data{Fetch: func(_ context.Context, req egress.Request) (*egress.Response, error) {
+		return &egress.Response{Status: 200, Body: []byte("ok")}, nil
+	}}
+
+	// In UIEvent context, fetch is nil
+	res, err := runWith(t, script.UIEvent, d, `return fetch == nil`)
+	if err != nil || res.Values[0] != true {
+		t.Fatalf("fetch should be nil in UIEvent: %v %#v", err, res.Values)
+	}
+
+	// In Report context, fetch is nil
+	res, err = runWith(t, script.Report, d, `return fetch == nil`)
+	if err != nil || res.Values[0] != true {
+		t.Fatalf("fetch should be nil in Report: %v %#v", err, res.Values)
 	}
 }

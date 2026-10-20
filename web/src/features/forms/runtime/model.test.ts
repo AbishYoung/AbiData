@@ -8,6 +8,7 @@ import {
   bufferForServer,
   bufferOf,
   dirtyFields,
+  effectiveProps,
   indexAfterDelete,
   isDirty,
   labelFor,
@@ -197,5 +198,30 @@ describe("stackedOrder", () => {
   it("keeps separate rows apart and orders a row left to right", () => {
     const box = (id: string, x: number, y: number) => ({ id, x, y, h: 20 });
     expect(stackedOrder([box("c", 0, 100), box("b", 80, 0), box("a", 0, 0)]).map((c) => c.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("plans openUrl from navigation responses", () => {
+    const fx = planResponse({
+      patches: [],
+      record: {},
+      notifications: [],
+      calc: {},
+      navigate: { url: "https://example.com/help", target: "_blank" },
+    });
+    expect(fx.openUrl).toEqual({ url: "https://example.com/help", target: "_blank" });
+  });
+
+  it("applies error patches and exposes effective error", () => {
+    const patches = [{ op: "set", control: "Email", props: { error: "Invalid email" } }];
+    const overrides = applyPatches({}, patches);
+    expect(overrides.Email?.error).toBe("Invalid email");
+    const eff = effectiveProps({ id: "c1", type: "textbox", name: "Email" } as never, overrides.Email);
+    expect(eff.error).toBe("Invalid email");
+
+    const clearPatches = [{ op: "set", control: "Email", props: { error: "" } }];
+    const cleared = applyPatches(overrides, clearPatches);
+    expect(cleared.Email?.error).toBe("");
+    const effCleared = effectiveProps({ id: "c1", type: "textbox", name: "Email" } as never, cleared.Email);
+    expect(effCleared.error).toBeUndefined();
   });
 });

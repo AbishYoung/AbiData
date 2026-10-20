@@ -89,6 +89,23 @@ func pgReadRows(r *script.Run, L *lua.LState, d *host.Data, sql string, args []a
 	return out
 }
 
+func pgReadPluck(r *script.Run, L *lua.LState, d *host.Data, sql string, args []any, limit int) *lua.LTable {
+	res := pgQuery(r, d, sql, args, limit)
+	out := L.NewTable()
+	size := 0
+	for _, row := range res.Rows {
+		if len(row) > 0 {
+			v := pgStorage(res.Origins[0], row[0])
+			size += sqlitex.SizeOf(v)
+			out.Append(toLua(r, v))
+		}
+		if size > MaxBytes {
+			r.RaiseLimit(fmt.Sprintf("query result exceeds %d MiB", MaxBytes>>20))
+		}
+	}
+	return out
+}
+
 // pgReadValue is the first column of the first row, or nil.
 func pgReadValue(r *script.Run, d *host.Data, sql string, args []any) lua.LValue {
 	res := pgQuery(r, d, sql, args, 1)

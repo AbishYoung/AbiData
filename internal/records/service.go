@@ -268,20 +268,32 @@ func (s *Service) Count(ctx context.Context, l *workspace.Lease, tableID string,
 	if err != nil {
 		return 0, false, err
 	}
-	where, err := filterExpr(t, f, decoderFor(l.Dialect()), "t")
+	var n int64
+	var capped bool
+	err = l.Read(ctx, func(q dbx.Querier) error {
+		var qerr error
+		n, capped, qerr = CountTx(ctx, q, t, f)
+		return qerr
+	})
+	return n, capped, err
+}
+
+// CountTx counts matching rows using querier qr.
+func CountTx(ctx context.Context, qr dbx.Querier, t *catalog.Table, f *Filter) (int64, bool, error) {
+	d := pgdb.DialectOf(qr)
+	where, err := filterExpr(t, f, decoderFor(d), "t")
 	if err != nil {
 		return 0, false, err
 	}
 	// Counting stops one past the cap, so a huge table costs no more than that.
-	stmt, err := render(l.Dialect(), &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
+	stmt, err := render(d, &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Agg{Fn: sqlgen.AggCount}}},
 		From: sqlgen.SubSelect{Alias: "c", Select: &sqlgen.Select{Columns: []sqlgen.Column{{Expr: sqlgen.Lit{Value: 1}}},
 			From: sqlgen.Table{Name: t.PhysicalName, Alias: "t"}, Where: where, Limit: sqlgen.Arg{Value: CountCap + 1}}}})
 	if err != nil {
 		return 0, false, err
 	}
 	var n int64
-	err = l.Read(ctx, func(q dbx.Querier) error { return q.QueryRow(ctx, stmt.SQL, stmt.Args...).Scan(&n) })
-	if err != nil {
+	if err := qr.QueryRow(ctx, stmt.SQL, stmt.Args...).Scan(&n); err != nil {
 		return 0, false, fault.Classify(err)
 	}
 	if n > CountCap {

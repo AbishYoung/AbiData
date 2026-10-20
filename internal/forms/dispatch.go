@@ -113,7 +113,7 @@ func (s *Service) prepare(ctx context.Context, l *workspace.Lease, formID string
 			"locked": c.Locked, "caption": c.Caption, "type": c.Type}
 		for k, v := range req.Controls[c.Name] {
 			switch k {
-			case "visible", "enabled", "locked", "caption", "required", "tooltip", "tone", "value":
+			case "visible", "enabled", "locked", "caption", "required", "tooltip", "tone", "value", "error":
 				props[k] = v
 			}
 		}

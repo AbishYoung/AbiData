@@ -146,7 +146,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
     case "attachments": {
       const readOnly = !env.editable || p.locked || !p.enabled || !colId || (col ? isReadOnlyColumn(col) : false);
       const name = p.caption || c.caption || (colId ? env.columnName(colId) : undefined) || c.name;
-      const error = colId ? env.fieldErrors[colId] : undefined;
+      const error = (colId ? env.fieldErrors[colId] : undefined) ?? p.error;
       return (
         <div style={style} data-control-name={c.name} className="relative overflow-auto rounded border border-border bg-surface p-1.5" onFocus={env.actions.enterRow}>
           <AttachmentManager
@@ -206,7 +206,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
             recordKey={String(recordId ?? "new")}
             readOnly={readOnly}
             label={p.caption || (colId ? env.columnName(colId) : undefined) || c.name}
-            error={colId ? env.fieldErrors[colId] : undefined}
+            error={(colId ? env.fieldErrors[colId] : undefined) ?? p.error}
             accuracyCol={env.accuracyCol}
             onEnter={env.actions.enterRow}
             onCommit={(value, also) => {
@@ -232,7 +232,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
             disabled={!p.enabled}
             labelledBy={labelledBy}
             ariaLabel={p.caption || (colId ? env.columnName(colId) : undefined) || c.name}
-            error={colId ? env.fieldErrors[colId] : undefined}
+            error={(colId ? env.fieldErrors[colId] : undefined) ?? p.error}
             env={env}
           />
         </div>
@@ -262,7 +262,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
             disabled={!p.enabled}
             labelledBy={label}
             ariaLabel={p.caption || (colId ? env.columnName(colId) : undefined) || c.name}
-            error={colId ? env.fieldErrors[colId] : undefined}
+            error={(colId ? env.fieldErrors[colId] : undefined) ?? p.error}
             env={env}
           />
         </div>

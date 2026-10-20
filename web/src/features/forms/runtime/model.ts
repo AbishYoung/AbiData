@@ -154,6 +154,7 @@ export interface ControlProps {
   required?: boolean;
   tooltip?: string;
   tone?: string;
+  error?: string | null;
 }
 
 /** Runtime property overrides keyed by control name. */
@@ -182,6 +183,7 @@ export interface EffectiveProps {
   caption: string;
   tone: string;
   tooltip: string | undefined;
+  error: string | undefined;
 }
 
 export function effectiveProps(c: FormControl, o: ControlProps | undefined): EffectiveProps {
@@ -192,6 +194,7 @@ export function effectiveProps(c: FormControl, o: ControlProps | undefined): Eff
     caption: o?.caption ?? c.caption ?? "",
     tone: o?.tone ?? c.style?.tone ?? "default",
     tooltip: o?.tooltip,
+    error: o?.error ? o.error : undefined,
   };
 }
 
@@ -245,6 +248,7 @@ export interface Effects {
   requery: string[];
   record: NavTarget | null;
   openForm: string | null;
+  openUrl: { url: string; target?: string } | null;
   close: boolean;
 }
 
@@ -261,6 +265,7 @@ export function planResponse(resp: FormEventResponse): Effects {
   const r = nav.record;
   if (typeof r === "number") record = r;
   else if (r === "next" || r === "prev" || r === "first" || r === "last" || r === "new") record = r;
+  const openUrl = typeof nav.url === "string" ? { url: nav.url, target: typeof nav.target === "string" ? nav.target : undefined } : null;
   return {
     cancelMessage: resp.cancel ? resp.cancel.message : null,
     toasts,
@@ -270,6 +275,7 @@ export function planResponse(resp: FormEventResponse): Effects {
     requery: resp.requery ?? [],
     record,
     openForm: typeof nav.form === "string" ? nav.form : null,
+    openUrl,
     close: resp.close === true,
   };
 }

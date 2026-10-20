@@ -260,6 +260,9 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
       void qc.invalidateQueries({ queryKey: lookupKeys.all(env.ws) });
     }
     if (fx.openForm) env.openForm(fx.openForm);
+    if (fx.openUrl && typeof window !== "undefined") {
+      window.open(fx.openUrl.url, fx.openUrl.target ?? "_blank");
+    }
     if (fx.close) env.closeTab();
     if (fx.record !== null) void moveTo(fx.record);
     return fx;

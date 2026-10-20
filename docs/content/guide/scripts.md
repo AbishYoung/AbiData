@@ -116,6 +116,142 @@ function do_discontinue()
 end
 ```
 
+### Query builder {#recipe-query-builder}
+
+`db.from(table)` builds dialect-neutral SELECT queries fluently without writing inline SQL. It supports where filters (`:where`, `:where_in`, `:where_null`, `:where_between`), sorting (`:order`), pagination (`:limit`, `:offset`), and terminal fetchers (`:all`, `:first`, `:count`, `:exists`, `:pluck`, `:sum`, `:avg`, `:min`, `:max`).
+
+```lua
+local openOrders = db.from("Orders")
+  :where("Status", "Open")
+  :order("-Order_date")
+  :limit(10)
+  :all()
+
+local hasPending = db.from("Orders"):where("Status", "Pending"):exists()
+local customerIds = db.from("Orders"):where_not_null("Customer"):pluck("Customer")
+```
+
+You can also run direct SQL queries with `db.scalar` to fetch a single value, or `db.pluck` to extract an array of values from the first column:
+
+```lua
+local count = db.scalar("SELECT count(*) FROM Orders")
+local ids = db.pluck("SELECT id FROM Orders WHERE Status = 'Open'")
+```
+
+### Batch and upsert records {#recipe-batch-records}
+
+Use `records` helpers for optimistic-concurrency CRUD operations with full schema validation and history logging:
+
+```lua
+-- Find one row or check existence
+local cust = records.find_one("Customers", { Company = "Alfreds Futterkiste" })
+local exists = records.exists("Customers", { City = "Berlin" })
+
+-- Insert or update records
+local ids = records.insert_many("Customers", {
+  { Company = "New Partner A", City = "Paris" },
+  { Company = "New Partner B", City = "Lyon" },
+})
+records.update_many("Customers", { City = "Paris" }, { Country = "France" })
+
+-- Upsert: update matching row or insert new
+records.upsert("Customers", { Company = "Acme Corp" }, { City = "Tokyo" })
+```
+
+### Form control ergonomics and validation {#recipe-form-ergonomics}
+
+Form event handlers can set inline validation errors on controls and toggle visibility, editability, and labels cleanly:
+
+```lua
+function on_submit()
+  ui.clear_errors()
+  if record.Quantity <= 0 then
+    ui.set_error("Quantity", "Quantity must be greater than zero.")
+    return
+  end
+
+  ui.set_read_only("Quantity", true)
+  ui.set_label("Submit_button", "Submitted")
+  ui.open_url("https://example.com/receipts/" .. record.id, "_blank")
+end
+
+function on_reset()
+  record.reset()
+  local modified = record.changed_fields()
+  log.info("remaining dirty fields", { count = #modified })
+end
+```
+
+### Data manipulation and aggregation {#recipe-data-aggregation}
+
+The `data` module provides grouped rollups, pivoting, sorting and filtering for tabular row arrays:
+
+```lua
+local items = {
+  { Category = "Beverages", Sales = 150 },
+  { Category = "Condiments", Sales = 80 },
+  { Category = "Beverages", Sales = 220 },
+}
+
+-- Grouped multi-metric rollup
+local summary = data.aggregate(items, {
+  by = "Category",
+  metrics = {
+    item_count = "count",
+    total_sales = { field = "Sales", fn = "sum" },
+    avg_sales = { field = "Sales", fn = "avg" },
+  },
+})
+
+-- Multi-column sorting
+local sorted = data.sort_by(items, { "Category", "-Sales" })
+
+-- Distinct values and frequency distributions
+local categories = data.distinct(items, "Category")
+local freqs = data.frequencies(items, "Category")
+```
+
+### Statistical analysis and regressions {#recipe-stats}
+
+The `stats` module provides descriptive statistics, moving averages, distributions, and linear regressions:
+
+```lua
+local daily = {120, 150, 180, 140, 210, 240, 200}
+local avg = stats.mean(daily)
+local med = stats.median(daily)
+local dev = stats.stdev(daily)
+local sma = stats.moving_avg(daily, 3)
+local run_sum = stats.cumsum(daily)
+
+-- Ordinary least squares linear regression
+local x = {1, 2, 3, 4, 5}
+local y = {10, 22, 31, 39, 52}
+local fit = stats.linreg(x, y)
+log.info("regression", { slope = fit.slope, intercept = fit.intercept, r2 = fit.r2 })
+```
+
+### URL parsing and cryptographic utilities {#recipe-url-crypto}
+
+Pure in-memory URL and crypto helpers operate safely across all script contexts:
+
+```lua
+-- URL parsing and building
+local u = url.parse("https://api.example.com/v1/items?category=books&limit=25")
+local fullUrl = url.build({
+  scheme = "https",
+  host = "api.example.com",
+  path = "/v1/search",
+  query = { q = "widgets", tag = "new" },
+})
+
+-- Hashing, HMAC, encoding and UUIDs
+local hash = crypto.sha256("password")
+local sig = crypto.hmac_sha256("secret_key", "payload")
+local b64 = crypto.base64_encode("hello world")
+local token = crypto.random_hex(16)
+local id = crypto.uuid()
+```
+
 ### Share code between scripts {#recipe-module}
 
 Create a module named `util`:
@@ -161,6 +297,8 @@ Every function, with parameters, errors and examples, is in the [Lua API referen
 - [`ui`](/docs/reference/lua-api#module-ui), [`record`](/docs/reference/lua-api#module-record) and [`notify`](/docs/reference/lua-api#module-notify) in form events.
 - [`fetch`](/docs/reference/lua-api#module-fetch), [`staging`](/docs/reference/lua-api#module-staging) and [`artifacts`](/docs/reference/lua-api#module-artifacts) in jobs.
 - [`datetime`](/docs/reference/lua-api#module-datetime), [`json`](/docs/reference/lua-api#module-json), [`csv`](/docs/reference/lua-api#module-csv) and [`decimal`](/docs/reference/lua-api#module-decimal) anywhere.
+- [`data`](/docs/reference/lua-api#module-data) and [`stats`](/docs/reference/lua-api#module-stats) for data analysis, grouping, pivoting and statistical modeling.
+- [`url`](/docs/reference/lua-api#module-url) and [`crypto`](/docs/reference/lua-api#module-crypto) for safe in-memory URL manipulation, hashing and tokens.
 - [`geo`](/docs/reference/lua-api#module-geo) for [Location and Area fields](/docs/guide/tables#geo). `records.get` returns them as tables that mirror GeoJSON, and `records.insert` and `records.update` accept the same tables (or the text `"lat, lon"` for a location):
 
 ```lua
