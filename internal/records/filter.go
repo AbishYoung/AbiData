@@ -173,6 +173,19 @@ func (fc *filterCompiler) cond(f *Filter) (sqlgen.Expr, error) {
 			return nil, err
 		}
 		return sqlgen.In{X: q, List: dec}, nil
+	case OpNotIn:
+		vals, ok := f.Value.([]any)
+		if !ok || len(vals) == 0 {
+			return nil, fault.New(fault.BadRequest, "The not_in operator requires a non-empty list.")
+		}
+		if len(vals) > MaxInValues {
+			return nil, fault.New(fault.BadRequest, "The not_in list has too many values.")
+		}
+		dec, err := fc.decodeAll(col, vals)
+		if err != nil {
+			return nil, err
+		}
+		return sqlgen.Not{X: sqlgen.In{X: q, List: dec}}, nil
 	case OpBetween:
 		vals, ok := f.Value.([]any)
 		if !ok || len(vals) != 2 {

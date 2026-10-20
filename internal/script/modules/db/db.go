@@ -68,6 +68,9 @@ var doc = script.ModuleDoc{
 		{Name: "min", Signature: "db.min(table, field, where?, params?) → value|db.NULL", Doc: "Access DMin.", Example: `db.min("Orders", "OrderDate")`},
 		{Name: "max", Signature: "db.max(table, field, where?, params?) → value|db.NULL", Doc: "Access DMax.", Example: `db.max("Orders", "OrderDate")`},
 		{Name: "is_null", Signature: "db.is_null(v) → boolean", Doc: "True for nil and db.NULL.", Example: `if db.is_null(record.ShippedAt) then … end`},
+		{Name: "from", Signature: "db.from(table) → builder", Doc: "Starts a dialect-neutral query builder on table.", Example: `local rows = db.from("Orders"):where("Status", "Open"):order("-Ordered"):limit(10):all()`},
+		{Name: "scalar", Signature: "db.scalar(sql, params?) → value|nil", Returns: "first column of the first row, or nil when there are no rows", Doc: "Runs a read query and returns a single value.", Example: `local n = db.scalar("SELECT count(*) FROM Orders")`},
+		{Name: "pluck", Signature: "db.pluck(sql, params?) → array", Returns: "array of values from the first column across all rows", Doc: "Runs a read query and returns a 1-indexed list of the first column across all rows.", Example: `local ids = db.pluck("SELECT id FROM Orders WHERE Status = 'Open'")`},
 	},
 	Values: []script.ValueDoc{{Name: "NULL", Type: "userdata", Doc: "SQL NULL. Lua tables cannot hold nil, so empty field values are db.NULL."}},
 }
@@ -147,9 +150,12 @@ func build(r *script.Run) lua.LValue {
 		return 1
 	})
 	fn("transaction", func(L *lua.LState) int { return transaction(r, L) })
+	fn("from", func(L *lua.LState) int { return builderFrom(r, L) })
 	fn("select", func(L *lua.LState) int { return builderSelect(r, L) })
 	fn("update", func(L *lua.LState) int { return builderWrite(r, L, false) })
 	fn("delete", func(L *lua.LState) int { return builderWrite(r, L, true) })
+	fn("scalar", func(L *lua.LState) int { return scalar(r, L) })
+	fn("pluck", func(L *lua.LState) int { return pluck(r, L) })
 	agg := func(name, sqlFn string) {
 		fn(name, func(L *lua.LState) int { return aggregate(r, L, sqlFn) })
 	}
@@ -329,6 +335,63 @@ func readValues(r *script.Run, L *lua.LState, sql string, args []any) lua.LValue
 		if rows.Next() {
 			if v := rows.Values(); len(v) > 0 {
 				out = toLua(r, v[0])
+			}
+		}
+		return rows.Err()
+	})
+	return out
+}
+
+func scalar(r *script.Run, L *lua.LState) int {
+	sql := L.CheckString(1)
+	args := params(r, L, 2)
+	v := readValues(r, L, sql, args)
+	if v == nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+	L.Push(v)
+	return 1
+}
+
+func pluck(r *script.Run, L *lua.LState) int {
+	sql := L.CheckString(1)
+	args := params(r, L, 2)
+	t := readPluck(r, L, sql, args, MaxRows)
+	L.Push(t)
+	return 1
+}
+
+func readPluck(r *script.Run, L *lua.LState, sql string, args []any, limit int) *lua.LTable {
+	if d := data(r, L); onPostgres(d) {
+		return pgReadPluck(r, L, d, sql, args, limit)
+	}
+	out := L.NewTable()
+	withConn(r, L, false, func(ctx context.Context, c *sqlitex.Conn) error {
+		desc, err := c.Describe(ctx, sql)
+		if err != nil {
+			return err
+		}
+		if !desc.ReadOnly {
+			return fault.New(fault.SQLNotAllowed, "db.pluck only reads; use db.exec to change data.")
+		}
+		rows, err := c.Query(ctx, sql, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		size := 0
+		for rows.Next() {
+			if out.Len() >= limit {
+				break
+			}
+			v := rows.Values()
+			if len(v) > 0 {
+				size += sqlitex.SizeOf(v[0])
+				out.Append(toLua(r, v[0]))
+			}
+			if size > MaxBytes {
+				r.RaiseLimit(fmt.Sprintf("query result exceeds %d MiB", MaxBytes>>20))
 			}
 		}
 		return rows.Err()
