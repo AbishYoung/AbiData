@@ -8,6 +8,28 @@ export const MEMBER_ROLES: readonly { value: MemberRole; label: string }[] = [
   { value: "owner", label: "Owner" },
 ];
 
+export const ROLE_DESCRIPTIONS: Record<MemberRole, string> = {
+  owner: "Full control, including members and settings",
+  builder: "Can design tables, queries, forms and reports",
+  editor: "Can add and edit data",
+  viewer: "Read-only access",
+};
+
+export function roleAccessSummary(role: string): string {
+  switch (role) {
+    case "owner":
+      return "Owner · Full control of members & settings";
+    case "builder":
+      return "Added as Builder · Design tables, queries, forms & reports";
+    case "editor":
+      return "Added as Editor · Add and edit data";
+    case "viewer":
+      return "Added as Viewer · Read-only access";
+    default:
+      return role;
+  }
+}
+
 const RANK: Record<MemberRole, number> = { viewer: 0, editor: 1, builder: 2, owner: 3 };
 
 export function roleLabel(r: MemberRole): string {

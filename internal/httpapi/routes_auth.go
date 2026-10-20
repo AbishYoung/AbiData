@@ -26,13 +26,22 @@ type UserDTO struct {
 	IsPlatformAdmin bool   `json:"is_platform_admin"`
 }
 
+// PublishedAppSummaryDTO is a summary of an active published app.
+type PublishedAppSummaryDTO struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Link string `json:"link"`
+}
+
 // MembershipDTO is a workspace the caller can open.
 type MembershipDTO struct {
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace_name"`
-	Role          string `json:"role" enum:"owner,builder,editor,viewer"`
-	Status        string `json:"status"`
-	SystemKind    string `json:"system_kind,omitempty" doc:"\"blog\" for the user's blog workspace (ADR 0017)."`
+	WorkspaceID   string                   `json:"workspace_id"`
+	WorkspaceName string                   `json:"workspace_name"`
+	Role          string                   `json:"role" enum:"owner,builder,editor,viewer"`
+	Status        string                   `json:"status"`
+	SystemKind    string                   `json:"system_kind,omitempty" doc:"\"blog\" for the user's blog workspace (ADR 0017)."`
+	PublishedApps []PublishedAppSummaryDTO `json:"published_apps,omitempty"`
 }
 
 // MeBody describes the signed-in user.
@@ -58,10 +67,36 @@ func (s *Server) me(ctx context.Context, p auth.Principal) (MeBody, error) {
 	if err != nil {
 		return MeBody{}, err
 	}
+	publicAppsOn, _ := s.publicAppsOn(ctx)
 	ms := make([]MembershipDTO, 0, len(acc))
 	for _, a := range acc {
-		ms = append(ms, MembershipDTO{WorkspaceID: string(a.Workspace.ID), WorkspaceName: a.Workspace.Name,
-			Role: string(a.Role), Status: string(a.Workspace.Status), SystemKind: string(a.Workspace.SystemKind)})
+		m := MembershipDTO{
+			WorkspaceID:   string(a.Workspace.ID),
+			WorkspaceName: a.Workspace.Name,
+			Role:          string(a.Role),
+			Status:        string(a.Workspace.Status),
+			SystemKind:    string(a.Workspace.SystemKind),
+		}
+		if publicAppsOn && a.Workspace.SystemKind != admin.KindBlog {
+			appsList, err := s.deps.Admin.ListApps(ctx, a.Workspace.ID)
+			if err == nil {
+				var pubApps []PublishedAppSummaryDTO
+				for _, app := range appsList {
+					if app.Enabled && app.TakenDownAt == nil {
+						pubApps = append(pubApps, PublishedAppSummaryDTO{
+							ID:   app.ID,
+							Name: app.Name,
+							Path: "/a/" + app.Token,
+							Link: s.appLink(app.Token),
+						})
+					}
+				}
+				if len(pubApps) > 0 {
+					m.PublishedApps = pubApps
+				}
+			}
+		}
+		ms = append(ms, m)
 	}
 	maps, err := LoadMaps(ctx, s.deps.Admin)
 	if err != nil {

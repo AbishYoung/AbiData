@@ -30,6 +30,7 @@ import { LogoMark } from "@/components/brand/Logo";
 import { usePalette } from "@/features/palette/commands";
 import { detectPlatform, formatKeys } from "@/lib/shortcuts";
 import { ContextArea, type MenuEntry } from "@/components/ContextArea";
+import { ROLE_DESCRIPTIONS } from "@/features/members/memberLogic";
 
 const VIEW_LABEL = { datasheet: "Datasheet", design: "Design", sql: "SQL", form: "Form", report: "Report" } as const;
 const VIEWS: Record<Tab["kind"], readonly TableView[]> = {
@@ -407,6 +408,11 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
           <h1 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-fg">
             {workspace.data?.name ?? <span className="text-fg-muted">Loading…</span>}
           </h1>
+          {workspace.data && (
+            <Tip label={ROLE_DESCRIPTIONS[workspace.data.role as keyof typeof ROLE_DESCRIPTIONS] ?? `Role: ${workspace.data.role}`}>
+              <span className={`${badge} shrink-0 text-[10px] capitalize`}>{workspace.data.role}</span>
+            </Tip>
+          )}
           <button type="button" className={iconBtn} aria-label="Search commands" onClick={() => usePalette.getState().setOpen(true)}>
             <Search size={18} aria-hidden="true" />
           </button>
@@ -461,7 +467,11 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         <ChevronRight size={14} aria-hidden="true" className="text-fg-subtle" />
         {workspace.data ? <WorkspaceAvatar name={workspace.data.name} /> : <span className="h-7 w-7 rounded-md bg-surface-3" aria-hidden="true" />}
         <h1 className="truncate text-sm font-semibold text-fg">{workspace.data?.name ?? <span className="text-fg-muted">Loading…</span>}</h1>
-        {workspace.data && <span className={`${badge} capitalize`}>Role: {workspace.data.role}</span>}
+        {workspace.data && (
+          <Tip label={ROLE_DESCRIPTIONS[workspace.data.role as keyof typeof ROLE_DESCRIPTIONS] ?? `Role: ${workspace.data.role}`}>
+            <span className={`${badge} capitalize cursor-default`}>Role: {workspace.data.role}</span>
+          </Tip>
+        )}
         <div className="ml-auto flex items-center gap-1.5">
           <PaletteTrigger />
           <HelpButton />

@@ -27,8 +27,17 @@ type WorkspaceInfo struct {
 type MemberDTO struct {
 	UserID      string `json:"user_id"`
 	Email       string `json:"email"`
+	Username    string `json:"username,omitempty"`
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role" enum:"owner,builder,editor,viewer"`
+}
+
+// CandidateMemberDTO is a platform user who can be added to the workspace.
+type CandidateMemberDTO struct {
+	UserID      string `json:"user_id"`
+	Email       string `json:"email"`
+	Username    string `json:"username,omitempty"`
+	DisplayName string `json:"display_name"`
 }
 
 func (s *Server) removeWorkspaceFiles(id ids.WorkspaceID) {
@@ -83,7 +92,45 @@ func (s *Server) registerWorkspace(api huma.API) {
 		}{}
 		out.Body.Items = make([]MemberDTO, 0, len(ms))
 		for _, x := range ms {
-			out.Body.Items = append(out.Body.Items, MemberDTO{UserID: x.UserID, Email: x.Email, DisplayName: x.DisplayName, Role: string(x.Role)})
+			out.Body.Items = append(out.Body.Items, MemberDTO{
+				UserID:      x.UserID,
+				Email:       x.Email,
+				Username:    x.Username,
+				DisplayName: x.DisplayName,
+				Role:        string(x.Role),
+			})
+		}
+		return out, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "listMemberCandidates", Method: http.MethodGet, Path: "/api/v1/w/{ws}/members/candidates", Tags: tags, Metadata: owner,
+		Summary: "List platform users who can be added to the workspace", Errors: []int{401, 403, 404},
+	}, func(ctx context.Context, _ *struct {
+		WS string `path:"ws"`
+	}) (*struct {
+		Body struct {
+			Items []CandidateMemberDTO `json:"items"`
+		}
+	}, error) {
+		m, _ := MembershipFrom(ctx)
+		cs, err := s.deps.Admin.ListCandidateMembers(ctx, m.Workspace.ID)
+		if err != nil {
+			return nil, err
+		}
+		out := &struct {
+			Body struct {
+				Items []CandidateMemberDTO `json:"items"`
+			}
+		}{}
+		out.Body.Items = make([]CandidateMemberDTO, 0, len(cs))
+		for _, x := range cs {
+			out.Body.Items = append(out.Body.Items, CandidateMemberDTO{
+				UserID:      x.UserID,
+				Email:       x.Email,
+				Username:    x.Username,
+				DisplayName: x.DisplayName,
+			})
 		}
 		return out, nil
 	})
@@ -94,16 +141,29 @@ func (s *Server) registerWorkspace(api huma.API) {
 	}, func(ctx context.Context, in *struct {
 		WS   string `path:"ws"`
 		Body struct {
-			Email string `json:"email" maxLength:"254"`
-			Role  string `json:"role" enum:"owner,builder,editor,viewer"`
+			Email    string `json:"email,omitempty" maxLength:"254"`
+			Username string `json:"username,omitempty" maxLength:"64"`
+			UserID   string `json:"user_id,omitempty" maxLength:"32"`
+			Role     string `json:"role" enum:"owner,builder,editor,viewer"`
 		}
 	}) (*struct{ Body MemberDTO }, error) {
 		m, _ := MembershipFrom(ctx)
-		u, err := s.deps.Admin.GetUserByEmail(ctx, in.Body.Email)
+		var u admin.User
+		var err error
+		if in.Body.UserID != "" {
+			u, err = s.deps.Admin.GetUser(ctx, in.Body.UserID)
+		} else if in.Body.Username != "" {
+			u, err = s.deps.Admin.GetUserByUsername(ctx, in.Body.Username)
+		} else {
+			u, err = s.deps.Admin.GetUserByEmail(ctx, in.Body.Email)
+		}
 		if errors.Is(err, admin.ErrNotFound) {
 			return nil, fault.New(fault.BadRequest, "No user has that email. Ask a platform administrator to create the account first.")
 		} else if err != nil {
 			return nil, err
+		}
+		if u.Disabled {
+			return nil, fault.New(fault.BadRequest, "That user account is disabled.")
 		}
 		if _, err := s.deps.Admin.GetRole(ctx, m.Workspace.ID, u.ID); err == nil {
 			return nil, fault.New(fault.DuplicateValue, "That user is already a member.")
@@ -113,7 +173,13 @@ func (s *Server) registerWorkspace(api huma.API) {
 			return nil, mapAdminErr(err)
 		}
 		s.audit(ctx, "member.add", "workspace", string(m.Workspace.ID), map[string]any{"user_id": u.ID, "role": role})
-		return &struct{ Body MemberDTO }{Body: MemberDTO{UserID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Role: string(role)}}, nil
+		return &struct{ Body MemberDTO }{Body: MemberDTO{
+			UserID:      u.ID,
+			Email:       u.Email,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			Role:        string(role),
+		}}, nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -136,7 +202,13 @@ func (s *Server) registerWorkspace(api huma.API) {
 			return nil, mapAdminErr(err)
 		}
 		s.audit(ctx, "member.update", "workspace", string(m.Workspace.ID), map[string]any{"user_id": in.User, "role": role})
-		return &struct{ Body MemberDTO }{Body: MemberDTO{UserID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Role: string(role)}}, nil
+		return &struct{ Body MemberDTO }{Body: MemberDTO{
+			UserID:      u.ID,
+			Email:       u.Email,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			Role:        string(role),
+		}}, nil
 	})
 
 	huma.Register(api, huma.Operation{

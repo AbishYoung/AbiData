@@ -8,8 +8,8 @@ import { Modal, selectClass } from "@/features/queries/Modal";
 import { alertBox, badge, badgeAccent, btn, btnDanger, btnPrimary, input, label } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { apiKeyKeys, listApiKeys, revokeApiKey } from "@/features/apikeys/apiKeysApi";
-import { MEMBER_ROLES, activeKeysCreatedBy, emailError, initials, isDemotion, isLastOwner, roleLabel } from "./memberLogic";
-import { addMember, listMembers, memberKeys, removeMember, updateMemberRole, type Member, type MemberRole } from "./membersApi";
+import { MEMBER_ROLES, ROLE_DESCRIPTIONS, activeKeysCreatedBy, emailError, initials, isDemotion, isLastOwner, roleLabel } from "./memberLogic";
+import { addMember, listCandidates, listMembers, memberKeys, removeMember, updateMemberRole, type Member, type MemberRole } from "./membersApi";
 
 function message(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.message : fallback;
@@ -17,15 +17,26 @@ function message(e: unknown, fallback: string): string {
 
 type Pending = { kind: "remove"; member: Member } | { kind: "role"; member: Member; role: MemberRole };
 
-function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () => void; onAdded: (m: Member) => void }) {
+export function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () => void; onAdded: (m: Member) => void }) {
+  const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("editor");
   const [emailErr, setEmailErr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const candidatesQuery = useQuery({
+    queryKey: memberKeys.candidates(ws),
+    queryFn: () => listCandidates(ws),
+  });
+  const candidates = candidatesQuery.data ?? [];
+
   const add = useMutation({
     meta: { inline: true },
     mutationFn: () => addMember(ws, { email: email.trim(), role }),
-    onSuccess: onAdded,
+    onSuccess: (m) => {
+      void qc.invalidateQueries({ queryKey: memberKeys.candidates(ws) });
+      onAdded(m);
+    },
     onError: (e) => setError(message(e, "The member could not be added.")),
   });
   function submit(e: FormEvent) {
@@ -43,6 +54,45 @@ function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () => void; 
       onClose={() => (add.isPending ? undefined : onClose())}
     >
       <form noValidate aria-label="Add member" onSubmit={submit} className="flex flex-col gap-3">
+        {candidates.length > 0 && (
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-fg-muted">
+              Available platform users ({candidates.length})
+            </span>
+            <div
+              className="flex max-h-36 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-2/50 p-1.5"
+              role="list"
+              aria-label="Available platform users"
+            >
+              {candidates.map((c) => {
+                const selected = email.trim().toLowerCase() === c.email.toLowerCase();
+                return (
+                  <button
+                    key={c.user_id}
+                    type="button"
+                    onClick={() => {
+                      setEmail(c.email);
+                      setEmailErr(null);
+                    }}
+                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-3 ${
+                      selected ? "bg-accent-soft font-medium text-accent" : "text-fg"
+                    }`}
+                    aria-label={`Select ${c.display_name} (${c.email})`}
+                  >
+                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-fg-muted">
+                      {initials(c.display_name, c.email)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="font-medium text-fg">{c.display_name}</span>
+                      {c.username && <span className="ml-1 text-fg-subtle">@{c.username}</span>}
+                      <span className="ml-1.5 text-fg-muted">({c.email})</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div>
           <label htmlFor="member-email" className={label}>
             Email
@@ -76,6 +126,9 @@ function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () => void; 
               </option>
             ))}
           </select>
+          <p className="m-0 mt-1 text-xs text-fg-muted">
+            {ROLE_DESCRIPTIONS[role]}
+          </p>
         </div>
         {error && (
           <div role="alert" className={alertBox}>
