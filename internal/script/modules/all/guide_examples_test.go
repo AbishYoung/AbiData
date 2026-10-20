@@ -35,9 +35,11 @@ import (
 // the Northwind sample workspace.
 
 var (
-	guideLuaBlock = regexp.MustCompile("(?s)```lua\n(.*?)```")
-	guideModRef   = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b`)
-	guideEntryFn  = regexp.MustCompile(`(?m)^function ([A-Za-z_][A-Za-z0-9_]*)\(\)`)
+	guideLuaBlock  = regexp.MustCompile("(?s)```lua\n(.*?)```")
+	guideModRef    = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b`)
+	guideEntryFn   = regexp.MustCompile(`(?m)^function ([A-Za-z_][A-Za-z0-9_]*)\(\)`)
+	guideComment   = regexp.MustCompile(`(?s)--\[\[.*?\]\]|--[^\n]*`)
+	guideStringLit = regexp.MustCompile(`(?s)"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\[\[.*?\]\]`)
 )
 
 // guideNeedsHost lists calls that exist only in form events, reports, or with
@@ -86,7 +88,9 @@ func TestGuideLuaExamples(t *testing.T) {
 
 			// Every module.name the block uses must exist in the Lua API.
 			// Names the block defines itself (local M, function M.f) are not API.
-			for _, ref := range guideModRef.FindAllStringSubmatch(code, -1) {
+			cleanCode := guideComment.ReplaceAllString(code, "")
+			cleanCode = guideStringLit.ReplaceAllString(cleanCode, `""`)
+			for _, ref := range guideModRef.FindAllStringSubmatch(cleanCode, -1) {
 				mod, member := ref[1], ref[2]
 				if mod == "record" { // record fields are the form's fields, not API
 					continue

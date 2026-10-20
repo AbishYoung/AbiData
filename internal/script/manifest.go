@@ -1,6 +1,7 @@
 package script
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -178,6 +179,11 @@ func hostGlobals(r *Run) map[string]lua.LValue {
 		out[d.Doc.Name] = v
 	}
 	return out
+}
+
+// NewTestRun creates a minimal Run for tests and manifest parity checks.
+func NewTestRun(v *VM, kind Context) *Run {
+	return &Run{L: v.L, vm: v, Kind: kind, Ctx: context.Background()}
 }
 
 // CheckParity verifies that every registered module's built value exposes

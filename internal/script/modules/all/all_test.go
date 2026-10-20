@@ -209,7 +209,7 @@ func TestParity(t *testing.T) {
 	want := map[string][]string{}
 	for _, d := range script.Manifest() {
 		switch d.Name {
-		case "decimal", "datetime", "json", "csv", "log":
+		case "decimal", "datetime", "json", "csv", "log", "url", "crypto", "data", "stats":
 		default:
 			continue
 		}
@@ -221,7 +221,7 @@ func TestParity(t *testing.T) {
 		}
 		sort.Strings(want[d.Name])
 	}
-	if len(want) != 5 {
+	if len(want) != 9 {
 		t.Fatalf("modules missing from manifest: %v", want)
 	}
 	for mod, names := range want {
@@ -245,5 +245,14 @@ func TestParity(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestCheckParityAll(t *testing.T) {
+	v := script.NewVM()
+	defer v.Close()
+	r := script.NewTestRun(v, script.UIEvent)
+	if problems := script.CheckParity(r); len(problems) > 0 {
+		t.Fatalf("manifest <-> registry mismatch:\n%v", problems)
 	}
 }

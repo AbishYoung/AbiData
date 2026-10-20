@@ -213,10 +213,30 @@ func (s *Store) ListMembers(ctx context.Context, ws ids.WorkspaceID) ([]Member, 
 		for rows.Next() {
 			var m Member
 			var role string
-			if err := rows.Scan(&m.UserID, &m.Email, &m.DisplayName, &role); err != nil {
+			if err := rows.Scan(&m.UserID, &m.Email, &m.Username, &m.DisplayName, &role); err != nil {
 				return err
 			}
 			m.Role = Role(role)
+			out = append(out, m)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
+func (s *Store) ListCandidateMembers(ctx context.Context, ws ids.WorkspaceID) ([]CandidateMember, error) {
+	var out []CandidateMember
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		rows, err := c.Query(ctx, sqlListCandidateMembers.SQL, string(ws))
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var m CandidateMember
+			if err := rows.Scan(&m.UserID, &m.Email, &m.Username, &m.DisplayName); err != nil {
+				return err
+			}
 			out = append(out, m)
 		}
 		return rows.Err()

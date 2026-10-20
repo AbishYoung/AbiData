@@ -4,7 +4,7 @@
 //
 // Every Playwright worker gets its own pair of servers (ADR 0016), so spec files that run at
 // the same time never share an install: worker i uses port BASE + 2i for an empty install and
-// BASE + 2i + 1 for one with the Northwind Traders and Northwind Invasives sample workspaces
+// BASE + 2i + 1 for one with the Northwind Traders and Biosecurity Watch sample workspaces
 // (created by `abidata demo`; only the sample-workspace specs use it). E2E_INSTANCES is the
 // number of pairs (playwright.config.ts sets it to the worker count). "e2e servers ready" on
 // stdout tells Playwright that all of them answer. Server logs go to .servers/<port>.log.

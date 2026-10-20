@@ -100,9 +100,13 @@ var (
 	sqlSetMembership = sqlgen.Register("admin.SetMembership", `INSERT INTO _adm_memberships (workspace_id, user_id, role) VALUES (?,?,?)
 			ON CONFLICT(workspace_id, user_id) DO UPDATE SET role = excluded.role`)
 	// email's column collation (NOCASE, abi_ci on PostgreSQL) orders it.
-	sqlListMembers = sqlgen.Register("admin.ListMembers", `SELECT u.id, u.email, u.display_name, m.role FROM _adm_memberships m
+	sqlListMembers = sqlgen.Register("admin.ListMembers", `SELECT u.id, u.email, COALESCE(u.username, ''), u.display_name, m.role FROM _adm_memberships m
 			JOIN _adm_users u ON u.id = m.user_id WHERE m.workspace_id = ?
 			ORDER BY u.email, u.id`)
+	sqlListCandidateMembers = sqlgen.Register("admin.ListCandidateMembers", `SELECT u.id, u.email, COALESCE(u.username, ''), u.display_name FROM _adm_users u
+			WHERE u.disabled = 0
+			  AND NOT EXISTS (SELECT 1 FROM _adm_memberships m WHERE m.workspace_id = ? AND m.user_id = u.id)
+			ORDER BY u.display_name, u.email, u.id`)
 	// Blog moderation (ADR 0017).
 	sqlTakeDown = sqlgen.Register("admin.TakeDown", `INSERT INTO _adm_blog_takedowns (id, blog_id, post_slug, reason_code, note, taken_down_by, taken_down_at)
 			VALUES (?,?,?,?,?,?,?)`)

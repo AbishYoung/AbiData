@@ -370,6 +370,18 @@ func TestWorkspacesAndMemberships(t *testing.T) {
 		t.Fatalf("members = %+v, %v", members, err)
 	}
 
+	// Candidates for zeta (users not yet in zeta).
+	cands, err := s.ListCandidateMembers(ctx, zeta.ID)
+	if err != nil {
+		t.Fatalf("candidates: %v", err)
+	}
+	// u1 and u2 are in zeta, so candidates must not contain u1 or u2.
+	for _, c := range cands {
+		if c.UserID == "u1" || c.UserID == "u2" {
+			t.Fatalf("unexpected member in candidates: %+v", c)
+		}
+	}
+
 	// Per-user list.
 	acc, err := s.ListWorkspacesForUser(ctx, "u2")
 	if err != nil || len(acc) != 1 || acc[0].Workspace.ID != zeta.ID || acc[0].Role != RoleEditor {

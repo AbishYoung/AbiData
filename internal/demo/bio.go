@@ -20,8 +20,8 @@ import (
 	"abidata/internal/workspace"
 )
 
-// The biosecurity part of the sample workspace: Northwind's supplier farms run
-// an invasive species programme. It shows geographic fields (ADR 0010: points,
+// The biosecurity sample workspace: a regional invasive species monitoring
+// programme across orchards and farms. It shows geographic fields (ADR 0010: points,
 // areas with a hole, the spatial join, geo_* SQL functions, map controls and
 // overlays) and file attachments (ADR 0011: photos stored in the workspace
 // bucket, the attachments control and the report image control).
@@ -77,9 +77,9 @@ func (k *bioKit) run() error {
 
 func (k *bioKit) tables() (bioTables, error) {
 	sch, err := k.apply(
-		create("Suppliers", "The farms and growers that supply Northwind. Their Location is a map point used by the biosecurity forms and reports.",
+		create("Suppliers", "The participating farms, orchards and growers. Their Location is a map point used by the biosecurity forms and reports.",
 			required(text("Name")), text("Contact"), text("City"), text("Country"), typed("Location", catalog.GeoPoint)),
-		create("Species", "Invasive species that Northwind's supplier farms watch for.",
+		create("Species", "Invasive species that regional farms and orchards watch for.",
 			required(text("Name")), text("Scientific name"), text("Category"), text("Risk level"), typed("Notes", catalog.LongText)),
 	)
 	if err != nil {
@@ -90,7 +90,7 @@ func (k *bioKit) tables() (bioTables, error) {
 		DefaultSQL: `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`}
 	photos := catalog.ColumnSpec{DisplayName: "Photos", Type: catalog.Attachments, Options: catalog.TypeOptions{MaxFiles: 10}}
 	sch, err = k.apply(
-		create("Pest sightings", "Field reports of invasive species on supplier farms: where and when, how many, and photos. Record new ones with the Record a sighting form.",
+		create("Pest sightings", "Field reports of invasive species across participating farms: where and when, how many, and photos. Record new ones with the Record a sighting form.",
 			required(lookup("Species", spc, "Name")), observed, typed("Location", catalog.GeoPoint), typed("GPS accuracy (m)", catalog.Number),
 			typed("Count / abundance", catalog.Integer), text("Status"), lookup("Supplier", sup, "Name"), photos, typed("Notes", catalog.LongText)),
 		create("Quarantine zones", "Areas where movement is restricted because of an infestation. Draw the boundary on the map in the Quarantine zone form.",
@@ -466,7 +466,7 @@ func sightingsReport(t bioTables, qs bioQueries) reports.ReportInput {
 		Bands: reports.Bands{
 			ReportHeader: reports.Band{Height: 56, Controls: []reports.ReportControl{
 				{ID: "title", Name: "Title", Type: "label", W: 480, H: 30, Caption: "Biosecurity sightings", Style: map[string]string{"bold": "true", "font_size": "20"}},
-				{ID: "sub", Name: "Subtitle", Type: "label", Y: 32, W: 560, H: 20, Caption: "Invasive species seen on supplier farms, with zones and photos."}}},
+				{ID: "sub", Name: "Subtitle", Type: "label", Y: 32, W: 560, H: 20, Caption: "Invasive species seen across participating farms, with zones and photos."}}},
 			Detail: reports.Band{Height: 190, KeepTogether: true, Controls: []reports.ReportControl{
 				caption("c1", "CObserved", 4, "Observed"), value("d1", "ObservedAt", 64, 4, 162, 20, "Observed at"),
 				caption("c2", "CSupplier", 28, "Supplier"), value("d2", "SupplierName", 64, 28, 162, 20, "Supplier"),

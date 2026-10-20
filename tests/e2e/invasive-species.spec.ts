@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { expectNoAxeViolations, signIn } from "./helpers";
 import { nav, workspaceId } from "./tabledesign-helpers";
 
-// The Northwind Invasives sample workspace's biosecurity scenario (invasive species): geographic
+// The Biosecurity Watch sample workspace's biosecurity scenario (invasive species): geographic
 // fields (ADR 0010) and file attachments (ADR 0011) in the seeded forms, queries and report.
 // The sample workspace comes from the second server that playwright.config.ts starts
 // (E2E_WITH_DEMO, see server.mjs); the other specs run against an empty install.
@@ -12,7 +12,7 @@ test.use({ baseURL: process.env.E2E_DEMO_BASE_URL });
 
 async function openInvasives(page: Page): Promise<void> {
   await signIn(page);
-  await page.getByRole("link", { name: /Northwind Invasives/ }).click();
+  await page.getByRole("link", { name: /Biosecurity Watch/ }).click();
   await expect(page).toHaveURL(/\/w\//);
   // On a phone the navigation pane is a drawer behind a button.
   const drawer = page.getByRole("button", { name: "Open navigation" });

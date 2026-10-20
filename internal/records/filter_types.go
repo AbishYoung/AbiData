@@ -27,6 +27,7 @@ const (
 	OpStarts   FilterOp = "starts"
 	OpEnds     FilterOp = "ends"
 	OpIn       FilterOp = "in"
+	OpNotIn    FilterOp = "not_in"
 	OpBetween  FilterOp = "between"
 	OpIsNull   FilterOp = "is_null"
 	OpNotNull  FilterOp = "not_null"

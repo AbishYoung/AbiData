@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, FolderPlus, Layers, Plus, Search } from "lucide-react";
+import { ArrowRight, ExternalLink, FolderPlus, Globe, Layers, Plus, Search, UserPlus } from "lucide-react";
+import { DropdownMenu } from "radix-ui";
 import { api } from "@/lib/api";
 import { ME_KEY, useMe, type Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
@@ -9,6 +10,8 @@ import { MessagesHeaderLink } from "@/features/messages/MessagesHeaderLink";
 import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
+import { AddDialog } from "@/features/members/MembersPanel";
+import { roleAccessSummary } from "@/features/members/memberLogic";
 import {
   badge,
   badgeAccent,
@@ -17,6 +20,8 @@ import {
   card,
   input,
   label,
+  menu,
+  menuItem,
   pageTitle,
   sectionTitle,
 } from "@/components/styles";
@@ -119,15 +124,28 @@ function EmptyState({ admin }: { admin: boolean }) {
 }
 
 export function PickerPage({ me: initial }: { me: Me }) {
+  const queryClient = useQueryClient();
   // The live query reflects refetches (e.g. after creating a workspace); the route's copy is the fallback.
   const live = useMe();
   const me = live.data ?? initial;
   const memberships = me.memberships ?? [];
   const [filter, setFilter] = useState("");
+  const [tab, setTab] = useState<"all" | "shared" | "owned">("all");
+  const [addMemberWs, setAddMemberWs] = useState<string | null>(null);
+
+  const allCount = memberships.length;
+  const sharedCount = memberships.filter((m) => m.role !== "owner" && m.system_kind !== "blog").length;
+  const ownedCount = memberships.filter((m) => m.role === "owner" && m.system_kind !== "blog").length;
+
   const q = filter.trim().toLowerCase();
+  const tabFiltered = memberships.filter((m) => {
+    if (tab === "shared") return m.role !== "owner" && m.system_kind !== "blog";
+    if (tab === "owned") return m.role === "owner" && m.system_kind !== "blog";
+    return true;
+  });
   const shown = q
-    ? memberships.filter((m) => m.workspace_name.toLowerCase().includes(q))
-    : memberships;
+    ? tabFiltered.filter((m) => m.workspace_name.toLowerCase().includes(q))
+    : tabFiltered;
   const admin = Boolean(me.user.is_platform_admin);
 
   return (
@@ -168,28 +186,150 @@ export function PickerPage({ me: initial }: { me: Me }) {
           )}
         </div>
 
+        {(memberships.length > 1 || sharedCount > 0) && (
+          <div role="tablist" aria-label="Filter workspaces by ownership" className="mt-4 inline-flex gap-0.5 rounded-lg bg-surface-3 p-0.5">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "all"}
+              onClick={() => setTab("all")}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                tab === "all" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+              }`}
+            >
+              All
+              <span className="rounded-full bg-surface-2 px-1.5 py-0.2 text-[10px] text-fg-muted">
+                {allCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "shared"}
+              onClick={() => setTab("shared")}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                tab === "shared" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+              }`}
+            >
+              Shared with you
+              <span className="rounded-full bg-surface-2 px-1.5 py-0.2 text-[10px] text-fg-muted">
+                {sharedCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "owned"}
+              onClick={() => setTab("owned")}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                tab === "owned" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+              }`}
+            >
+              Owned by you
+              <span className="rounded-full bg-surface-2 px-1.5 py-0.2 text-[10px] text-fg-muted">
+                {ownedCount}
+              </span>
+            </button>
+          </div>
+        )}
+
         {memberships.length === 0 ? (
           <div className="mt-6">
             <EmptyState admin={admin} />
           </div>
         ) : shown.length === 0 ? (
           <p role="status" className="mt-8 text-center text-sm text-fg-muted">
-            No workspaces match “{filter.trim()}”.
+            {filter.trim() ? `No workspaces match “${filter.trim()}”.` : "No workspaces in this category."}
           </p>
         ) : (
           <ul className="mt-6 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map((m) => (
               <li key={m.workspace_id} className="relative">
-                {m.system_kind === "blog" && (
-                  // The blog opens in the blog UI; the generic shell stays one link away (ADR 0017).
-                  <Link
-                    to="/w/$ws"
-                    params={{ ws: m.workspace_id }}
-                    className="absolute right-3 top-3 z-10 rounded px-1.5 py-0.5 text-xs font-medium text-fg-muted underline hover:text-fg"
-                  >
-                    Open as workspace
-                  </Link>
-                )}
+                <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
+                  {m.system_kind === "blog" ? (
+                    // The blog opens in the blog UI; the generic shell stays one link away (ADR 0017).
+                    <Link
+                      to="/w/$ws"
+                      params={{ ws: m.workspace_id }}
+                      className="rounded px-1.5 py-0.5 text-xs font-medium text-fg-muted underline hover:text-fg"
+                    >
+                      Open as workspace
+                    </Link>
+                  ) : (
+                    <>
+                      {m.role === "owner" && (
+                        <Tip label={`Add member to ${m.workspace_name}`}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setAddMemberWs(m.workspace_id);
+                            }}
+                            aria-label={`Add member to ${m.workspace_name}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-fg-muted shadow-xs transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent focus-visible:outline-focus"
+                          >
+                            <UserPlus size={14} aria-hidden="true" />
+                          </button>
+                        </Tip>
+                      )}
+                      {m.published_apps && m.published_apps.length === 1 && m.published_apps[0] && (
+                        <Tip label={`Open published app: ${m.published_apps[0].name}`}>
+                          <a
+                            href={m.published_apps[0].path}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Open published app ${m.published_apps[0].name}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-fg-muted shadow-xs transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent focus-visible:outline-focus"
+                          >
+                            <Globe size={14} aria-hidden="true" />
+                          </a>
+                        </Tip>
+                      )}
+                      {m.published_apps && m.published_apps.length > 1 && (
+                        <DropdownMenu.Root>
+                          <Tip label={`Published apps (${m.published_apps.length})`}>
+                            <DropdownMenu.Trigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                                aria-label={`Published apps for ${m.workspace_name}`}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-fg-muted shadow-xs transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent focus-visible:outline-focus"
+                              >
+                                <Globe size={14} aria-hidden="true" />
+                              </button>
+                            </DropdownMenu.Trigger>
+                          </Tip>
+                          <DropdownMenu.Portal>
+                            <DropdownMenu.Content
+                              align="end"
+                              sideOffset={4}
+                              className={`${menu} z-50 min-w-48`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+                                Published apps
+                              </div>
+                              {m.published_apps.map((app) => (
+                                <DropdownMenu.Item key={app.id} asChild>
+                                  <a
+                                    href={app.path}
+                                    className={`${menuItem} flex items-center justify-between gap-2`}
+                                  >
+                                    <span className="truncate">{app.name}</span>
+                                    <ExternalLink size={12} className="shrink-0 text-fg-muted" aria-hidden="true" />
+                                  </a>
+                                </DropdownMenu.Item>
+                              ))}
+                            </DropdownMenu.Content>
+                          </DropdownMenu.Portal>
+                        </DropdownMenu.Root>
+                      )}
+                    </>
+                  )}
+                </div>
                 <Link
                   to={m.system_kind === "blog" ? "/w/$ws/blog" : "/w/$ws"}
                   params={{ ws: m.workspace_id }}
@@ -197,8 +337,13 @@ export function PickerPage({ me: initial }: { me: Me }) {
                 >
                   <span className="flex items-center gap-3">
                     <WorkspaceAvatar name={m.workspace_name} size="xl" />
-                    <span className={`min-w-0 flex-1 truncate text-base font-semibold text-fg ${m.system_kind === "blog" ? "pr-28" : ""}`}>
-                      {m.workspace_name}
+                    <span className="min-w-0 flex-1 pr-16">
+                      <span className="block truncate text-base font-semibold text-fg">
+                        {m.workspace_name}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-fg-muted">
+                        {m.system_kind === "blog" ? "Personal blog workspace" : roleAccessSummary(m.role)}
+                      </span>
                     </span>
                   </span>
                   <span className="mt-auto flex flex-wrap items-center gap-2">
@@ -208,7 +353,9 @@ export function PickerPage({ me: initial }: { me: Me }) {
                       </Tip>
                     ) : (
                       <Tip label={ROLE_HELP[m.role] ?? m.role}>
-                        <span className={badgeAccent}>Role: {m.role}</span>
+                        <span className={m.role === "owner" ? badge : badgeAccent}>
+                          Role: {m.role}
+                        </span>
                       </Tip>
                     )}
                     {m.status !== "active" && (
@@ -225,6 +372,16 @@ export function PickerPage({ me: initial }: { me: Me }) {
           </ul>
         )}
         {admin && <NewWorkspaceForm />}
+        {addMemberWs && (
+          <AddDialog
+            ws={addMemberWs}
+            onClose={() => setAddMemberWs(null)}
+            onAdded={async () => {
+              setAddMemberWs(null);
+              await queryClient.invalidateQueries({ queryKey: ME_KEY });
+            }}
+          />
+        )}
       </main>
     </div>
   );

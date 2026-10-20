@@ -4,10 +4,12 @@ package ui
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 
+	"abidata/internal/catalog"
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	recmod "abidata/internal/script/modules/records"
@@ -91,6 +93,9 @@ var recordDoc = script.ModuleDoc{
 	Funcs: []script.FuncDoc{
 		{Name: "get", Signature: "record.get(field) → value", Doc: "Reads a field (db.NULL when empty).", Example: `local q = record.get("Qty")`},
 		{Name: "set", Signature: "record.set(field, value)", Doc: "Assigns a field.", Example: `record.set("Status", "Approved")`},
+		{Name: "changed_fields", Signature: "record.changed_fields() → fields", Doc: "Returns a list of fields assigned during this event.", Example: `local fields = record.changed_fields()`},
+		{Name: "reset", Signature: "record.reset(field?)", Doc: "Discards changes to a field or the entire record buffer.", Example: `record.reset("Status")`},
+		{Name: "to_table", Signature: "record.to_table() → table", Doc: "Returns a snapshot of all current record values as a plain Lua table.", Example: `local snapshot = record.to_table()`},
 	},
 	Values: []script.ValueDoc{
 		{Name: "id", Type: "number|nil", Doc: "Row id (nil for a new record)."},
@@ -153,6 +158,46 @@ func buildRecord(r *script.Run) lua.LValue {
 	}
 	getFn := L.NewFunction(func(L *lua.LState) int { L.Push(read(L, L.CheckString(1))); return 1 })
 	setFn := L.NewFunction(func(L *lua.LState) int { write(L, L.CheckString(1), L.Get(2)); return 0 })
+	changedFieldsFn := L.NewFunction(func(L *lua.LState) int {
+		s := session(r, L)
+		out := L.NewTable()
+		var keys []string
+		for k := range s.Changed {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			out.Append(lua.LString(k))
+		}
+		L.Push(out)
+		return 1
+	})
+	resetFn := L.NewFunction(func(L *lua.LState) int {
+		s := session(r, L)
+		if L.GetTop() >= 1 && L.Get(1) != lua.LNil {
+			fieldName := L.CheckString(1)
+			delete(s.Changed, fieldName)
+			delete(s.Dirty, fieldName)
+		} else {
+			s.Changed = map[string]any{}
+			s.Dirty = map[string]bool{}
+		}
+		return 0
+	})
+	toTableFn := L.NewFunction(func(L *lua.LState) int {
+		s := session(r, L)
+		out := L.NewTable()
+		if s.Table != nil {
+			for _, c := range s.Table.Columns {
+				if c.Type == catalog.Autonumber {
+					continue
+				}
+				out.RawSetString(c.PhysicalName, recmod.ValueToLua(r, c, s.Record[c.PhysicalName]))
+			}
+		}
+		L.Push(out)
+		return 1
+	})
 	mt.RawSetString("__index", L.NewFunction(func(L *lua.LState) int {
 		key := L.CheckString(2)
 		switch key {
@@ -160,6 +205,12 @@ func buildRecord(r *script.Run) lua.LValue {
 			L.Push(getFn)
 		case "set":
 			L.Push(setFn)
+		case "changed_fields":
+			L.Push(changedFieldsFn)
+		case "reset":
+			L.Push(resetFn)
+		case "to_table":
+			L.Push(toTableFn)
 		default:
 			L.Push(read(L, key))
 		}
@@ -179,6 +230,7 @@ func buildRecord(r *script.Run) lua.LValue {
 var settableProps = map[string]string{
 	"visible": "boolean", "enabled": "boolean", "locked": "boolean", "caption": "string",
 	"required": "boolean", "tooltip": "string", "value": "any", "tone": "string",
+	"error": "string",
 }
 
 var uiDoc = script.ModuleDoc{
@@ -186,15 +238,28 @@ var uiDoc = script.ModuleDoc{
 	Doc: "Change the form: control properties, focus, navigation and confirmations.",
 	Funcs: []script.FuncDoc{
 		{Name: "control", Signature: "ui.control(name) → props", Doc: "A snapshot of a control's properties (visible, enabled, locked, caption, value…).", Example: `if ui.control("Approve").visible then … end`},
-		{Name: "set", Signature: "ui.set(name, props)", Doc: "Changes control properties: visible, enabled, locked, required (booleans), caption, tooltip (text), tone (\"default\"|\"warning\"|\"danger\"|\"success\"), value (unbound controls).", Example: `ui.set("Approve", {visible = record.Total > 5000})`},
+		{Name: "set", Signature: "ui.set(name, props)", Doc: "Changes control properties: visible, enabled, locked, required (booleans), caption, tooltip, error (text), tone (\"default\"|\"warning\"|\"danger\"|\"success\"), value (unbound controls).", Example: `ui.set("Approve", {visible = record.Total > 5000})`},
 		{Name: "focus", Signature: "ui.focus(name)", Doc: "Moves focus to a control.", Example: `ui.focus("Qty")`},
 		{Name: "goto_record", Signature: `ui.goto_record(target)`, Doc: `Moves to a record: an id, or "next", "prev", "first", "last", "new".`, Example: `ui.goto_record("new")`},
 		{Name: "open_form", Signature: "ui.open_form(name, {where?, args?})", Doc: "Opens another form, optionally filtered with a filter-model table and passing args.", Example: `ui.open_form("Customer", {args = {id = record.Customer}})`},
 		{Name: "open_report", Signature: "ui.open_report(name, {params?})", Doc: "Opens a report.", Example: `ui.open_report("Invoice", {params = {order_id = record.id}})`},
+		{Name: "open_url", Signature: "ui.open_url(url, target?)", Doc: "Opens an external URL in the browser.", Example: `ui.open_url("https://example.com/docs", "_blank")`},
 		{Name: "close", Signature: "ui.close()", Doc: "Closes the form.", Example: `ui.close()`},
 		{Name: "requery", Signature: "ui.requery(control?)", Doc: "Reloads the form's records, or one subform/combo box.", Example: `ui.requery("Lines")`},
+		{Name: "refresh", Signature: "ui.refresh()", Doc: "Alias for ui.requery(); reloads the form's record source.", Example: `ui.refresh()`},
 		{Name: "cancel", Signature: "ui.cancel(message)", Doc: "Cancels the pending action (save, insert, delete) in before_* events and shows message.", Example: `ui.cancel("Orders over 5,000 need an approver.")`},
 		{Name: "confirm", Signature: "ui.confirm(message, continuation)", Doc: "Asks the user to confirm. When answered, the form calls the handler function named continuation with event.answer set.", Example: `ui.confirm("Delete all lines?", "on_delete_lines")`},
+		{Name: "set_error", Signature: "ui.set_error(control, message)", Doc: "Sets an inline validation error message on a control.", Example: `ui.set_error("Email", "Invalid email address format.")`},
+		{Name: "clear_error", Signature: "ui.clear_error(control)", Doc: "Clears any inline validation error on a control.", Example: `ui.clear_error("Email")`},
+		{Name: "clear_errors", Signature: "ui.clear_errors()", Doc: "Clears inline validation errors from all controls on the form.", Example: `ui.clear_errors()`},
+		{Name: "set_visible", Signature: "ui.set_visible(control, visible)", Doc: "Shows or hides a control.", Example: `ui.set_visible("ShippingAddress", record.NeedsDelivery)`},
+		{Name: "set_enabled", Signature: "ui.set_enabled(control, enabled)", Doc: "Enables or disables a control.", Example: `ui.set_enabled("SubmitBtn", record.is_dirty)`},
+		{Name: "set_read_only", Signature: "ui.set_read_only(control, read_only)", Doc: "Locks or unlocks a control for editing.", Example: `ui.set_read_only("UnitPrice", not user.is_admin)`},
+		{Name: "set_locked", Signature: "ui.set_locked(control, locked)", Doc: "Locks or unlocks a control (alias for set_read_only).", Example: `ui.set_locked("Qty", true)`},
+		{Name: "set_required", Signature: "ui.set_required(control, required)", Doc: "Marks a control as required or optional.", Example: `ui.set_required("Reason", record.Status == "Rejected")`},
+		{Name: "set_label", Signature: "ui.set_label(control, text)", Doc: "Sets the caption or label text of a control.", Example: `ui.set_label("SaveBtn", "Update Record")`},
+		{Name: "set_caption", Signature: "ui.set_caption(control, text)", Doc: "Sets the caption text of a control (alias for set_label).", Example: `ui.set_caption("Title", "Edit Mode")`},
+		{Name: "set_value", Signature: "ui.set_value(control, value)", Doc: "Sets the value of an unbound control.", Example: `ui.set_value("SearchBox", "")`},
 	},
 }
 
@@ -313,6 +378,75 @@ func buildUI(r *script.Run) lua.LValue {
 			L.ArgError(2, "continuation must be the name of a handler function")
 		}
 		s.Confirm = &host.Confirm{Message: msg, Continuation: cont}
+		return 0
+	})
+	fn("open_url", func(L *lua.LState) int {
+		s := session(r, L)
+		urlStr := L.CheckString(1)
+		target := L.OptString(2, "_blank")
+		s.Navigate = map[string]any{"url": urlStr, "target": target}
+		return 0
+	})
+	fn("refresh", func(L *lua.LState) int {
+		s := session(r, L)
+		s.Requery = append(s.Requery, "*")
+		return 0
+	})
+	fn("set_error", func(L *lua.LState) int {
+		s := session(r, L)
+		name := controlName(L, s)
+		s.Patch(name, map[string]any{"error": L.CheckString(2)})
+		return 0
+	})
+	fn("clear_error", func(L *lua.LState) int {
+		s := session(r, L)
+		name := controlName(L, s)
+		s.Patch(name, map[string]any{"error": ""})
+		return 0
+	})
+	fn("clear_errors", func(L *lua.LState) int {
+		s := session(r, L)
+		for name := range s.Controls {
+			s.Patch(name, map[string]any{"error": ""})
+		}
+		return 0
+	})
+	fn("set_visible", func(L *lua.LState) int {
+		s := session(r, L)
+		s.Patch(controlName(L, s), map[string]any{"visible": L.CheckBool(2)})
+		return 0
+	})
+	fn("set_enabled", func(L *lua.LState) int {
+		s := session(r, L)
+		s.Patch(controlName(L, s), map[string]any{"enabled": L.CheckBool(2)})
+		return 0
+	})
+	setLocked := func(L *lua.LState) int {
+		s := session(r, L)
+		s.Patch(controlName(L, s), map[string]any{"locked": L.CheckBool(2)})
+		return 0
+	}
+	fn("set_read_only", setLocked)
+	fn("set_locked", setLocked)
+	fn("set_required", func(L *lua.LState) int {
+		s := session(r, L)
+		s.Patch(controlName(L, s), map[string]any{"required": L.CheckBool(2)})
+		return 0
+	})
+	setCaption := func(L *lua.LState) int {
+		s := session(r, L)
+		s.Patch(controlName(L, s), map[string]any{"caption": L.CheckString(2)})
+		return 0
+	}
+	fn("set_caption", setCaption)
+	fn("set_label", setCaption)
+	fn("set_value", func(L *lua.LState) int {
+		s := session(r, L)
+		v := script.FromLua(r, L.Get(2))
+		if _, null := v.(script.Null); null {
+			v = nil
+		}
+		s.Patch(controlName(L, s), map[string]any{"value": v})
 		return 0
 	})
 	return t

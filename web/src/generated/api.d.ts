@@ -185,7 +185,7 @@ export interface paths {
         put?: never;
         /**
          * Give every active user their own copy of a demo workspace
-         * @description Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.
+         * @description Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Biosecurity Watch), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.
          */
         post: operations["adminProvisionDemos"];
         delete?: never;
@@ -1528,6 +1528,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/w/{ws}/members/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List platform users who can be added to the workspace */
+        get: operations["listMemberCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/w/{ws}/members/{user}": {
         parameters: {
             query?: never;
@@ -2094,9 +2111,11 @@ export interface components {
             sql?: string;
         };
         AddMemberRequest: {
-            email: string;
+            email?: string;
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
+            user_id?: string;
+            username?: string;
         };
         AdminBlog: {
             /** Format: int64 */
@@ -2198,7 +2217,7 @@ export interface components {
         };
         AdminProvisionDemosRequest: {
             /**
-             * @description Which sample: traders (Northwind Traders) or invasives (Northwind Invasives).
+             * @description Which sample: traders (Northwind Traders) or invasives (Biosecurity Watch).
              * @enum {string}
              */
             kind: "traders" | "invasives";
@@ -2457,6 +2476,12 @@ export interface components {
         };
         CancelInfo: {
             message: string;
+        };
+        CandidateMemberDTO: {
+            display_name: string;
+            email: string;
+            user_id: string;
+            username?: string;
         };
         ChangePasswordRequest: {
             current_password: string;
@@ -3013,6 +3038,9 @@ export interface components {
             items: components["schemas"]["Run"][] | null;
             next_cursor?: string;
         };
+        ListMemberCandidatesResponse: {
+            items: components["schemas"]["CandidateMemberDTO"][] | null;
+        };
         ListMembersResponse: {
             items: components["schemas"]["MemberDTO"][] | null;
         };
@@ -3105,8 +3133,10 @@ export interface components {
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
             user_id: string;
+            username?: string;
         };
         MembershipDTO: {
+            published_apps?: components["schemas"]["PublishedAppSummaryDTO"][] | null;
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
             status: string;
@@ -3578,6 +3608,12 @@ export interface components {
             cancel?: components["schemas"]["CancelInfo"];
             notifications: components["schemas"]["PublicNotice"][] | null;
             submitted: boolean;
+        };
+        PublishedAppSummaryDTO: {
+            id: string;
+            link: string;
+            name: string;
+            path: string;
         };
         Quota: {
             /** Format: int64 */
@@ -12184,6 +12220,73 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listMemberCandidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ws: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListMemberCandidatesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

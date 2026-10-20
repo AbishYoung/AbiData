@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeKeysCreatedBy, emailError, initials, isDemotion, isLastOwner } from "./memberLogic";
+import { activeKeysCreatedBy, emailError, initials, isDemotion, isLastOwner, roleAccessSummary, ROLE_DESCRIPTIONS } from "./memberLogic";
 import type { ApiKey } from "@/features/apikeys/apiKeysApi";
 import type { Member } from "./membersApi";
 
@@ -28,5 +28,12 @@ describe("memberLogic", () => {
     expect(emailError("")).not.toBeNull();
     expect(emailError("nope")).not.toBeNull();
     expect(emailError("a@b.co")).toBeNull();
+  });
+  it("provides role access summaries and descriptions", () => {
+    expect(roleAccessSummary("owner")).toBe("Owner · Full control of members & settings");
+    expect(roleAccessSummary("builder")).toBe("Added as Builder · Design tables, queries, forms & reports");
+    expect(roleAccessSummary("editor")).toBe("Added as Editor · Add and edit data");
+    expect(roleAccessSummary("viewer")).toBe("Added as Viewer · Read-only access");
+    expect(ROLE_DESCRIPTIONS.owner).toContain("Full control");
   });
 });

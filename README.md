@@ -13,7 +13,7 @@ AbiData is a self-hosted database application platform for teams, in the spirit 
 AbiData comes with two separate sample workspaces, and every screenshot below comes from them:
 
 - **Northwind Traders**: employees, customers, products, orders, saved queries, a form, a report and a scheduled job.
-- **Northwind Invasives**: supplier farms, invasive species sightings with GPS positions and photos, quarantine zones drawn as fences on a map, spatial queries and a report with maps.
+- **Biosecurity Watch**: participating farms, invasive species sightings with GPS positions and photos, quarantine zones drawn as fences on a map, spatial queries and a report with maps.
 
 Both are created for the first administrator when setup finishes. Later, an administrator can give every user a copy of either sample from the admin console's **Workspaces** tab, or add one for a single user with `abidata demo --owner you@example.com --kind traders` (or `--kind invasives`) while the server is stopped. See [Install](docs/content/operations/install.md).
 
@@ -187,7 +187,7 @@ docker compose logs abidata | grep setup_token
 # for the development stack: docker compose -p abidata-dev -f compose.yaml -f compose.dev.yaml logs abidata | grep setup_token
 ```
 
-Open the site, paste the token, choose a display name and a password of at least 10 characters. The account uses the configured email. When setup finishes, AbiData also creates the **Northwind Traders** and **Northwind Invasives** sample workspaces and makes you their owner. Set `ABIDATA_DEMO_WORKSPACE=false` before the first start to skip it.
+Open the site, paste the token, choose a display name and a password of at least 10 characters. The account uses the configured email. When setup finishes, AbiData also creates the **Northwind Traders** and **Biosecurity Watch** sample workspaces and makes you their owner. Set `ABIDATA_DEMO_WORKSPACE=false` before the first start to skip it.
 
 Details, including the volumes, proxy settings and the command-line alternative for creating the first administrator, are in [Install](docs/content/operations/install.md). Every setting is in [Configuration](docs/content/operations/configuration.md).
 

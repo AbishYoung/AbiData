@@ -101,3 +101,104 @@ func TestBuilderWrites(t *testing.T) {
 		t.Fatal("report deleted")
 	}
 }
+
+func TestFluentQueryBuilder(t *testing.T) {
+	f := setup(t)
+	vals, err := f.run(t, script.Job, `
+		for i, n in ipairs({"apple", "Banana", "cherry", "date"}) do
+			records.insert("Items", {Name = n, Qty = i, Note = (i % 2 == 0) and "even" or db.NULL})
+		end
+
+		-- where with operator & order
+		local q1 = db.from("Items"):where("Qty", ">", 1):where("Qty", "<=", 3):order("Name"):all()
+		-- first
+		local first_row = db.from("Items"):where("Name", "cherry"):first()
+		-- count & exists
+		local cnt = db.from("Items"):where("Qty", ">=", 2):count()
+		local ex1 = db.from("Items"):where("Name", "apple"):exists()
+		local ex2 = db.from("Items"):where("Name", "mango"):exists()
+		-- where_in & where_not_in
+		local in_rows = db.from("Items"):where_in("Name", {"apple", "date"}):order("id"):pluck("Name")
+		local not_in_cnt = db.from("Items"):where_not_in("Name", {"apple", "date"}):count()
+		-- where_null & where_not_null
+		local null_cnt = db.from("Items"):where_null("Note"):count()
+		local not_null_cnt = db.from("Items"):where_not_null("Note"):count()
+		-- where_between
+		local between_names = db.from("Items"):where_between("Qty", 2, 3):order("Qty"):pluck("Name")
+		-- where_not
+		local not_cnt = db.from("Items"):where_not("Name", "apple"):count()
+		-- aggregations: sum, avg, min, max
+		local s = db.from("Items"):sum("Qty")
+		local a = db.from("Items"):avg("Qty")
+		local mn = db.from("Items"):min("Qty")
+		local mx = db.from("Items"):max("Qty")
+
+		-- db.scalar & db.pluck
+		local scalar_val = db.scalar([[SELECT count(*) FROM "Items"]])
+		local plucked_names = db.pluck([[SELECT "Name" FROM "Items" ORDER BY id]])
+
+		return #q1, q1[1].Name, q1[2].Name, first_row.Name, cnt, ex1, ex2, #in_rows, in_rows[1], in_rows[2],
+			not_in_cnt, null_cnt, not_null_cnt, #between_names, between_names[1], not_cnt, s, a, mn, mx,
+			scalar_val, #plucked_names, plucked_names[1]
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []any{
+		int64(2), "Banana", "cherry", "cherry", int64(3), true, false, int64(2), "apple", "date",
+		int64(2), int64(2), int64(2), int64(2), "Banana", int64(3), int64(10), 2.5, int64(1), int64(4),
+		int64(4), int64(4), "apple",
+	}
+	for i := range want {
+		if vals[i] != want[i] {
+			t.Fatalf("idx %d: got %#v, want %#v (all: %#v)", i+1, vals[i], want[i], vals)
+		}
+	}
+}
+
+func TestRecordsModuleExtended(t *testing.T) {
+	f := setup(t)
+	vals, err := f.run(t, script.Job, `
+		-- insert_many
+		local ids = records.insert_many("Items", {
+			{Name = "item1", Qty = 10},
+			{Name = "item2", Qty = 20},
+			{Name = "item3", Qty = 30},
+		})
+
+		-- find_one
+		local row = records.find_one("Items", {Name = "item2"})
+		local missing = records.find_one("Items", {Name = "nope"})
+
+		-- count & exists
+		local c = records.count("Items", {Qty = {ge = 20}})
+		local ex1 = records.exists("Items", {Name = "item1"})
+		local ex2 = records.exists("Items", {Name = "item99"})
+
+		-- upsert: existing
+		local up_id = records.upsert("Items", {Name = "item2"}, {Qty = 25})
+		local up_row = records.get("Items", up_id)
+
+		-- upsert: new
+		local new_id = records.upsert("Items", {Name = "item4"}, {Qty = 40})
+		local new_row = records.get("Items", new_id)
+
+		-- update_many
+		local ures = records.update_many("Items", {Qty = {le = 25}}, {Note = "low"})
+
+		return #ids, row.Qty, missing == nil, c, ex1, ex2, up_id == ids[2], up_row.Qty, new_row.Name, new_row.Qty, ures.changes
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []any{
+		int64(3), int64(20), true, int64(2), true, false, true, int64(25), "item4", int64(40), int64(2),
+	}
+	for i := range want {
+		if vals[i] != want[i] {
+			t.Fatalf("idx %d: got %#v, want %#v (all: %#v)", i+1, vals[i], want[i], vals)
+		}
+	}
+}

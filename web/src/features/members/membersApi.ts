@@ -3,9 +3,11 @@ import { api } from "@/lib/api";
 
 export type Member = components["schemas"]["MemberDTO"];
 export type MemberRole = Member["role"];
+export type CandidateMember = components["schemas"]["CandidateMemberDTO"];
 
 export const memberKeys = {
   list: (ws: string) => ["members", ws] as const,
+  candidates: (ws: string) => ["members", ws, "candidates"] as const,
 };
 
 export async function listMembers(ws: string): Promise<Member[]> {
@@ -15,7 +17,17 @@ export async function listMembers(ws: string): Promise<Member[]> {
   return res.items ?? [];
 }
 
-export async function addMember(ws: string, body: { email: string; role: MemberRole }): Promise<Member> {
+export async function listCandidates(ws: string): Promise<CandidateMember[]> {
+  const res = await api.requestData((c, init) => c.GET("/api/v1/w/{ws}/members/candidates", { ...init, params: { path: { ws } } }), {
+    label: "Loading candidates",
+  });
+  return res.items ?? [];
+}
+
+export async function addMember(
+  ws: string,
+  body: { email?: string; username?: string; user_id?: string; role: MemberRole },
+): Promise<Member> {
   return api.requestData((c, init) => c.POST("/api/v1/w/{ws}/members", { ...init, params: { path: { ws } }, body }), {
     label: "Adding member",
   });

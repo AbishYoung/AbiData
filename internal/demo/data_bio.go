@@ -1,15 +1,15 @@
 package demo
 
-// Static content for the biosecurity (invasive species) part of the sample
-// workspace: ADR 0010 (geographic fields) and ADR 0011 (attachments). Farms,
-// people and places are invented; the coordinates are the real cities'.
+// Static content for the Biosecurity Watch sample workspace: ADR 0010
+// (geographic fields) and ADR 0011 (attachments). Farms, people and places
+// are invented; the coordinates are the real cities'.
 
 type supplierSeed struct {
 	Name, Contact, City, Country string
 	Lat, Lon                     float64
 }
 
-// suppliers are the farms in Northwind's biosecurity programme. The first four
+// suppliers are the farms in the regional biosecurity programme. The first four
 // have sightings; the last two are clean.
 var suppliers = []supplierSeed{
 	{"Kentish Orchards Ltd", "Harriet Cole", "Maidstone", "UK", 51.2704, 0.5227},
@@ -31,7 +31,7 @@ var speciesList = []speciesSeed{
 	{"Giant hogweed", "Heracleum mantegazzianum", "Plant", "High", "The sap causes severe skin burns in sunlight. Wear protective clothing."},
 }
 
-// cluster is a group of sightings around one supplier farm.
+// cluster is a group of sightings around one farm.
 type cluster struct {
 	Supplier int     // index in suppliers
 	N        int     // sightings

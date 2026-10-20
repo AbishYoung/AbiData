@@ -154,11 +154,11 @@ func (s *Server) registerAdmin(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "adminProvisionDemos", Method: http.MethodPost, Path: "/api/v1/admin/demo-workspaces", Tags: tags, Metadata: adminOnly,
 		Summary:     "Give every active user their own copy of a demo workspace",
-		Description: "Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.",
+		Description: "Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Biosecurity Watch), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.",
 		Errors:      []int{400, 401, 403, 404, 503},
 	}, func(ctx context.Context, in *struct {
 		Body struct {
-			Kind string `json:"kind" enum:"traders,invasives" doc:"Which sample: traders (Northwind Traders) or invasives (Northwind Invasives)."`
+			Kind string `json:"kind" enum:"traders,invasives" doc:"Which sample: traders (Northwind Traders) or invasives (Biosecurity Watch)."`
 		}
 	}) (*struct{ Body DemoProvisionDTO }, error) {
 		if s.deps.Demo == nil {
