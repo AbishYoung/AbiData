@@ -1,16 +1,16 @@
 ---
 title: "Example: tracking invasive species"
 order: 120
-summary: A walkthrough of the Northwind Invasives sample workspace, with maps, quarantine zones, photos, spatial queries and API calls.
+summary: A walkthrough of the Biosecurity Watch sample workspace, with maps, quarantine zones, photos, spatial queries and API calls.
 ---
 
 # Example: tracking invasive species
 
-The **Northwind Invasives** sample workspace is a biosecurity programme. Northwind's supplier farms report invasive species they find, such as Japanese knotweed, Asian hornets and spotted lanternflies. Field crews record each sighting on a phone with its position and photos, and coordinators draw **quarantine zones** around the infested areas. This page walks through the sample, and then shows the same work through the [API](/docs/guide/api).
+The **Biosecurity Watch** sample workspace is a regional biosecurity and orchard monitoring programme. Participating farms and growers report invasive species they find, such as Japanese knotweed, Asian hornets and spotted lanternflies. Field crews record each sighting on a phone with its position and photos, and coordinators draw **quarantine zones** around the infested areas. This page walks through the sample, and then shows the same work through the [API](/docs/guide/api).
 
 The sample uses two features that are described elsewhere: [location and area fields](/docs/guide/tables) (maps) and [Attachments fields](/docs/guide/tables#attachments) (photos). Every record in it is invented, but the coordinates are those of real towns, so the maps look right.
 
-> The workspace is created on a fresh install together with Northwind Traders. To add it to an existing install, stop the server and run `abidata demo --owner you@example.com --kind invasives`, or give everyone a copy with **Northwind Invasives for everyone…** in the admin console's **Workspaces** tab. A Northwind Traders workspace made by an earlier version, which held this scenario too, is never changed.
+> The workspace is created on a fresh install together with Northwind Traders. To add it to an existing install, stop the server and run `abidata demo --owner you@example.com --kind invasives`, or give everyone a copy with **Biosecurity Watch for everyone…** in the admin console's **Workspaces** tab.
 
 ![The Record a sighting form with the zones on the map and two photos](../../images/sighting-form.png)
 
@@ -18,7 +18,7 @@ The sample uses two features that are described elsewhere: [location and area fi
 
 | Table | Holds |
 |---|---|
-| **Suppliers** | The farms. Each has a **Location** (a point on the map). |
+| **Suppliers** | The participating farms and growers. Each has a **Location** (a point on the map). |
 | **Species** | Name, scientific name, category, risk level and notes. |
 | **Pest sightings** | Species, **Observed at**, **Location** (a point), **GPS accuracy (m)**, count, status, supplier, **Photos** (up to 10) and notes. About 40 sightings over the last six months, clustered around four farms. |
 | **Quarantine zones** | Name, **Boundary** (an area), species, declared on, status (Active or Lifted) and notes. Three zones; the Loire zone has a **hole**, an orchard block that is treated separately. |
@@ -80,7 +80,7 @@ The same data can be written from other programs, such as a field app or an iden
 
 ```bash
 export ABIDATA=https://abidata.example.com
-export WS=01J9Z3K8M2N4P6Q8R0S2T4V6W8     # the Northwind Invasives workspace id
+export WS=01J9Z3K8M2N4P6Q8R0S2T4V6W8     # the Biosecurity Watch workspace id
 export KEY=abd_01J9Z3...
 H=(-H "Authorization: Bearer $KEY" -H "Content-Type: application/json")
 curl -sS "${H[@]}" "$ABIDATA/api/v1/w/$WS/schema"     # find the table and field ids used below

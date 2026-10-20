@@ -185,7 +185,7 @@ export interface paths {
         put?: never;
         /**
          * Give every active user their own copy of a demo workspace
-         * @description Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Northwind Invasives), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.
+         * @description Creates a personal copy of the chosen sample (traders: Northwind Traders; invasives: Biosecurity Watch), owned by the user, for each active user (administrators included) who does not already own one. Safe to repeat: users who own that sample are skipped.
          */
         post: operations["adminProvisionDemos"];
         delete?: never;
@@ -2111,7 +2111,7 @@ export interface components {
         };
         AdminProvisionDemosRequest: {
             /**
-             * @description Which sample: traders (Northwind Traders) or invasives (Northwind Invasives).
+             * @description Which sample: traders (Northwind Traders) or invasives (Biosecurity Watch).
              * @enum {string}
              */
             kind: "traders" | "invasives";

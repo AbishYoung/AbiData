@@ -45,7 +45,7 @@ export type DemoKind = "traders" | "invasives";
 
 export const DEMO_SAMPLES: Record<DemoKind, { name: string; about: string }> = {
   traders: { name: "Northwind Traders", about: "customers, orders, products, queries, a form, a report and a scheduled job" },
-  invasives: { name: "Northwind Invasives", about: "invasive species sightings with maps, quarantine zones and photos" },
+  invasives: { name: "Biosecurity Watch", about: "invasive species sightings with maps, quarantine zones and photos" },
 };
 
 export async function provisionDemos(kind: DemoKind): Promise<DemoProvisionResult> {
