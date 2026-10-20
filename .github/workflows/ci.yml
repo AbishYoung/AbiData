@@ -33,10 +33,10 @@ jobs:
       image: ${{ steps.plan.outputs.image }}
       postgres: ${{ steps.plan.outputs.postgres }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - id: plan
@@ -60,8 +60,8 @@ jobs:
     if: needs.plan.outputs.go == 'true' || needs.plan.outputs.go_lint == 'true' || needs.plan.outputs.web_static == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -70,7 +70,7 @@ jobs:
         run: |
           npm --prefix web ci
           npm --prefix web run build
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Generated files are current
@@ -93,8 +93,8 @@ jobs:
     if: needs.plan.outputs.web == 'true' || needs.plan.outputs.web_static == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -112,13 +112,13 @@ jobs:
     if: needs.plan.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Build
@@ -126,7 +126,7 @@ jobs:
           npm --prefix web ci
           npm --prefix web run build
           go build -o tests/e2e/.bin/abidata ./cmd/abidata
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: e2e-binary
           path: tests/e2e/.bin/abidata
@@ -142,16 +142,16 @@ jobs:
         area: ${{ fromJSON(needs.plan.outputs.e2e_areas) }}
     name: e2e (${{ matrix.area }})
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: tests/e2e/package-lock.json
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: e2e-binary
           path: tests/e2e/.bin
@@ -176,7 +176,7 @@ jobs:
         run: go run ./tools/testplan e2e ${{ matrix.area }}
       - name: Upload traces and server logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-${{ matrix.area }}-traces
           path: |
@@ -191,8 +191,8 @@ jobs:
     if: needs.plan.outputs.postgres == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: make test-postgres
@@ -202,7 +202,7 @@ jobs:
     if: needs.plan.outputs.image == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
@@ -221,8 +221,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - uses: docker/setup-buildx-action@v4
@@ -230,7 +230,7 @@ jobs:
         run: ./scripts/container-smoke.sh
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: container-smoke-traces
           path: tests/e2e/test-results
