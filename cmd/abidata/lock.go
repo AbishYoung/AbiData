@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
 // errLocked means another process (normally the server) holds the data dir.
 var errLocked = errors.New("the data directory is in use by a running server; stop it or use the admin API")
 
-// serverLock is an exclusive flock on system/server.lock.
+// serverLock is an exclusive lock on system/server.lock.
 type serverLock struct{ f *os.File }
 
 func acquireLock(dataDir string) (*serverLock, error) {
@@ -23,12 +22,9 @@ func acquireLock(dataDir string) (*serverLock, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := lockFile(f); err != nil {
 		_ = f.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, errLocked
-		}
-		return nil, fmt.Errorf("lock data dir: %w", err)
+		return nil, err
 	}
 	_ = f.Truncate(0)
 	_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
@@ -39,7 +35,7 @@ func (l *serverLock) Release() {
 	if l == nil || l.f == nil {
 		return
 	}
-	_ = syscall.Flock(int(l.f.Fd()), syscall.LOCK_UN)
+	unlockFile(l.f)
 	_ = l.f.Close()
 	l.f = nil
 }
