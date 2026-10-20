@@ -33,7 +33,8 @@ admin.GetSetting	admin	portable	value
 admin.InitUsername	admin	portable	
 admin.ListAudit	admin	portable	at,user_id,action,object_kind,object_id,details
 admin.ListBlogs	admin	portable	id,user_id,workspace_id,slug,title,intro,published,published_at,created_at,updated_at,username,(SELECT count(*) FROM _adm_blog_takedowns t WHERE t.blog_id = b.id AND t.restored_at IS NULL),(SELECT count(*) FROM _adm_blog_reports r WHERE r.blog_id = b.id AND r.resolved_at IS NULL)
-admin.ListMembers	admin	portable	id,email,display_name,role
+admin.ListCandidateMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name
+admin.ListMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name,role
 admin.ListSettings	admin	portable	key,value
 admin.ListUsersWithoutBlog	admin	portable	id
 admin.Ping	admin	portable	1

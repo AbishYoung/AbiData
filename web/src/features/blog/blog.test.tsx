@@ -205,8 +205,12 @@ describe("PostEditor", () => {
     (body as HTMLTextAreaElement).setSelectionRange(0, 5);
     await user.keyboard("{Control>}b{/Control}");
     expect(body).toHaveValue("**Hello** world");
+    // The shortcut re-selects the bolded word; let that settle before moving the caret.
+    await waitFor(() => expect((body as HTMLTextAreaElement).selectionStart).toBe(2));
 
     (body as HTMLTextAreaElement).setSelectionRange(15, 15);
+    expect((body as HTMLTextAreaElement).selectionStart).toBe(15);
+    expect((body as HTMLTextAreaElement).selectionEnd).toBe(15);
     const inlineInput = screen.getByTestId("inline-image-input");
     await user.upload(inlineInput, new File(["png"], "chart-q4.png", { type: "image/png" }));
     await waitFor(() => expect((body as HTMLTextAreaElement).value).toContain("![chart q4](attachment:01JINLINE00000000000000000)"));

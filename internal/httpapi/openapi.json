@@ -243,10 +243,17 @@
               "viewer"
             ],
             "type": "string"
+          },
+          "user_id": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 64,
+            "type": "string"
           }
         },
         "required": [
-          "email",
           "role"
         ],
         "type": "object"
@@ -1565,6 +1572,29 @@
         },
         "required": [
           "message"
+        ],
+        "type": "object"
+      },
+      "CandidateMemberDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "display_name"
         ],
         "type": "object"
       },
@@ -3559,6 +3589,24 @@
         ],
         "type": "object"
       },
+      "ListMemberCandidatesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateMemberDTO"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "ListMembersResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3878,6 +3926,9 @@
           },
           "user_id": {
             "type": "string"
+          },
+          "username": {
+            "type": "string"
           }
         },
         "required": [
@@ -3891,6 +3942,15 @@
       "MembershipDTO": {
         "additionalProperties": false,
         "properties": {
+          "published_apps": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedAppSummaryDTO"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "role": {
             "enum": [
               "owner",
@@ -5399,6 +5459,30 @@
         "required": [
           "submitted",
           "notifications"
+        ],
+        "type": "object"
+      },
+      "PublishedAppSummaryDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "path",
+          "link"
         ],
         "type": "object"
       },
@@ -16850,6 +16934,87 @@
           }
         },
         "summary": "Add an existing user to the workspace",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/api/v1/w/{ws}/members/candidates": {
+      "get": {
+        "operationId": "listMemberCandidates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ws",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMemberCandidatesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "List platform users who can be added to the workspace",
         "tags": [
           "workspace"
         ]

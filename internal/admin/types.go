@@ -137,8 +137,17 @@ type Membership struct {
 type Member struct {
 	UserID      string
 	Email       string
+	Username    string
 	DisplayName string
 	Role        Role
+}
+
+// CandidateMember is an active platform user who is not a member of a given workspace.
+type CandidateMember struct {
+	UserID      string
+	Email       string
+	Username    string
+	DisplayName string
 }
 
 // WorkspaceAccess is a workspace visible to a user, with that user's role.
@@ -212,6 +221,7 @@ type Repository interface {
 	SetMembership(ctx context.Context, m Membership) error                        // upsert
 	DeleteMembership(ctx context.Context, ws ids.WorkspaceID, userID string) error
 	ListMembers(ctx context.Context, ws ids.WorkspaceID) ([]Member, error) // ordered by email
+	ListCandidateMembers(ctx context.Context, ws ids.WorkspaceID) ([]CandidateMember, error)
 	CountOwners(ctx context.Context, ws ids.WorkspaceID) (int, error)
 
 	// Settings (values are JSON text)
