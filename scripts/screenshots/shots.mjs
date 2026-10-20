@@ -41,13 +41,14 @@ export async function prepare(ctx) {
   const col = (t, n) => t.columns.find((c) => c.display_name === n).id;
   const orders = table("Orders");
 
+  const priyaPass = "Priya-TestPass-2026!";
   const people = [
-    ["Priya Raman", "priya@northwind.test", "builder"],
-    ["Sam Okafor", "sam@northwind.test", "editor"],
-    ["Lena Fischer", "lena@northwind.test", "viewer"],
+    ["Priya Raman", "priya@northwind.test", "builder", priyaPass],
+    ["Sam Okafor", "sam@northwind.test", "editor", randomBytes(18).toString("base64url")],
+    ["Lena Fischer", "lena@northwind.test", "viewer", randomBytes(18).toString("base64url")],
   ];
-  for (const [name, mail, role] of people) {
-    await call("POST", "/api/v1/admin/users", { email: mail, display_name: name, password: randomBytes(18).toString("base64url") });
+  for (const [name, mail, role, pass] of people) {
+    await call("POST", "/api/v1/admin/users", { email: mail, display_name: name, password: pass });
     await call("POST", `/api/v1/w/${ws}/members`, { email: mail, role });
   }
   await call("PUT", "/api/v1/admin/settings/egress", {
@@ -83,7 +84,64 @@ export async function prepare(ctx) {
     if (i % 8 === 0) await admin.request.get(`${base}/api/v1/w/${ws}/tables/nope/rows`, { headers: csrf });
   }
 
-  return { admin, ws, call };
+  // An app published early so workspace cards show the published app icon link.
+  const forms = await call("GET", `/api/v1/w/${ws}/forms`);
+  const formId = forms?.items?.find((f) => f.name === "Customer details")?.id;
+  const reports = await call("GET", `/api/v1/w/${ws}/reports`);
+  const reportId = reports?.items?.find((r) => r.name === "Product catalogue")?.id;
+  let app = null;
+  if (formId && reportId) {
+    app = await call("POST", `/api/v1/w/${ws}/apps`, {
+      name: "Northwind customer corner",
+      items: [
+        { kind: "form", object_id: formId, title: "Open an account" },
+        { kind: "report", object_id: reportId, title: "Price list" },
+      ],
+    });
+  }
+
+  // Seed a shared workspace owned by Priya Raman where admin is added as builder,
+  // showcasing role clarity and the "Shared with you" filter tab on the workspace picker.
+  const sharedWs = await call("POST", "/api/v1/admin/workspaces", {
+    name: "Fleet Telemetry",
+    owner_email: "priya@northwind.test",
+  });
+  if (sharedWs?.id) {
+    const priyaCtx = await browser.newContext({ viewport: DESKTOP });
+    const priyaLogin = await priyaCtx.request.post(`${base}/api/v1/auth/login`, {
+      data: { email: "priya@northwind.test", password: priyaPass },
+      headers: origin,
+    });
+    if (priyaLogin.ok()) {
+      const priyaMe = await priyaLogin.json();
+      await priyaCtx.request.post(`${base}/api/v1/w/${sharedWs.id}/members`, {
+        data: { email: ctx.email, role: "builder" },
+        headers: { ...origin, "X-CSRF-Token": priyaMe.csrf_token },
+      });
+    }
+    await priyaCtx.close();
+  }
+
+  // Internal messaging: seed a workspace thread and a direct thread.
+  const t1 = await call("POST", "/api/v1/messages/threads", {
+    kind: "workspace",
+    workspace_id: ws,
+    subject: "Q4 seasonal inventory buffer adjustments",
+    body: "Hi team, we've updated the cold-storage reorder levels for Baltic ports. Please review the updated safety stock numbers in the Orders datasheet before Monday.",
+  });
+  if (t1?.id) {
+    await call("POST", `/api/v1/messages/threads/${t1.id}/replies`, {
+      body: "Thanks! I've checked the numbers against distributor lead times; everything looks good to proceed.",
+    });
+  }
+  await call("POST", "/api/v1/messages/threads", {
+    kind: "direct",
+    recipients: ["priya@northwind.test"],
+    subject: "Audit schedule for Loire supplier farms",
+    body: "Hi Priya, could you verify whether the site inspection report for Loire has been attached to the quarantine zone record?",
+  });
+
+  return { admin, ws, call, app };
 }
 
 export async function shoot(ctx) {
@@ -107,7 +165,7 @@ export async function shoot(ctx) {
     console.log("  wrote", file);
   };
 
-  const { admin, ws, call } = await prepare(ctx);
+  const { admin, ws, call, app } = await prepare(ctx);
 
   // ---- page helpers ----
   const newPage = async (context, signedIn = true) => {
@@ -403,22 +461,25 @@ export async function shoot(ctx) {
   for (const n of ["datasheet-context-menu", "report-columnar"]) JPEG.add(n);
   const appShots = ["app-public-form", "apps-panel"];
   if (appShots.some(want)) {
-    // An app with the sample's form and report, published through the API. Its link (from this
+    // An app with the sample's form and report. Its link (from this
     // throwaway server) is used only to open the public page.
-    const formId = (await call("GET", `/api/v1/w/${ws}/forms`)).items.find((f) => f.name === "Customer details").id;
-    const reportId = (await call("GET", `/api/v1/w/${ws}/reports`)).items.find((r) => r.name === "Product catalogue").id;
-    const app = await call("POST", `/api/v1/w/${ws}/apps`, {
-      name: "Northwind customer corner",
-      items: [
-        { kind: "form", object_id: formId, title: "Open an account" },
-        { kind: "report", object_id: reportId, title: "Price list" },
-      ],
-    });
-    if (want("app-public-form")) {
+    let publicApp = app;
+    if (!publicApp) {
+      const formId = (await call("GET", `/api/v1/w/${ws}/forms`)).items.find((f) => f.name === "Customer details").id;
+      const reportId = (await call("GET", `/api/v1/w/${ws}/reports`)).items.find((r) => r.name === "Product catalogue").id;
+      publicApp = await call("POST", `/api/v1/w/${ws}/apps`, {
+        name: "Northwind customer corner",
+        items: [
+          { kind: "form", object_id: formId, title: "Open an account" },
+          { kind: "report", object_id: reportId, title: "Price list" },
+        ],
+      });
+    }
+    if (want("app-public-form") && publicApp) {
       // Signed out: a fresh context with no session.
       const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, timezoneId: "UTC", locale: "en-US" });
       const p = await c.newPage();
-      await p.goto(app.link);
+      await p.goto(publicApp.link);
       await p.getByTestId("public-app").waitFor();
       await p.getByRole("button", { name: "Submit" }).waitFor();
       for (const [field, value] of [["Company", "Harbour Lights Café"], ["Contact", "Maeve Doyle"], ["City", "Cork"], ["Country", "Ireland"]]) {
@@ -477,6 +538,16 @@ export async function shoot(ctx) {
       await page.waitForTimeout(1500);
       await save(page, "report-columnar");
     }
+    await c.close();
+  }
+
+  if (want("messages-inbox")) {
+    const { c, page } = await desktop("light");
+    await page.goto(`${base}/messages`);
+    await page.getByRole("heading", { name: "Messages" }).waitFor();
+    await page.getByRole("button", { name: "New message" }).waitFor();
+    await page.locator("textarea").waitFor();
+    await save(page, "messages-inbox");
     await c.close();
   }
 
