@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs } from "radix-ui";
@@ -138,8 +138,22 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
   const inlineFileRef = useRef<HTMLInputElement>(null);
   const inlineUpload = useRef<UploadHandle | null>(null);
   const leaving = useRef(false);
+  // Selection to restore in the body once the edit that produced it has been
+  // committed. Applied synchronously in a layout effect (not a deferred
+  // requestAnimationFrame) so a stale callback can never overwrite a caret the
+  // user has moved since.
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
 
   useEffect(() => () => inlineUpload.current?.abort(), []);
+
+  useLayoutEffect(() => {
+    const sel = pendingSelection.current;
+    if (!sel) return;
+    pendingSelection.current = null;
+    const el = bodyRef.current;
+    el?.focus();
+    el?.setSelectionRange(sel.start, sel.end);
+  });
 
   const pending = changes(d, saved);
   const dirty = saved ? Object.keys(pending).length > 0 : d.title !== "" || d.summary !== "" || d.body !== "" || d.cover !== "";
@@ -200,12 +214,8 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
   }
 
   function applyEdit(edit: TextEdit) {
-    const el = bodyRef.current;
+    pendingSelection.current = { start: edit.selStart, end: edit.selEnd };
     set("body", edit.text);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(edit.selStart, edit.selEnd);
-    });
   }
 
   function onToolbar(kind: MarkdownKind) {
@@ -250,10 +260,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
         const s = Math.min(start, cur.body.length);
         const e = Math.min(Math.max(s, end), cur.body.length);
         const edit = insertUploadedImage(cur.body, s, e, meta.id, file.name);
-        requestAnimationFrame(() => {
-          bodyRef.current?.focus();
-          bodyRef.current?.setSelectionRange(edit.selStart, edit.selEnd);
-        });
+        pendingSelection.current = { start: edit.selStart, end: edit.selEnd };
         return { ...cur, body: edit.text };
       });
     } catch (e) {
