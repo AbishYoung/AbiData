@@ -2,6 +2,7 @@ import { ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FilePlus2, Link2, Pencil, Play, Save, SaveAll, Table2 } from "lucide-react";
+import { Tip } from "@/components/Tip";
 import { useTabs } from "@/app/tabs";
 import { alertBox, btn, btnGhost, btnPrimary } from "@/components/styles";
 import { WhyDisabled } from "@/components/designer/WhyDisabled";
@@ -98,6 +99,13 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
   }
   useModKey("s", saveClicked);
 
+  function handleRun(): void {
+    if (runner.running) return;
+    setShowRun(true);
+    runner.start();
+  }
+  useModKey("Enter", handleRun);
+
   // Keep the tab's unsaved marker in step with the draft.
   const dirty = entry ? isDraftDirty(entry) : false;
   useEffect(() => {
@@ -147,17 +155,17 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="query-designer">
       <div role="toolbar" aria-label="Query designer" className={docToolbar}>
-        <button
-          type="button"
-          className={btnPrimary}
-          onClick={() => {
-            setShowRun(true);
-            runner.start();
-          }}
-        >
-          <Play size={14} aria-hidden="true" />
-          Run
-        </button>
+        <Tip label="Run query" shortcut="Mod+Enter">
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={runner.running}
+            onClick={handleRun}
+          >
+            <Play size={14} aria-hidden="true" />
+            Run
+          </button>
+        </Tip>
         {canSave && (
           <>
             <button type="button" className={btnGhost} onClick={saveClicked}>
@@ -286,6 +294,7 @@ export function QueryDesigner({ ws, tabKey }: { ws: string; tabKey: string }) {
             onMove={(i, d) => edit((m) => moveField(m, i, d))}
             onRemove={(i) => edit((m) => removeField(m, i))}
             onCriterion={(i, row, c) => edit((m) => setCriterion(m, i, row, c))}
+            onRun={handleRun}
           />
         </section>
 

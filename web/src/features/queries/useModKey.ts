@@ -8,7 +8,7 @@ export function useModKey(key: string, handler: () => void): void {
   });
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === key) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === key.toLowerCase()) {
         e.preventDefault();
         latest.current();
       }

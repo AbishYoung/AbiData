@@ -1,8 +1,8 @@
-import { useId, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useRef, useState } from "react";
 import { Check, Copy, Play, Save } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { docToolbar } from "@/components/EditorParts";
-import { alertBox, btn, btnPrimary, eyebrow } from "@/components/styles";
+import { alertBox, btn, btnPrimary, btnSm, eyebrow } from "@/components/styles";
 import { Modal } from "./Modal";
 import { SaveDialog } from "./dialogs";
 import { draftKey, isDraftDirty, useQueryDrafts } from "./draftStore";
@@ -13,6 +13,10 @@ import { useQuerySave, canDesignRole, useRole } from "./useQuerySave";
 import { errorText, useQueryRunner } from "./useQueryRunner";
 import { ApiError } from "@/lib/api";
 import { ResultsPanel } from "./ResultsPanel";
+import { parseSqlError } from "./sqlErrorParser";
+import type { MonacoSqlEditorHandle } from "./MonacoSqlEditor";
+
+const MonacoSqlEditor = lazy(() => import("./MonacoSqlEditor"));
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -73,6 +77,8 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showRun, setShowRun] = useState(false);
+  const editorHandleRef = useRef<MonacoSqlEditorHandle | null>(null);
+
   const sql = entry?.sqlText ?? "";
   const savedId = entry?.savedId ?? null;
   const runner = useQueryRunner({
@@ -81,6 +87,8 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
     exec: (values) => (savedId && entry && !isDraftDirty(entry) ? runSaved(ws, savedId, values) : runSql(ws, sql, values)),
   });
   const canSave = canDesignRole(role);
+
+  const parsedError = useMemo(() => (runner.error ? parseSqlError(runner.error, sql) : null), [runner.error, sql]);
 
   async function doSave(name?: string, description?: string): Promise<string | null> {
     try {
@@ -100,21 +108,47 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
     else setSaving(true);
   });
 
+  function handleRun(): void {
+    if (runner.running) return;
+    setShowRun(true);
+    runner.start();
+  }
+
+  useModKey("Enter", handleRun);
+
+  function handleSqlChange(newSql: string): void {
+    if (runner.error) {
+      runner.clear();
+    }
+    patch(key, (d) => ({ ...d, sqlText: newSql }));
+  }
+
+  function handleJumpToError(): void {
+    if (!parsedError) return;
+    setShowRun(false);
+    editorHandleRef.current?.revealPosition(
+      parsedError.lineNumber,
+      parsedError.column,
+      parsedError.endLineNumber,
+      parsedError.endColumn,
+    );
+  }
+
   if (!entry) return null;
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="sql-editor">
       <div className={docToolbar}>
-        <button
-          type="button"
-          className={btnPrimary}
-          onClick={() => {
-            setShowRun(true);
-            runner.start();
-          }}
-        >
-          <Play size={14} aria-hidden="true" />
-          Run
-        </button>
+        <Tip label="Run query" shortcut="Mod+Enter">
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={runner.running}
+            onClick={handleRun}
+          >
+            <Play size={14} aria-hidden="true" />
+            Run
+          </button>
+        </Tip>
         {canSave && (
           <Tip label="Save the query" shortcut="Mod+S">
             <span className="inline-flex">
@@ -139,23 +173,56 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
           </span>
         )}
       </div>
+
+      {runner.error && (
+        <div role="alert" className={`${alertBox} mx-3 mt-3 flex items-center justify-between gap-3`}>
+          <span className="flex-1 text-sm">{runner.error}</span>
+          {parsedError && (
+            <button
+              type="button"
+              className={btnSm}
+              onClick={handleJumpToError}
+              aria-label={`Go to line ${parsedError.lineNumber}, column ${parsedError.column}`}
+            >
+              Go to line {parsedError.lineNumber}, col {parsedError.column}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 bg-bg p-3">
         <label htmlFor={textId} className={eyebrow}>
           SQL
         </label>
         <textarea
           id={textId}
-          spellCheck={false}
-          className="min-h-48 w-full flex-1 resize-none rounded-lg border border-border-strong/70 bg-surface p-3 font-mono text-sm text-fg shadow-xs focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus"
+          aria-label="SQL"
+          className="sr-only"
+          tabIndex={-1}
           value={sql}
-          placeholder={"SELECT id, name\nFROM customers\nWHERE city = 'Leeds'\nORDER BY name;"}
-          onChange={(e) => {
-            const text = e.target.value;
-            patch(key, (d) => ({ ...d, sqlText: text }));
-          }}
+          onChange={(e) => handleSqlChange(e.target.value)}
         />
+        <Suspense
+          fallback={
+            <div role="status" className="flex flex-1 items-center justify-center rounded-lg border border-border bg-surface p-4 text-sm text-fg-muted">
+              Loading SQL editor…
+            </div>
+          }
+        >
+          <MonacoSqlEditor
+            value={sql}
+            onChange={handleSqlChange}
+            onRun={handleRun}
+            error={parsedError}
+            path={`query-${tabKey}.sql`}
+            onReady={(h) => {
+              editorHandleRef.current = h;
+            }}
+          />
+        </Suspense>
         <p className="m-0 text-sm text-fg-muted">One read-only SELECT, WITH or VALUES statement. Use :name for parameters.</p>
       </div>
+
       {showRun && (
         <Modal title="Query results" wide ownClose onClose={() => setShowRun(false)}>
           <div className="flex h-[60vh] min-h-0 flex-col">

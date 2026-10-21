@@ -40,17 +40,32 @@ export interface QbeGridProps {
   onMove: (index: number, delta: number) => void;
   onRemove: (index: number) => void;
   onCriterion: (index: number, row: number, c: Criterion | null) => void;
+  onRun?: () => void;
 }
 
 /** The Access-style field grid: one column per output field, one row per property. */
-export function QbeGrid({ model, infos, showTotals, onChange, onMove, onRemove, onCriterion }: QbeGridProps) {
+export function QbeGrid({ model, infos, showTotals, onChange, onMove, onRemove, onCriterion, onRun }: QbeGridProps) {
   const { fields } = model;
   const rows = criteriaRowCount(model);
   if (fields.length === 0) {
     return <EmptyState kind="query" title="No fields yet" hint="Double-click a column in a box, or choose Add field." compact />;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface" tabIndex={0} role="region" aria-label="Field grid scroll area" data-testid="qbe-grid">
+    <div
+      className="overflow-x-auto rounded-lg border border-border bg-surface"
+      tabIndex={0}
+      role="region"
+      aria-label="Field grid scroll area"
+      data-testid="qbe-grid"
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "enter") {
+          if (onRun) {
+            e.preventDefault();
+            onRun();
+          }
+        }
+      }}
+    >
       <table className="border-collapse text-sm">
         <caption className="sr-only">Query fields: one column per field</caption>
         <thead>
