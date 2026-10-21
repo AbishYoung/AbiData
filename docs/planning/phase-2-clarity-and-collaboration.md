@@ -1,7 +1,7 @@
 # Phase 2: Information Clarity & Team Collaboration
 
 - **Target Release:** `v1.2.0` (Minor Release)
-- **Status:** Approved for Implementation
+- **Status:** Completed & Shipped in v1.2.0
 - **Milestone:** UX Refinement Phase 2
 - **Related ADRs:** [ADR 0015: Web UI Modernisation](../adr/0015-web-ui-review-and-modernisation.md), [ADR 0017: User Blogs](../adr/0017-user-blogs.md)
 - **Design Guidelines:** `web/src/components/DESIGN.md`
