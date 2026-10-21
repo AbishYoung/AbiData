@@ -269,6 +269,32 @@ describe("MessagesPage", () => {
     );
   });
 
+  it("allows toggling Write and Preview in the compose dialog", async () => {
+    const user = userEvent.setup();
+    api.listMessageThreads.mockResolvedValue({ items: [], unread_count: 0 });
+    wrap(<MessagesPage me={me} />);
+
+    const newMsgBtn = screen.getAllByRole("button", { name: "New message" })[0];
+    if (!newMsgBtn) throw new Error("Button not found");
+    await user.click(newMsgBtn);
+    await user.type(
+      screen.getByPlaceholderText("Write your message…"),
+      "Check this **bold update** and `SELECT 1`",
+    );
+
+    // Switch to Preview
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByTestId("message-preview")).toBeInTheDocument();
+    expect(screen.getByText("bold update")).toHaveClass("font-semibold");
+    expect(screen.getByText("SELECT 1")).toHaveClass("font-mono");
+
+    // Switch back to Write
+    await user.click(screen.getByRole("button", { name: "Write" }));
+    expect(screen.getByPlaceholderText("Write your message…")).toHaveValue(
+      "Check this **bold update** and `SELECT 1`",
+    );
+  });
+
   it("defaults to workspace thread when opened inside a workspace", async () => {
     const user = userEvent.setup();
     api.listMessageThreads.mockResolvedValue({ items: [], unread_count: 0 });

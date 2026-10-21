@@ -20,7 +20,7 @@ import type { TabKind, TableView } from "@/app/tabs";
 import type { ThemePref } from "@/lib/theme";
 import { ADMIN_TABS, type AdminTab } from "@/features/admin/adminTabs";
 import type { PaletteItem } from "./match";
-import type { RecentEntry } from "./recent";
+import { formatRelativeTime, type RecentObjectEntry } from "./recent";
 
 interface PaletteState {
   open: boolean;
@@ -52,7 +52,7 @@ export type PaletteObjects = Record<ObjectKind, readonly NamedObject[]>;
 
 /** What the commands can do; the palette component wires these to the router, stores and dialogs. */
 export interface PaletteActions {
-  openObject: (kind: ObjectKind, id: string, title: string, view: TableView) => void;
+  openObject: (kind: ObjectKind, id: string, title: string, view: TableView, targetWs?: string) => void;
   newObject: (kind: ObjectKind, view?: TableView) => void;
   importData: () => void;
   workspaceSettings: () => void;
@@ -74,7 +74,7 @@ export interface PaletteContext {
   role: string | undefined;
   workspaces: readonly NamedObject[];
   objects: PaletteObjects;
-  recent: readonly RecentEntry[];
+  recent: readonly RecentObjectEntry[];
   theme: ThemePref;
   act: PaletteActions;
 }
@@ -130,20 +130,36 @@ export function buildItems(ctx: PaletteContext): PaletteItem[] {
   const inWorkspace = ctx.ws !== null;
 
   if (ctx.signedIn) {
-    // Recent first, only objects that still exist (so a deleted object does not linger).
+    // Recent first, across all user workspaces (top 5).
     const byId = new Map<string, NamedObject>();
     for (const kind of KINDS) for (const o of ctx.objects[kind]) byId.set(`${kind}:${o.id}`, o);
-    for (const r of ctx.recent) {
-      if (r.ws !== ctx.ws) continue;
-      const o = byId.get(`${r.kind}:${r.id}`);
-      if (!o) continue;
+    for (const r of ctx.recent.slice(0, 5)) {
+      const wsId = r.wsId || r.ws;
+      if (!wsId) continue;
+      const isCurrentWs = wsId === ctx.ws;
+      const inCurrentObjects = isCurrentWs ? byId.get(`${r.kind}:${r.id}`) : undefined;
+      if (isCurrentWs && byId.size > 0 && !inCurrentObjects && (ctx.objects[r.kind]?.length ?? 0) > 0) {
+        continue;
+      }
+      const label = inCurrentObjects?.name || r.name || r.id;
+      const wsName = r.wsName || (ctx.workspaces.find((w) => w.id === wsId)?.name ?? wsId);
+      const view = (r.view as TableView) || defaultView(r.kind);
+      const hint = r.timestamp ? formatRelativeTime(r.timestamp) : r.kind;
       items.push({
-        id: `recent:${r.kind}:${r.id}`,
+        id: `recent:${wsId}:${r.kind}:${r.id}`,
         group: "recent",
-        label: o.name,
+        label,
+        sublabel: wsName,
         kind: r.kind,
-        hint: r.kind,
-        run: () => act.openObject(r.kind, r.id, o.name, r.view),
+        hint,
+        keywords: [wsName, r.kind].filter(Boolean).join(" "),
+        run: () => {
+          if (isCurrentWs) {
+            act.openObject(r.kind, r.id, label, view);
+          } else {
+            act.openObject(r.kind, r.id, label, view, wsId);
+          }
+        },
       });
     }
 

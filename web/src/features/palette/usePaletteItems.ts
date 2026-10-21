@@ -71,8 +71,13 @@ export function usePaletteItems(): PaletteItem[] {
 
   return useMemo(() => {
     const act: PaletteActions = {
-      openObject: (kind, objectId, title, view) => {
-        if (ws) useTabs.getState().open(ws, { key: `${kind}:${objectId}`, kind, objectId, view, title });
+      openObject: (kind, objectId, title, view, targetWs) => {
+        const destWs = targetWs ?? ws;
+        if (!destWs) return;
+        useTabs.getState().open(destWs, { key: `${kind}:${objectId}`, kind, objectId, view, title });
+        if (targetWs && targetWs !== ws) {
+          void router.navigate({ to: "/w/$ws", params: { ws: targetWs } });
+        }
       },
       newObject: (kind, view) => {
         if (ws) openNewObject(ws, kind, view);

@@ -94,16 +94,43 @@ describe("buildItems", () => {
     expect(l).not.toContain("Switch to Sales");
   });
 
-  it("shows recent objects that still exist, in the given order", () => {
+  it("shows cross-workspace recent objects with workspace badges and relative hints", () => {
     const ctx = context({
       recent: [
-        { ws: "w1", kind: "table", id: "t2", view: "datasheet" },
-        { ws: "w1", kind: "table", id: "gone", view: "datasheet" },
-        { ws: "w2", kind: "table", id: "t1", view: "datasheet" },
-        { ws: "w1", kind: "form", id: "f1", view: "form" },
+        { wsId: "w1", wsName: "Sales", kind: "table", id: "t2", name: "Orders", view: "datasheet", timestamp: Date.now() - 120_000 },
+        { wsId: "w1", wsName: "Sales", kind: "table", id: "gone", name: "Old Table", view: "datasheet", timestamp: Date.now() - 300_000 },
+        { wsId: "w2", wsName: "Support", kind: "table", id: "t1", name: "Tickets", view: "datasheet", timestamp: Date.now() - 600_000 },
+        { wsId: "w1", wsName: "Sales", kind: "form", id: "f1", name: "Customer entry", view: "form", timestamp: Date.now() - 3_600_000 },
       ],
     });
-    expect(buildItems(ctx).filter((i) => i.group === "recent").map((i) => i.label)).toEqual(["Orders", "Customer entry"]);
+    const recentItems = buildItems(ctx).filter((i) => i.group === "recent");
+    expect(recentItems.map((i) => i.label)).toEqual(["Orders", "Tickets", "Customer entry"]);
+    expect(recentItems.map((i) => i.sublabel)).toEqual(["Sales", "Support", "Sales"]);
+    expect(recentItems[0]?.hint).toBe("2m ago");
+
+    // Clicking local item invokes openObject without targetWs
+    recentItems[0]?.run();
+    expect(ctx.act.openObject).toHaveBeenCalledWith("table", "t2", "Orders", "datasheet");
+
+    // Clicking cross-workspace item invokes openObject with targetWs
+    recentItems[1]?.run();
+    expect(ctx.act.openObject).toHaveBeenCalledWith("table", "t1", "Tickets", "datasheet", "w2");
+  });
+
+  it("limits recent objects display to the top 5 most recent", () => {
+    const list = Array.from({ length: 8 }, (_, i) => ({
+      wsId: "w2",
+      wsName: "Support",
+      kind: "table" as const,
+      id: `tbl-${i}`,
+      name: `Table ${i}`,
+      timestamp: Date.now() - i * 10_000,
+    }));
+    const ctx = context({ recent: list });
+    const recentItems = buildItems(ctx).filter((i) => i.group === "recent");
+    expect(recentItems).toHaveLength(5);
+    expect(recentItems[0]?.label).toBe("Table 0");
+    expect(recentItems[4]?.label).toBe("Table 4");
   });
 
   it("runs the matching action", () => {
@@ -167,11 +194,23 @@ describe("buildRows", () => {
   });
 
   it("shows Recent first only for an empty query", () => {
-    const ctx = context({ recent: [{ ws: "w1", kind: "table", id: "t1", view: "datasheet" }] });
+    const ctx = context({
+      recent: [
+        {
+          wsId: "w1",
+          wsName: "Sales",
+          kind: "table",
+          id: "t1",
+          name: "Customers",
+          view: "datasheet",
+          timestamp: Date.now(),
+        },
+      ],
+    });
     const all = buildItems(ctx);
     const empty = buildRows(all, "");
-    expect(empty.rows[0]).toMatchObject({ type: "heading", label: "Recent" });
-    expect(buildRows(all, "custom").rows.some((r) => r.type === "heading" && r.label === "Recent")).toBe(false);
+    expect(empty.rows[0]).toMatchObject({ type: "heading", label: "Recent Objects" });
+    expect(buildRows(all, "custom").rows.some((r) => r.type === "heading" && r.label === "Recent Objects")).toBe(false);
   });
 
   it("limits a section and expands it on request", () => {

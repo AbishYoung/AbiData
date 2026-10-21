@@ -11,6 +11,7 @@ import {
   messageKeys,
   type MessageThreadDetail,
 } from "./messagesApi";
+import { MarkdownBody } from "./MarkdownBody";
 
 export function ComposeMessageDialog({
   me,
@@ -45,6 +46,7 @@ export function ComposeMessageDialog({
   const [recipientDraft, setRecipientDraft] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [composeMode, setComposeMode] = useState<"write" | "preview">("write");
   const [formError, setFormError] = useState<string | null>(null);
 
   const selectedWsId = workspaceId || workspaces[0]?.id || "";
@@ -307,20 +309,69 @@ export function ComposeMessageDialog({
           />
         </Field>
 
-        <Field label="Message" required>
-          <Textarea
-            rows={5}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Write your message…"
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-          />
-        </Field>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label htmlFor="compose-body-input" className="text-xs font-medium text-fg">
+              Message <span className="text-accent" aria-hidden="true">*</span>
+            </label>
+            <div
+              role="group"
+              aria-label="Editor mode"
+              className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5"
+            >
+              <button
+                type="button"
+                aria-pressed={composeMode === "write"}
+                onClick={() => setComposeMode("write")}
+                className={`inline-flex h-6 items-center rounded px-2.5 text-xs font-medium transition-colors focus-visible:outline-focus ${
+                  composeMode === "write"
+                    ? "bg-accent text-accent-fg shadow-xs"
+                    : "text-fg-muted hover:text-fg"
+                }`}
+              >
+                Write
+              </button>
+              <button
+                type="button"
+                aria-pressed={composeMode === "preview"}
+                onClick={() => setComposeMode("preview")}
+                className={`inline-flex h-6 items-center rounded px-2.5 text-xs font-medium transition-colors focus-visible:outline-focus ${
+                  composeMode === "preview"
+                    ? "bg-accent text-accent-fg shadow-xs"
+                    : "text-fg-muted hover:text-fg"
+                }`}
+              >
+                Preview
+              </button>
+            </div>
+          </div>
+          {composeMode === "write" ? (
+            <Textarea
+              id="compose-body-input"
+              rows={5}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your message…"
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+            />
+          ) : (
+            <div
+              data-testid="message-preview"
+              className="min-h-[7.5rem] max-h-60 overflow-y-auto rounded-md border border-border bg-surface-2/30 p-3 text-sm text-fg"
+            >
+              {body.trim() ? (
+                <MarkdownBody content={body} workspaceId={selectedWsId} />
+              ) : (
+                <span className="text-xs italic text-fg-subtle">Nothing to preview</span>
+              )}
+            </div>
+          )}
+        </div>
 
         {formError && (
           <div role="alert" className={alertBox}>
