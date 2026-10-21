@@ -30,6 +30,7 @@ import { DELETED_BANNER } from "./gone";
 import { createSessionStore, useFormSession, useSessionState } from "./useFormSession";
 import { linkFilter, pagesFor, useQueryRows, useTableCount, useTablePages, type Link, type PageAccess } from "./sources";
 import { ConfirmDialog, Toolbar, SubformHost } from "./FormInstanceParts";
+import { dismissActiveInput } from "@/lib/touchErgonomics";
 
 const FOCUSABLE = "input:not([disabled]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])";
 const DETAIL_PAD = 0;
@@ -378,7 +379,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
         </div>
       );
     body = (
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" data-current="true">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden touch-pan-y" data-current="true">
         <div className="flex flex-col gap-3 p-3">
           {band("h", header)}
           {band("d", sections.detail)}
@@ -388,7 +389,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
     );
   } else if (view === "single") {
     body = (
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto touch-pan-y">
         <div style={{ width: layout.width }} className="relative" data-current="true">
           <div style={{ position: "relative", height: header.height, width: layout.width }}>
             <Band section={header} prefix={`${uid}h`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
@@ -411,7 +412,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
             <Band section={header} prefix={`${uid}h`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
           </div>
         )}
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto touch-pan-y">
           <div role="group" aria-label={`${label} records`} style={{ height: virtualizer.getTotalSize(), width: layout.width, position: "relative" }}>
             {items.map((v) => {
               const d = bandData(v.index);
@@ -451,7 +452,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       return l?.caption || c.caption || (c.bind ? columnName(c.bind.column_id) : undefined) || c.name;
     };
     body = (
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto touch-pan-y">
         <div style={{ width }} className="sticky top-0 z-10 flex border-b border-border bg-surface-2 text-xs font-semibold text-fg-muted">
           {cols.map((c) => (
             <div key={c.id} style={{ width: Math.max(60, c.w) + 4 }} className="truncate px-2 py-1">
@@ -490,7 +491,14 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   const rootCls = top ? "flex min-h-0 flex-1 flex-col" : "flex h-full min-h-0 flex-col";
   return (
     <StackedContext.Provider value={stacked && view === "single"}>
-    <div ref={rootRef} role="group" aria-label={label} onKeyDown={onKeyDown} className={rootCls}>
+    <div
+      ref={rootRef}
+      role="group"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      onPointerDown={(e) => dismissActiveInput(e.target)}
+      className={`${rootCls} touch-pan-y`}
+    >
       {toolbar}
       {(message || conflict) && (
         <div role="alert" className={`${alertBox} mx-2 mt-1 flex flex-wrap items-center gap-2`}>

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Dialog, DropdownMenu } from "radix-ui";
 import { ChevronLeft, ChevronRight, Ellipsis, History, Trash2, X } from "lucide-react";
 import type { Column } from "@/lib/schema";
@@ -6,11 +6,28 @@ import { badge, btn, btnPrimary, iconBtn, menu, menuItem } from "@/components/st
 import { KindIcon } from "@/components/objectKinds";
 import { parseIds, toValue } from "@/features/files/filesLogic";
 import type { LookupInfo } from "./Editors";
-import type { RowBuffer } from "./buffer";
+import { hasChanges, type RowBuffer } from "./buffer";
 import { type Row } from "./rowsApi";
 import { draftOf, isReadOnlyColumn, kindOf, parseDraft } from "./values";
 import { askToConfirm } from "@/components/ui";
 import { Field } from "./RecordSheetFields";
+import { dismissActiveInput, useSwipeGesture } from "./useSwipeGesture";
+
+export function getPaginationDots(current: number, total: number, maxDots = 7) {
+  if (total <= maxDots) {
+    return Array.from({ length: total }, (_, i) => ({ index: i, active: i === current }));
+  }
+  const half = Math.floor(maxDots / 2);
+  let start = Math.max(0, current - half);
+  const end = Math.min(total - 1, start + maxDots - 1);
+  if (end - start < maxDots - 1) {
+    start = Math.max(0, end - maxDots + 1);
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => {
+    const idx = start + i;
+    return { index: idx, active: idx === current };
+  });
+}
 
 export interface FieldChange {
   col: Column;
@@ -83,6 +100,8 @@ export function RecordSheet(props: Props) {
   const drafts = form.drafts;
   const errors = { ...(local.key === key ? local.errors : {}), ...(buffer?.errors ?? {}) };
   const dirty = form.touched.size > 0;
+  const isDirty = dirty || hasChanges(buffer);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   // After a conflict the merge dialog resolves the buffer; the record is then up to date, so leave.
   useEffect(() => {
@@ -131,7 +150,7 @@ export function RecordSheet(props: Props) {
   }
 
   async function close() {
-    if (dirty && !(await askToConfirm({ title: "Discard your changes?", message: "Your changes to this record are not saved.", confirmLabel: "Discard changes", danger: true }))) return;
+    if (isDirty && !(await askToConfirm({ title: "Discard your changes?", message: "Your changes to this record are not saved.", confirmLabel: "Discard changes", danger: true }))) return;
     onClose();
   }
 
@@ -139,6 +158,19 @@ export function RecordSheet(props: Props) {
     if (dirty && !(await save())) return;
     props.onGo(next);
   }
+
+  async function swipeGo(next: number) {
+    if (isDirty && !(await askToConfirm({ title: "Discard your changes?", message: "Your changes to this record are not saved.", confirmLabel: "Discard changes", danger: true }))) return;
+    props.onGo(next);
+  }
+
+  useSwipeGesture({
+    containerRef: formRef,
+    canSwipeLeft: !isNew && index < total - 1,
+    canSwipeRight: isNew ? total > 0 : index > 0,
+    onSwipeLeft: () => void swipeGo(index + 1),
+    onSwipeRight: () => void swipeGo(index - 1),
+  });
 
   const position = isNew ? "New record" : `Record ${(index + 1).toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`;
 
@@ -148,13 +180,14 @@ export function RecordSheet(props: Props) {
         <Dialog.Content
           aria-describedby={undefined}
           data-presentation="fullscreen"
+          onPointerDown={(e) => dismissActiveInput(e.target)}
           onEscapeKeyDown={(e) => {
-            if (dirty) {
+            if (isDirty) {
               e.preventDefault();
               void close();
             }
           }}
-          className="fixed inset-0 z-50 flex flex-col bg-bg text-fg"
+          className="fixed inset-0 z-50 flex flex-col bg-bg text-fg touch-pan-y"
         >
           <div className="flex shrink-0 items-center gap-0.5 border-b border-border bg-surface pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
             <button type="button" className={iconBtn} aria-label="Close record" onClick={close}>
@@ -199,8 +232,9 @@ export function RecordSheet(props: Props) {
 
           <form
             id={formId}
+            ref={formRef}
             noValidate
-            className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
+            className="swipe-card min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 touch-pan-y"
             onSubmit={(e) => {
               e.preventDefault();
               void save().then((ok) => {
@@ -234,6 +268,33 @@ export function RecordSheet(props: Props) {
               ))
             )}
           </form>
+
+          {total > 1 && !isNew && (
+            <div
+              role="tablist"
+              aria-label="Record pagination"
+              className="flex shrink-0 items-center justify-center gap-1 border-t border-border/50 bg-surface/30 px-3 py-1.5 touch-pan-y"
+            >
+              {getPaginationDots(index, total).map((dot) => (
+                <button
+                  key={dot.index}
+                  type="button"
+                  role="tab"
+                  data-dense
+                  aria-selected={dot.active}
+                  aria-label={`Record ${dot.index + 1} of ${total}`}
+                  className="flex h-8 w-6 items-center justify-center"
+                  onClick={() => void go(dot.index)}
+                >
+                  <span
+                    className={`h-2 rounded-full transition-all duration-150 ${
+                      dot.active ? "w-5 bg-accent" : "w-2 bg-border hover:bg-fg-muted"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
 
           {canEdit && (
             <div className="flex shrink-0 gap-2 border-t border-border bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
