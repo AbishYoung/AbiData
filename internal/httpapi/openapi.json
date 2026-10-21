@@ -6918,6 +6918,9 @@
       "Section": {
         "additionalProperties": false,
         "properties": {
+          "collapsible": {
+            "type": "boolean"
+          },
           "controls": {
             "items": {
               "$ref": "#/components/schemas/Control"
@@ -6927,9 +6930,15 @@
               "null"
             ]
           },
+          "default_expanded": {
+            "type": "boolean"
+          },
           "height": {
             "format": "int64",
             "type": "integer"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "required": [

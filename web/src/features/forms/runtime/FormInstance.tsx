@@ -31,6 +31,8 @@ import { createSessionStore, useFormSession, useSessionState } from "./useFormSe
 import { linkFilter, pagesFor, useQueryRows, useTableCount, useTablePages, type Link, type PageAccess } from "./sources";
 import { ConfirmDialog, Toolbar, SubformHost } from "./FormInstanceParts";
 import { dismissActiveInput } from "@/lib/touchErgonomics";
+import { FormAccordion, FormAccordionItem, type FormSectionMeta } from "./FormAccordion";
+import { SECTION_LABEL, type SectionName } from "../designer/layoutModel";
 
 const FOCUSABLE = "input:not([disabled]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])";
 const DETAIL_PAD = 0;
@@ -202,6 +204,45 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   const [deleting, setDeleting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // ---- sections & collapsible state --------------------------------------------------------
+  const sectionKeys = useMemo(() => {
+    const base: string[] = ["header", "detail", "footer"];
+    const extra = Object.keys(layout.sections).filter((k) => !base.includes(k));
+    return [...base, ...extra].filter((k) => (layout.sections as Record<string, FormSection | undefined>)[k]);
+  }, [layout.sections]);
+
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const [k, sec] of Object.entries(layout.sections)) {
+      if (sec && typeof sec === "object") {
+        const s = sec as FormSection;
+        init[k] = s.defaultExpanded ?? s.default_expanded ?? true;
+      }
+    }
+    return init;
+  });
+
+  // Auto-expand collapsed sections on validation errors or focus requests into collapsed sections
+  useEffect(() => {
+    const errorColIds = Object.keys(fieldErrors);
+    if (errorColIds.length === 0 && !focus) return;
+
+    for (const k of sectionKeys) {
+      const s = (layout.sections as Record<string, FormSection | undefined>)[k];
+      if (!s || !s.collapsible) continue;
+      const controls = s.controls ?? [];
+      const hasError = controls.some(
+        (c) =>
+          (c.bind?.column_id && errorColIds.includes(c.bind.column_id)) ||
+          (focus && c.name === focus.name) ||
+          Boolean(overrides[c.name]?.error),
+      );
+      if (hasError && expandedSections[k] === false) {
+        setExpandedSections((prev) => ({ ...prev, [k]: true }));
+      }
+    }
+  }, [fieldErrors, focus, overrides, layout.sections, sectionKeys, expandedSections]);
+
   // ---- tab, status bar --------------------------------------------------------------------
   useEffect(() => {
     if (!top) return;
@@ -247,14 +288,29 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
     }
   });
 
-  // Focus requested by ui.focus.
+  // Focus requested by ui.focus or validation error.
   useEffect(() => {
-    if (!focus || !rootRef.current) return;
+    const targetName = focus?.name ?? (() => {
+      const errorCols = Object.keys(fieldErrors);
+      if (errorCols.length === 0) return undefined;
+      for (const k of sectionKeys) {
+        const s = (layout.sections as Record<string, FormSection | undefined>)[k];
+        const match = s?.controls?.find((c) => c.bind?.column_id && errorCols.includes(c.bind.column_id));
+        if (match) return match.name;
+      }
+      return undefined;
+    })();
+
+    if (!targetName || !rootRef.current) return;
     const scope = rootRef.current.querySelector('[data-current="true"]') ?? rootRef.current;
-    const el = scope.querySelector(`[data-control-name="${CSS.escape(focus.name)}"]`);
-    (el?.matches(FOCUSABLE) ? el : el?.querySelector(FOCUSABLE))?.dispatchEvent(new Event("focus-request"));
-    (el?.matches(FOCUSABLE) ? (el as HTMLElement) : el?.querySelector<HTMLElement>(FOCUSABLE))?.focus();
-  }, [focus]);
+    const el = scope.querySelector(`[data-control-name="${CSS.escape(targetName)}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      const target = el.matches(FOCUSABLE) ? (el as HTMLElement) : el.querySelector<HTMLElement>(FOCUSABLE);
+      target?.dispatchEvent(new Event("focus-request"));
+      target?.focus();
+    }
+  }, [focus, fieldErrors, sectionKeys, layout.sections, expandedSections]);
 
   // Keep the current record visible in continuous views.
   useEffect(() => {
@@ -372,34 +428,134 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   } else if (!rec && view === "single") {
     body = <EmptyState kind="form" compact title="No records" hint={canAdd ? "Use New record to add one." : "There is nothing to show yet."} />;
   } else if (view === "single" && stacked) {
-    const band = (name: string, section: FormSection) =>
-      (section.controls?.length ?? 0) > 0 && (
-        <div className="flex flex-col gap-2">
+    const hasAnyCollapsible = sectionKeys.some(
+      (k) => (layout.sections as Record<string, FormSection | undefined>)[k]?.collapsible,
+    );
+
+    const renderStackedBand = (name: string, section: FormSection) => {
+      const controls = section.controls ?? [];
+      if (controls.length === 0 && !section.collapsible) return null;
+
+      const isExpanded = expandedSections[name] !== false;
+      const toggle = () => setExpandedSections((prev) => ({ ...prev, [name]: !isExpanded }));
+
+      const errorCount = controls.filter(
+        (c) => (c.bind?.column_id && fieldErrors[c.bind.column_id]) || Boolean(overrides[c.name]?.error),
+      ).length;
+
+      const content = (
+        <div className="flex flex-col gap-2 pt-1 pb-2">
           <Band section={section} prefix={`${uid}${name}`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
         </div>
       );
+
+      if (section.collapsible) {
+        const meta: FormSectionMeta = {
+          id: (section as { id?: string }).id || name,
+          title: section.title || (SECTION_LABEL[name as SectionName] ?? name),
+          collapsible: true,
+          defaultExpanded: section.defaultExpanded ?? section.default_expanded ?? true,
+          badgeCount: errorCount > 0 ? errorCount : controls.length,
+          badgeLabel: errorCount > 0 ? (errorCount === 1 ? "error" : "errors") : (controls.length === 1 ? "field" : "fields"),
+        };
+        return (
+          <FormAccordionItem
+            key={name}
+            section={meta}
+            isExpanded={isExpanded}
+            onToggle={toggle}
+            badgeTone={errorCount > 0 ? "danger" : "neutral"}
+          >
+            {content}
+          </FormAccordionItem>
+        );
+      }
+
+      return (
+        <div key={name} className="flex flex-col gap-2">
+          {content}
+        </div>
+      );
+    };
+
+    const sectionElements = sectionKeys.map((k) => {
+      const s = (layout.sections as Record<string, FormSection | undefined>)[k];
+      return s ? renderStackedBand(k, s) : null;
+    });
+
     body = (
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden touch-pan-y" data-current="true">
-        <div className="flex flex-col gap-3 p-3">
-          {band("h", header)}
-          {band("d", sections.detail)}
-          {band("f", footer)}
-        </div>
+        {hasAnyCollapsible ? (
+          <FormAccordion className="p-3 gap-3">{sectionElements}</FormAccordion>
+        ) : (
+          <div className="flex flex-col gap-3 p-3">{sectionElements}</div>
+        )}
       </div>
     );
   } else if (view === "single") {
+    const hasAnyCollapsible = sectionKeys.some(
+      (k) => (layout.sections as Record<string, FormSection | undefined>)[k]?.collapsible,
+    );
+
+    const renderDesktopSection = (name: string, section: FormSection) => {
+      const controls = section.controls ?? [];
+      if (controls.length === 0 && section.height === 0 && !section.collapsible) return null;
+
+      const isExpanded = expandedSections[name] !== false;
+      const toggle = () => setExpandedSections((prev) => ({ ...prev, [name]: !isExpanded }));
+
+      const errorCount = controls.filter(
+        (c) => (c.bind?.column_id && fieldErrors[c.bind.column_id]) || Boolean(overrides[c.name]?.error),
+      ).length;
+
+      const content = (
+        <div style={{ position: "relative", height: section.height, width: layout.width }}>
+          <Band section={section} prefix={`${uid}${name}`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
+        </div>
+      );
+
+      if (section.collapsible) {
+        const meta: FormSectionMeta = {
+          id: (section as { id?: string }).id || name,
+          title: section.title || (SECTION_LABEL[name as SectionName] ?? name),
+          collapsible: true,
+          defaultExpanded: section.defaultExpanded ?? section.default_expanded ?? true,
+          badgeCount: errorCount > 0 ? errorCount : controls.length,
+          badgeLabel: errorCount > 0 ? (errorCount === 1 ? "error" : "errors") : (controls.length === 1 ? "field" : "fields"),
+        };
+        return (
+          <FormAccordionItem
+            key={name}
+            section={meta}
+            isExpanded={isExpanded}
+            onToggle={toggle}
+            badgeTone={errorCount > 0 ? "danger" : "neutral"}
+          >
+            {content}
+          </FormAccordionItem>
+        );
+      }
+
+      return (
+        <div key={name} style={{ position: "relative", height: section.height, width: layout.width }}>
+          <Band section={section} prefix={`${uid}${name}`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
+        </div>
+      );
+    };
+
+    const sectionElements = sectionKeys.map((k) => {
+      const s = (layout.sections as Record<string, FormSection | undefined>)[k];
+      return s ? renderDesktopSection(k, s) : null;
+    });
+
     body = (
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto touch-pan-y">
-        <div style={{ width: layout.width }} className="relative" data-current="true">
-          <div style={{ position: "relative", height: header.height, width: layout.width }}>
-            <Band section={header} prefix={`${uid}h`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
-          </div>
-          <div style={{ position: "relative", height: sections.detail.height, width: layout.width }}>
-            <Band section={sections.detail} prefix={`${uid}d`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
-          </div>
-          <div style={{ position: "relative", height: footer.height, width: layout.width }}>
-            <Band section={footer} prefix={`${uid}f`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
-          </div>
+        <div style={{ width: layout.width }} className="relative flex flex-col gap-2" data-current="true">
+          {hasAnyCollapsible ? (
+            <FormAccordion className="gap-2">{sectionElements}</FormAccordion>
+          ) : (
+            sectionElements
+          )}
         </div>
       </div>
     );

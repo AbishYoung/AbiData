@@ -5,7 +5,9 @@ export type Form = components["schemas"]["Form"];
 export type FormInput = components["schemas"]["FormInput"];
 export type FormLayout = components["schemas"]["Layout"];
 export type FormControl = components["schemas"]["Control"];
-export type FormSection = components["schemas"]["Section"];
+export type FormSection = components["schemas"]["Section"] & {
+  defaultExpanded?: boolean;
+};
 export type FormEventRequest = components["schemas"]["EventRequest"];
 export type FormEventResponse = components["schemas"]["EventResponse"];
 export type FormSaveRequest = components["schemas"]["SaveRequest"];

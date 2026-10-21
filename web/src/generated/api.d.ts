@@ -3917,9 +3917,12 @@ export interface components {
             source: string;
         };
         Section: {
+            collapsible?: boolean;
             controls: components["schemas"]["Control"][] | null;
+            default_expanded?: boolean;
             /** Format: int64 */
             height: number;
+            title?: string;
         };
         Sections: {
             detail: components["schemas"]["Section"];

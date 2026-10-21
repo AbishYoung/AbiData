@@ -28,8 +28,11 @@ type Sections struct {
 
 // Section is one band.
 type Section struct {
-	Height   int       `json:"height"`
-	Controls []Control `json:"controls"`
+	Height          int       `json:"height"`
+	Controls        []Control `json:"controls"`
+	Title           string    `json:"title,omitempty"`
+	Collapsible     bool      `json:"collapsible,omitempty"`
+	DefaultExpanded *bool     `json:"default_expanded,omitempty"`
 }
 
 // Control is one control on the form.

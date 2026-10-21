@@ -171,6 +171,42 @@ describe("layout <-> state", () => {
     expect(input.layout.events).toBeUndefined();
     expect(input.layout.sections.detail.controls?.[0]?.events).toBeUndefined();
   });
+  it("preserves section collapsible and defaultExpanded flags", () => {
+    const form: Form = {
+      id: "F",
+      name: "F",
+      source_kind: "none",
+      default_view: "single",
+      allow_edits: true,
+      allow_additions: true,
+      allow_deletions: true,
+      module_source: "",
+      module_id: "M",
+      module_version: 1,
+      version: 1,
+      updated_at: "",
+      updated_by: "",
+      layout: {
+        width: 640,
+        sections: {
+          header: { height: 48, controls: [], collapsible: true, default_expanded: false },
+          detail: { height: 200, controls: [], collapsible: true, default_expanded: true },
+          footer: { height: 32, controls: [], collapsible: false },
+        },
+      },
+    };
+    const s = stateFromForm(form);
+    expect(s.sectionSettings?.header).toEqual({ collapsible: true, defaultExpanded: false });
+    expect(s.sectionSettings?.detail).toEqual({ collapsible: true, defaultExpanded: true });
+    expect(s.sectionSettings?.footer).toEqual({ collapsible: false });
+
+    const input = inputFromState(s);
+    expect(input.layout.sections.header.collapsible).toBe(true);
+    expect(input.layout.sections.header.default_expanded).toBe(false);
+    expect(input.layout.sections.detail.collapsible).toBe(true);
+    expect(input.layout.sections.detail.default_expanded).toBe(true);
+    expect(input.layout.sections.footer.collapsible).toBe(false);
+  });
 });
 
 describe("property values", () => {
