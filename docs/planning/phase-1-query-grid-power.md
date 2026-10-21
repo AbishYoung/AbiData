@@ -1,7 +1,7 @@
 # Phase 1: Query Console Ergonomics & Datasheet Selection Aggregation
 
 - **Target Release:** `v1.1.0` (Minor Release)
-- **Status:** Approved for Implementation
+- **Status:** Completed & Shipped in `v1.1.0`
 - **Milestone:** UX Refinement Phase 1
 - **Related ADRs:** [ADR 0013: Backend-Agnostic SQL Layer](../adr/0013-backend-agnostic-sql-layer.md), [ADR 0015: Web UI Modernisation](../adr/0015-web-ui-review-and-modernisation.md)
 - **Design Guidelines:** `web/src/components/DESIGN.md`
