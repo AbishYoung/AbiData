@@ -1,11 +1,13 @@
 import { useId, type Ref } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, MapPin, RefreshCw, Search, Table2, Trash2, X } from "lucide-react";
+import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, MapPin, RefreshCw, Search, Table2, Trash2 } from "lucide-react";
+import type { Column } from "@/lib/schema";
 import { Tip } from "@/components/Tip";
 import { btnGhost, iconBtn, input, menu, menuItem, menuSeparator } from "@/components/styles";
 
 const Divider = () => <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />;
-import type { Condition } from "./filter";
+import type { Condition, FilterOp } from "./filter";
+import { FilterPillsBar } from "./FilterPillsBar";
 
 interface ToolbarProps {
   quick: string;
@@ -14,6 +16,8 @@ interface ToolbarProps {
   quickEnabled: boolean;
   conditions: readonly Condition[];
   onRemoveCondition: (index: number) => void;
+  onUpdateCondition?: (index: number, op: FilterOp, value: unknown) => void;
+  columns?: readonly Column[];
   filterActive: boolean;
   onClearFilter: () => void;
   canFilterBySelection: boolean;
@@ -33,22 +37,6 @@ interface ToolbarProps {
   compact?: boolean;
   mode?: "cards" | "grid";
   onMode?: (mode: "cards" | "grid") => void;
-}
-
-function ActiveFilters({ conditions, onRemove }: { conditions: readonly Condition[]; onRemove: (index: number) => void }) {
-  if (conditions.length === 0) return null;
-  return (
-    <ul aria-label="Active filters" className="flex flex-wrap items-center gap-1">
-      {conditions.map((c, i) => (
-        <li key={`${c.col}-${i}`} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-0.5 pl-2.5 pr-1 text-xs font-medium text-accent">
-          <span>Filter: {c.label}</span>
-          <button type="button" aria-label={`Remove filter ${c.label}`} className="rounded-full p-0.5 hover:bg-surface-3" onClick={() => onRemove(i)}>
-            <X size={12} aria-hidden="true" />
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function CompactToolbar({ filterRef, ...p }: ToolbarProps) {
@@ -140,14 +128,28 @@ function CompactToolbar({ filterRef, ...p }: ToolbarProps) {
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       </div>
-      <ActiveFilters conditions={p.conditions} onRemove={p.onRemoveCondition} />
     </div>
   );
 }
 
 export function Toolbar(props: ToolbarProps) {
-  if (props.compact) return <CompactToolbar {...props} />;
-  return <FullToolbar {...props} />;
+  return (
+    <>
+      {props.compact ? <CompactToolbar {...props} /> : <FullToolbar {...props} />}
+      <FilterPillsBar
+        quick={props.quick}
+        onClearQuick={() => {
+          props.onQuick("");
+          props.onQuickCommit();
+        }}
+        conditions={props.conditions}
+        columns={props.columns}
+        onRemoveCondition={props.onRemoveCondition}
+        onUpdateCondition={props.onUpdateCondition}
+        onClearAll={props.onClearFilter}
+      />
+    </>
+  );
 }
 
 function FullToolbar({ filterRef, ...p }: ToolbarProps) {
@@ -233,25 +235,6 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
           <Download size={14} aria-hidden="true" />
           Export…
         </button>
-      )}
-      {p.conditions.length > 0 && (
-        <ul aria-label="Active filters" className="flex flex-wrap items-center gap-1">
-          {p.conditions.map((c, i) => (
-            <li key={`${c.col}-${i}`} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-0.5 pl-2.5 pr-1 text-xs font-medium text-accent">
-              <span>Filter: {c.label}</span>
-              <Tip label={`Remove filter ${c.label}`}>
-                <button
-                  type="button"
-                  aria-label={`Remove filter ${c.label}`}
-                  className="rounded-full p-0.5 hover:bg-surface-3"
-                  onClick={() => p.onRemoveCondition(i)}
-                >
-                  <X size={12} aria-hidden="true" />
-                </button>
-              </Tip>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );
