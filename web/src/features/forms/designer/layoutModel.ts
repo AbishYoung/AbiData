@@ -1,4 +1,4 @@
-import type { Form, FormControl, FormInput, FormLayout } from "../formsApi";
+import type { Form, FormControl, FormInput, FormLayout, FormSection } from "../formsApi";
 import { ulid } from "@/features/tabledesign/ulid";
 import { GRID, MIN_SIZE, alignPatches, clamp, distributePatches, snap, type AlignMode, type DistributeAxis, type PlacedRect } from "@/components/designer/geometry";
 
@@ -37,6 +37,11 @@ export type DefaultView = "single" | "continuous" | "datasheet";
 /** A control together with the section that holds it. */
 export type DesignControl = FormControl & { section: SectionName };
 
+export interface SectionSettings {
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
+}
+
 /** The editable form state: layout (flattened), form properties and the module source. */
 export interface DesignState {
   name: string;
@@ -48,6 +53,7 @@ export interface DesignState {
   allowDeletions: boolean;
   width: number;
   heights: Record<SectionName, number>;
+  sectionSettings?: Partial<Record<SectionName, SectionSettings>>;
   controls: DesignControl[];
   events: Record<string, string>;
   moduleSource: string;
@@ -83,6 +89,7 @@ export function newState(setup: SetupValues): DesignState {
     allowDeletions: true,
     width: DEFAULT_WIDTH,
     heights: { header: 48, detail: 240, footer: 32 },
+    sectionSettings: {},
     controls: [],
     events: {},
     moduleSource: "",
@@ -95,6 +102,18 @@ function asSection(s: { height: number; controls: FormControl[] | null } | undef
 
 export function stateFromForm(form: Form): DesignState {
   const sec = form.layout.sections;
+  const sectionSettings: Partial<Record<SectionName, SectionSettings>> = {};
+  for (const sName of SECTIONS) {
+    const s = sec[sName] as (FormSection | undefined);
+    if (s && (s.collapsible !== undefined || s.defaultExpanded !== undefined || s.default_expanded !== undefined)) {
+      sectionSettings[sName] = {
+        ...(s.collapsible !== undefined ? { collapsible: s.collapsible } : {}),
+        ...(s.defaultExpanded !== undefined || s.default_expanded !== undefined
+          ? { defaultExpanded: s.defaultExpanded ?? s.default_expanded }
+          : {}),
+      };
+    }
+  }
   return {
     name: form.name,
     sourceKind: form.source_kind,
@@ -105,6 +124,7 @@ export function stateFromForm(form: Form): DesignState {
     allowDeletions: form.allow_deletions,
     width: form.layout.width,
     heights: { header: sec.header.height, detail: sec.detail.height, footer: sec.footer.height },
+    sectionSettings,
     controls: [...asSection(sec.header, "header"), ...asSection(sec.detail, "detail"), ...asSection(sec.footer, "footer")],
     events: { ...(form.layout.events ?? {}) },
     moduleSource: form.module_source,
@@ -126,10 +146,15 @@ function toApiControl(c: DesignControl): FormControl {
 }
 
 export function layoutFromState(s: DesignState): FormLayout {
-  const section = (name: SectionName) => ({
-    height: s.heights[name],
-    controls: s.controls.filter((c) => c.section === name).map(toApiControl),
-  });
+  const section = (name: SectionName) => {
+    const cfg = s.sectionSettings?.[name];
+    return {
+      height: s.heights[name],
+      controls: s.controls.filter((c) => c.section === name).map(toApiControl),
+      ...(cfg?.collapsible !== undefined ? { collapsible: cfg.collapsible } : {}),
+      ...(cfg?.defaultExpanded !== undefined ? { default_expanded: cfg.defaultExpanded } : {}),
+    };
+  };
   const events = stripEmpty(s.events);
   return {
     width: s.width,

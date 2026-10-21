@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { signIn, signOut } from "./helpers";
 import { createWorkspace, openWorkspace } from "./tabledesign-helpers";
-import { signInAs } from "./queries-helpers";
+import { apiPost, signInAs } from "./queries-helpers";
 import {
   VIEWER_EMAIL,
   VIEWER_PASSWORD,
@@ -228,5 +228,81 @@ test("viewers see the form read-only", async ({ page }) => {
   await expect(bar(form).getByRole("button", { name: "New record" })).toHaveCount(0);
   await expect(bar(form).getByRole("button", { name: "Delete" })).toHaveCount(0);
   await expect(bar(form).getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  await expectNoAxeViolations(page);
+});
+
+test("collapsible sections: expand/collapse toggle and keyboard navigation", async ({ page }) => {
+  await openWorkspace(page, WORKSPACE);
+  const form = await apiPost<{ id: string; name: string }>(page, `/api/v1/w/${data.ws}/forms`, {
+    name: "Shipping Review",
+    source_kind: "table",
+    source_id: data.orders.id,
+    default_view: "single",
+    allow_edits: true,
+    allow_additions: true,
+    allow_deletions: true,
+    module_source: "",
+    layout: {
+      width: 640,
+      sections: {
+        header: {
+          height: 60,
+          title: "Order Overview",
+          collapsible: true,
+          default_expanded: true,
+          controls: [
+            { id: "h1", name: "Status", type: "textbox", x: 10, y: 10, w: 200, h: 28, tab_index: 1, bind: { column_id: col(data.orders, "Status") } },
+          ],
+        },
+        detail: {
+          height: 80,
+          title: "Customer Information",
+          collapsible: true,
+          default_expanded: false,
+          controls: [
+            {
+              id: "d1",
+              name: "Customer",
+              type: "combobox",
+              x: 10,
+              y: 10,
+              w: 200,
+              h: 28,
+              tab_index: 2,
+              bind: { column_id: col(data.orders, "Customer") },
+              lookup: { table_id: data.customers.id, value_column_id: "id", display_column_id: col(data.customers, "Name") },
+            },
+          ],
+        },
+        footer: {
+          height: 0,
+          controls: [],
+          collapsible: false,
+        },
+      },
+    },
+  });
+
+  await openForm(page, data.ws, form);
+  const formGroup = page.getByRole("group", { name: "Shipping Review", exact: true });
+  const overviewHeader = formGroup.getByRole("button", { name: /Order Overview/i });
+  const customerHeader = formGroup.getByRole("button", { name: /Customer Information/i });
+
+  await expect(overviewHeader).toHaveAttribute("aria-expanded", "true");
+  await expect(customerHeader).toHaveAttribute("aria-expanded", "false");
+
+  // Toggle customer header open
+  await customerHeader.click();
+  await expect(customerHeader).toHaveAttribute("aria-expanded", "true");
+
+  // Toggle it closed
+  await customerHeader.click();
+  await expect(customerHeader).toHaveAttribute("aria-expanded", "false");
+
+  // Keyboard navigation
+  await overviewHeader.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(customerHeader).toBeFocused();
+
   await expectNoAxeViolations(page);
 });
