@@ -387,10 +387,14 @@ For complete threat models and production checklists, read the [Operations Secur
 
 AbiData strictly adheres to [Semantic Versioning (SemVer 2.0.0)](https://semver.org/):
 - **Major releases (`X.0.0`)**: Incompatible changes to the REST API, breaking Lua host API modifications, or database schema changes requiring manual migration.
-- **Minor releases (`1.X.0`)**: Backward-compatible new features, added UI capabilities, additive API endpoints, and safe automatic migrations.
-- **Patch releases (`1.0.X`)**: Backward-compatible bug fixes and security updates.
+- **Minor releases (`1.X.0`)**: Backward-compatible new features, added UI capabilities, additive API endpoints, and safe automatic migrations. Each major UX refinement phase corresponds to a minor version bump:
+  - **v1.1.0 (Phase 1)**: [Query Console Ergonomics & Selection Aggregation](docs/planning/phase-1-query-grid-power.md)
+  - **v1.2.0 (Phase 2)**: [Information Clarity & Team Collaboration](docs/planning/phase-2-clarity-and-collaboration.md)
+  - **v1.3.0 (Phase 3)**: [Mobile Touch Fluidity & Form Composition](docs/planning/phase-3-mobile-touch-and-forms.md)
+  - **v1.4.0 (Phase 4)**: [Advanced Data Exploration & Deep Datasheet Ergonomics](docs/planning/phase-4-data-exploration-and-datasheet.md)
+- **Patch releases (`1.0.X`)**: Backward-compatible bug fixes and security updates. **All pull requests landing on `main` increment SemVer project-wide.**
 
-Consult [CHANGELOG.md](CHANGELOG.md) for detailed version history and [RELEASING.md](RELEASING.md) for the release checklist and procedure.
+Consult [CHANGELOG.md](CHANGELOG.md) for detailed version history, [RELEASING.md](RELEASING.md) for the release checklist and procedure, and [docs/planning/semver-versioning-policy.md](docs/planning/semver-versioning-policy.md) for the formal versioning policy.
 
 ---
 
