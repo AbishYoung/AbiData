@@ -108,14 +108,20 @@ jobs:
           cd release-binaries
           sha256sum abidata-* > sha256sums.txt
           cat sha256sums.txt
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release-binaries/* \
-            --title "AbiData $GITHUB_REF_NAME" \
-            --generate-notes \
-            --verify-tag
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists, uploading binaries and checksums..."
+            gh release upload "$GITHUB_REF_NAME" release-binaries/* --clobber
+          else
+            echo "Creating release $GITHUB_REF_NAME..."
+            gh release create "$GITHUB_REF_NAME" release-binaries/* \
+              --title "AbiData $GITHUB_REF_NAME" \
+              --generate-notes \
+              --verify-tag
+          fi
 
   docker-release:
     needs: test-gate
