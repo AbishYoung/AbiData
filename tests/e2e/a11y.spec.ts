@@ -246,6 +246,17 @@ for (const scheme of SCHEMES) {
     await expect(page.getByTestId("backups-panel").getByRole("button", { name: "Back up now" })).toBeVisible();
     await scan(page, "workspace settings and backups", scheme);
 
+    // /messages: inbox and compose dialog.
+    await page.goto("/messages");
+    await expect(page.getByRole("heading", { name: "Messages" })).toBeVisible();
+    await scan(page, "/messages (inbox)", scheme);
+    await page.getByRole("banner").getByRole("button", { name: "New message" }).click();
+    const composeDialog = page.getByRole("dialog", { name: "New message" });
+    await expect(composeDialog).toBeVisible();
+    await scan(page, "compose message dialog", scheme);
+    await page.keyboard.press("Escape");
+    await expect(composeDialog).toHaveCount(0);
+
     // /admin console, every section.
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Admin console" })).toBeVisible();

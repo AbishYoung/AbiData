@@ -5,6 +5,7 @@ import { UserMinus, UserPlus } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { useMe } from "@/lib/session";
 import { Modal, selectClass } from "@/features/queries/Modal";
+import { Button } from "@/components/ui";
 import { alertBox, badge, badgeAccent, btn, btnDanger, btnPrimary, input, label } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { apiKeyKeys, listApiKeys, revokeApiKey } from "@/features/apikeys/apiKeysApi";
@@ -60,21 +61,20 @@ export function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () =>
               Available platform users ({candidates.length})
             </span>
             <ul
-              role="list"
               aria-label="Available platform users"
               className="m-0 flex max-h-36 list-none flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-2/50 p-1.5"
             >
               {candidates.map((c) => {
                 const selected = email.trim().toLowerCase() === c.email.toLowerCase();
                 return (
-                  <li key={c.user_id} role="listitem">
+                  <li key={c.user_id}>
                     <button
                       type="button"
                       onClick={() => {
                         setEmail(c.email);
                         setEmailErr(null);
                       }}
-                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-3 ${
+                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-3 focus-visible:outline-focus ${
                         selected ? "bg-accent-soft font-medium text-accent" : "text-fg"
                       }`}
                       aria-label={`Select ${c.display_name} (${c.email})`}
@@ -137,12 +137,12 @@ export function AddDialog({ ws, onClose, onAdded }: { ws: string; onClose: () =>
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className={btn} onClick={onClose} disabled={add.isPending}>
+          <Button variant="secondary" onClick={onClose} disabled={add.isPending}>
             Cancel
-          </button>
-          <button type="submit" className={btnPrimary} disabled={add.isPending} aria-busy={add.isPending}>
+          </Button>
+          <Button type="submit" variant="primary" disabled={add.isPending} aria-busy={add.isPending}>
             {add.isPending ? "Adding…" : "Add member"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

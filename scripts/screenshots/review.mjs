@@ -213,6 +213,10 @@ export async function review(ctx) {
       // ---- signed in ----
       await signIn(page);
       await step(page, "picker", variant, async () => {});
+      await step(page, "messages", variant, async () => {
+        await page.goto(`${base}/messages`);
+        await page.getByRole("heading", { name: "Messages" }).waitFor();
+      });
       await step(page, "shell", variant, async () => {
         await toWorkspace(page);
         if (compact) {
