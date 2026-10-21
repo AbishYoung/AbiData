@@ -134,6 +134,18 @@
   [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"] { animation: none; }
 }
 
+/* Mobile touch & swipe navigation utilities */
+.swipe-card {
+  touch-action: pan-y;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .swipe-card {
+    will-change: auto;
+    transition: none !important;
+  }
+}
+
 /* Safe-area helpers for the shell (the viewport meta uses viewport-fit=cover). */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
