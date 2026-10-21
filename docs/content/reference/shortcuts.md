@@ -56,6 +56,7 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 
 | Action | Mac | Windows / Linux | Where it applies |
 |---|---|---|---|
+| Run the query | `⌘ Enter` | `Ctrl+Enter` | SQL view and query designer |
 | Move between result cells | `Arrow keys` | `Arrow keys` | Query results |
 | Move one page up (PageDown: one page down) | `PageUp` | `PageUp` | Query results |
 | Go to the first column (End: last column) | `Home` | `Home` | Query results |

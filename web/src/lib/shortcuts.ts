@@ -39,6 +39,7 @@ export type ShortcutId =
   | "grid.copy"
   | "grid.paste"
   | "menu.open"
+  | "query.run"
   | "query.results.move"
   | "query.results.page"
   | "query.results.edge"
@@ -164,6 +165,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "grid.copy", area: "Datasheet", action: "Copy the current cell", keys: "Mod+C", scope: "Datasheet and query results" },
   { id: "grid.paste", area: "Datasheet", action: "Paste into the current cell (opens it for editing with the pasted text)", keys: "Mod+V", scope: "Datasheet" },
 
+  { id: "query.run", area: "Queries", action: "Run the query", keys: "Mod+Enter", scope: "SQL view and query designer" },
   { id: "query.results.move", area: "Queries", action: "Move between result cells", keys: "Arrows", scope: "Query results" },
   { id: "query.results.page", area: "Queries", action: "Move one page up (PageDown: one page down)", keys: "PageUp", scope: "Query results" },
   { id: "query.results.edge", area: "Queries", action: "Go to the first column (End: last column)", keys: "Home", scope: "Query results" },

@@ -24,6 +24,7 @@ import "monaco-editor/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMo
 import "monaco-editor/editor/contrib/wordHighlighter/browser/wordHighlighter";
 import "monaco-editor/editor/contrib/wordOperations/browser/wordOperations";
 import "monaco-editor/languages/definitions/lua/register";
+import "monaco-editor/languages/definitions/sql/register";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { loader } from "@monaco-editor/react";
 import { openDocs } from "@/features/docs/docsStore";
