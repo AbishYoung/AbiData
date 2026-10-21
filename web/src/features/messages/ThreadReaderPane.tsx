@@ -22,6 +22,7 @@ import {
   type MessageItem,
 } from "./messagesApi";
 import { formatTimestamp } from "./ThreadListRow";
+import { MarkdownBody } from "./MarkdownBody";
 
 function initialsOf(name: string): string {
   const parts = name.split(/[\s@.]+/).filter(Boolean);
@@ -272,8 +273,8 @@ export function ThreadReaderPane({
                 </div>
               )}
 
-              <div className="mt-2.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-fg">
-                {m.body}
+              <div className="mt-2.5 text-sm leading-relaxed text-fg">
+                <MarkdownBody content={m.body} workspaceId={thread.workspace_id} />
               </div>
             </li>
           );

@@ -169,11 +169,16 @@ function ItemBody({ item, on }: { item: PaletteItem; on: boolean }) {
           </span>
         )
       )}
-      <span className="min-w-0 flex-1 truncate">
-        {item.label}
+      <span className="min-w-0 flex-1 truncate flex items-center gap-2">
+        <span className="truncate">{item.label}</span>
+        {item.sublabel && (
+          <span className="shrink-0 inline-flex items-center rounded bg-surface-3 px-1.5 py-0.5 text-xs font-normal text-fg-muted">
+            {item.sublabel}
+          </span>
+        )}
         {item.kind && item.group !== "recent" && <span className="sr-only">, {item.kind}</span>}
       </span>
-      {item.hint && <span className="shrink-0 text-xs capitalize text-fg-muted">{item.hint}</span>}
+      {item.hint && <span className="shrink-0 text-xs text-fg-muted">{item.hint}</span>}
     </>
   );
 }

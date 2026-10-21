@@ -36,6 +36,8 @@ export interface PaletteItem {
   id: string;
   group: GroupId;
   label: string;
+  /** Secondary text e.g. workspace name badge */
+  sublabel?: string;
   /** Extra words that match the search but are not shown. */
   keywords?: string;
   icon?: LucideIcon;
@@ -101,12 +103,17 @@ export function queryWords(query: string): string[] {
  * Score of an item for the query words, or null when a word matches neither the label nor the keywords.
  * Higher is better. Label matches count more than keyword matches; an empty query scores 0.
  */
-export function scoreItem(words: readonly string[], item: Pick<PaletteItem, "label" | "keywords">): number | null {
+export function scoreItem(words: readonly string[], item: Pick<PaletteItem, "label" | "keywords" | "sublabel">): number | null {
   let total = 0;
   for (const w of words) {
     const inLabel = wordScore(w, item.label);
     const inKeywords = item.keywords ? wordScore(w, item.keywords) : null;
-    const s = Math.max(inLabel ?? -1, inKeywords === null ? -1 : inKeywords - 30);
+    const inSublabel = item.sublabel ? wordScore(w, item.sublabel) : null;
+    const s = Math.max(
+      inLabel ?? -1,
+      inKeywords === null ? -1 : inKeywords - 30,
+      inSublabel === null ? -1 : inSublabel - 20,
+    );
     if (s < 0) return null;
     total += s;
   }
