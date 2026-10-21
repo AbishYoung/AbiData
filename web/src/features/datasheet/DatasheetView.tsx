@@ -40,6 +40,7 @@ import {
   serializeFilter,
   sortParam,
   textColumnIds,
+  updateCondition,
   type Condition,
   type SortState,
 } from "./filter";
@@ -835,8 +836,18 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onQuickCommit={() => setAppliedQuick(quick)}
         quickEnabled={textColumnIds(columns).length > 0}
         conditions={conditions}
+        columns={columns}
         onRemoveCondition={(i) => {
           setConditions((prev) => prev.filter((_, j) => j !== i));
+          resetView();
+        }}
+        onUpdateCondition={(i, op, val) => {
+          setConditions((prev) => {
+            const target = prev[i];
+            if (!target) return prev;
+            const col = columns.find((c) => c.id === target.col);
+            return updateCondition(prev, target.col, op, val, col?.display_name);
+          });
           resetView();
         }}
         filterActive={filterActive}
