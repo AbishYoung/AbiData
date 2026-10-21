@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog } from "radix-ui";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Menu, Search, X } from "lucide-react";
 import { workspaceQuery } from "./workspaceQuery";
 import { useLiveStore, useWorkspaceEvents, type LiveState } from "@/lib/events";
 import { useStatusBar } from "@/lib/statusbar";
+import { formatStatValue } from "@/features/datasheet/selectionStats";
 import type { Me } from "@/lib/session";
 import { useTabs, useWorkspaceTabs, type Tab, type TableView } from "@/app/tabs";
 import { NavPane } from "@/features/nav/NavPane";
@@ -385,16 +386,29 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   const openTab = useTabs((s) => s.open);
   const live = useLiveStore((s) => s.state);
   const recordNav = useStatusBar((s) => s.recordNav);
+  const selectionStats = useStatusBar((s) => s.selectionStats);
   useWorkspaceEvents(ws);
   const workspace = useQuery(workspaceQuery(ws));
   const role = workspace.data?.role;
   const compact = useIsCompact();
   const openSeq = useTabs((s) => s.openSeq);
+  const activeTab = useWorkspaceTabs(ws).active;
   // The drawer is open only for the tab-open count it was opened at, so opening any object closes it.
   const [navOpenedAt, setNavOpenedAt] = useState<number | null>(null);
   const navOpen = compact && navOpenedAt === openSeq;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const setNavOpen = (open: boolean) => setNavOpenedAt(open ? openSeq : null);
+
+  useEffect(() => {
+    useStatusBar.getState().setSelectionStats(null);
+  }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      useStatusBar.getState().setSelectionStats(null);
+      useStatusBar.getState().setRecordNav(null);
+    };
+  }, []);
 
   if (compact) {
     return (
@@ -446,14 +460,33 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
         </main>
         <footer className="safe-bottom flex shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-xs text-fg-muted">
           <span aria-live="polite" className="tabular min-h-7 truncate leading-7">{recordNav ?? ""}</span>
-          <span className="ml-auto">
-            <OperationsStatus ws={ws} />
-          </span>
-          <span className="inline-flex items-center gap-1.5 leading-7">
-            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
-            <span className="sr-only">Updates: </span>
-            {LIVE_LABEL[live]}
-          </span>
+          <div className="ml-auto flex items-center gap-3">
+            {selectionStats && (
+              <div role="status" aria-live="polite" className="tabular flex items-center gap-3 text-xs text-fg-muted font-medium">
+                <span>Count: <strong className="text-fg">{selectionStats.count}</strong></span>
+                {selectionStats.numericCount > 0 && selectionStats.sum !== null && selectionStats.avg !== null && selectionStats.min !== null && selectionStats.max !== null && (
+                  <>
+                    <span className="h-3 w-px bg-border" aria-hidden="true" />
+                    <span>Sum: <strong className="text-fg">{formatStatValue(selectionStats.sum, selectionStats.isCurrency)}</strong></span>
+                    <span className="h-3 w-px bg-border" aria-hidden="true" />
+                    <span>Avg: <strong className="text-fg">{formatStatValue(selectionStats.avg, selectionStats.isCurrency)}</strong></span>
+                    <span className="h-3 w-px bg-border" aria-hidden="true" />
+                    <span>Min: <strong className="text-fg">{formatStatValue(selectionStats.min, selectionStats.isCurrency)}</strong></span>
+                    <span className="h-3 w-px bg-border" aria-hidden="true" />
+                    <span>Max: <strong className="text-fg">{formatStatValue(selectionStats.max, selectionStats.isCurrency)}</strong></span>
+                  </>
+                )}
+              </div>
+            )}
+            <span>
+              <OperationsStatus ws={ws} />
+            </span>
+            <span className="inline-flex items-center gap-1.5 leading-7">
+              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+              <span className="sr-only">Updates: </span>
+              {LIVE_LABEL[live]}
+            </span>
+          </div>
         </footer>
       </div>
     );
@@ -507,15 +540,34 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
       </div>
       <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-border bg-surface px-3 text-xs text-fg-muted">
         <span aria-live="polite" className="tabular">{recordNav ?? ""}</span>
-        <span className="ml-auto">
-          <OperationsStatus ws={ws} />
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Tip label={LIVE_TIP[live]}>
-            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
-          </Tip>
-          Updates: {LIVE_LABEL[live]}
-        </span>
+        <div className="ml-auto flex items-center gap-4">
+          {selectionStats && (
+            <div role="status" aria-live="polite" className="tabular flex items-center gap-3 text-xs text-fg-muted font-medium">
+              <span>Count: <strong className="text-fg">{selectionStats.count}</strong></span>
+              {selectionStats.numericCount > 0 && selectionStats.sum !== null && selectionStats.avg !== null && selectionStats.min !== null && selectionStats.max !== null && (
+                <>
+                  <span className="h-3 w-px bg-border" aria-hidden="true" />
+                  <span>Sum: <strong className="text-fg">{formatStatValue(selectionStats.sum, selectionStats.isCurrency)}</strong></span>
+                  <span className="h-3 w-px bg-border" aria-hidden="true" />
+                  <span>Avg: <strong className="text-fg">{formatStatValue(selectionStats.avg, selectionStats.isCurrency)}</strong></span>
+                  <span className="h-3 w-px bg-border" aria-hidden="true" />
+                  <span>Min: <strong className="text-fg">{formatStatValue(selectionStats.min, selectionStats.isCurrency)}</strong></span>
+                  <span className="h-3 w-px bg-border" aria-hidden="true" />
+                  <span>Max: <strong className="text-fg">{formatStatValue(selectionStats.max, selectionStats.isCurrency)}</strong></span>
+                </>
+              )}
+            </div>
+          )}
+          <span>
+            <OperationsStatus ws={ws} />
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Tip label={LIVE_TIP[live]}>
+              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+            </Tip>
+            Updates: {LIVE_LABEL[live]}
+          </span>
+        </div>
       </footer>
     </div>
   );
