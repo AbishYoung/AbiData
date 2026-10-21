@@ -48,7 +48,7 @@ AbiData strictly adheres to **Semantic Versioning 2.0.0**. Because AbiData is di
 | **`v1.0.0`** | Initial General Availability Release | Released | [CHANGELOG.md](../../CHANGELOG.md#100---2026-10-20) |
 | **`v1.0.1`+** | Incremental PRs, bug fixes, performance, stepping stones | In Progress | Continuous Patch Releases |
 | **`v1.1.0`** | **Phase 1:** Query Console Power (`Mod+Enter`, Monaco SQL, Error Markers) & Selection Aggregation | Completed | [phase-1-query-grid-power.md](phase-1-query-grid-power.md) |
-| **`v1.2.0`** | **Phase 2:** Filter Pills Bar, Rich Thread Messaging & Cross-Workspace Palette | Planned | [phase-2-clarity-and-collaboration.md](phase-2-clarity-and-collaboration.md) |
+| **`v1.2.0`** | **Phase 2:** Filter Pills Bar, Rich Thread Messaging & Cross-Workspace Palette | Completed | [phase-2-clarity-and-collaboration.md](phase-2-clarity-and-collaboration.md) |
 | **`v1.3.0`** | **Phase 3:** Mobile Touch Swipe Gestures, iOS Keyboard Dismissal & Form Accordions | Planned | [phase-3-mobile-touch-and-forms.md](phase-3-mobile-touch-and-forms.md) |
 | **`v1.4.0`** | **Phase 4:** Pinned Quick Add, Multi-Sort Badges, Column Freezing & Range Clipboard | Planned | [phase-4-data-exploration-and-datasheet.md](phase-4-data-exploration-and-datasheet.md) |
 

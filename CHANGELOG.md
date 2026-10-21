@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-20
+
+### Added
+- **Datasheet Active Filter Pills Bar & Modifier Popovers (Phase 2, Workstream 2.1)**:
+  - Accessible active filter strip rendered directly beneath the datasheet toolbar displaying all active column conditions and quick search query chips.
+  - Column filter chips feature typed operator badges (`=`, `≠`, `contains`, `>`, `<`, `is empty`, `within`, `has files`), value summaries, and accessible dismiss buttons.
+  - Interactive Filter Modifier Popover allowing in-place editing of column operators and criteria without resetting other filters.
+  - Global "Clear all filters" affordance clearing both quick search and column filters with a single click.
+- **Rich Messaging Markdown & Media Previews (Phase 2, Workstream 2.2)**:
+  - MarkdownBody parser for internal messages supporting fenced SQL and code blocks with 1-click copy to clipboard, inline backticks, bold, italics, bullet lists, blockquotes, and sanitized secure links.
+  - Auto-expanded inline image attachment cards with full-fidelity modal preview dialogs.
+  - Compose dialog Write / Preview mode toggle for real-time formatting verification before sending.
+- **Command Palette Cross-Workspace Recent Objects (Phase 2, Workstream 2.3)**:
+  - Top-5 "Recent" objects section in `Ctrl+K` Command Palette displaying recently visited tables, forms, and queries across workspaces.
+  - Relative time indicators (`2m ago`, `Just now`) and workspace badge chips with one-click direct cross-workspace navigation.
+
 ## [1.1.0] - 2026-10-20
 
 ### Added
@@ -66,5 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sandboxed script and query execution with resource quotas and process isolation.
 - Automated axe accessibility scanning in CI across both light and dark themes.
 
-[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/AbishYoung/AbiData/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/AbishYoung/AbiData/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AbishYoung/AbiData/releases/tag/v1.0.0
