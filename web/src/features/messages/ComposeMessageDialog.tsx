@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, MailPlus, Send, UserPlus, X } from "lucide-react";
 import { Button, Dialog, Field, Input, Select, Textarea } from "@/components/ui";
+import { Tip } from "@/components/Tip";
 import { alertBox, badgeAccent, iconChip } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import {
@@ -177,7 +178,7 @@ export function ComposeMessageDialog({
               setKind("direct");
               setFormError(null);
             }}
-            className={`inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+            className={`inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-focus ${
               kind === "direct"
                 ? "bg-accent text-accent-fg shadow-xs"
                 : "text-fg-muted hover:text-fg"
@@ -193,7 +194,7 @@ export function ComposeMessageDialog({
               setKind("workspace");
               setFormError(null);
             }}
-            className={`inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+            className={`inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-focus ${
               kind === "workspace"
                 ? "bg-accent text-accent-fg shadow-xs"
                 : "text-fg-muted hover:text-fg"
@@ -232,14 +233,16 @@ export function ComposeMessageDialog({
                 {recipients.map((r) => (
                   <span key={r} className={`${badgeAccent} gap-1 pr-1`}>
                     <span>{r.includes("@") ? r : `@${r.replace(/^@/, "")}`}</span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${r}`}
-                      onClick={() => removeRecipient(r)}
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-surface-3"
-                    >
-                      <X size={11} aria-hidden="true" />
-                    </button>
+                    <Tip label={`Remove ${r}`}>
+                      <button
+                        type="button"
+                        aria-label={`Remove recipient ${r}`}
+                        onClick={() => removeRecipient(r)}
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-surface-3 focus-visible:outline-focus"
+                      >
+                        <X size={11} aria-hidden="true" />
+                      </button>
+                    </Tip>
                   </span>
                 ))}
               </div>
@@ -256,8 +259,9 @@ export function ComposeMessageDialog({
                       <button
                         key={u.id}
                         type="button"
+                        aria-label={`Add recipient ${u.display_name || u.email}`}
                         onClick={() => addRecipient(handle)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs text-fg transition-colors hover:border-accent/50 hover:bg-surface-3"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs text-fg transition-colors hover:border-accent/50 hover:bg-surface-3 focus-visible:outline-focus"
                       >
                         <span className="font-medium">
                           {u.display_name || u.email}

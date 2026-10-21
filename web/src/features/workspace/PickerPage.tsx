@@ -10,6 +10,7 @@ import { MessagesHeaderLink } from "@/features/messages/MessagesHeaderLink";
 import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
+import { EmptyState } from "@/components/ui";
 import { AddDialog } from "@/features/members/MembersPanel";
 import { roleAccessSummary } from "@/features/members/memberLogic";
 import {
@@ -102,27 +103,6 @@ function NewWorkspaceForm() {
   );
 }
 
-function EmptyState({ admin }: { admin: boolean }) {
-  return (
-    <div
-      className={`${card} flex flex-col items-center px-6 py-12 text-center`}
-    >
-      <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-surface-3 text-fg-muted">
-        <Layers size={22} aria-hidden="true" />
-      </span>
-      <h2 className="mt-4 text-base font-semibold text-fg">
-        No workspaces yet
-      </h2>
-      <p className="mt-1 max-w-sm text-sm text-fg-muted">
-        You are not a member of any workspace yet.
-        {admin
-          ? " Create one below to get started."
-          : " Ask an administrator to add you."}
-      </p>
-    </div>
-  );
-}
-
 export function PickerPage({ me: initial }: { me: Me }) {
   const queryClient = useQueryClient();
   // The live query reflects refetches (e.g. after creating a workspace); the route's copy is the fallback.
@@ -187,13 +167,13 @@ export function PickerPage({ me: initial }: { me: Me }) {
         </div>
 
         {(memberships.length > 1 || sharedCount > 0) && (
-          <div role="tablist" aria-label="Filter workspaces by ownership" className="mt-4 inline-flex gap-0.5 rounded-lg bg-surface-3 p-0.5">
+          <div role="tablist" aria-label="Filter workspaces by ownership" className="mt-4 flex flex-wrap gap-1 rounded-lg bg-surface-3 p-0.5">
             <button
               type="button"
               role="tab"
               aria-selected={tab === "all"}
               onClick={() => setTab("all")}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-focus ${
                 tab === "all" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
               }`}
             >
@@ -207,7 +187,7 @@ export function PickerPage({ me: initial }: { me: Me }) {
               role="tab"
               aria-selected={tab === "shared"}
               onClick={() => setTab("shared")}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-focus ${
                 tab === "shared" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
               }`}
             >
@@ -221,7 +201,7 @@ export function PickerPage({ me: initial }: { me: Me }) {
               role="tab"
               aria-selected={tab === "owned"}
               onClick={() => setTab("owned")}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-focus ${
                 tab === "owned" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
               }`}
             >
@@ -235,7 +215,15 @@ export function PickerPage({ me: initial }: { me: Me }) {
 
         {memberships.length === 0 ? (
           <div className="mt-6">
-            <EmptyState admin={admin} />
+            <EmptyState
+              icon={Layers}
+              title="No workspaces yet"
+              hint={
+                admin
+                  ? "You are not a member of any workspace yet. Create one below to get started."
+                  : "You are not a member of any workspace yet. Ask an administrator to add you."
+              }
+            />
           </div>
         ) : shown.length === 0 ? (
           <p role="status" className="mt-8 text-center text-sm text-fg-muted">
