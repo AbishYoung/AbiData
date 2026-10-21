@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-20
+
+### Added
+- **Query Console Power Ergonomics (Phase 1, Workstream 1.1)**:
+  - Professional Monaco SQL editor replacing basic textarea in Query Console with SQL syntax highlighting, theme coordination (`abidata-light`/`abidata-dark`), line numbers, and clean vertical rhythm.
+  - Universal `Mod+Enter` (`Ctrl+Enter` / `Cmd+Enter`) query execution shortcut across the Monaco SQL editor, QBE visual designer canvas, and QBE field grid.
+  - Automatic error offset parsing for SQLite and PostgreSQL syntax errors with inline red error squiggles and a clickable "Go to line X, col Y" jump action.
+- **Datasheet Selection Status Bar Aggregation (Phase 1, Workstream 1.2)**:
+  - Real-time client-side statistical summary (`Count`, `Sum`, `Average`, `Min`, `Max`) rendered in the workspace status bar footer when multiple cells or rows are selected.
+  - Type-aware calculation engine supporting numeric and currency values (handling ten-thousandths scaling and formatted strings) while gracefully handling non-numeric data, blanks, and nulls.
+  - Accessible polite ARIA live region (`role="status"`, `aria-live="polite"`) announcements.
+
 ## [1.0.0] - 2026-10-20
 
 ### Added
