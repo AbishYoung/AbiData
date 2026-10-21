@@ -1,7 +1,7 @@
 # Phase 3: Mobile Touch Fluidity & Form Composition
 
 - **Target Release:** `v1.3.0` (Minor Release)
-- **Status:** Approved for Implementation
+- **Status:** Completed & Shipped in v1.3.0
 - **Milestone:** UX Refinement Phase 3
 - **Related ADRs:** [ADR 0005: Form Save Endpoints](../adr/0005-form-save-endpoints.md), [ADR 0015: Web UI Modernisation](../adr/0015-web-ui-review-and-modernisation.md)
 - **Design Guidelines:** `web/src/components/DESIGN.md` §9 (Mobile)
