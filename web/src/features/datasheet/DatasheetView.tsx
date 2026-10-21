@@ -66,6 +66,7 @@ import {
   type Row,
 } from "./rowsApi";
 import { formatValue, isReadOnlyColumn, kindOf } from "./values";
+import { computeSelectionStats } from "./selectionStats";
 
 interface Props {
   ws: string;
@@ -101,6 +102,7 @@ function formatCount(n: number): string {
 export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const qc = useQueryClient();
   const setRecordNav = useStatusBar((s) => s.setRecordNav);
+  const setSelectionStats = useStatusBar((s) => s.setSelectionStats);
   const gridId = `ds${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   const [layout, setLayout] = useState<Layout>(() => loadLayout(ws, tableId));
@@ -543,6 +545,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       if (sameCell(editing.cell, cell)) return;
       if (editorRef.current && !editorRef.current.commit("stay")) return;
     }
+    if (selected.size > 0) {
+      setSelected(new Set());
+      anchorRef.current = null;
+    }
     moveTo(cell);
   }
 
@@ -738,6 +744,35 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     else setRecordNav(`Record ${formatCount(activeCell.row + 1)} of ${formatCount(total)}${capped ? "+" : ""}`);
   }, [countReady, onNewRow, total, capped, activeCell.row, setRecordNav]);
   useEffect(() => () => setRecordNav(null), [setRecordNav]);
+
+  useEffect(() => {
+    if (selected.size < 2) {
+      setSelectionStats(null);
+      return;
+    }
+    const activeCol = columns[activeCell.col];
+    if (!activeCol) {
+      setSelectionStats(null);
+      return;
+    }
+    const values: unknown[] = [];
+    for (const id of selected) {
+      const r = findRow(id);
+      if (!r) continue;
+      const buf = buffers.get(r.id);
+      if (activeCol.field_type === "autonumber") {
+        values.push(r.id);
+      } else if (buf && activeCol.id in buf.changes) {
+        values.push(buf.changes[activeCol.id]);
+      } else {
+        values.push(r.fields[activeCol.id]);
+      }
+    }
+    const isCurrency = kindOf(activeCol) === "currency";
+    const stats = computeSelectionStats(values, [{ isCurrency }]);
+    setSelectionStats(stats);
+  }, [selected, activeCell.col, columns, buffers, findRow, setSelectionStats]);
+  useEffect(() => () => setSelectionStats(null), [setSelectionStats]);
 
   const dirty = [...buffers.values()].some((b) => hasChanges(b));
   useEffect(() => {
