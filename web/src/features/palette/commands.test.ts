@@ -209,7 +209,7 @@ describe("buildRows", () => {
     });
     const all = buildItems(ctx);
     const empty = buildRows(all, "");
-    expect(empty.rows[0]).toMatchObject({ type: "heading", label: "Recent Objects" });
+    expect(empty.rows[0]).toMatchObject({ type: "heading", label: "Recent" });
     expect(buildRows(all, "custom").rows.some((r) => r.type === "heading" && r.label === "Recent Objects")).toBe(false);
   });
 

@@ -7,7 +7,7 @@ export type GroupId = "recent" | "actions" | "table" | "query" | "form" | "repor
 export const GROUP_ORDER: readonly GroupId[] = ["recent", "actions", "table", "query", "form", "report", "script", "job", "workspaces"];
 
 export const GROUP_LABEL: Record<GroupId, string> = {
-  recent: "Recent Objects",
+  recent: "Recent",
   actions: "Actions",
   table: "Tables",
   query: "Queries",
