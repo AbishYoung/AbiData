@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-20
+
+### Added
+- **Mobile Touch Navigation & Ergonomics (Phase 3, Workstream 3.1)**:
+  - Custom Pointer Event swipe gesture hook (`useSwipeGesture.ts`) featuring horizontal angle discrimination, boundary rubber-banding elasticity (0.25x), velocity commit thresholds, and `prefers-reduced-motion` compliance.
+  - Horizontal swipe pagination integrated into `RecordSheet.tsx` with direct card translation, tactile spring return, and unsaved changes modal protection.
+  - Subtly animated, accessible pagination indicator dots with sliding window in mobile `RecordSheet`.
+  - Reliable iOS background-tap keyboard dismissal (`touchErgonomics.ts`) and `touch-action: pan-y` across touch views.
+- **Forms Runtime Accordions & Collapsible Sections (Phase 3, Workstream 3.2)**:
+  - Configurable collapsible section architecture (`FormAccordion.tsx`, `FormSectionHeader.tsx`) adhering to the WAI-ARIA Accordion design pattern with full keyboard navigation (`ArrowDown`/`ArrowUp` circular wrapping, `Home`/`End`, `Enter`/`Space` toggling).
+  - Smooth height expansion transitions using CSS Grid animation (`180ms ease`).
+  - Smart error auto-expansion in `FormInstance.tsx`: automatically expands collapsed sections when validation errors occur, smoothly scrolls to the offending field, and sets focus on the invalid input.
+  - Section collapse states persisted in session storage across record navigation.
+
 ## [1.2.0] - 2026-10-20
 
 ### Added
@@ -82,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sandboxed script and query execution with resource quotas and process isolation.
 - Automated axe accessibility scanning in CI across both light and dark themes.
 
-[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/AbishYoung/AbiData/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/AbishYoung/AbiData/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AbishYoung/AbiData/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AbishYoung/AbiData/releases/tag/v1.0.0
