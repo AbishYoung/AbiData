@@ -1,6 +1,6 @@
 # ADR 0015: Web UI review and modernisation
 
-Status: Accepted (plan) · 2026-10-18
+Status: Accepted · 2026-10-18 (implemented; see the Outcomes and Exit criteria in [the review](../reviews/web-ui-2026-10.md))
 
 ## Context
 
@@ -71,3 +71,9 @@ The workstreams below are the expected shape; the review reorders or trims them.
 - Primitives make DESIGN.md enforceable by construction; the class strings become an implementation detail.
 - The branch touches most screens. It is built on `public-apps` (which contains the other unmerged UI branches) and should merge soon after them to limit conflicts.
 - e2e specs may need updating where a primitive changes the DOM structure. Roles and names are kept, so most selectors are unaffected.
+
+## As built
+Phases R and O are done as planned (O1 to O6). `docs/reviews/web-ui-2026-10.md` records each finding's outcome and the exit criteria; all are met. Items left open on purpose, all noted there:
+- Migrating every existing form field onto the `Field` primitives (R9). New and touched code uses them.
+- `DatasheetView.tsx` is still about 1,000 lines (R16): one editing state machine, to be split by a reducer rewrite as separate work.
+- Making Radix menus non-modal (R19) is an owner decision.
