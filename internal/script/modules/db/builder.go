@@ -222,18 +222,7 @@ func builderWrite(r *script.Run, L *lua.LState, del bool) int {
 		}
 		return nil
 	}
-	var err error
-	if tx, tctx, ok := d.Tx(); ok {
-		err = run(tctx, tx)
-	} else {
-		d.SetTx(r.Ctx, nil)
-		err = d.Lease.Write(r.Ctx, priority(r), func(tx dbx.Tx) error {
-			d.SetTx(r.Ctx, tx)
-			return run(r.Ctx, tx)
-		})
-		d.FinishTx(err == nil)
-	}
-	if err != nil {
+	if err := d.Write(r.Ctx, priority(r), run); err != nil {
 		r.RaiseFault(err)
 	}
 	out := L.NewTable()
@@ -285,6 +274,34 @@ func (qb *queryBuilder) executeRows(L *lua.LState, limit int) []rec.Row {
 		qb.r.RaiseFault(err)
 	}
 	return rows
+}
+
+// executeAllRows reads every matching row, a page at a time (a list returns
+// at most rec.MaxPage rows), for the aggregates. It ignores limit and offset
+// and refuses more than MaxBuilderRows matches.
+func (qb *queryBuilder) executeAllRows() []rec.Row {
+	var all []rec.Row
+	for {
+		q := rec.ListQuery{Filter: qb.combinedFilter(), Limit: rec.MaxPage, Offset: len(all)}
+		var page []rec.Row
+		var more bool
+		var err error
+		if tx, tctx, ok := qb.d.Tx(); ok {
+			page, more, err = rec.ListTx(tctx, tx, qb.sch, qb.t, q)
+		} else {
+			page, more, err = qb.d.Records.List(qb.r.Ctx, qb.d.Lease, qb.t.ID, q)
+		}
+		if err != nil {
+			qb.r.RaiseFault(err)
+		}
+		all = append(all, page...)
+		if len(all) > MaxBuilderRows {
+			qb.r.RaiseFault(fault.Newf(fault.BadRequest, "More than %d rows match; narrow the where.", MaxBuilderRows))
+		}
+		if !more {
+			return all
+		}
+	}
 }
 
 func (qb *queryBuilder) executeCount() int64 {
@@ -580,7 +597,7 @@ func builderFrom(r *script.Run, L *lua.LState) int {
 			if err != nil {
 				L.ArgError(start, err.Error())
 			}
-			rows := qb.executeRows(L, MaxBuilderRows)
+			rows := qb.executeAllRows()
 			if len(rows) == 0 {
 				if fn == "sum" {
 					L.Push(lua.LNumber(0))

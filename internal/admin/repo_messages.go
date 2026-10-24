@@ -569,3 +569,35 @@ func (s *Store) PatchMessageThreadState(ctx context.Context, threadID ids.Thread
 	}
 	return s.GetMessageThread(ctx, threadID, userID)
 }
+
+// ListMessageableUsers returns the active users who share an active,
+// non-system workspace with userID: the people userID may message directly.
+func (s *Store) ListMessageableUsers(ctx context.Context, userID string) ([]CandidateMember, error) {
+	var out []CandidateMember
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		rows, err := c.Query(ctx, sqlListMessageableUsers.SQL, userID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var m CandidateMember
+			if err := rows.Scan(&m.UserID, &m.Email, &m.Username, &m.DisplayName); err != nil {
+				return err
+			}
+			out = append(out, m)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
+// SharesWorkspace reports whether users a and b are both members of an
+// active, non-system workspace.
+func (s *Store) SharesWorkspace(ctx context.Context, a, b string) (bool, error) {
+	var n int64
+	err := s.Read(ctx, func(c dbx.Querier) error {
+		return c.QueryRow(ctx, sqlSharesWorkspace.SQL, a, b).Scan(&n)
+	})
+	return n > 0, err
+}

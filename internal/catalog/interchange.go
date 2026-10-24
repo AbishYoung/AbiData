@@ -398,13 +398,7 @@ func ImportSQLiteToPostgres(ctx context.Context, sc *sqlitex.Conn, d dbx.Execer,
 
 		// Advance sequence for identity tables if applicable
 		if tbl == "_sys_audit" || tbl == "_sys_row_history" {
-			seqSQL := fmt.Sprintf(`DO $g$ DECLARE s text := pg_get_serial_sequence('%s', 'id'); m bigint;
-BEGIN IF s IS NOT NULL THEN
-	EXECUTE 'SELECT max(id) FROM %s' INTO m;
-	IF m IS NOT NULL THEN PERFORM setval(s, m, true);
-	ELSE PERFORM setval(s, 1, false); END IF;
-END IF; END $g$;`, tbl, pgdb.Ident(tbl))
-			if _, err := d.Exec(ctx, seqSQL); err != nil {
+			if err := resetIdentity(ctx, d, tbl); err != nil {
 				return nil, fmt.Errorf("reset sequence for %s: %w", tbl, err)
 			}
 		}
@@ -414,6 +408,12 @@ END IF; END $g$;`, tbl, pgdb.Ident(tbl))
 	sch, err := Load(ctx, sc)
 	if err != nil {
 		return nil, fmt.Errorf("load catalog from sqlite: %w", err)
+	}
+
+	// The archive's catalog names become identifiers in the DDL below: refuse
+	// any that the catalog could never have created.
+	if err := checkArchiveNames(sch); err != nil {
+		return nil, err
 	}
 
 	importedTables := map[string]bool{}
@@ -484,13 +484,7 @@ END IF; END $g$;`, tbl, pgdb.Ident(tbl))
 		report.Rows += rowCount
 
 		// Advance identity sequence
-		seqSQL := fmt.Sprintf(`DO $g$ DECLARE s text := pg_get_serial_sequence('%s', 'id'); m bigint;
-BEGIN IF s IS NOT NULL THEN
-	EXECUTE 'SELECT max(id) FROM %s' INTO m;
-	IF m IS NOT NULL THEN PERFORM setval(s, m, true);
-	ELSE PERFORM setval(s, 1, false); END IF;
-END IF; END $g$;`, Quote(t.PhysicalName), pgdb.Ident(t.PhysicalName))
-		if _, err := d.Exec(ctx, seqSQL); err != nil {
+		if err := resetIdentity(ctx, d, t.PhysicalName); err != nil {
 			return nil, fmt.Errorf("advance sequence for %s: %w", t.PhysicalName, err)
 		}
 	}
@@ -737,4 +731,40 @@ func sortSysTables(tables []string) {
 		}
 		return tables[i] < tables[j]
 	})
+}
+
+// resetIdentity moves table's id sequence past its largest id (or back to 1
+// when it is empty). The table's name is bound as a value, never spliced into
+// a string literal.
+func resetIdentity(ctx context.Context, d dbx.Execer, table string) error {
+	var seq *string
+	if err := d.QueryRow(ctx, sqlInterchangeSerialSequence.SQL, pgdb.Ident(table)).Scan(&seq); err != nil {
+		return err
+	}
+	if seq == nil {
+		return nil
+	}
+	_, err := d.Exec(ctx, fmt.Sprintf(`SELECT setval(CAST(? AS regclass), COALESCE(max("id"), 1), max("id") IS NOT NULL) FROM %s`, pgdb.Ident(table)), *seq)
+	return err
+}
+
+// checkArchiveNames refuses an archive whose catalog names a table or field
+// with something other than a plain identifier.
+func checkArchiveNames(sch *Schema) error {
+	for _, t := range sch.Tables {
+		if !physRe.MatchString(t.PhysicalName) {
+			return fmt.Errorf("archive: table name %q is not valid", t.PhysicalName)
+		}
+		for _, c := range t.Columns {
+			if !physRe.MatchString(c.PhysicalName) {
+				return fmt.Errorf("archive: field name %q.%q is not valid", t.PhysicalName, c.PhysicalName)
+			}
+		}
+		for _, x := range t.Indexes {
+			if !physRe.MatchString(x.PhysicalName) {
+				return fmt.Errorf("archive: index name %q is not valid", x.PhysicalName)
+			}
+		}
+	}
+	return nil
 }

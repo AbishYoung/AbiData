@@ -202,3 +202,24 @@ func TestRecordsModuleExtended(t *testing.T) {
 		}
 	}
 }
+
+// TestBuilderAggregatesSeeEveryRow: a list returns at most one page, so the
+// aggregates must read every page, and a caught error inside a batch write
+// must leave no transaction behind.
+func TestBuilderAggregatesSeeEveryRow(t *testing.T) {
+	f := setup(t)
+	vals, err := f.run(t, script.Job, `
+		local rows = {}
+		for i = 1, 1200 do rows[i] = {Name = "n" .. i, Qty = i} end
+		records.insert_many("Items", rows)
+		local ok = pcall(records.insert_many, "Items", {{Name = "x"}, {Name = {}}})
+		records.insert("Items", {Name = "after", Qty = 0})
+		return db.from("Items"):sum("Qty"), db.from("Items"):max("Qty"), db.from("Items"):count(), ok
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vals[0] != int64(1200*1201/2) || vals[1] != int64(1200) || vals[2] != int64(1201) || vals[3] != false {
+		t.Fatalf("got %#v", vals)
+	}
+}

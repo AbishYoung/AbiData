@@ -114,6 +114,11 @@ func (s *Server) registerWorkspace(api huma.API) {
 		}
 	}, error) {
 		m, _ := MembershipFrom(ctx)
+		// A blog workspace has exactly one member (ADR 0017), and every user
+		// owns one: it must not become a way to list every account.
+		if m.Workspace.SystemKind != "" {
+			return nil, fault.New(fault.BadRequest, "This workspace cannot have other members.")
+		}
 		cs, err := s.deps.Admin.ListCandidateMembers(ctx, m.Workspace.ID)
 		if err != nil {
 			return nil, err

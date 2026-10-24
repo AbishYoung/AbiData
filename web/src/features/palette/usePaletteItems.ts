@@ -103,7 +103,9 @@ export function usePaletteItems(): PaletteItem[] {
       role,
       workspaces,
       objects,
-      recent,
+      // The list is kept per browser, so show only objects in workspaces the
+      // signed-in user can open: another user's names stay hidden.
+      recent: recent.filter((e) => workspaces.some((w) => w.id === e.wsId)),
       theme,
       act,
     });

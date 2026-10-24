@@ -310,3 +310,17 @@ func TestDataEdgeCases(t *testing.T) {
 		}
 	}
 }
+
+// TestStatsHistogramBinsCapped: the bins are allocated outside the VM's
+// accounting, so a script cannot ask for millions of them.
+func TestStatsHistogramBinsCapped(t *testing.T) {
+	for _, bins := range []string{"0", "10001", "2147483647"} {
+		if _, err := runWith(t, script.UIEvent, nil, `return #stats.histogram({1, 2, 3}, `+bins+`)`); err == nil {
+			t.Fatalf("histogram with %s bins succeeded", bins)
+		}
+	}
+	res, err := runWith(t, script.UIEvent, nil, `return #stats.histogram({1, 2, 3}, 10000)`)
+	if err != nil || res.Values[0] != int64(10000) {
+		t.Fatalf("10000 bins: %v %v", res, err)
+	}
+}

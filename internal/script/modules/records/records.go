@@ -416,15 +416,20 @@ func build(r *script.Run) lua.LValue {
 		ws := string(c.d.Lease.ID())
 		outIDs := make([]int64, 0, n)
 
+		// Convert every row before the transaction starts: a conversion error
+		// is a Lua error, which must not unwind through the write.
+		rows := make([]map[string]any, 0, n)
+		for i := 1; i <= n; i++ {
+			rowTable, ok := list.RawGetInt(i).(*lua.LTable)
+			if !ok {
+				r.RaiseFault(fault.New(fault.BadRequest, "each item in rows must be a table"))
+			}
+			L.Push(rowTable)
+			rows = append(rows, ValuesFromLua(r, L, tb, L.GetTop()))
+			L.Pop(1)
+		}
 		runBatch := func(ctx context.Context, tx dbx.Tx) error {
-			for i := 1; i <= n; i++ {
-				rowTable, ok := list.RawGetInt(i).(*lua.LTable)
-				if !ok {
-					return fault.New(fault.BadRequest, "each item in rows must be a table")
-				}
-				L.Push(rowTable)
-				fields := ValuesFromLua(r, L, tb, L.GetTop())
-				L.Pop(1)
+			for _, fields := range rows {
 				res, err := c.d.Records.InsertTx(ctx, tx, ws, sch, tb, fields, actor)
 				if err != nil {
 					return err
@@ -435,17 +440,7 @@ func build(r *script.Run) lua.LValue {
 			return nil
 		}
 
-		var err error
-		if tx, tctx, ok := c.d.Tx(); ok {
-			err = runBatch(tctx, tx)
-		} else {
-			c.d.SetTx(r.Ctx, nil)
-			err = c.d.Lease.Write(r.Ctx, priority(r), func(tx dbx.Tx) error {
-				c.d.SetTx(r.Ctx, tx)
-				return runBatch(r.Ctx, tx)
-			})
-			c.d.FinishTx(err == nil)
-		}
+		err := c.d.Write(r.Ctx, priority(r), runBatch)
 		if err != nil {
 			r.RaiseFault(err)
 		}
@@ -536,17 +531,7 @@ func build(r *script.Run) lua.LValue {
 			return nil
 		}
 
-		var err error
-		if tx, tctx, ok := c.d.Tx(); ok {
-			err = run(tctx, tx)
-		} else {
-			c.d.SetTx(r.Ctx, nil)
-			err = c.d.Lease.Write(r.Ctx, priority(r), func(tx dbx.Tx) error {
-				c.d.SetTx(r.Ctx, tx)
-				return run(r.Ctx, tx)
-			})
-			c.d.FinishTx(err == nil)
-		}
+		err := c.d.Write(r.Ctx, priority(r), run)
 		if err != nil {
 			r.RaiseFault(err)
 		}
@@ -564,6 +549,21 @@ func build(r *script.Run) lua.LValue {
 
 		f := WhereFilter(r, L, tb, matchTable, 1)
 		updateFields := ValuesFromLua(r, L, tb, 3)
+		// The fields an insert would get: match merged with values. They are
+		// converted here, before the transaction, in a protected call: match
+		// may hold operators, which only an insert needs to refuse.
+		var combinedFields map[string]any
+		L.Push(L.NewFunction(func(L *lua.LState) int {
+			L.Push(matchTable)
+			combinedFields = ValuesFromLua(r, L, tb, L.GetTop())
+			return 0
+		}))
+		convErr := L.PCall(0, 0, nil)
+		for k, v := range updateFields {
+			if combinedFields != nil {
+				combinedFields[k] = v
+			}
+		}
 		actor := rec.Actor{UserID: c.d.UserID}
 		ws := string(c.d.Lease.ID())
 		var resID int64
@@ -584,10 +584,8 @@ func build(r *script.Run) lua.LValue {
 				return nil
 			}
 
-			// Insert: merge matchTable and updateTable
-			combinedFields := ValuesFromLua(r, L, tb, 2)
-			for k, v := range updateFields {
-				combinedFields[k] = v
+			if convErr != nil {
+				return fault.New(fault.BadRequest, "match cannot be inserted as field values: "+convErr.Error())
 			}
 			res, err := c.d.Records.InsertTx(ctx, tx, ws, sch, tb, combinedFields, actor)
 			if err != nil {
@@ -598,17 +596,7 @@ func build(r *script.Run) lua.LValue {
 			return nil
 		}
 
-		var err error
-		if tx, tctx, ok := c.d.Tx(); ok {
-			err = runUpsert(tctx, tx)
-		} else {
-			c.d.SetTx(r.Ctx, nil)
-			err = c.d.Lease.Write(r.Ctx, priority(r), func(tx dbx.Tx) error {
-				c.d.SetTx(r.Ctx, tx)
-				return runUpsert(r.Ctx, tx)
-			})
-			c.d.FinishTx(err == nil)
-		}
+		err := c.d.Write(r.Ctx, priority(r), runUpsert)
 		if err != nil {
 			r.RaiseFault(err)
 		}

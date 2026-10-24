@@ -132,51 +132,49 @@ func messageDetailDTO(t admin.MessageThread) MessageThreadDetailDTO {
 	}
 }
 
-func (s *Server) resolveRecipientUser(ctx context.Context, raw string) (admin.User, error) {
+// resolveRecipientUser finds a direct-message recipient by user ID, @username,
+// username or email. Users reach the people they share an active workspace
+// with (platform administrators reach everyone); every other address gets the
+// same answer as an unknown one, so the endpoint does not reveal who has an
+// account.
+func (s *Server) resolveRecipientUser(ctx context.Context, p auth.Principal, raw string) (admin.User, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return admin.User{}, fault.New(fault.BadRequest, "Recipient cannot be empty.")
 	}
-	if strings.HasPrefix(trimmed, "@") {
-		username := strings.TrimPrefix(trimmed, "@")
-		if u, err := s.deps.Admin.GetUserByUsername(ctx, username); err == nil {
-			if u.Disabled {
-				return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
-			}
-			return u, nil
-		} else if !errors.Is(err, admin.ErrNotFound) {
+	unknown := fault.New(fault.BadRequest, fmt.Sprintf("No user you share a workspace with matches %q.", raw))
+	var lookups []func(context.Context, string) (admin.User, error)
+	switch {
+	case strings.HasPrefix(trimmed, "@"):
+		trimmed = strings.TrimPrefix(trimmed, "@")
+		lookups = append(lookups, s.deps.Admin.GetUserByUsername)
+	case strings.Contains(trimmed, "@"):
+		lookups = append(lookups, s.deps.Admin.GetUserByEmail)
+	default:
+		lookups = append(lookups, s.deps.Admin.GetUser, s.deps.Admin.GetUserByUsername)
+	}
+	for _, get := range lookups {
+		u, err := get(ctx, trimmed)
+		if errors.Is(err, admin.ErrNotFound) {
+			continue
+		} else if err != nil {
 			return admin.User{}, err
 		}
-		return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("No active user matches %q.", raw))
-	}
-	if strings.Contains(trimmed, "@") {
-		if u, err := s.deps.Admin.GetUserByEmail(ctx, trimmed); err == nil {
-			if u.Disabled {
-				return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
+		if u.Disabled {
+			return admin.User{}, unknown
+		}
+		if !p.IsPlatformAdmin && u.ID != p.UserID {
+			ok, err := s.deps.Admin.SharesWorkspace(ctx, p.UserID, u.ID)
+			if err != nil {
+				return admin.User{}, err
 			}
-			return u, nil
-		} else if !errors.Is(err, admin.ErrNotFound) {
-			return admin.User{}, err
-		}
-		return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("No active user matches %q.", raw))
-	}
-	if u, err := s.deps.Admin.GetUser(ctx, trimmed); err == nil {
-		if u.Disabled {
-			return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
+			if !ok {
+				return admin.User{}, unknown
+			}
 		}
 		return u, nil
-	} else if !errors.Is(err, admin.ErrNotFound) {
-		return admin.User{}, err
 	}
-	if u, err := s.deps.Admin.GetUserByUsername(ctx, trimmed); err == nil {
-		if u.Disabled {
-			return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("Recipient %q is disabled.", raw))
-		}
-		return u, nil
-	} else if !errors.Is(err, admin.ErrNotFound) {
-		return admin.User{}, err
-	}
-	return admin.User{}, fault.New(fault.BadRequest, fmt.Sprintf("No active user matches %q.", raw))
+	return admin.User{}, unknown
 }
 
 func (s *Server) registerMessages(api huma.API) {
@@ -185,7 +183,7 @@ func (s *Server) registerMessages(api huma.API) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listMessageRecipients", Method: http.MethodGet, Path: "/api/v1/messages/recipients", Tags: tags, Metadata: sessionOnly,
-		Summary: "Directory of active users and the caller's workspaces for composing messages", Errors: []int{401, 403},
+		Summary: "Directory of the users the caller shares a workspace with, and the caller's workspaces, for composing messages", Errors: []int{401, 403},
 	}, func(ctx context.Context, _ *struct{}) (*struct {
 		Body struct {
 			Users      []MessageRecipientUserDTO      `json:"users"`
@@ -193,9 +191,24 @@ func (s *Server) registerMessages(api huma.API) {
 		}
 	}, error) {
 		p, _ := PrincipalFrom(ctx)
-		users, err := s.deps.Admin.ListUsers(ctx)
-		if err != nil {
-			return nil, err
+		// The directory lists the people the caller works with, not every
+		// account on the platform (platform administrators see everyone).
+		var users []admin.CandidateMember
+		if p.IsPlatformAdmin {
+			all, err := s.deps.Admin.ListUsers(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, u := range all {
+				if !u.Disabled && u.ID != p.UserID {
+					users = append(users, admin.CandidateMember{UserID: u.ID, Email: u.Email, Username: u.Username, DisplayName: u.DisplayName})
+				}
+			}
+		} else {
+			var err error
+			if users, err = s.deps.Admin.ListMessageableUsers(ctx, p.UserID); err != nil {
+				return nil, err
+			}
 		}
 		acc, err := s.deps.Admin.ListWorkspacesForUser(ctx, p.UserID)
 		if err != nil {
@@ -209,11 +222,8 @@ func (s *Server) registerMessages(api huma.API) {
 		}{}
 		out.Body.Users = make([]MessageRecipientUserDTO, 0, len(users))
 		for _, u := range users {
-			if u.Disabled {
-				continue
-			}
 			out.Body.Users = append(out.Body.Users, MessageRecipientUserDTO{
-				ID:          u.ID,
+				ID:          u.UserID,
 				Username:    u.Username,
 				DisplayName: u.DisplayName,
 				Email:       u.Email,
@@ -348,7 +358,7 @@ func (s *Server) registerMessages(api huma.API) {
 			seen := make(map[string]bool)
 			recipientIDs := make([]string, 0, len(in.Body.Recipients))
 			for _, r := range in.Body.Recipients {
-				u, err := s.resolveRecipientUser(ctx, r)
+				u, err := s.resolveRecipientUser(ctx, p, r)
 				if err != nil {
 					return nil, err
 				}

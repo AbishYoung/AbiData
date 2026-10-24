@@ -43,6 +43,7 @@ admin.ListBlogs	admin	portable	id,user_id,workspace_id,slug,title,intro,publishe
 admin.ListCandidateMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name
 admin.ListMembers	admin	portable	id,email,COALESCE(u.username, ''),display_name,role
 admin.ListMessageThreads	admin	portable	id,kind,workspace_id,name,subject,created_by,created_at,last_message_at,message_count,last_read_at,archived_at,(SELECT count(*) FROM _adm_messages sm WHERE sm.thread_id = t.id AND sm.sender_id = :uid)
+admin.ListMessageableUsers	admin	portable	id,email,COALESCE(u.username, ''),display_name
 admin.ListSettings	admin	portable	key,value
 admin.ListThreadMessages	admin	portable	id,thread_id,parent_id,sender_id,username,display_name,body,created_at
 admin.ListUsersWithoutBlog	admin	portable	id
@@ -68,6 +69,7 @@ admin.SetUsername	admin	portable	username
 admin.SetUsername#2	admin	portable	
 admin.SetUsername#3	admin	portable	
 admin.SetUsername#4	admin	portable	
+admin.SharesWorkspace	admin	portable	count(*)
 admin.TakeDown	admin	portable	
 admin.Takedowns	admin	portable	id,blog_id,post_slug,reason_code,note,taken_down_by,taken_down_at,restored_by,restored_at
 admin.TakenDown	admin	portable	count(*)
@@ -128,6 +130,7 @@ catalog.interchange.pgColumns	-	postgres	-
 catalog.interchange.pgRawTables	-	postgres	-
 catalog.interchange.pgTableExists	-	postgres	-
 catalog.interchange.schemaExists	-	postgres	-
+catalog.interchange.serialSequence	-	postgres	-
 catalog.interchange.sqliteRawTables	workspace	sqlite	name
 catalog.planner.alterColumn	workspace	portable	
 catalog.planner.checkSavedQueries	workspace	portable	id,name,sql_text
