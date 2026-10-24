@@ -171,7 +171,7 @@ test("query results copy as text a spreadsheet can paste", async ({ page, contex
   await openWorkspace(page, WS);
   await nav(page).getByRole("button", { name: "SQL console" }).click();
   const editor = page.getByTestId("sql-editor");
-  await editor.getByLabel("SQL", { exact: true }).fill(`SELECT Name, Qty FROM Big ORDER BY Qty LIMIT 2`);
+  await editor.getByLabel("SQL", { exact: true }).fill(`SELECT "Name", "Qty" FROM "Big" ORDER BY "Qty" LIMIT 2`);
   await editor.getByRole("button", { name: "Run", exact: true }).click();
   const grid = page.getByRole("dialog", { name: "Query results" }).getByRole("grid", { name: "Query results" });
   await grid.getByRole("gridcell", { name: "Item00002" }).click({ button: "right" });

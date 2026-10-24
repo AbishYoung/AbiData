@@ -44,7 +44,7 @@ test("container smoke: table, rows, query, job, backup, restore", async ({ page 
   // Query in the SQL console.
   await nav(page).getByRole("button", { name: "SQL console" }).click();
   const editor = page.getByTestId("sql-editor");
-  await editor.getByLabel("SQL", { exact: true }).fill("SELECT Name FROM Fruit ORDER BY Name");
+  await editor.getByLabel("SQL", { exact: true }).fill('SELECT "Name" FROM "Fruit" ORDER BY "Name"');
   await editor.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Query results" }).getByRole("grid", { name: "Query results" })).toContainText("Pear");
   await page.keyboard.press("Escape");

@@ -66,7 +66,7 @@ function orderModule(lines: ApiTable, orderCol: ApiTable["columns"][number]): st
   return `
 local function order_total(id)
   if id == nil then return 0 end
-  return db.query_value('SELECT coalesce(sum(Qty * UnitPrice), 0) FROM ${lines.physical_name} WHERE "${orderCol.physical_name}" = :id', {id = id}) / 10000
+  return db.query_value('SELECT coalesce(sum("Qty" * "UnitPrice"), 0) FROM "${lines.physical_name}" WHERE "${orderCol.physical_name}" = :id', {id = id}) / 10000
 end
 
 function on_load()
@@ -163,7 +163,7 @@ export async function createOrderData(page: Page): Promise<OrderData> {
       },
     },
   });
-  const sub = `db.query_value('SELECT coalesce(sum(Qty * UnitPrice), 0) FROM ${lines.physical_name} WHERE "${orderColumn.physical_name}" = :id', {id = id}) / 10000`;
+  const sub = `db.query_value('SELECT coalesce(sum("Qty" * "UnitPrice"), 0) FROM "${lines.physical_name}" WHERE "${orderColumn.physical_name}" = :id', {id = id}) / 10000`;
   const orderForm = await apiPost<ApiForm>(page, `/api/v1/w/${ws}/forms`, {
     ...base,
     name: "Order",
