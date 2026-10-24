@@ -179,6 +179,16 @@ func TestPostgresStatementsPrepare(t *testing.T) {
 		if !strings.HasPrefix(s.Name, "admin.") || s.SQLiteOnly() {
 			continue
 		}
+		if s.PostgresOnly() {
+			sql, err := dbx.RebindText(s.SQL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.Conn().Prepare(ctx, "", sql); err != nil {
+				t.Errorf("%s: %v\n%s", s.Name, err, sql)
+			}
+			continue
+		}
 		var want []string
 		if err := lite.Read(ctx, func(q dbx.Querier) error {
 			var err error

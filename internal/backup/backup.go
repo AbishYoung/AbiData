@@ -255,13 +255,35 @@ func (s *Service) snapshot(ctx context.Context, l *workspace.Lease, kind, by str
 	id := ids.New()
 	stage := filepath.Join(dir, "bk-"+id+".db")
 	defer func() { _ = os.Remove(stage) }()
-	if err := l.Maintenance(ctx, func(c *sqlitex.Conn) error {
-		_, err := c.Exec(ctx, sqlSnapshot.SQL, stage)
-		return err
-	}); err != nil {
+	if err := snapshotSQLite(ctx, l, stage); err != nil {
 		return admin.Backup{}, fmt.Errorf("backup: snapshot: %w", err)
 	}
 	return s.archive(ctx, l.ID(), id, kind, by, stage, "sqlite")
+}
+
+func snapshotSQLite(ctx context.Context, l *workspace.Lease, dst string) error {
+	return l.Maintenance(ctx, func(c *sqlitex.Conn) error {
+		_, err := c.Exec(ctx, sqlSnapshot.SQL, dst)
+		return err
+	})
+}
+
+// ExportArchive writes the workspace's database as a portable archive
+// (ADR 0012 §8) to dst, which must not exist: a SQLite database in the
+// workspace format, from one consistent snapshot, on either backend. It
+// returns the source dialect ("sqlite" or "postgres"). The files bucket is
+// not included. abidata migrate-backend moves workspaces with it.
+func (s *Service) ExportArchive(ctx context.Context, l *workspace.Lease, dst string) (string, error) {
+	if n, ok := l.Postgres(); ok {
+		if err := s.exportPG(ctx, l.ID(), n.Schema(), dst); err != nil {
+			return "", fmt.Errorf("backup: export %s: %w", l.ID(), err)
+		}
+		return "postgres", nil
+	}
+	if err := snapshotSQLite(ctx, l, dst); err != nil {
+		return "", fmt.Errorf("backup: export %s: %w", l.ID(), err)
+	}
+	return "sqlite", nil
 }
 
 func (s *Service) snapshotPG(ctx context.Context, l *workspace.Lease, kind, by string) (admin.Backup, error) {

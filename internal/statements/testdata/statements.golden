@@ -85,6 +85,7 @@ admin.UpdateUser	admin	portable
 admin.UpdateWorkspace	admin	portable	
 admin.UpsertMessageParticipant	admin	portable	
 admin.UsernameOwner	admin	portable	id
+admin.copyAuditIdentity	-	postgres	-
 admin.loadAppItems	admin	portable	id,kind,object_id,title,fingerprint
 admin.migrate	admin	sqlite	application_id
 admin.migrate#2	admin	sqlite	user_version
