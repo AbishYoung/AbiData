@@ -20,6 +20,10 @@ import { hasGeoField } from "@/features/imports/exportPrefs";
 import { ExportDialog } from "@/features/workspace/lazyFeatures";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
+import { PastePreviewDialog } from "./PastePreviewDialog";
+import { boundsOf, describeRange, inBounds, isMultiCell, parseClipboard, toTsv, type Bounds, type CellRange } from "./range";
+import type { BatchOp } from "./rowsApi";
+import type { PasteMode } from "./paste";
 import { GeoFilterDialog } from "@/components/maps/lazy";
 import { accuracyColumn } from "@/lib/geo/locate";
 import { DeleteDialog } from "./DeleteDialog";
@@ -70,6 +74,7 @@ import { gridMenu, type MenuTarget } from "./gridMenu";
 import { useRowPages } from "./useRowPages";
 import { NAV_KEYS, clampCell, moveActive, tabTarget, type Cell, type NavDims } from "./nav";
 import {
+  batchRows,
   classifyFailure,
   deleteRow,
   insertRow,
@@ -93,6 +98,14 @@ interface MergeState {
   /** My changes that did not conflict; saved together with the choices. */
   auto: Record<string, unknown>;
   busy: boolean;
+}
+
+interface PasteState {
+  matrix: string[][];
+  startRow: number;
+  startCol: number;
+  busy: boolean;
+  error: string | null;
 }
 
 interface DeleteState {
@@ -128,6 +141,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [buffers, setBuffers] = useState<ReadonlyMap<RowKey, RowBuffer>>(() => new Map());
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set());
   const [merge, setMerge] = useState<MergeState | null>(null);
+  /** The rectangle of selected cells (drag, Shift+click, Shift+arrows); null for a single cell. */
+  const [range, setRange] = useState<CellRange | null>(null);
+  /** Clipboard cells waiting in the paste preview. */
+  const [paste, setPaste] = useState<PasteState | null>(null);
   const [del, setDel] = useState<DeleteState | null>(null);
   const compact = useIsCompact();
   const [viewMode, setViewMode] = useState<"cards" | "grid">("cards");
@@ -146,6 +163,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const filterRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorHandle>(null);
   const anchorRef = useRef<number | null>(null);
+  /** Where a mouse drag across cells started, while the button is held. */
+  const dragFrom = useRef<Cell | null>(null);
   const layoutReady = useRef(false);
 
   const columns = useMemo(() => orderedColumns(table.columns ?? [], layout), [table.columns, layout]);
@@ -184,6 +203,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     });
   }
 
+  const bounds: Bounds | null = isMultiCell(range) ? boundsOf(range) : null;
+
   const dims: NavDims = { rowCount, colCount: columns.length, pageSize: 10 };
   const activeCell = clampCell(active, dims);
 
@@ -209,6 +230,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       const destination = keyAt(next.row);
       for (const k of [...buffersRef.current.keys()]) if (k !== destination) void saveRow(k);
     }
+    setRange(null);
     setActive(next);
     revealCell(next);
   }
@@ -354,6 +376,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   function startEdit(starter: string | null, cell: Cell = activeCell) {
+    setRange(null);
     const col = columns[cell.col];
     // Attachments open their dialog on Enter, F2 or a double click (not on typing); viewers see the files.
     if (col && kindOf(col) === "attachments") {
@@ -393,6 +416,22 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     if (!(await copyText(cellText(cell)))) toast("error", "The cell could not be copied. Select the text and copy it instead.");
   }
 
+  /** Copies the selected rectangle as tab-separated text (what spreadsheets paste). */
+  async function copyRange(b: Bounds) {
+    const lines: string[][] = [];
+    for (let r = b.r0; r <= b.r1; r++) {
+      if (!rowAt(r)) {
+        toast("error", "Some of the selected records have not loaded yet. Scroll through them and try again.");
+        return;
+      }
+      const cells: string[] = [];
+      for (let c = b.c0; c <= b.c1; c++) cells.push(cellText({ row: r, col: c }));
+      lines.push(cells);
+    }
+    if (await copyText(toTsv(lines))) toast("info", `Copied ${describeRange(b).replace("Selected ", "")}`);
+    else toast("error", "The cells could not be copied. Select the text and copy it instead.");
+  }
+
   /** Pastes text into a cell: the cell opens for editing with the text, ready to save with Enter. */
   function pasteInto(cell: Cell, text: string) {
     if (!canType(cell)) return;
@@ -402,10 +441,25 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     startEdit(col && kindOf(col) === "longtext" ? text.replace(/\r\n?/g, "\n") : first, cell);
   }
 
+  /** One value goes into the cell (opened for editing); a block opens the paste preview. */
+  function pasteText(cell: Cell, text: string) {
+    const matrix = parseClipboard(text);
+    const single = matrix.every((r) => r.length <= 1);
+    const col = columns[cell.col];
+    // A single value, or lines of text pasted into one long text cell, edit that cell.
+    if ((matrix.length === 1 && single) || (single && !bounds && col !== undefined && kindOf(col) === "longtext")) {
+      pasteInto(cell, text);
+      return;
+    }
+    if (!canEdit) return;
+    const start = bounds ? { row: bounds.r0, col: bounds.c0 } : cell;
+    setPaste({ matrix, startRow: start.row, startCol: start.col, busy: false, error: null });
+  }
+
   async function pasteFromMenu(cell: Cell) {
     const text = await readClipboardText();
     if (text === null) toast("info", `The browser did not allow reading the clipboard. Press ${formatKeys("Mod+V", detectPlatform())} in the cell instead.`);
-    else pasteInto(cell, text);
+    else pasteText(cell, text);
   }
 
   function onGridPaste(e: ClipboardEvent<HTMLDivElement>) {
@@ -413,7 +467,33 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     const text = e.clipboardData.getData("text/plain");
     if (!text) return;
     e.preventDefault();
-    pasteInto(activeCell, text);
+    pasteText(activeCell, text);
+  }
+
+  async function applyPaste(ops: BatchOp[], mode: PasteMode) {
+    setPaste((p) => (p ? { ...p, busy: true, error: null } : p));
+    try {
+      await batchRows(ws, tableId, ops);
+      setPaste(null);
+      setRange(null);
+      refreshData();
+      toast("success", mode === "insert" ? `Added ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}` : `Pasted into ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}`);
+      focusGrid();
+    } catch (e) {
+      const failure = classifyFailure(e);
+      if (failure.kind === "canceled") {
+        setPaste((p) => (p ? { ...p, busy: false } : p));
+        return;
+      }
+      const err = failure.kind === "error" || failure.kind === "conflict" || failure.kind === "fields" ? failure.error : null;
+      const at = err?.details?.op_index;
+      const where = typeof at === "number" ? ` (change ${at + 1} of ${ops.length})` : "";
+      const message =
+        failure.kind === "conflict"
+          ? "A record was changed by someone else while you were pasting. Close this, check the data and paste again."
+          : `${err?.message ?? "The records could not be saved."}${where}`;
+      setPaste((p) => (p ? { ...p, busy: false, error: message } : p));
+    }
   }
 
   function commitEdit(value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) {
@@ -517,7 +597,19 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c" && window.getSelection()?.isCollapsed !== false) {
       e.preventDefault();
-      void copyCell(activeCell);
+      if (bounds) void copyRange(bounds);
+      else void copyCell(activeCell);
+      return;
+    }
+    if (e.shiftKey && !e.altKey && NAV_KEYS.has(e.key) && total > 0 && activeCell.row < total) {
+      // Shift+arrows extend the selection from the active cell to a cell that moves.
+      e.preventDefault();
+      const head = range?.head ?? activeCell;
+      const moved = moveActive(head, e.key, { mod, alt: false }, navDims());
+      const next = { row: Math.min(moved.row, total - 1), col: moved.col };
+      setRange({ anchor: range?.anchor ?? activeCell, head: next });
+      virtualizer.scrollToIndex(next.row, { align: "auto" });
+      requestAnimationFrame(() => document.getElementById(cellId(gridId, next.row, next.col))?.scrollIntoView({ block: "nearest", inline: "nearest" }));
       return;
     }
     if (mod && e.shiftKey && e.key.toLowerCase() === "n") {
@@ -553,6 +645,11 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         startEdit(null);
         return;
       case "Escape": {
+        if (range) {
+          e.preventDefault();
+          setRange(null);
+          return;
+        }
         const k = keyAt(activeCell.row);
         if (k !== undefined && buffersRef.current.has(k)) {
           e.preventDefault();
@@ -580,16 +677,31 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   // ---- mouse ----------------------------------------------------------------------
-  function onCellMouseDown(cell: Cell) {
+  function onCellMouseDown(cell: Cell, e: MouseEvent) {
     if (editing) {
       if (sameCell(editing.cell, cell)) return;
       if (editorRef.current && !editorRef.current.commit("stay")) return;
     }
+    if (e.shiftKey && total > 0 && activeCell.row < total && cell.row < total) {
+      // Shift+click selects the rectangle from the active cell to the clicked one.
+      e.preventDefault();
+      setRange({ anchor: range?.anchor ?? activeCell, head: cell });
+      focusGrid();
+      return;
+    }
+    dragFrom.current = cell.row < total ? cell : null;
     if (selected.size > 0) {
       setSelected(new Set());
       anchorRef.current = null;
     }
     moveTo(cell);
+  }
+
+  function onCellDrag(cell: Cell) {
+    const from = dragFrom.current;
+    if (!from || cell.row >= total || editing) return;
+    if (sameCell(from, cell) && !range) return;
+    setRange({ anchor: from, head: cell });
   }
 
   function onRowHeaderClick(index: number, e: MouseEvent) {
@@ -744,6 +856,11 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     if (!Number.isInteger(row) || row < 0) return;
     const onHeader = cellEl.getAttribute("role") === "rowheader";
     const cell = { row, col: onHeader ? activeCell.col : Number(cellEl.getAttribute("aria-colindex")) - 2 };
+    // A right-click inside the selected cells keeps them (to copy the block).
+    if (!onHeader && inBounds(bounds, cell.row, cell.col)) {
+      menuTarget.current = { kind: "cell", cell };
+      return;
+    }
     // A right-click inside the record selection keeps it (to delete them together); elsewhere it
     // moves to the clicked cell, and on a record selector it selects that record.
     const r = rowAt(row);
@@ -774,7 +891,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       onMoveColumn,
       frozen: frozenCount(layout, columns.length),
       onFreeze,
-      copyCell: (cell) => void copyCell(cell),
+      copyCell: (cell) => void (bounds && inBounds(bounds, cell.row, cell.col) ? copyRange(bounds) : copyCell(cell)),
       pasteInto: (cell) => void pasteFromMenu(cell),
       startEdit: (cell) => startEdit(null, cell),
       filterBySelection,
@@ -841,6 +958,15 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     setSelectionStats(stats);
   }, [selected, activeCell.col, columns, buffers, findRow, setSelectionStats]);
   useEffect(() => () => setSelectionStats(null), [setSelectionStats]);
+
+  // A drag across cells ends wherever the button is released.
+  useEffect(() => {
+    const up = () => {
+      dragFrom.current = null;
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
 
   const dirty = [...buffers.values()].some((b) => hasChanges(b));
   useEffect(() => {
@@ -1025,7 +1151,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         accuracyCol={accuracyCol}
         editorRef={editorRef}
         onKeyDown={onKeyDown}
+        range={bounds}
         onCellMouseDown={onCellMouseDown}
+        onCellDrag={onCellDrag}
         onCellDoubleClick={() => startEdit(null)}
         onRowHeaderClick={onRowHeaderClick}
         onToggleBoolean={(cell) => {
@@ -1045,6 +1173,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       />
       </ContextArea>
       )}
+      <div role="status" aria-live="polite" className="sr-only">
+        {bounds ? describeRange(bounds) : ""}
+      </div>
       <div className={docFooter}>
         <span className="tabular-nums">
           {countReady ? `${formatCount(total)}${capped ? "+" : ""} ${total === 1 ? "record" : "records"}` : "Counting records…"}
@@ -1097,6 +1228,23 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           busy={merge.busy}
           onSave={(req) => void saveMerged(req)}
           onDiscard={discardMerge}
+        />
+      )}
+      {paste && (
+        <PastePreviewDialog
+          columns={columns}
+          matrix={paste.matrix}
+          startRow={paste.startRow}
+          startCol={paste.startCol}
+          total={total}
+          rowAt={rowAt}
+          busy={paste.busy}
+          error={paste.error}
+          onApply={(ops, mode) => void applyPaste(ops, mode)}
+          onCancel={() => {
+            setPaste(null);
+            focusGrid();
+          }}
         />
       )}
       {del && (

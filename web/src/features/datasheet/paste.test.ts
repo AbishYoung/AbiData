@@ -1,0 +1,95 @@
+import { describe, expect, it } from "vitest";
+import { blockingReason, convertPaste, planPaste } from "./paste";
+import { col, row } from "./testutil";
+
+const columns = [
+  col("id", "autonumber"),
+  col("name", "short_text"),
+  col("qty", "integer"),
+  col("price", "currency"),
+  col("paid", "yes_no"),
+  col("due", "date"),
+  col("parent", "lookup"),
+];
+
+describe("convertPaste", () => {
+  it("converts text for each field type", () => {
+    expect(convertPaste(columns[1] as (typeof columns)[number], "Widget")).toEqual({ status: "ok", value: "Widget" });
+    expect(convertPaste(columns[2] as (typeof columns)[number], "1,234")).toEqual({ status: "ok", value: 1234 });
+    expect(convertPaste(columns[3] as (typeof columns)[number], "$1,234.5")).toEqual({ status: "ok", value: "1234.5000" });
+    expect(convertPaste(columns[4] as (typeof columns)[number], "Yes")).toEqual({ status: "ok", value: true });
+    expect(convertPaste(columns[4] as (typeof columns)[number], "0")).toEqual({ status: "ok", value: false });
+    expect(convertPaste(columns[5] as (typeof columns)[number], "2026-02-03")).toEqual({ status: "ok", value: "2026-02-03" });
+    expect(convertPaste(col("when", "datetime"), "2026-02-03 14:30")).toMatchObject({ status: "ok" });
+    expect(convertPaste(columns[2] as (typeof columns)[number], "")).toEqual({ status: "ok", value: null });
+  });
+
+  it("reports values that do not fit the field", () => {
+    expect(convertPaste(columns[2] as (typeof columns)[number], "abc")).toMatchObject({ status: "error" });
+    expect(convertPaste(columns[5] as (typeof columns)[number], "3/2/2026")).toMatchObject({ status: "error" });
+    expect(convertPaste(columns[4] as (typeof columns)[number], "maybe")).toMatchObject({ status: "error" });
+  });
+
+  it("skips read-only and unsupported fields", () => {
+    expect(convertPaste(columns[0] as (typeof columns)[number], "5").status).toBe("skip");
+    expect(convertPaste(columns[6] as (typeof columns)[number], "x").status).toBe("skip");
+    expect(convertPaste(col("calc", "calculated"), "1").status).toBe("skip");
+    expect(convertPaste(col("files", "attachments"), "x").status).toBe("skip");
+  });
+});
+
+describe("planPaste", () => {
+  const rows = [
+    row(1, 3, { name: "Ann", qty: 1 }),
+    row(2, 5, { name: "Bob", qty: 2 }),
+  ];
+  const base = { columns, startRow: 0, startCol: 1, total: 2, rowAt: (i: number) => rows[i] };
+
+  it("overwrites cells from the start cell, sending only what changed with the row version", () => {
+    const plan = planPaste({ ...base, mode: "overwrite", matrix: [["Ann", "7"], ["Robert", "2"]] });
+    expect(plan.ops).toEqual([
+      { op: "update", id: 1, version: 3, fields: { qty: 7 } },
+      { op: "update", id: 2, version: 5, fields: { name: "Robert" } },
+    ]);
+    expect(plan.rows).toBe(2);
+    expect(plan.columns).toBe(2);
+    expect(plan.invalid).toEqual([]);
+  });
+
+  it("flags invalid cells and leaves them out of the writes", () => {
+    const plan = planPaste({ ...base, mode: "overwrite", matrix: [["Zed", "oops"]] });
+    expect(plan.invalid).toHaveLength(1);
+    expect(plan.invalid[0]).toMatchObject({ row: 0, col: 1, column: "qty", text: "oops" });
+    expect(plan.ops).toEqual([{ op: "update", id: 1, version: 3, fields: { name: "Zed" } }]);
+    expect(blockingReason(plan, "overwrite", false)).toMatch(/cannot be converted/);
+    expect(blockingReason(plan, "overwrite", true)).toBeNull();
+  });
+
+  it("counts rows past the last record and columns past the last column", () => {
+    const plan = planPaste({ ...base, startCol: 5, mode: "overwrite", matrix: [["2026-01-01", "x", "y"], ["2026-01-02", "x", "y"], ["2026-01-03", "x", "y"]] });
+    expect(plan.rowsPastEnd).toBe(1);
+    expect(plan.extraColumns).toBe(1);
+    expect(plan.skipped).toBeGreaterThan(0);
+    expect(plan.ops).toHaveLength(2);
+  });
+
+  it("inserts each pasted row as a new record, leaving empty cells out", () => {
+    const plan = planPaste({ ...base, mode: "insert", matrix: [["New", "", "9.5"], ["Other", "3", ""]] });
+    expect(plan.ops).toEqual([
+      { op: "insert", fields: { name: "New", price: "9.5000" } },
+      { op: "insert", fields: { name: "Other", qty: 3 } },
+    ]);
+  });
+
+  it("will not overwrite records that have not loaded", () => {
+    const plan = planPaste({ ...base, total: 5, mode: "overwrite", matrix: [["a"], ["b"], ["c"]] });
+    expect(plan.unloaded).toBe(1);
+    expect(blockingReason(plan, "overwrite", false)).toMatch(/not loaded/);
+  });
+
+  it("limits a paste to the batch size and refuses an empty change", () => {
+    const big = Array.from({ length: 1001 }, () => ["x"]);
+    expect(blockingReason(planPaste({ ...base, mode: "insert", matrix: big }), "insert", false)).toMatch(/At most 1,000/);
+    expect(blockingReason(planPaste({ ...base, mode: "overwrite", matrix: [["Ann"]] }), "overwrite", false)).toBe("There is nothing to change.");
+  });
+});
