@@ -33,7 +33,7 @@ const xlsxMaxRows = 1_048_576
 type ExportRequest struct {
 	SourceKind string         `json:"source_kind" enum:"table,query"`
 	SourceID   string         `json:"source_id" doc:"Table or saved query id."`
-	Format     string         `json:"format" enum:"csv,xlsx,json"`
+	Format     string         `json:"format" enum:"csv,xlsx,json,geojson" doc:"geojson: a FeatureCollection of a table with a geographic field. The first such field is the geometry and the others are properties. Not for saved queries."`
 	Params     map[string]any `json:"params,omitempty" doc:"Query parameters (saved queries only)."`
 	BOM        *bool          `json:"bom,omitempty" default:"true" doc:"CSV only: start the file with a UTF-8 byte-order mark so Excel on Windows reads non-ASCII text correctly. Ignored for other formats."`
 	Filter     string         `json:"filter,omitempty" doc:"Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record."`
@@ -203,6 +203,8 @@ func newSink(format string, w io.Writer, bom bool) (sink, string, error) {
 		return &csvSink{w: csv.NewWriter(w)}, "text/csv; charset=utf-8", nil
 	case "json":
 		return &jsonSink{w: w}, "application/json", nil
+	case "geojson":
+		return &geojsonSink{w: w, geom: -1}, "application/geo+json", nil
 	case "xlsx":
 		f := excelize.NewFile()
 		sw, err := f.NewStreamWriter("Sheet1")
@@ -211,7 +213,7 @@ func newSink(format string, w io.Writer, bom bool) (sink, string, error) {
 		}
 		return &xlsxSink{f: f, sw: sw, w: w, next: 1}, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nil
 	}
-	return nil, "", fault.New(fault.BadRequest, "format must be csv, xlsx or json.")
+	return nil, "", fault.New(fault.BadRequest, "format must be csv, xlsx, json or geojson.")
 }
 
 // artifactName makes a safe download name from a display name.
@@ -252,6 +254,11 @@ func (s *Service) StartExport(ctx context.Context, l *workspace.Lease, by string
 			return ops.Op{}, fault.New(fault.NotFound, "Table not found.")
 		}
 		display = t.DisplayName
+		if req.Format == "geojson" {
+			if err := (&geojsonSink{}).bindGeometry(t.Columns); err != nil {
+				return ops.Op{}, err
+			}
+		}
 		if req.View != nil {
 			if _, _, err := records.CompileFilter(t, req.View.Filter, records.DecodeValue); err != nil {
 				return ops.Op{}, err
@@ -261,6 +268,9 @@ func (s *Service) StartExport(ctx context.Context, l *workspace.Lease, by string
 			}
 		}
 	case "query":
+		if req.Format == "geojson" {
+			return ops.Op{}, fault.New(fault.BadRequest, "GeoJSON export applies to tables only.")
+		}
 		if req.View != nil || req.Filter != "" || req.Sort != "" {
 			return ops.Op{}, fault.New(fault.BadRequest, "Filter and sort apply to table exports only.")
 		}
@@ -340,6 +350,11 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 		names = append(names, c.DisplayName)
 		sel = append(sel, sqlgen.Column{Expr: sqlgen.Col{Name: c.PhysicalName}})
 		textual = append(textual, c.Type == catalog.ShortText || c.Type == catalog.LongText || c.Type == catalog.Hyperlink)
+	}
+	if g, ok := sk.(*geojsonSink); ok {
+		if err := g.bindGeometry(cols); err != nil {
+			return 0, err
+		}
 	}
 	if err := sk.header(names); err != nil {
 		return 0, err

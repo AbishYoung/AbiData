@@ -17,3 +17,8 @@ export function saveCsvBom(on: boolean): void {
     // Storage unavailable: nothing to remember.
   }
 }
+
+/** Whether a table has a point or area field, which is what GeoJSON export needs. */
+export function hasGeoField(columns: readonly { field_type: string }[] | null | undefined): boolean {
+  return (columns ?? []).some((c) => c.field_type === "geo_point" || c.field_type === "geo_area");
+}
