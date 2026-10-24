@@ -1,6 +1,6 @@
 import { useId, type Ref } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Download, Ellipsis, Plus, FilterX, History, LayoutList, ListFilter, MapPin, RefreshCw, Search, Table2, Trash2 } from "lucide-react";
+import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, MapPin, Paintbrush, Plus, RefreshCw, Search, Table2, Trash2 } from "lucide-react";
 import type { Column } from "@/lib/schema";
 import { Tip } from "@/components/Tip";
 import { btnGhost, iconBtn, input, menu, menuItem, menuSeparator } from "@/components/styles";
@@ -39,6 +39,9 @@ interface ToolbarProps {
   onMode?: (mode: "cards" | "grid") => void;
   /** Opens the pinned quick-add row (editable tables only). */
   onQuickAdd?: () => void;
+  /** Opens the formatting rules dialog (with how many rules are active). */
+  onFormatting?: () => void;
+  formattingCount?: number;
 }
 
 function CompactToolbar({ filterRef, ...p }: ToolbarProps) {
@@ -242,6 +245,16 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
           </button>
         </span>
       </Tip>
+      {p.onFormatting && (
+        <>
+          <Divider />
+          <button type="button" className={btnGhost} onClick={p.onFormatting}>
+            <Paintbrush size={14} aria-hidden="true" />
+            Formatting Rules
+            {(p.formattingCount ?? 0) > 0 && <span className="rounded-full bg-accent-soft px-1.5 text-xs font-semibold text-accent">{p.formattingCount}</span>}
+          </button>
+        </>
+      )}
       {p.onExport && <span className="ml-auto" />}
       {p.onExport && (
         <button type="button" className={btnGhost} onClick={p.onExport}>

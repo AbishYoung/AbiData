@@ -25,6 +25,7 @@ import { boundsOf, describeRange, inBounds, isMultiCell, parseClipboard, toTsv, 
 import type { BatchOp } from "./rowsApi";
 import type { PasteMode } from "./paste";
 import { ColumnProfileDialog } from "./ColumnProfileDialog";
+import { ConditionalFormattingModal } from "./ConditionalFormattingModal";
 import { GeoFilterDialog } from "@/components/maps/lazy";
 import { accuracyColumn } from "@/lib/geo/locate";
 import { DeleteDialog } from "./DeleteDialog";
@@ -142,6 +143,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [buffers, setBuffers] = useState<ReadonlyMap<RowKey, RowBuffer>>(() => new Map());
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set());
   const [profileCol, setProfileCol] = useState<Column | null>(null);
+  const [formattingOpen, setFormattingOpen] = useState(false);
   const [merge, setMerge] = useState<MergeState | null>(null);
   /** The rectangle of selected cells (drag, Shift+click, Shift+arrows); null for a single cell. */
   const [range, setRange] = useState<CellRange | null>(null);
@@ -1067,6 +1069,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         mode={mode}
         onMode={setViewMode}
         onQuickAdd={canEdit ? () => setQuickAddOpen(true) : undefined}
+        onFormatting={() => setFormattingOpen(true)}
+        formattingCount={layout.rules?.length ?? 0}
       />
       <SortStrip
         sorts={sort}
@@ -1169,6 +1173,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onProfile={(colId) => setProfileCol(columns.find((c) => c.id === colId) ?? null)}
         onDropColumn={onDropColumn}
         onFreeze={onFreeze}
+        rules={layout.rules}
         onCommit={commitEdit}
         onCancel={cancelEdit}
         onPaste={onGridPaste}
@@ -1231,6 +1236,26 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           filter={filterStr}
           onClose={() => {
             setProfileCol(null);
+            focusGrid();
+          }}
+        />
+      )}
+      {formattingOpen && (
+        <ConditionalFormattingModal
+          columns={columns}
+          rules={layout.rules ?? []}
+          onSave={(rules) => {
+            setLayout((l) => {
+              const next = { ...l };
+              if (rules.length > 0) next.rules = rules;
+              else delete next.rules;
+              return next;
+            });
+            setFormattingOpen(false);
+            focusGrid();
+          }}
+          onClose={() => {
+            setFormattingOpen(false);
             focusGrid();
           }}
         />

@@ -1,5 +1,6 @@
 import type { Column } from "@/lib/schema";
 import { kindOf, type ValueKind } from "./values";
+import { parseRules, type FormattingRule } from "./conditionalFormatting";
 
 /** Per-user, per-table column layout kept in localStorage. */
 export interface Layout {
@@ -7,6 +8,8 @@ export interface Layout {
   widths: Record<string, number>;
   /** How many leading columns stay in view while the rest scroll sideways; absent means none. */
   frozen?: number;
+  /** Conditional formatting rules, checked in order; absent means none. */
+  rules?: FormattingRule[];
 }
 
 export const MIN_WIDTH = 60;
@@ -63,7 +66,11 @@ export function loadLayout(ws: string, tableId: string): Layout {
       }
     }
     const frozen = typeof parsed.frozen === "number" && Number.isInteger(parsed.frozen) && parsed.frozen > 0 ? parsed.frozen : 0;
-    return frozen > 0 ? { order, widths, frozen } : { order, widths };
+    const rules = parseRules(parsed.rules);
+    const result: Layout = { order, widths };
+    if (frozen > 0) result.frozen = frozen;
+    if (rules.length > 0) result.rules = rules;
+    return result;
   } catch {
     return emptyLayout;
   }

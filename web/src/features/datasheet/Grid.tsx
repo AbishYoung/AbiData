@@ -4,12 +4,14 @@ import { DropdownMenu } from "radix-ui";
 import {
   ChevronDown,
   Check,
+  Info,
   Pencil,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import type { Column } from "@/lib/schema";
 import { Tip } from "@/components/Tip";
+import { TONE_CLASSES, TONE_WORD, cellTone, rowTone, type FormattingRule, type FormattingTone } from "./conditionalFormatting";
 import { menu, menuItem } from "@/components/styles";
 import { AttachmentCell } from "@/features/files/FileParts";
 import { CellEditor, type EditorHandle, type LookupInfo, type Move } from "./Editors";
@@ -80,6 +82,8 @@ export interface GridProps {
   onDropColumn: (colId: string, targetId: string) => void;
   /** Freezes the first `count` columns so they stay in view while the others scroll (0 unfreezes). */
   onFreeze: (count: number) => void;
+  /** Conditional formatting rules, in priority order. */
+  rules?: readonly FormattingRule[];
   onCommit: (value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) => void;
   onCancel: () => void;
   /** The pinned quick-add strip under the headers, when open. */
@@ -233,6 +237,17 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
   );
 }
 
+/** An icon and text for a formatting tone, so a highlight never rests on colour alone. */
+function ToneMark({ tone }: { tone: FormattingTone }) {
+  const Icon = tone === "success" ? Check : tone === "danger" || tone === "warning" ? TriangleAlert : Info;
+  return (
+    <>
+      <Icon size={13} aria-hidden="true" className="shrink-0" />
+      <span className="sr-only">{TONE_WORD[tone]}</span>
+    </>
+  );
+}
+
 function RowMarker({ index, row, buffer, moved, isNew }: { index: number; row: Row | undefined; buffer: RowBuffer | undefined; moved: boolean; isNew: boolean }) {
   if (buffer?.status === "saving") return <span>Saving…</span>;
   if (buffer?.status === "conflict") {
@@ -292,7 +307,16 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
   const rowCount = total + (hasNewRow ? 1 : 0);
   const activeRendered = items.some((v) => v.index === active.row) && active.col < columns.length;
 
-  function renderCell(rowIndex: number, colIndex: number, row: Row | undefined, buffer: RowBuffer | undefined, isSelected: boolean) {
+  const rules = props.rules ?? [];
+  const columnById = new Map(columns.map((c) => [c.id, c]));
+
+  function fieldOf(col: Column, row: Row | undefined, buffer: RowBuffer | undefined): { value: unknown; display?: string } {
+    if (col.field_type === "autonumber") return { value: row ? row.id : null };
+    if (buffer && col.id in buffer.changes) return { value: buffer.changes[col.id], display: buffer.display[col.id] };
+    return { value: row?.fields[col.id], display: row?.display?.[col.id] };
+  }
+
+  function renderCell(rowIndex: number, colIndex: number, row: Row | undefined, buffer: RowBuffer | undefined, isSelected: boolean, rowToneOf: FormattingTone | null) {
     const col = columns[colIndex];
     if (!col) return null;
     const isNew = rowIndex >= total;
@@ -313,6 +337,8 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
       value = row?.fields[col.id];
       display = row?.display?.[col.id];
     }
+    const cellToneOf = rules.length > 0 && !loading ? cellTone(rules, col, value, display) : null;
+    const tone = cellToneOf ?? rowToneOf;
     const error = buffer?.errors[col.id];
     const errId = `${cellId(gridId, rowIndex, colIndex)}-err`;
     const text = formatValue(col, value, display);
@@ -395,7 +421,15 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
         className={`${isFrozen ? "sticky z-[9]" : "relative"} flex h-full shrink-0 items-center gap-1 border-b border-r ${
           isFrozen && colIndex === frozen - 1 ? "border-r-2 border-r-border-strong" : "border-border"
         } select-none px-3 text-sm scroll-mt-8 ${align} ${isActive ? "outline-2 -outline-offset-2 outline-accent" : ""} ${
-          changed || (isFrozen && (isSelected || inRange)) ? "bg-accent-soft" : isSelected || inRange ? "bg-accent-soft/60" : isFrozen ? "bg-surface" : "bg-transparent"
+          changed || (isFrozen && (isSelected || inRange))
+            ? "bg-accent-soft"
+            : isSelected || inRange
+              ? "bg-accent-soft/60"
+              : tone
+                ? TONE_CLASSES[tone]
+                : isFrozen
+                  ? "bg-surface"
+                  : "bg-transparent"
         } ${error ? "border-b-2 border-b-danger" : ""}`}
       >
         {error && !isEditing && (
@@ -405,6 +439,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
             </span>
           </Tip>
         )}
+        {cellToneOf && !isEditing && <ToneMark tone={cellToneOf} />}
         {body}
         {error && !isEditing && (
           <span
@@ -490,6 +525,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
             const buffer = key === undefined ? undefined : buffers.get(key);
             const moved = buffer !== undefined && buffer.baseVersion !== null && row !== undefined && row._version !== buffer.baseVersion;
             const isSelected = row !== undefined && selected.has(row.id);
+            const rowToneOf = rules.length > 0 && row !== undefined ? rowTone(rules, columnById, (c) => fieldOf(c, row, buffer)) : null;
             return (
               <div
                 key={v.key}
@@ -518,9 +554,10 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                     isSelected ? "border-l-4 border-l-accent bg-accent-soft font-semibold text-fg" : "bg-surface-2 group-hover/r:bg-surface-3"
                   }`}
                 >
+                  {rowToneOf && <ToneMark tone={rowToneOf} />}
                   <RowMarker index={v.index} row={row} buffer={buffer} moved={moved} isNew={isNew} />
                 </div>
-                {columns.map((_, ci) => renderCell(v.index, ci, row, buffer, isSelected))}
+                {columns.map((_, ci) => renderCell(v.index, ci, row, buffer, isSelected, rowToneOf))}
               </div>
             );
           })}
