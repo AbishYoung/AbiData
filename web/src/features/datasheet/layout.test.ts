@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  canFreeze,
   clampWidth,
   emptyLayout,
+  frozenCount,
+  frozenOffsets,
   layoutKey,
   loadLayout,
   moveColumn,
@@ -9,6 +12,7 @@ import {
   orderedColumns,
   saveLayout,
   widthOf,
+  withFrozen,
 } from "./layout";
 import { col } from "./testutil";
 
@@ -71,5 +75,39 @@ describe("column order and width", () => {
     // A long header name widens the default so it is not clipped ("Discontinued" in a yes/no column).
     const long = { ...col("y", "yes_no"), display_name: "Discontinued" };
     expect(widthOf(long, emptyLayout)).toBeGreaterThanOrEqual(150);
+  });
+});
+
+describe("frozen columns", () => {
+  it("round-trips the frozen count and ignores nonsense", () => {
+    expect(saveLayout("w1", "t1", { order: [], widths: {}, frozen: 2 })).toBe(true);
+    expect(loadLayout("w1", "t1")).toEqual({ order: [], widths: {}, frozen: 2 });
+    window.localStorage.setItem(layoutKey("w1", "t1"), JSON.stringify({ order: [], widths: {}, frozen: -3 }));
+    expect(loadLayout("w1", "t1")).toEqual({ order: [], widths: {} });
+    window.localStorage.setItem(layoutKey("w1", "t1"), JSON.stringify({ frozen: 1.5 }));
+    expect(loadLayout("w1", "t1")).toEqual({ order: [], widths: {} });
+  });
+
+  it("never freezes more columns than there are", () => {
+    expect(frozenCount({ order: [], widths: {}, frozen: 9 }, 4)).toBe(4);
+    expect(frozenCount(emptyLayout, 4)).toBe(0);
+  });
+
+  it("sets and clears the count", () => {
+    const frozen = withFrozen(emptyLayout, 2);
+    expect(frozen.frozen).toBe(2);
+    expect(withFrozen(frozen, 0)).toEqual(emptyLayout);
+    expect(emptyLayout).toEqual({ order: [], widths: {} });
+  });
+
+  it("works out sticky offsets from the cumulative widths", () => {
+    expect(frozenOffsets([100, 150, 200], 2, 76)).toEqual([76, 176]);
+    expect(frozenOffsets([100, 150], 0, 76)).toEqual([]);
+  });
+
+  it("keeps the frozen part under 60% of the grid", () => {
+    expect(canFreeze([200, 200], 2, 76, 1000)).toBe(true);
+    expect(canFreeze([300, 300], 2, 76, 1000)).toBe(false);
+    expect(canFreeze([300, 300], 0, 76, 1000)).toBe(true);
   });
 });

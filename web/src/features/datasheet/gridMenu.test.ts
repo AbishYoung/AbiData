@@ -18,6 +18,8 @@ function ctx(over: Partial<GridMenuContext> = {}): GridMenuContext {
     formatCount: (n) => String(n),
     onSort: vi.fn(),
     onMoveColumn: vi.fn(),
+    frozen: 0,
+    onFreeze: vi.fn(),
     copyCell: vi.fn(),
     pasteInto: vi.fn(),
     startEdit: vi.fn(),
@@ -45,7 +47,7 @@ describe("gridMenu", () => {
   it("offers sorting and moving on a column header, with the edges disabled", () => {
     const c = ctx({ sorts: [{ col: "name", desc: false }] });
     const m = gridMenu({ kind: "column", col: 0 }, c);
-    expect(ids(m)).toEqual(["asc", "desc", "then-asc", "then-desc", "unsort", "s1", "left", "right"]);
+    expect(ids(m)).toEqual(["asc", "desc", "then-asc", "then-desc", "unsort", "s1", "left", "right", "s2", "freeze", "unfreeze"]);
     expect(item(m, "unsort").disabled).toBe(false);
     expect(item(m, "left").disabled).toBe(true);
     item(m, "desc").run();
@@ -54,7 +56,7 @@ describe("gridMenu", () => {
 
   it("offers sorting by further columns and clearing every key once a sort exists", () => {
     const none = gridMenu({ kind: "column", col: 1 }, ctx());
-    expect(ids(none)).toEqual(["asc", "desc", "unsort", "s1", "left", "right"]);
+    expect(ids(none)).toEqual(["asc", "desc", "unsort", "s1", "left", "right", "s2", "freeze", "unfreeze"]);
     expect(item(none, "unsort").disabled).toBe(true);
     const c = ctx({ sorts: [{ col: "name", desc: false }, { col: "qty", desc: true }] });
     const m = gridMenu({ kind: "column", col: 1 }, c);
@@ -63,6 +65,20 @@ describe("gridMenu", () => {
     expect(c.onSort).toHaveBeenCalledWith("qty", "then-asc");
     item(m, "unsort-all").run();
     expect(c.onSort).toHaveBeenCalledWith("qty", "clear");
+  });
+
+  it("freezes the columns up to the clicked one and unfreezes them all", () => {
+    const c = ctx({ frozen: 1 });
+    const m = gridMenu({ kind: "column", col: 1 }, c);
+    expect(item(m, "freeze").disabled).toBe(false);
+    expect(item(m, "unfreeze").disabled).toBe(false);
+    item(m, "freeze").run();
+    expect(c.onFreeze).toHaveBeenCalledWith(2);
+    item(m, "unfreeze").run();
+    expect(c.onFreeze).toHaveBeenCalledWith(0);
+    const same = gridMenu({ kind: "column", col: 0 }, c);
+    expect(item(same, "freeze").disabled).toBe(true);
+    expect(item(gridMenu({ kind: "column", col: 0 }, ctx()), "unfreeze").disabled).toBe(true);
   });
 
   it("deletes the whole selection when the clicked record is part of it", () => {

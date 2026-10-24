@@ -248,6 +248,23 @@ test("Shift+click adds a secondary sort key with a rank badge", async ({ page })
   await expect(grid.getByRole("button", { name: "Name", exact: true })).toBeVisible();
 });
 
+test("freezes columns up to a header and keeps them sticky", async ({ page }) => {
+  const grid = await openTable(page, f, "Everything");
+  await expect.poll(() => countOf(grid)).toBe(5);
+  const nameHeader = grid.getByRole("columnheader").filter({ has: page.getByRole("button", { name: "Name", exact: true }) });
+  await nameHeader.getByRole("button", { name: "Name column menu" }).click();
+  await page.getByRole("menuitem", { name: "Freeze columns up to here" }).click();
+  await expect.poll(() => nameHeader.evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
+  const left = await nameHeader.evaluate((el) => getComputedStyle(el).left);
+  expect(parseFloat(left)).toBeGreaterThan(0);
+  await expect
+    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), `abidata.ds.${f.ws}.${f.everythingId}`))
+    .toContain('"frozen"');
+  await nameHeader.getByRole("button", { name: "Name column menu" }).click();
+  await page.getByRole("menuitem", { name: "Unfreeze all columns" }).click();
+  await expect.poll(() => nameHeader.evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
+});
+
 test("resolves a concurrent edit in the merge dialog", async ({ page }) => {
   const grid = await openTable(page, f, "Everything");
   await expect.poll(() => countOf(grid)).toBe(5);
