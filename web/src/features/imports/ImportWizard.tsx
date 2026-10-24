@@ -177,8 +177,8 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
   }
 
   const ext = file ? extensionOf(file.name) : "";
-  const format = options.format || (ext === "xlsx" ? "xlsx" : ext === "json" || ext === "ndjson" ? "json" : "csv");
-  const showCsvOptions = file !== null && (options.format === "csv" || (options.format === "" && !["xlsx", "json", "ndjson"].includes(ext)));
+  const format = options.format || (ext === "xlsx" ? "xlsx" : ext === "json" || ext === "ndjson" || ext === "geojson" ? "json" : "csv");
+  const showCsvOptions = file !== null && (options.format === "csv" || (options.format === "" && !["xlsx", "json", "ndjson", "geojson"].includes(ext)));
   const showXlsxOptions = file !== null && format === "xlsx";
   const sheets = view?.options.sheets ?? [];
   const blocked = report !== null && mapping !== null && mapping.transaction === "all_or_nothing" && report.error_count > 0;
@@ -212,7 +212,7 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
             id={`${baseId}-file`}
             ref={fileRef}
             type="file"
-            accept=".csv,.tsv,.txt,.xlsx,.json,.ndjson,.jsonl"
+            accept=".csv,.tsv,.txt,.xlsx,.json,.ndjson,.jsonl,.geojson"
             className="mt-1 block w-full text-sm"
             onChange={(e) => pickFile(e.target.files?.[0])}
           />
@@ -241,6 +241,7 @@ export function ImportWizard({ ws, intoTableId, onClose }: { ws: string; intoTab
                 <option value="xlsx">Excel (.xlsx)</option>
                 <option value="json">JSON (array)</option>
                 <option value="ndjson">NDJSON (one object per line)</option>
+                <option value="geojson">GeoJSON (FeatureCollection)</option>
               </select>
             </div>
             {showCsvOptions && (

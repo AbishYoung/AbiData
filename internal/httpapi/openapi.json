@@ -3062,7 +3062,8 @@
               "csv",
               "xlsx",
               "json",
-              "ndjson"
+              "ndjson",
+              "geojson"
             ],
             "type": "string"
           },
@@ -3157,7 +3158,8 @@
               "csv",
               "xlsx",
               "json",
-              "ndjson"
+              "ndjson",
+              "geojson"
             ],
             "type": "string"
           },
@@ -5334,7 +5336,8 @@
               "csv",
               "xlsx",
               "json",
-              "ndjson"
+              "ndjson",
+              "geojson"
             ],
             "type": "string"
           },
@@ -16452,7 +16455,7 @@
                     "type": "string"
                   },
                   "format": {
-                    "description": "csv, xlsx, json or ndjson; default from the file extension",
+                    "description": "csv, xlsx, json, ndjson or geojson; default from the file extension",
                     "type": "string"
                   },
                   "has_header": {

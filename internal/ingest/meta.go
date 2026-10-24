@@ -13,7 +13,7 @@ import (
 
 // ParseOptions record how the upload was read.
 type ParseOptions struct {
-	Format    string   `json:"format" enum:"csv,xlsx,json,ndjson" doc:"Detected or requested file format."`
+	Format    string   `json:"format" enum:"csv,xlsx,json,ndjson,geojson" doc:"Detected or requested file format."`
 	Delimiter string   `json:"delimiter,omitempty" doc:"CSV field delimiter (sniffed unless given)."`
 	Encoding  string   `json:"encoding,omitempty" doc:"CSV text encoding that was detected: utf-8, utf-16le, utf-16be or windows-1252."`
 	HasHeader bool     `json:"has_header" doc:"Whether the first row holds column names."`
@@ -36,7 +36,7 @@ type SourceColumn struct {
 type ImportMeta struct {
 	ID         string         `json:"id"`
 	SourceName string         `json:"source_name" doc:"The uploaded file's name."`
-	Format     string         `json:"format" enum:"csv,xlsx,json,ndjson"`
+	Format     string         `json:"format" enum:"csv,xlsx,json,ndjson,geojson"`
 	Options    ParseOptions   `json:"options"`
 	Columns    []SourceColumn `json:"columns"`
 	RowCount   int64          `json:"row_count"`

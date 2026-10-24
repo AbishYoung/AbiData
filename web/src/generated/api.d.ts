@@ -2896,7 +2896,7 @@ export interface components {
             created_at: string;
             created_by: string;
             /** @enum {string} */
-            format: "csv" | "xlsx" | "json" | "ndjson";
+            format: "csv" | "xlsx" | "json" | "ndjson" | "geojson";
             id: string;
             mapping?: components["schemas"]["ImportMapping"];
             /** @description What the current mapping leaves out on purpose, for example attachments fields (files cannot be imported). */
@@ -2919,7 +2919,7 @@ export interface components {
             created_at: string;
             created_by: string;
             /** @enum {string} */
-            format: "csv" | "xlsx" | "json" | "ndjson";
+            format: "csv" | "xlsx" | "json" | "ndjson" | "geojson";
             id: string;
             mapping?: components["schemas"]["ImportMapping"];
             /** @description What the current mapping leaves out on purpose, for example attachments fields (files cannot be imported). */
@@ -3469,7 +3469,7 @@ export interface components {
              * @description Detected or requested file format.
              * @enum {string}
              */
-            format: "csv" | "xlsx" | "json" | "ndjson";
+            format: "csv" | "xlsx" | "json" | "ndjson" | "geojson";
             /** @description Whether the first row holds column names. */
             has_header: boolean;
             /** @description XLSX sheet that was read. */
@@ -11087,7 +11087,7 @@ export interface operations {
                      * @description At most 100 MiB.
                      */
                     file: string;
-                    /** @description csv, xlsx, json or ndjson; default from the file extension */
+                    /** @description csv, xlsx, json, ndjson or geojson; default from the file extension */
                     format?: string;
                     /** @description false when the first row is data */
                     has_header?: string;
