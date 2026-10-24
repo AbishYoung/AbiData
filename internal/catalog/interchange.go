@@ -676,39 +676,47 @@ END $g$;`, strings.ReplaceAll(schema, "'", "''"), strings.ReplaceAll(table, "'",
 
 // AdoptPostgres provisions workspace id and imports SQLite archive src into its schema.
 func AdoptPostgres(ctx context.Context, pool *pgxpool.Pool, database, prefix string, dialect sqlgen.Dialect, id ids.WorkspaceID, src string) error {
+	_, err := AdoptPostgresReport(ctx, pool, database, prefix, dialect, id, src)
+	return err
+}
+
+// AdoptPostgresReport is AdoptPostgres, returning the import report (§8).
+func AdoptPostgresReport(ctx context.Context, pool *pgxpool.Pool, database, prefix string, dialect sqlgen.Dialect, id ids.WorkspaceID, src string) (*ImportReport, error) {
 	if !ids.Valid(string(id)) {
-		return ids.ErrInvalidID
+		return nil, ids.ErrInvalidID
 	}
 	n := pgdb.Names{Prefix: prefix, Workspace: string(id)}
 	d := pgdb.Pool(pool)
 	var exists bool
 	if err := d.QueryRow(ctx, sqlInterchangeSchemaExists.SQL, n.Schema()).Scan(&exists); err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
-		return fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
+		return nil, fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
 	}
 
 	sc, err := sqlitex.Open(ctx, src, sqlitex.Options{Kind: sqlitex.Snapshot})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = sc.Close() }()
 
+	var report *ImportReport
 	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		dtx := pgdb.WrapTx(tx)
 		if err := pgdb.ProvisionWorkspace(ctx, dtx, database, n); err != nil {
 			return err
 		}
-		_, err := ImportSQLiteToPostgres(ctx, sc, dtx, dialect, id, n, n.Schema())
+		var err error
+		report, err = ImportSQLiteToPostgres(ctx, sc, dtx, dialect, id, n, n.Schema())
 		return err
 	})
 	if err != nil {
 		_ = pgdb.DropWorkspace(ctx, d, n)
-		return fmt.Errorf("workspace %s: adopt pg: %w", id, err)
+		return nil, fmt.Errorf("workspace %s: adopt pg: %w", id, err)
 	}
 	_ = os.Remove(src)
-	return nil
+	return report, nil
 }
 
 func sortSysTables(tables []string) {

@@ -19,6 +19,9 @@ import (
 // backend, and a PostgreSQL server must be one the app can run on. It
 // connects but changes nothing.
 func checkBackend(ctx context.Context, cfg config.Config) error {
+	if _, err := os.Stat(filepath.Join(cfg.DataDir, "system", migrateMarker)); err == nil {
+		return fmt.Errorf("%s is the target of an unfinished abidata migrate-backend; run that command again to finish the move, or delete the directory", cfg.DataDir)
+	}
 	if cfg.DB != config.DBPostgres {
 		return nil
 	}

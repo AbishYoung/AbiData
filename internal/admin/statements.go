@@ -50,6 +50,9 @@ var (
 	sqlGetSetting               = sqlgen.Register("admin.GetSetting", `SELECT value FROM _adm_settings WHERE key = ?`)
 	sqlPutSetting               = sqlgen.Register("admin.PutSetting", `INSERT INTO _adm_settings (key, value) VALUES (?,?)
 			ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+	// After abidata migrate-backend copies the audit log, new entries number on from its last id.
+	sqlCopyAuditIdentity = sqlgen.RegisterPostgresOnly("admin.copyAuditIdentity", `SELECT setval(pg_get_serial_sequence('_adm_audit', 'id'),
+			COALESCE((SELECT max(id) FROM _adm_audit), 0) + 1, false)`)
 	sqlListSettings = sqlgen.Register("admin.ListSettings", `SELECT key, value FROM _adm_settings`)
 	sqlCountUsers   = sqlgen.Register("admin.CountUsers", `SELECT count(*) FROM _adm_users`)
 	sqlUpdateUser   = sqlgen.Register("admin.UpdateUser", `UPDATE _adm_users SET

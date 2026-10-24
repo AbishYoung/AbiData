@@ -21,6 +21,10 @@ commands:
   demo --owner EMAIL [--kind traders|invasives|all]
                             create the sample workspaces (default: both) for an
                             existing user (the server must be stopped)
+  migrate-backend --to postgres|sqlite --target-data-dir DIR [--target-backup-dir DIR]
+                            move a stopped install to the other storage backend, into a
+                            new data directory (and, for postgres, the database named by
+                            ABIDATA_TARGET_POSTGRES_URL); the source is left as it was
   version                   print the version
 `
 
@@ -39,6 +43,8 @@ func main() {
 		err = userCmd(os.Args[2:])
 	case "demo":
 		err = demoCmd(os.Args[2:])
+	case "migrate-backend":
+		err = migrateBackendCmd(os.Args[2:])
 	case "version":
 		fmt.Println(version)
 	case "-h", "--help", "help":
