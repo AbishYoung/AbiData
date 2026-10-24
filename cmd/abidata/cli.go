@@ -92,11 +92,12 @@ func userCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	adm, err := admin.Open(ctx, filepath.Join(cfg.DataDir, "system", "admin.db"), cfg.Synchronous)
+	in, err := openOffline(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = adm.Close() }()
+	defer in.Close()
+	adm := in.Admin
 	svc := auth.NewService(adm, keys, auth.DefaultArgon2, nil, nil)
 	if reset {
 		em, err := auth.NormalizeEmail(*email)

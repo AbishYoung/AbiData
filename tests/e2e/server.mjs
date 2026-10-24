@@ -10,6 +10,7 @@
 // stdout tells Playwright that all of them answer. Server logs go to .servers/<port>.log.
 import { execFileSync, spawn } from "node:child_process";
 import { createWriteStream, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +24,9 @@ const BASE = Number(process.env.ABIDATA_E2E_PORT ?? "18080");
 const INSTANCES = Math.max(1, Number(process.env.E2E_INSTANCES ?? "1"));
 const ADMIN_EMAIL = "admin@example.com";
 const ADMIN_PASSWORD = "admin-password-1";
+const POSTGRES_URL = process.env.ABIDATA_E2E_POSTGRES_URL ?? "";
+// Keeps this run's schemas apart from an earlier run's in a reused database.
+const RUN = randomBytes(3).toString("hex");
 
 // (a) Build the SPA first (it is embedded in the binary), then the binary once.
 // E2E_SKIP_BUILD=1 uses the binary already in .bin (CI builds it once for every area).
@@ -54,6 +58,14 @@ function start(port, withDemo) {
     // and, on the demo instances, added below with `abidata demo`.
     ABIDATA_DEMO_WORKSPACE: "false",
   };
+  // ABIDATA_E2E_POSTGRES_URL runs every install on PostgreSQL (ADR 0012 §10): one database
+  // shared by all of them, each under its own fresh schema prefix. The role must own the
+  // database and have CREATEROLE, as in production.
+  if (POSTGRES_URL) {
+    env.ABIDATA_DB = "postgres";
+    env.ABIDATA_POSTGRES_URL = POSTGRES_URL;
+    env.ABIDATA_POSTGRES_SCHEMA_PREFIX = `e${port}_${RUN}`;
+  }
   mkdirSync(env.ABIDATA_DATA_DIR, { recursive: true });
   mkdirSync(env.ABIDATA_BACKUP_DIR, { recursive: true });
 
