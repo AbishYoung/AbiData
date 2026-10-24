@@ -11,7 +11,7 @@ import { alertBox, badge, badgeWarning, btn } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
 import { FilesWorkspaceProvider } from "@/features/files/FileParts";
 import { docFooter } from "@/components/EditorParts";
-import { Grid, cellId, type EditingState, type SortChoice } from "./Grid";
+import { Grid, ROW_HEADER_WIDTH, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
 import { CardList } from "./CardList";
 import { SortStrip } from "./MultiSortBadges";
@@ -49,12 +49,16 @@ import {
   type SortState,
 } from "./filter";
 import {
+  canFreeze,
   clampWidth,
+  frozenCount,
   loadLayout,
   moveColumn,
   moveColumnTo,
   orderedColumns,
   saveLayout,
+  widthOf,
+  withFrozen,
   type Layout,
 } from "./layout";
 import type { MergeField } from "./merge";
@@ -666,6 +670,19 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     setLayout((l) => ({ ...l, order: moveColumn(columns.map((c) => c.id), colId, delta) }));
   }
 
+  /** Freezes the first `count` columns, as long as the rest keep room to scroll. */
+  function onFreeze(count: number) {
+    if (count > 0) {
+      const available = scrollRef.current?.clientWidth ?? 0;
+      const widths = columns.map((c) => widthOf(c, layout));
+      if (available > 0 && !canFreeze(widths, count, ROW_HEADER_WIDTH, available)) {
+        toast("info", "Those columns are too wide to freeze. Make them narrower or freeze fewer columns.");
+        return;
+      }
+    }
+    setLayout((l) => withFrozen(l, count));
+  }
+
   function onDropColumn(colId: string, targetId: string) {
     setLayout((l) => ({ ...l, order: moveColumnTo(columns.map((c) => c.id), colId, targetId) }));
   }
@@ -755,6 +772,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       formatCount,
       onSort,
       onMoveColumn,
+      frozen: frozenCount(layout, columns.length),
+      onFreeze,
       copyCell: (cell) => void copyCell(cell),
       pasteInto: (cell) => void pasteFromMenu(cell),
       startEdit: (cell) => startEdit(null, cell),
@@ -1017,6 +1036,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onResize={onResize}
         onMoveColumn={onMoveColumn}
         onDropColumn={onDropColumn}
+        onFreeze={onFreeze}
         onCommit={commitEdit}
         onCancel={cancelEdit}
         onPaste={onGridPaste}

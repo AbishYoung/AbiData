@@ -5,6 +5,8 @@ import { kindOf, type ValueKind } from "./values";
 export interface Layout {
   order: string[];
   widths: Record<string, number>;
+  /** How many leading columns stay in view while the rest scroll sideways; absent means none. */
+  frozen?: number;
 }
 
 export const MIN_WIDTH = 60;
@@ -60,7 +62,8 @@ export function loadLayout(ws: string, tableId: string): Layout {
         if (typeof v === "number" && Number.isFinite(v)) widths[k] = clampWidth(v);
       }
     }
-    return { order, widths };
+    const frozen = typeof parsed.frozen === "number" && Number.isInteger(parsed.frozen) && parsed.frozen > 0 ? parsed.frozen : 0;
+    return frozen > 0 ? { order, widths, frozen } : { order, widths };
   } catch {
     return emptyLayout;
   }
@@ -117,5 +120,38 @@ export function moveColumnTo(ids: readonly string[], id: string, targetId: strin
   if (to < 0 || !ids.includes(id)) return [...ids];
   const next = ids.filter((x) => x !== id);
   next.splice(to, 0, id);
+  return next;
+}
+
+/** The most the frozen columns may take of the grid's width, so there is always room to scroll the rest. */
+export const MAX_FROZEN_SHARE = 0.6;
+
+/** The frozen column count that fits: never more than the columns there are. */
+export function frozenCount(layout: Layout, columnCount: number): number {
+  return Math.min(Math.max(layout.frozen ?? 0, 0), columnCount);
+}
+
+/** Sticky left offset of each frozen column: after the record selector and the frozen columns before it. */
+export function frozenOffsets(widths: readonly number[], frozen: number, start: number): number[] {
+  const out: number[] = [];
+  let left = start;
+  for (let i = 0; i < frozen; i++) {
+    out.push(left);
+    left += widths[i] ?? 0;
+  }
+  return out;
+}
+
+/** Whether freezing the first `count` columns leaves room to scroll in a grid `available` px wide. */
+export function canFreeze(widths: readonly number[], count: number, start: number, available: number): boolean {
+  const used = start + widths.slice(0, count).reduce((a, b) => a + b, 0);
+  return used <= available * MAX_FROZEN_SHARE;
+}
+
+/** The layout with the first `count` columns frozen (0 unfreezes). */
+export function withFrozen(layout: Layout, count: number): Layout {
+  const next: Layout = { ...layout };
+  if (count > 0) next.frozen = count;
+  else delete next.frozen;
   return next;
 }

@@ -9,6 +9,8 @@ import {
   Filter,
   FilterX,
   History,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Plus,
   Trash2,
@@ -41,6 +43,9 @@ export interface GridMenuContext {
   formatCount: (n: number) => string;
   onSort: (colId: string, choice: SortChoice) => void;
   onMoveColumn: (colId: string, delta: number) => void;
+  /** How many leading columns are frozen. */
+  frozen: number;
+  onFreeze: (count: number) => void;
   copyCell: (cell: Cell) => void;
   pasteInto: (cell: Cell) => void;
   startEdit: (cell: Cell) => void;
@@ -79,6 +84,9 @@ export function gridMenu(target: MenuTarget | null, x: GridMenuContext): MenuEnt
       { id: "s1", separator: true },
       { id: "left", label: "Move column left", icon: ArrowLeft, disabled: target.col === 0, run: () => x.onMoveColumn(col.id, -1) },
       { id: "right", label: "Move column right", icon: ArrowRight, disabled: target.col === columns.length - 1, run: () => x.onMoveColumn(col.id, 1) },
+      { id: "s2", separator: true },
+      { id: "freeze", label: "Freeze columns up to here", icon: PanelLeftClose, disabled: x.frozen === target.col + 1, run: () => x.onFreeze(target.col + 1) },
+      { id: "unfreeze", label: "Unfreeze all columns", icon: PanelLeftOpen, disabled: x.frozen === 0, run: () => x.onFreeze(0) },
     ];
   }
   const { cell } = target;

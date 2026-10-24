@@ -18,7 +18,7 @@ import type { RowBuffer, RowKey } from "./buffer";
 import type { Row } from "./rowsApi";
 import { ariaSort, sortAriaLabel, type SortState } from "./filter";
 import { HeaderSortBadge } from "./MultiSortBadges";
-import { clampWidth, widthOf, type Layout } from "./layout";
+import { clampWidth, frozenCount, frozenOffsets, widthOf, type Layout } from "./layout";
 import { formatValue, isNumericKind, isReadOnlyColumn, kindOf } from "./values";
 import { QuickAddRow } from "./QuickAddRow";
 
@@ -72,6 +72,8 @@ export interface GridProps {
   onResize: (colId: string, width: number) => void;
   onMoveColumn: (colId: string, delta: number) => void;
   onDropColumn: (colId: string, targetId: string) => void;
+  /** Freezes the first `count` columns so they stay in view while the others scroll (0 unfreezes). */
+  onFreeze: (count: number) => void;
   onCommit: (value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) => void;
   onCancel: () => void;
   /** The pinned quick-add strip under the headers, when open. */
@@ -94,11 +96,17 @@ interface HeaderCellProps {
   onResize: GridProps["onResize"];
   onMoveColumn: GridProps["onMoveColumn"];
   onDropColumn: GridProps["onDropColumn"];
+  onFreeze: GridProps["onFreeze"];
+  /** Sticky left offset when the column is frozen. */
+  frozenLeft?: number;
+  /** The last frozen column: its right edge is the divider. */
+  frozenEdge?: boolean;
+  frozenTotal: number;
   isFirst: boolean;
   isLast: boolean;
 }
 
-function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveColumn, onDropColumn, isFirst, isLast }: HeaderCellProps) {
+function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveColumn, onDropColumn, onFreeze, frozenLeft, frozenEdge, frozenTotal, isFirst, isLast }: HeaderCellProps) {
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
   const direction = ariaSort(sort, col.id);
   const rankLabel = sortAriaLabel(col.display_name, sort, col.id);
@@ -142,8 +150,10 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
         const from = e.dataTransfer.getData("text/plain");
         if (from && from !== col.id) onDropColumn(from, col.id);
       }}
-      style={{ width }}
-      className="group/h relative flex shrink-0 items-center border-b border-r border-border bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3"
+      style={frozenLeft === undefined ? { width } : { width, left: frozenLeft }}
+      className={`group/h ${frozenLeft === undefined ? "relative" : "sticky z-[9]"} flex shrink-0 items-center border-b border-r ${
+        frozenEdge ? "border-r-2 border-r-border-strong" : "border-border"
+      } bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3`}
     >
       <Tip label={`${col.display_name}. Click to sort, Shift+click to add a sort column. Alt+Left or Alt+Right resizes the column.`}>
         <button
@@ -185,6 +195,8 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
                 ...(sort.length > 1 ? ([["Clear all sorting", () => onSort(col.id, "clear"), false]] as const) : []),
                 ["Move left", () => onMoveColumn(col.id, -1), isFirst],
                 ["Move right", () => onMoveColumn(col.id, 1), isLast],
+                ["Freeze columns up to here", () => onFreeze(index + 1), frozenTotal === index + 1],
+                ["Unfreeze all columns", () => onFreeze(0), frozenTotal === 0],
               ] as const
             ).map(([text, run, disabled]) => (
               <DropdownMenu.Item
@@ -264,6 +276,10 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
   const items = virtualizer.getVirtualItems();
   const margin = virtualizer.options.scrollMargin;
   const widths = columns.map((c) => widthOf(c, layout));
+  const frozen = frozenCount(layout, columns.length);
+  const offsets = frozenOffsets(widths, frozen, ROW_HEADER_WIDTH);
+  /** Where the columns that scroll start: cells scrolled into view stop short of the frozen ones. */
+  const scrollStart = ROW_HEADER_WIDTH + widths.slice(0, frozen).reduce((a, b) => a + b, 0) + 4;
   const totalWidth = ROW_HEADER_WIDTH + widths.reduce((a, b) => a + b, 0);
   const rowCount = total + (hasNewRow ? 1 : 0);
   const activeRendered = items.some((v) => v.index === active.row) && active.col < columns.length;
@@ -292,6 +308,8 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
     const error = buffer?.errors[col.id];
     const errId = `${cellId(gridId, rowIndex, colIndex)}-err`;
     const text = formatValue(col, value, display);
+    const frozenLeft = colIndex < frozen ? offsets[colIndex] : undefined;
+    const isFrozen = frozenLeft !== undefined;
     const numeric = isNumericKind(kind);
     const align = numeric ? "justify-end text-right tabular-nums" : "";
 
@@ -360,10 +378,12 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
           if (e.button === 0) props.onCellMouseDown({ row: rowIndex, col: colIndex });
         }}
         onDoubleClick={() => props.onCellDoubleClick({ row: rowIndex, col: colIndex })}
-        style={{ width: widths[colIndex] }}
-        className={`relative flex h-full shrink-0 items-center gap-1 border-b border-r border-border px-3 text-sm scroll-ml-20 scroll-mt-8 ${align} ${
-          isActive ? "outline-2 -outline-offset-2 outline-accent" : ""
-        } ${changed ? "bg-accent-soft" : isSelected ? "bg-accent-soft/60" : "bg-transparent"} ${error ? "border-b-2 border-b-danger" : ""}`}
+        style={isFrozen ? { width: widths[colIndex], left: frozenLeft } : { width: widths[colIndex], scrollMarginLeft: scrollStart }}
+        className={`${isFrozen ? "sticky z-[9]" : "relative"} flex h-full shrink-0 items-center gap-1 border-b border-r ${
+          isFrozen && colIndex === frozen - 1 ? "border-r-2 border-r-border-strong" : "border-border"
+        } px-3 text-sm scroll-mt-8 ${align} ${isActive ? "outline-2 -outline-offset-2 outline-accent" : ""} ${
+          changed || (isFrozen && isSelected) ? "bg-accent-soft" : isSelected ? "bg-accent-soft/60" : isFrozen ? "bg-surface" : "bg-transparent"
+        } ${error ? "border-b-2 border-b-danger" : ""}`}
       >
         {error && !isEditing && (
           <Tip label={error}>
@@ -427,6 +447,10 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
               onResize={props.onResize}
               onMoveColumn={props.onMoveColumn}
               onDropColumn={props.onDropColumn}
+              onFreeze={props.onFreeze}
+              frozenLeft={offsets[i]}
+              frozenEdge={frozen > 0 && i === frozen - 1}
+              frozenTotal={frozen}
               isFirst={i === 0}
               isLast={i === columns.length - 1}
             />
