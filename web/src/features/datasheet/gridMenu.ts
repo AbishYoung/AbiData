@@ -16,6 +16,7 @@ import {
 import type { MenuEntry } from "@/components/ContextArea";
 import type { Column } from "@/lib/schema";
 import type { SortChoice } from "./Grid";
+import type { SortState } from "./filter";
 import type { Cell } from "./nav";
 import type { Row } from "./rowsApi";
 
@@ -27,8 +28,8 @@ export type MenuTarget = { kind: "cell"; cell: Cell } | { kind: "column"; col: n
 
 export interface GridMenuContext {
   columns: readonly Column[];
-  /** The sorted column's id, if any. */
-  sortedCol: string | null;
+  /** The sort keys in priority order. */
+  sorts: SortState;
   total: number;
   canEdit: boolean;
   selected: ReadonlySet<number>;
@@ -50,17 +51,31 @@ export interface GridMenuContext {
   requestDelete: (ids: number[]) => void;
 }
 
+/** Sort entries shared by the header menu and the cell menu. */
+function sortEntries(colId: string, x: GridMenuContext): MenuEntry[] {
+  const sorted = x.sorts.some((k) => k.col === colId);
+  return [
+    { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => x.onSort(colId, "asc") },
+    { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => x.onSort(colId, "desc") },
+    ...(x.sorts.length > 0
+      ? ([
+          { id: "then-asc", label: "Then sort ascending", icon: ArrowUpNarrowWide, run: () => x.onSort(colId, "then-asc") },
+          { id: "then-desc", label: "Then sort descending", icon: ArrowDownWideNarrow, run: () => x.onSort(colId, "then-desc") },
+        ] satisfies MenuEntry[])
+      : []),
+    { id: "unsort", label: "Clear sort", icon: ArrowUpDown, disabled: !sorted, run: () => x.onSort(colId, "none") },
+    ...(x.sorts.length > 1 ? ([{ id: "unsort-all", label: "Clear all sorting", icon: ArrowUpDown, run: () => x.onSort(colId, "clear") }] satisfies MenuEntry[]) : []),
+  ];
+}
+
 export function gridMenu(target: MenuTarget | null, x: GridMenuContext): MenuEntry[] {
   if (!target) return [];
   const { columns } = x;
   if (target.kind === "column") {
     const col = columns[target.col];
     if (!col) return [];
-    const sorted = x.sortedCol === col.id;
     return [
-      { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => x.onSort(col.id, "asc") },
-      { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => x.onSort(col.id, "desc") },
-      { id: "unsort", label: "Clear sort", icon: ArrowUpDown, disabled: !sorted, run: () => x.onSort(col.id, "none") },
+      ...sortEntries(col.id, x),
       { id: "s1", separator: true },
       { id: "left", label: "Move column left", icon: ArrowLeft, disabled: target.col === 0, run: () => x.onMoveColumn(col.id, -1) },
       { id: "right", label: "Move column right", icon: ArrowRight, disabled: target.col === columns.length - 1, run: () => x.onMoveColumn(col.id, 1) },
@@ -72,19 +87,12 @@ export function gridMenu(target: MenuTarget | null, x: GridMenuContext): MenuEnt
   const isNew = cell.row >= x.total;
   const ids = row ? (x.selected.has(row.id) ? [...x.selected] : [row.id]) : [];
   const filterable = !isNew && row !== undefined && col !== undefined && x.canFilterCell(cell);
-  const sorted = col !== undefined && x.sortedCol === col.id;
   return [
     { id: "copy", label: "Copy", icon: Copy, shortcut: "Mod+C", disabled: isNew || !col, run: () => x.copyCell(cell) },
     { id: "paste", label: "Paste", icon: ClipboardPaste, shortcut: "Mod+V", disabled: !x.canType(cell), run: () => x.pasteInto(cell) },
     { id: "edit", label: "Edit cell", icon: Pencil, shortcut: "F2", disabled: !x.canType(cell), run: () => x.startEdit(cell) },
     { id: "s1", separator: true },
-    ...(col
-      ? ([
-          { id: "asc", label: "Sort ascending", icon: ArrowUpNarrowWide, run: () => x.onSort(col.id, "asc") },
-          { id: "desc", label: "Sort descending", icon: ArrowDownWideNarrow, run: () => x.onSort(col.id, "desc") },
-          ...(sorted ? [{ id: "unsort", label: "Clear sort", icon: ArrowUpDown, run: () => x.onSort(col.id, "none") }] : []),
-        ] satisfies MenuEntry[])
-      : []),
+    ...(col ? sortEntries(col.id, x) : []),
     { id: "filter", label: "Filter by selection", icon: Filter, disabled: !filterable, run: () => x.filterBySelection(cell) },
     ...(x.filterActive ? [{ id: "unfilter", label: "Clear filter", icon: FilterX, run: x.clearFilter }] : []),
     { id: "s2", separator: true },

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_SORT_KEYS,
   ariaSort,
   buildFilter,
   canFilterBySelection,
   formatConditionLabel,
   nextSort,
+  removeSort,
+  setSortDirection,
+  sortAriaLabel,
+  sortRank,
   operatorBadge,
   operatorLabel,
   selectionCondition,
@@ -64,21 +69,62 @@ describe("filter by selection on special fields", () => {
 
 describe("sorting", () => {
   it("cycles ascending, descending, none", () => {
-    const asc = nextSort(null, "a");
-    expect(asc).toEqual({ col: "a", desc: false });
+    const asc = nextSort([], "a");
+    expect(asc).toEqual([{ col: "a", desc: false }]);
     const desc = nextSort(asc, "a");
-    expect(desc).toEqual({ col: "a", desc: true });
-    expect(nextSort(desc, "a")).toBeNull();
-    expect(nextSort(desc, "b")).toEqual({ col: "b", desc: false });
+    expect(desc).toEqual([{ col: "a", desc: true }]);
+    expect(nextSort(desc, "a")).toEqual([]);
+    expect(nextSort(desc, "b")).toEqual([{ col: "b", desc: false }]);
   });
 
-  it("serializes for the API and aria-sort", () => {
-    expect(sortParam({ col: "a", desc: true })).toBe("-a");
-    expect(sortParam({ col: "a", desc: false })).toBe("a");
-    expect(sortParam(null)).toBeUndefined();
-    expect(ariaSort({ col: "a", desc: true }, "a")).toBe("descending");
-    expect(ariaSort({ col: "a", desc: false }, "a")).toBe("ascending");
-    expect(ariaSort({ col: "a", desc: false }, "b")).toBe("none");
+  it("shift-click builds a hierarchy: append, flip, drop", () => {
+    let s = nextSort([], "a");
+    s = nextSort(s, "b", true);
+    s = nextSort(s, "c", true);
+    expect(s).toEqual([{ col: "a", desc: false }, { col: "b", desc: false }, { col: "c", desc: false }]);
+    s = nextSort(s, "b", true);
+    expect(s[1]).toEqual({ col: "b", desc: true });
+    s = nextSort(s, "b", true);
+    expect(s.map((k) => k.col)).toEqual(["a", "c"]);
+  });
+
+  it("caps the hierarchy at the API limit", () => {
+    const full = Array.from({ length: MAX_SORT_KEYS }, (_, i) => ({ col: `c${i}`, desc: false }));
+    expect(nextSort(full, "extra", true)).toBe(full);
+    expect(setSortDirection(full, "extra", true, true)).toBe(full);
+  });
+
+  it("a plain click on a multi-column sort keeps only that column", () => {
+    const multi = [{ col: "a", desc: true }, { col: "b", desc: false }];
+    expect(nextSort(multi, "a")).toEqual([{ col: "a", desc: true }]);
+    expect(nextSort(multi, "z")).toEqual([{ col: "z", desc: false }]);
+  });
+
+  it("sets and removes single keys", () => {
+    const s = [{ col: "a", desc: false }, { col: "b", desc: false }];
+    expect(setSortDirection(s, "b", true, true)).toEqual([{ col: "a", desc: false }, { col: "b", desc: true }]);
+    expect(setSortDirection(s, "b", true)).toEqual([{ col: "b", desc: true }]);
+    expect(removeSort(s, "a")).toEqual([{ col: "b", desc: false }]);
+    expect(removeSort(s, "zz")).toBe(s);
+  });
+
+  it("serializes for the API", () => {
+    expect(sortParam([{ col: "a", desc: true }])).toBe("-a");
+    expect(sortParam([{ col: "country", desc: false }, { col: "order_total", desc: true }, { col: "id", desc: false }])).toBe("country,-order_total,id");
+    expect(sortParam([])).toBeUndefined();
+  });
+
+  it("describes rank for assistive technology", () => {
+    const s = [{ col: "a", desc: false }, { col: "b", desc: true }];
+    expect(ariaSort(s, "a")).toBe("ascending");
+    expect(ariaSort(s, "b")).toBe("none");
+    expect(ariaSort([{ col: "a", desc: true }], "a")).toBe("descending");
+    expect(ariaSort([], "a")).toBe("none");
+    expect(sortRank(s, "b")).toEqual({ rank: 2, desc: true });
+    expect(sortRank(s, "c")).toBeNull();
+    expect(sortAriaLabel("Order Total", s, "b")).toBe("Order Total, sorted descending, priority 2");
+    expect(sortAriaLabel("A", s, "a")).toBeUndefined();
+    expect(sortAriaLabel("A", [{ col: "a", desc: false }], "a")).toBeUndefined();
   });
 });
 

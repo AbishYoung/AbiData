@@ -2,8 +2,6 @@ import { useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent, type 
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { DropdownMenu } from "radix-ui";
 import {
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   Check,
   Pencil,
@@ -18,7 +16,8 @@ import { CellEditor, type EditorHandle, type LookupInfo, type Move } from "./Edi
 import type { Cell } from "./nav";
 import type { RowBuffer, RowKey } from "./buffer";
 import type { Row } from "./rowsApi";
-import { ariaSort, type SortState } from "./filter";
+import { ariaSort, sortAriaLabel, type SortState } from "./filter";
+import { HeaderSortBadge } from "./MultiSortBadges";
 import { clampWidth, widthOf, type Layout } from "./layout";
 import { formatValue, isNumericKind, isReadOnlyColumn, kindOf } from "./values";
 import { QuickAddRow } from "./QuickAddRow";
@@ -34,7 +33,12 @@ export interface EditingState {
   row: Row | undefined;
 }
 
-export type SortChoice = "toggle" | "asc" | "desc" | "none";
+/**
+ * What a sort action asks for. `toggle` cycles the column (ascending, descending, none) and
+ * `toggle-add` does so among the other keys (Shift+click); `asc` and `desc` sort by the column
+ * alone, `then-asc` and `then-desc` add it as a further key; `none` takes it out, `clear` removes every key.
+ */
+export type SortChoice = "toggle" | "toggle-add" | "asc" | "desc" | "then-asc" | "then-desc" | "none" | "clear";
 
 export interface GridProps {
   gridId: string;
@@ -50,7 +54,7 @@ export interface GridProps {
   active: Cell;
   editing: EditingState | null;
   selected: ReadonlySet<number>;
-  sort: SortState | null;
+  sort: SortState;
   canEdit: boolean;
   lookupFor: (col: Column) => LookupInfo | undefined;
   /** Number field that "Use my location" may fill with the GPS accuracy. */
@@ -85,7 +89,7 @@ interface HeaderCellProps {
   col: Column;
   index: number;
   width: number;
-  sort: SortState | null;
+  sort: SortState;
   onSort: GridProps["onSort"];
   onResize: GridProps["onResize"];
   onMoveColumn: GridProps["onMoveColumn"];
@@ -97,6 +101,7 @@ interface HeaderCellProps {
 function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveColumn, onDropColumn, isFirst, isLast }: HeaderCellProps) {
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
   const direction = ariaSort(sort, col.id);
+  const rankLabel = sortAriaLabel(col.display_name, sort, col.id);
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
@@ -140,16 +145,16 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
       style={{ width }}
       className="group/h relative flex shrink-0 items-center border-b border-r border-border bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3"
     >
-      <Tip label={`${col.display_name}. Click to sort. Alt+Left or Alt+Right resizes the column.`}>
+      <Tip label={`${col.display_name}. Click to sort, Shift+click to add a sort column. Alt+Left or Alt+Right resizes the column.`}>
         <button
           type="button"
-          onClick={() => onSort(col.id, "toggle")}
+          aria-label={rankLabel}
+          onClick={(e) => onSort(col.id, e.shiftKey ? "toggle-add" : "toggle")}
           onKeyDown={onKeyDown}
           className="flex h-full min-w-0 flex-1 items-center gap-1 px-3 text-left hover:text-fg"
         >
           <span className="truncate">{col.display_name}</span>
-          {direction === "ascending" && <ArrowUp size={14} aria-hidden="true" className="shrink-0" />}
-          {direction === "descending" && <ArrowDown size={14} aria-hidden="true" className="shrink-0" />}
+          <HeaderSortBadge sorts={sort} col={col.id} />
         </button>
       </Tip>
       <DropdownMenu.Root>
@@ -170,7 +175,14 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
               [
                 ["Sort ascending", () => onSort(col.id, "asc"), false],
                 ["Sort descending", () => onSort(col.id, "desc"), false],
-                ["Clear sort", () => onSort(col.id, "none"), false],
+                ...(sort.length > 0
+                  ? ([
+                      ["Then sort ascending", () => onSort(col.id, "then-asc"), false],
+                      ["Then sort descending", () => onSort(col.id, "then-desc"), false],
+                    ] as const)
+                  : []),
+                ["Clear sort", () => onSort(col.id, "none"), !sort.some((k) => k.col === col.id)],
+                ...(sort.length > 1 ? ([["Clear all sorting", () => onSort(col.id, "clear"), false]] as const) : []),
                 ["Move left", () => onMoveColumn(col.id, -1), isFirst],
                 ["Move right", () => onMoveColumn(col.id, 1), isLast],
               ] as const

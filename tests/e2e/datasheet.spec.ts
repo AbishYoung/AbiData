@@ -234,6 +234,20 @@ test("sorts a column with aria-sort indicators", async ({ page }) => {
   await expect(header).toHaveAttribute("aria-sort", "none");
 });
 
+test("Shift+click adds a secondary sort key with a rank badge", async ({ page }) => {
+  const grid = await openTable(page, f, "Everything");
+  await expect.poll(() => countOf(grid)).toBe(5);
+  await grid.getByRole("button", { name: "Quantity", exact: true }).click();
+  await grid.getByRole("button", { name: "Name", exact: true }).click({ modifiers: ["Shift"] });
+  const second = grid.getByRole("button", { name: "Name, sorted ascending, priority 2" });
+  await expect(second).toBeVisible();
+  const strip = page.getByRole("region", { name: "Active sort" });
+  await expect(strip).toBeVisible();
+  await strip.getByRole("button", { name: "Clear sort" }).click();
+  await expect(strip).toHaveCount(0);
+  await expect(grid.getByRole("button", { name: "Name", exact: true })).toBeVisible();
+});
+
 test("resolves a concurrent edit in the merge dialog", async ({ page }) => {
   const grid = await openTable(page, f, "Everything");
   await expect.poll(() => countOf(grid)).toBe(5);

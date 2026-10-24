@@ -197,7 +197,7 @@ On a phone, saving from the record sheet works the same way.
 
 - **Filter records** searches the text columns for what you type. Press `Enter` to apply it.
 - **Filter by selection** adds a condition based on the selected cell, for example "Status equals Open". Each condition appears as a chip with a remove button. **Clear filter** removes all of them.
-- Click a column header to sort by it. Click again to reverse the order. The column menu, which has the column name on its button, also offers **Sort ascending**, **Sort descending** and **Clear sort**.
+- Click a column header to sort by it. Click again to reverse the order. `Shift+click` other headers (or choose **Then sort ascending** or **Then sort descending** in the column menu) to sort by several columns: each sorted header shows its priority and direction, such as `1 ▲` and `2 ▼`, and a **Sorted by** bar lists the order. **Clear sort** removes a column from the sort, and **Clear all sorting** removes them all. The column menu, which has the column name on its button, also offers **Sort ascending**, **Sort descending** and **Clear sort**.
 - To resize a column, drag its edge, or select its header and press `Alt+Left` or `Alt+Right`. Column widths and order are remembered in your browser, on this computer.
 
 Filters and sorts apply only to your view. To save a selection for others, create a [query](/docs/guide/queries).
