@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Column, Table } from "@/lib/schema";
 import type { SourceColumn } from "./importsApi";
 import {
+  autoPairs,
   defaultMapping,
   attachmentNotes,
   eligibleKeys,
@@ -11,6 +12,7 @@ import {
   normalizeState,
   retarget,
   setColumnTarget,
+  setPointPair,
   suggestTableName,
   toApiMapping,
   uniqueName,
@@ -209,5 +211,44 @@ describe("attachments fields", () => {
     const m = defaultMapping(srcCols, "s.csv", [t], "t1");
     const only = mappingProblems({ ...m, columnMap: { 1: "p" } }, t, [t]);
     expect(only[0]?.message).toContain("at least one");
+  });
+});
+
+describe("points from two columns", () => {
+  const sightings = table([col("n", "Species"), col("g", "Spot", "geo_point", { is_required: true })]);
+  const cols = [src(0, "Species"), src(1, "Latitude", "number"), src(2, "lng", "number")];
+
+  it("pairs latitude and longitude columns with the first unmatched point field", () => {
+    const m = defaultMapping(cols, "s.csv", [sightings], "t1");
+    expect(m.columnMap).toEqual({ 0: "n" });
+    expect(m.pairs).toEqual({ g: { lat: 1, lon: 2 } });
+    expect(mappingProblems(m, sightings, [sightings])).toEqual([]);
+    expect(toApiMapping(m, cols).columns).toEqual([{ source: 0, column_id: "n" }, { source: 1, column_id: "g", lon_source: 2 }]);
+  });
+
+  it("does not pair when a column already matched the field by name or the names are missing", () => {
+    expect(autoPairs(cols, sightings, { 0: "n", 1: "g" }).pairs).toEqual({});
+    expect(autoPairs([src(0, "x"), src(1, "y")], sightings, {}).pairs).toEqual({});
+    expect(autoPairs(cols, undefined, {}).pairs).toEqual({});
+  });
+
+  it("needs both columns, and a required point field is satisfied by a pair", () => {
+    const m = defaultMapping(cols, "s.csv", [sightings], "t1");
+    const half = setPointPair(m, sightings, "g", "lon", null);
+    expect(half.pairs).toEqual({ g: { lat: 1, lon: null } });
+    const problems = mappingProblems(half, sightings, [sightings]).map((p) => p.message);
+    expect(problems[0]).toContain("both the latitude and the longitude");
+    expect(toApiMapping(half, cols).columns?.find((c) => c.source === 2)).toEqual({ source: 2 });
+  });
+
+  it("moves a source column out of other uses when chosen", () => {
+    const m = setColumnTarget(defaultMapping(cols, "s.csv", [sightings], "t1"), sightings, 2, "n");
+    expect(m.pairs).toEqual({ g: { lat: 1, lon: null } });
+    expect(m.columnMap[2]).toBe("n");
+    const again = setPointPair(m, sightings, "g", "lon", 0);
+    expect(again.columnMap[0]).toBeUndefined();
+    expect(again.pairs.g).toEqual({ lat: 1, lon: 0 });
+    // Filling the field directly drops its pair.
+    expect(setColumnTarget(again, sightings, 2, "g").pairs).toEqual({});
   });
 });

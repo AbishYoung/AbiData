@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"abidata/internal/catalog"
+	"abidata/internal/dbx"
 )
 
 // Importing text into geo fields uses the same parser as the records API.
@@ -34,5 +35,60 @@ func TestConvertRowGeoText(t *testing.T) {
 	_, rerr = convertRow(p, []any{"95, 0", nil})
 	if rerr == nil || !strings.Contains(rerr.Message, "latitude") {
 		t.Fatalf("range: %+v", rerr)
+	}
+}
+
+// A point can be built from a latitude and a longitude column (ADR 0010).
+func TestImportPointFromTwoColumns(t *testing.T) {
+	e := newEnv(t)
+	tb := e.table("Sightings", catalog.ColumnSpec{DisplayName: "Species", Type: catalog.ShortText},
+		catalog.ColumnSpec{DisplayName: "Spot", Type: catalog.GeoPoint})
+	m := e.upload("s.csv", "Species,Lat,Lon\nKudzu,51.5,-0.14\nReed,,\nOak,91,0\nAsh,12,\nElm,abc,1\n", UploadOptions{})
+	lon := 2
+	mp := ImportMapping{Mode: ModeAppend, TableID: tb.ID, Columns: []ColumnMap{
+		{Source: 0, ColumnID: col2(nil, tb, "Species").ID},
+		{Source: 1, ColumnID: col2(nil, tb, "Spot").ID, LonSource: &lon},
+	}}
+	if _, err := e.svc.SetMapping(e.ctx, e.l, m.ID, mp); err != nil {
+		t.Fatal(err)
+	}
+	val, err := e.svc.Validate(e.ctx, e.l, m.ID)
+	if err != nil || val.ErrorCount != 3 {
+		t.Fatalf("validate %+v %v", val, err)
+	}
+	for _, re := range val.Errors {
+		if re.Column != "Spot" {
+			t.Fatalf("error should name the point field: %+v", re)
+		}
+	}
+	res := result(t, e.commit(m.ID))
+	if res.Inserted != 2 {
+		t.Fatalf("%+v", res)
+	}
+	var got string
+	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
+		return q.QueryRow(e.ctx, `SELECT "Spot" FROM "Sightings" WHERE "Species" = 'Kudzu'`).Scan(&got)
+	}); err != nil || got != `{"type":"Point","coordinates":[-0.14,51.5]}` {
+		t.Fatalf("%q %v", got, err)
+	}
+}
+
+func TestPointFromTwoColumnsMappingErrors(t *testing.T) {
+	e := newEnv(t)
+	tb := e.table("Sightings", catalog.ColumnSpec{DisplayName: "Species", Type: catalog.ShortText},
+		catalog.ColumnSpec{DisplayName: "Spot", Type: catalog.GeoPoint})
+	m := e.upload("s.csv", "Species,Lat,Lon\nKudzu,1,2\n", UploadOptions{})
+	two, bad := 2, 9
+	sp, spot := col2(nil, tb, "Species").ID, col2(nil, tb, "Spot").ID
+	for name, cols := range map[string][]ColumnMap{
+		"not a point":   {{Source: 1, ColumnID: sp, LonSource: &two}},
+		"no field":      {{Source: 0, ColumnID: sp}, {Source: 1, LonSource: &two}},
+		"bad lon":       {{Source: 1, ColumnID: spot, LonSource: &bad}},
+		"lon reused":    {{Source: 1, ColumnID: spot, LonSource: &two}, {Source: 2, ColumnID: sp}},
+		"lon is source": {{Source: 2, ColumnID: spot, LonSource: &two}},
+	} {
+		if _, err := e.svc.SetMapping(e.ctx, e.l, m.ID, ImportMapping{Mode: ModeAppend, TableID: tb.ID, Columns: cols}); fcode(err) != "BAD_REQUEST" {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }

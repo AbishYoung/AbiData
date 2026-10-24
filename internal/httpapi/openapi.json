@@ -1747,6 +1747,11 @@
           "column_id": {
             "type": "string"
           },
+          "lon_source": {
+            "description": "geo_point fields only: the source column holding longitude. source is then the latitude column, and both must be numbers.",
+            "format": "int64",
+            "type": "integer"
+          },
           "source": {
             "format": "int64",
             "type": "integer"

@@ -35,6 +35,11 @@ export interface NewColumnDraft {
   include: boolean;
 }
 
+export interface PointPair {
+  lat: number | null;
+  lon: number | null;
+}
+
 export interface MappingState {
   target: "new" | "existing";
   tableName: string;
@@ -42,6 +47,8 @@ export interface MappingState {
   tableId: string;
   /** Source column index to target column ID; "" or missing skips the column. */
   columnMap: Record<number, string>;
+  /** geo_point field ID to the source columns holding its latitude and longitude (null = not chosen yet). */
+  pairs: Record<string, PointPair>;
   mode: ImportMode;
   transaction: Transaction;
   keyColumnId: string;
@@ -103,6 +110,58 @@ export function autoMap(columns: readonly SourceColumn[], table: Table | undefin
   return out;
 }
 
+/** The geo_point fields a latitude and a longitude column can fill. */
+export function pointFields(table: Table | undefined): Column[] {
+  return writableColumns(table).filter((c) => c.field_type === "geo_point");
+}
+
+const LAT_NAME = /^(lat|latitude)$/i;
+const LON_NAME = /^(lon|lng|long|longitude)$/i;
+
+/**
+ * Pairs columns named lat/latitude and lon/lng/longitude with the first geo_point field
+ * that no column was matched to by name. Returns the column map without the paired columns.
+ */
+export function autoPairs(
+  columns: readonly SourceColumn[],
+  table: Table | undefined,
+  columnMap: Record<number, string>,
+): { columnMap: Record<number, string>; pairs: Record<string, PointPair> } {
+  const free = (re: RegExp) => columns.find((c) => columnMap[c.index] === undefined && [c.name, c.original].some((n) => re.test(n.trim())));
+  const lat = free(LAT_NAME);
+  const lon = free(LON_NAME);
+  const target = pointFields(table).find((f) => !Object.values(columnMap).includes(f.id));
+  if (!lat || !lon || !target) return { columnMap, pairs: {} };
+  return { columnMap, pairs: { [target.id]: { lat: lat.index, lon: lon.index } } };
+}
+
+/** The field IDs the mapping writes: single columns and complete pairs. */
+function mappedFieldIds(state: MappingState): Set<string> {
+  const ids = new Set(Object.values(state.columnMap).filter((id) => id !== ""));
+  for (const [id, p] of Object.entries(state.pairs)) if (p.lat !== null && p.lon !== null) ids.add(id);
+  return ids;
+}
+
+function withoutEmptyPairs(pairs: Record<string, PointPair>): Record<string, PointPair> {
+  return Object.fromEntries(Object.entries(pairs).filter(([, p]) => p.lat !== null || p.lon !== null));
+}
+
+/** Chooses the latitude and longitude columns of a point field; each source column serves one purpose only. */
+export function setPointPair(state: MappingState, table: Table | undefined, fieldId: string, part: "lat" | "lon", source: number | null): MappingState {
+  const columnMap: Record<number, string> = {};
+  for (const [k, v] of Object.entries(state.columnMap)) {
+    if (v === fieldId || Number(k) === source) continue;
+    columnMap[Number(k)] = v;
+  }
+  const pairs: Record<string, PointPair> = {};
+  for (const [id, p] of Object.entries(state.pairs)) {
+    pairs[id] = { lat: p.lat === source && source !== null ? null : p.lat, lon: p.lon === source && source !== null ? null : p.lon };
+  }
+  const own = pairs[fieldId] ?? { lat: null, lon: null };
+  pairs[fieldId] = { ...own, [part]: source };
+  return normalizeState({ ...state, columnMap, pairs: withoutEmptyPairs(pairs) }, table);
+}
+
 /** Fields with a single-field unique index: the only ones that can identify rows for an upsert. */
 export function keyCandidates(table: Table | undefined): Column[] {
   if (!table) return [];
@@ -162,12 +221,14 @@ export function defaultMapping(
 ): MappingState {
   const names = tables.map((t) => t.display_name);
   const into = intoTableId ? tables.find((t) => t.id === intoTableId) : undefined;
+  const columnMap = into ? autoMap(columns, into) : {};
   const base: MappingState = {
     target: into ? "existing" : "new",
     tableName: suggestTableName(sourceName, names),
     newColumns: defaultNewColumns(columns),
     tableId: into?.id ?? "",
-    columnMap: into ? autoMap(columns, into) : {},
+    columnMap,
+    pairs: autoPairs(columns, into, columnMap).pairs,
     mode: "append",
     transaction: "chunked",
     keyColumnId: "",
@@ -183,9 +244,10 @@ export function retarget(
   tables: readonly Table[],
   target: "new" | { tableId: string },
 ): MappingState {
-  if (target === "new") return normalizeState({ ...state, target: "new", tableId: "", columnMap: {} }, undefined);
+  if (target === "new") return normalizeState({ ...state, target: "new", tableId: "", columnMap: {}, pairs: {} }, undefined);
   const table = tables.find((t) => t.id === target.tableId);
-  return normalizeState({ ...state, target: "existing", tableId: target.tableId, columnMap: autoMap(columns, table) }, table);
+  const columnMap = autoMap(columns, table);
+  return normalizeState({ ...state, target: "existing", tableId: target.tableId, columnMap, pairs: autoPairs(columns, table, columnMap).pairs }, table);
 }
 
 /** Sets one source column's target field; a field can feed from one source only, so a previous owner is cleared. */
@@ -196,7 +258,13 @@ export function setColumnTarget(state: MappingState, table: Table | undefined, s
     columnMap[Number(k)] = v;
   }
   columnMap[source] = columnId;
-  return normalizeState({ ...state, columnMap }, table);
+  // A field filled directly, or a column used directly, leaves any pair that used it.
+  const pairs: Record<string, PointPair> = {};
+  for (const [id, p] of Object.entries(state.pairs)) {
+    if (id === columnId) continue;
+    pairs[id] = { lat: p.lat === source ? null : p.lat, lon: p.lon === source ? null : p.lon };
+  }
+  return normalizeState({ ...state, columnMap, pairs: withoutEmptyPairs(pairs) }, table);
 }
 
 /**
@@ -246,7 +314,13 @@ export function mappingProblems(state: MappingState, table: Table | undefined, t
     out.push({ field: "table", message: "Choose the table to import into." });
     return out;
   }
-  const mapped = new Set(Object.values(state.columnMap).filter((id) => id !== ""));
+  for (const [id, p] of Object.entries(state.pairs)) {
+    if ((p.lat === null) !== (p.lon === null)) {
+      const name = table.columns?.find((c) => c.id === id)?.display_name ?? "the point field";
+      out.push({ field: "columns", message: `Choose both the latitude and the longitude column for “${name}”, or neither.` });
+    }
+  }
+  const mapped = mappedFieldIds(state);
   const importable = [...mapped].filter((id) => (table.columns ?? []).find((c) => c.id === id)?.field_type !== "attachments");
   if (mapped.size === 0 || importable.length === 0) out.push({ field: "columns", message: "Map at least one source column to a field." });
   for (const c of writableColumns(table)) {
@@ -288,9 +362,13 @@ export function toApiMapping(state: MappingState, columns: readonly SourceColumn
     mode: state.mode,
     transaction: state.transaction,
     table_id: state.tableId,
-    columns: columns.map((c) => {
+    columns: columns.flatMap((c) => {
+      const pair = Object.entries(state.pairs).find(([, p]) => p.lat === c.index && p.lon !== null);
+      if (pair) return [{ source: c.index, column_id: pair[0], lon_source: pair[1].lon as number }];
+      // The longitude column is carried by its pair's latitude entry.
+      if (Object.values(state.pairs).some((p) => p.lon === c.index && p.lat !== null)) return [];
       const id = state.columnMap[c.index] ?? "";
-      return id === "" ? { source: c.index } : { source: c.index, column_id: id };
+      return [id === "" ? { source: c.index } : { source: c.index, column_id: id }];
     }),
     ...(state.mode === "upsert" ? { key_column_id: state.keyColumnId } : {}),
   };
