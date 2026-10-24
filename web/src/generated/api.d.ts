@@ -2732,8 +2732,11 @@ export interface components {
             bom: boolean;
             /** @description Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record. */
             filter?: string;
-            /** @enum {string} */
-            format: "csv" | "xlsx" | "json";
+            /**
+             * @description geojson: a FeatureCollection of a table with a geographic field. The first such field is the geometry and the others are properties. Not for saved queries.
+             * @enum {string}
+             */
+            format: "csv" | "xlsx" | "json" | "geojson";
             /** @description Query parameters (saved queries only). */
             params?: {
                 [key: string]: unknown;

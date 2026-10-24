@@ -17,6 +17,8 @@ export interface ExportSource {
   name: string;
   /** Parameters a saved query asks for; none for tables. */
   params?: readonly Param[];
+  /** The table has a point or area field, so GeoJSON can be offered. */
+  hasGeo?: boolean;
   /** A datasheet's current filter and sort, in the rows endpoint's parameter form. */
   view?: { filter: string | null; sort: string | null; filtered: boolean };
 }
@@ -29,7 +31,13 @@ const FORMATS: { value: Format; label: string; help: string }[] = [
   { value: "csv", label: "CSV", help: "Plain text, opens in any spreadsheet." },
   { value: "xlsx", label: "Excel (.xlsx)", help: "A workbook with one sheet." },
   { value: "json", label: "JSON", help: "An array of objects, one per record." },
+  { value: "geojson", label: "GeoJSON", help: "A FeatureCollection for maps and GIS tools. The first point or area field is the geometry; the other fields are properties." },
 ];
+
+/** The formats a source can be exported in: GeoJSON only for a table with a geographic field. */
+export function formatsFor(source: Pick<ExportSource, "kind" | "hasGeo">): typeof FORMATS {
+  return FORMATS.filter((f) => f.value !== "geojson" || (source.kind === "table" && source.hasGeo === true));
+}
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -174,7 +182,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
             <fieldset className="m-0 mt-3 border-0 p-0">
               <legend className="mb-1 p-0 text-sm font-semibold">Format</legend>
               <div className="space-y-2">
-                {FORMATS.map((f) => (
+                {formatsFor(source).map((f) => (
                   <div key={f.value}>
                     <label className="flex items-center gap-2 text-sm font-medium">
                       <input

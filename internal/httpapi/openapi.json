@@ -2497,10 +2497,12 @@
             "type": "string"
           },
           "format": {
+            "description": "geojson: a FeatureCollection of a table with a geographic field. The first such field is the geometry and the others are properties. Not for saved queries.",
             "enum": [
               "csv",
               "xlsx",
-              "json"
+              "json",
+              "geojson"
             ],
             "type": "string"
           },
