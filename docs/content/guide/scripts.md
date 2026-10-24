@@ -38,6 +38,7 @@ Things that differ from what you may expect:
 
 - **Names in scripts are SQL names.** A table or field is named with its display name, with spaces replaced by `_`. The sample table **Order lines** is `Order_lines`, and **Unit price** is `Unit_price`. See [Tables](/docs/guide/tables#design).
 - **Empty fields are `db.NULL`, not `nil`.** Lua tables cannot hold `nil`. Test with `db.is_null(v)`, which is true for both.
+- **SQL strings are in the install's dialect.** `db.query`, `db.exec` and the WHERE fragments of `db.lookup` are SQLite SQL, or PostgreSQL SQL on a [PostgreSQL install](/docs/operations/postgresql#differences). Quoting table and field names, as in `"Order_lines"`, works on both.
 - **Currency is `decimal` in records but a whole number in `db`.** Form fields and `records.get` give `decimal` values. `db.query`, `db.query_one`, `db.query_value`, `db.lookup` and the aggregates such as `db.sum` return the stored value, a whole number of ten-thousandths: `12.50` is `125000`. Divide by `10000`, as the example does, or read the value with `records.get`.
 - **Dates and times are strings.** A date is `"2026-01-31"`; a timestamp is ISO 8601 UTC such as `"2026-03-09T05:30:00.000Z"`. They sort and compare correctly as text. Use `datetime` for calendar arithmetic.
 - Integers beyond 2^53 are returned as strings.

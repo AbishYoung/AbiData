@@ -16,6 +16,8 @@ AbiData makes workspace backups for you. You are still responsible for keeping c
 | Backups volume `/var/lib/abidata-backups` | `<workspace id>/<backup id>.db.gz`, a `.manifest.json` and, for workspaces with attachments, a `.files.tar` for each | Off-site copies |
 | Secrets (`session_key`, `manifest_key`) | The two keys | A password manager or secrets store |
 
+On a [PostgreSQL](/docs/operations/postgresql) install, the admin data and workspaces are in the database instead of `admin.db` and `workspaces/<id>.db`. See [PostgreSQL installs](#postgresql) below.
+
 In-product backups protect workspace contents: tables, records, forms, reports, scripts, jobs and design. They do not contain user accounts or memberships. After a total loss you must restore the data volume's admin database too, or recreate users and memberships by hand.
 
 ## Files and backups {#files}
@@ -69,6 +71,19 @@ The list of backups, which workspace each belongs to and who owns it, is kept in
 3. If you only restored `system/` and the backups, start the server, sign in as an owner of each workspace, open its backups list and use **Restore**.
 
 A backup can only be restored over the workspace it came from, or into a new workspace with **Restore as new workspace** from that workspace's backup list.
+
+## PostgreSQL installs {#postgresql}
+
+On PostgreSQL, the whole-install layer is your database tooling. Turn on continuous WAL archiving with point-in-time recovery, or your managed service's automated backups. Either covers users, memberships, settings and every workspace together, and lets you return to any moment in the retention window. AbiData does not run `pg_dump`.
+
+AbiData's own workspace backups work the same as on SQLite, and you still want them. A workspace backup is a portable archive: a SQLite file, the files tar and a signed manifest, whichever backend made it. You can restore one workspace without rolling back the rest of the install, which database-level recovery cannot do. A backup restores on either backend.
+
+The plan above changes in two places:
+
+- Step 3 becomes: back up the database with point-in-time recovery, and the data directory's `system/keys/` and `workspaces/*.files/` at the same frequency.
+- After a total loss, restore the database to a moment, then put back the data directory from the same time, then start the server.
+
+See [PostgreSQL](/docs/operations/postgresql#backups) for details.
 
 ## Restore and live data {#restore-notes}
 

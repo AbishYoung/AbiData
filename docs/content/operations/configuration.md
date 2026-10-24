@@ -43,10 +43,12 @@ An invalid value stops the server at start with a message naming the variable.
 | `ABIDATA_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `ABIDATA_ALLOWED_ORIGINS` | (none) | Comma-separated extra origins (`scheme://host[:port]`) allowed to change data, besides the public URL. See [below](#public-url) |
 | `ABIDATA_TRUSTED_PROXIES` | (none) | Comma-separated IP addresses or CIDR ranges of reverse proxies whose `X-Forwarded-For` header is trusted |
-| `ABIDATA_DB` | `sqlite` | The database backend: `sqlite` or `postgres`. PostgreSQL is not available yet. See [below](#database) |
+| `ABIDATA_DB` | `sqlite` | The storage backend: `sqlite` or `postgres`. Choose it before the first start. See [below](#database) and [PostgreSQL](/docs/operations/postgresql) |
 | `ABIDATA_POSTGRES_URL` | (none) | PostgreSQL connection string, required with `ABIDATA_DB=postgres`. It holds a password, so prefer `ABIDATA_POSTGRES_URL_FILE` |
 | `ABIDATA_POSTGRES_MAX_CONNS` | `20` | The most connections the server opens to PostgreSQL (1 or more) |
 | `ABIDATA_POSTGRES_SCHEMA_PREFIX` | `abd` | Prefix of every schema and role the server creates in the database: a lower-case letter, then up to 15 lower-case letters, digits or underscores |
+| `ABIDATA_TARGET_POSTGRES_URL` | (none) | Only for `abidata migrate-backend --to postgres`: the database to move the install to. Prefer `ABIDATA_TARGET_POSTGRES_URL_FILE`. See [Move an install](/docs/operations/postgresql#migrate) |
+| `ABIDATA_TARGET_POSTGRES_SCHEMA_PREFIX` | `abd` | Only for `abidata migrate-backend --to postgres`: the schema prefix in the target database |
 
 ## Notes {#notes}
 
@@ -88,17 +90,25 @@ The profiler has no authentication. Leave it off, or bind it to `127.0.0.1` or a
 
 ### ABIDATA_DB {#database}
 
-AbiData stores everything in SQLite files under the data directory. Running on PostgreSQL instead is in progress (ADR 0012). For now, `ABIDATA_DB=postgres` only checks the server and stops:
+With `sqlite`, the default, AbiData keeps the admin data in `system/admin.db` and each workspace in its own SQLite file under the data directory.
 
-- It connects with `ABIDATA_POSTGRES_URL` and checks three things: the server is PostgreSQL 17 or later; the role owns the database; and the role has `CREATEROLE` but is not a superuser.
-- It then stops with a message saying workspaces cannot run on PostgreSQL yet. It creates nothing.
+With `postgres`, the admin data and every workspace live in the PostgreSQL database that `ABIDATA_POSTGRES_URL` names. Each workspace gets its own schema. The data directory still holds keys, file attachments, artifacts and staging files. At start the server checks four things and stops with a clear message if one fails:
+
+- the server is PostgreSQL 17 or later;
+- the role owns the database;
+- the role has `CREATEROLE`;
+- the role is not a superuser.
+
+See [PostgreSQL](/docs/operations/postgresql) for preparing the database, security and backups.
 
 An install never mixes backends. The server refuses to start in these cases:
 
 - `ABIDATA_DB=postgres` with a data directory that already holds a SQLite install;
 - `ABIDATA_POSTGRES_URL` set while `ABIDATA_DB` is `sqlite`.
 
-The admin database also records which backend created it, and refuses to open under the other one.
+- a data directory that is the target of an unfinished `abidata migrate-backend`.
+
+The admin database also records which backend created it, and refuses to open under the other one. To change the backend of an existing install, use [`abidata migrate-backend`](/docs/operations/postgresql#migrate).
 
 ### ABIDATA_TRUSTED_PROXIES {#trusted-proxies}
 
