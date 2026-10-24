@@ -17,7 +17,7 @@ import (
 // UploadOptions describe an upload.
 type UploadOptions struct {
 	Filename  string
-	Format    string // csv, xlsx, json, ndjson; empty = from the file name
+	Format    string // csv, xlsx, json, ndjson, geojson; empty = from the file name
 	Delimiter string
 	NoHeader  bool
 	Sheet     string
@@ -36,13 +36,15 @@ func FormatFor(format, filename string) (string, error) {
 			f = "json"
 		case ".ndjson", ".jsonl":
 			f = "ndjson"
+		case ".geojson":
+			f = "geojson"
 		}
 	}
 	switch f {
-	case "csv", "xlsx", "json", "ndjson":
+	case "csv", "xlsx", "json", "ndjson", "geojson":
 		return f, nil
 	}
-	return "", fault.New(fault.BadRequest, "Unsupported file type. Upload a .csv, .xlsx, .json or .ndjson file.")
+	return "", fault.New(fault.BadRequest, "Unsupported file type. Upload a .csv, .xlsx, .json, .ndjson or .geojson file.")
 }
 
 type ctxReader struct {
@@ -73,7 +75,7 @@ func (s *Service) Upload(ctx context.Context, ws ids.WorkspaceID, by string, opt
 		return ImportMeta{}, err
 	}
 	id := ids.New()
-	ext := map[string]string{"csv": "csv", "xlsx": "xlsx", "json": "json", "ndjson": "ndjson"}[format]
+	ext := map[string]string{"csv": "csv", "xlsx": "xlsx", "json": "json", "ndjson": "ndjson", "geojson": "geojson"}[format]
 	srcPath, err := ids.SafeJoin(dir, id+"."+ext)
 	if err != nil {
 		return ImportMeta{}, err

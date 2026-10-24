@@ -82,6 +82,7 @@ type plan struct {
 var newTypes = map[catalog.FieldType]bool{
 	catalog.ShortText: true, catalog.LongText: true, catalog.Integer: true, catalog.Number: true, catalog.Currency: true,
 	catalog.YesNo: true, catalog.Date: true, catalog.DateTime: true, catalog.Hyperlink: true,
+	catalog.GeoPoint: true, catalog.GeoArea: true,
 }
 
 // planFor validates m against the catalog and the staged columns.

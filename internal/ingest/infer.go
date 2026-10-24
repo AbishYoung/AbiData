@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"math"
 	"strconv"
 	"strings"
@@ -93,6 +94,8 @@ func inferType(vals []string) (catalog.FieldType, int) {
 	maxLen := 0
 	allInt, allNum, allBool, allDate, allDT := true, true, true, true, true
 	sawBoolWord := false
+	geoKinds := map[catalog.FieldType]bool{}
+	allGeo := true
 	n := 0
 	for _, v := range vals {
 		v = strings.TrimSpace(v)
@@ -123,10 +126,21 @@ func inferType(vals []string) (catalog.FieldType, int) {
 		if allDT && !isDateTimeText(v) {
 			allDT = false
 		}
+		if allGeo {
+			if k := geoKindOf(v); k == "" {
+				allGeo = false
+			} else {
+				geoKinds[k] = true
+			}
+		}
 	}
 	switch {
 	case n == 0:
 		return catalog.ShortText, 0
+	case allGeo && len(geoKinds) == 1:
+		for k := range geoKinds {
+			return k, maxLen
+		}
 	case allInt:
 		return catalog.Integer, maxLen
 	case allNum:
@@ -141,6 +155,28 @@ func inferType(vals []string) (catalog.FieldType, int) {
 		return catalog.LongText, maxLen
 	}
 	return catalog.ShortText, maxLen
+}
+
+// geoKindOf reports whether v is a GeoJSON geometry object a geographic field
+// can hold: geo_point for a Point, geo_area for a Polygon or MultiPolygon.
+// Anything else, including text that merely looks like JSON, is "".
+func geoKindOf(v string) catalog.FieldType {
+	if len(v) < 2 || v[0] != '{' {
+		return ""
+	}
+	var g struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal([]byte(v), &g) != nil {
+		return ""
+	}
+	switch g.Type {
+	case "Point":
+		return catalog.GeoPoint
+	case "Polygon", "MultiPolygon":
+		return catalog.GeoArea
+	}
+	return ""
 }
 
 // inferColumns builds the SourceColumns from collected samples.

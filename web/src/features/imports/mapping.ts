@@ -15,6 +15,8 @@ export const NEW_FIELD_TYPES: readonly { value: string; label: string }[] = [
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date and time" },
   { value: "hyperlink", label: "Hyperlink" },
+  { value: "geo_point", label: "Geo point" },
+  { value: "geo_area", label: "Geo area (fence)" },
 ];
 
 const NEW_TYPE_SET = new Set(NEW_FIELD_TYPES.map((t) => t.value));

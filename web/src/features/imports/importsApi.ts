@@ -13,7 +13,7 @@ export type ExportRequest = components["schemas"]["ExportRequest"];
 
 /** Options of the upload step; the server sniffs whatever is left out. */
 export interface UploadOptions {
-  format: "" | "csv" | "xlsx" | "json" | "ndjson";
+  format: "" | "csv" | "xlsx" | "json" | "ndjson" | "geojson";
   delimiter: "" | "comma" | "semicolon" | "tab" | "pipe";
   hasHeader: boolean;
   sheet: string;

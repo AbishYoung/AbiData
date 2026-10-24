@@ -102,7 +102,7 @@ func (s *Server) registerIngest(api huma.API) {
 		RequestBody: &huma.RequestBody{Content: map[string]*huma.MediaType{"multipart/form-data": {Schema: &huma.Schema{
 			Type: "object", Required: []string{"file"},
 			Properties: map[string]*huma.Schema{
-				"format":     str("csv, xlsx, json or ndjson; default from the file extension"),
+				"format":     str("csv, xlsx, json, ndjson or geojson; default from the file extension"),
 				"delimiter":  str("CSV delimiter: comma, semicolon, tab or pipe; default sniffed"),
 				"has_header": str("false when the first row is data"),
 				"sheet":      str("XLSX sheet name; default the first visible sheet"),

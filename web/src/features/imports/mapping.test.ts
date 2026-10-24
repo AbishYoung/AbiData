@@ -5,6 +5,7 @@ import {
   autoPairs,
   defaultMapping,
   attachmentNotes,
+  defaultNewColumns,
   eligibleKeys,
   keyCandidates,
   mappingProblems,
@@ -14,6 +15,7 @@ import {
   setColumnTarget,
   setPointPair,
   suggestTableName,
+  typeLabel,
   toApiMapping,
   uniqueName,
 } from "./mapping";
@@ -252,3 +254,12 @@ describe("points from two columns", () => {
     expect(setColumnTarget(again, sightings, 2, "g").pairs).toEqual({});
   });
 });
+
+describe("geographic columns of a GeoJSON file", () => {
+  it("keeps an inferred geo type for a new table and labels it", () => {
+    const drafts = defaultNewColumns([src(0, "Species"), src(1, "geometry", "geo_point"), src(2, "geometry 2", "geo_area")]);
+    expect(drafts.map((d) => d.fieldType)).toEqual(["short_text", "geo_point", "geo_area"]);
+    expect(typeLabel("geo_area")).toBe("Geo area (fence)");
+  });
+});
+

@@ -17,6 +17,7 @@ The import wizard has four steps: **File**, **Preview and mapping**, **Check** a
    - CSV, with the delimiter detected for you. A UTF-8 byte-order mark is accepted.
    - Excel (`.xlsx`). The first visible sheet is read.
    - JSON, either one array of objects, or one object per line (NDJSON).
+   - GeoJSON (`.geojson`): a FeatureCollection, or a single Feature. Each feature is a row, its properties are columns, and its geometry is a final column named `geometry`. A file of points creates a **Geo point** field, and a file of polygons a **Geo area (fence)** field. Other geometry types (lines) can be read as text but are rejected by a geographic field.
 
    Under **File options** you can set **Format**, **Delimiter**, **Sheet** and whether **The first row holds column names**. Leave these on automatic unless the preview comes out wrong. Choose **Upload and preview** to continue.
 3. **Preview and mapping.** The first rows are shown, and a type is guessed for each column from the first 1,000 rows.

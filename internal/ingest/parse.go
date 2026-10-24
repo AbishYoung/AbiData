@@ -681,10 +681,16 @@ func readJSONObjects(path string, array bool, fn func(keys []string, vals []json
 
 func openJSON(path string, opt ParseOptions) (*source, error) {
 	array := opt.Format == "json"
+	read := func(fn func(keys []string, vals []json.RawMessage) error) error {
+		if opt.Format == "geojson" {
+			return readGeoJSONFeatures(path, fn)
+		}
+		return readJSONObjects(path, array, fn)
+	}
 	// Pass 1: the union of keys, in order of first appearance.
 	var header []string
 	pos := map[string]int{}
-	err := readJSONObjects(path, array, func(keys []string, _ []json.RawMessage) error {
+	err := read(func(keys []string, _ []json.RawMessage) error {
 		for _, k := range keys {
 			if _, ok := pos[k]; !ok {
 				if len(header) >= MaxColumns {
@@ -702,6 +708,14 @@ func openJSON(path string, opt ParseOptions) (*source, error) {
 	if len(header) == 0 {
 		return nil, badFile("The file has no objects with keys.")
 	}
+	if opt.Format == "geojson" {
+		// The geometry column goes last, after every property.
+		g := pos[geoJSONGeometryKey]
+		header = append(append(header[:g:g], header[g+1:]...), geoJSONGeometryKey)
+		for i, k := range header {
+			pos[k] = i
+		}
+	}
 	opt.HasHeader = true
 	src := &source{opts: opt, header: header, ncols: len(header), close: func() {}}
 	// Pass 2 streams through a goroutine-free iterator: collect lazily via a channel-less
@@ -714,7 +728,7 @@ func openJSON(path string, opt ParseOptions) (*source, error) {
 	done := make(chan struct{})
 	go func() {
 		defer close(ch)
-		err := readJSONObjects(path, array, func(keys []string, vals []json.RawMessage) error {
+		err := read(func(keys []string, vals []json.RawMessage) error {
 			row := make([]string, len(header))
 			for i, k := range keys {
 				t, err := jsonText(vals[i])
@@ -765,7 +779,7 @@ func openSource(path, format string, opt ParseOptions) (*source, error) {
 		return openCSV(path, opt)
 	case "xlsx":
 		return openXLSX(path, opt)
-	case "json", "ndjson":
+	case "json", "ndjson", "geojson":
 		return openJSON(path, opt)
 	}
 	return nil, badFile("Unsupported file format %q.", format)
