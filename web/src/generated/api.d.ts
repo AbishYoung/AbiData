@@ -753,7 +753,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Directory of active users and the caller's workspaces for composing messages */
+        /** Directory of the users the caller shares a workspace with, and the caller's workspaces, for composing messages */
         get: operations["listMessageRecipients"];
         put?: never;
         post?: never;

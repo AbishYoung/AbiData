@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -34,15 +36,37 @@ func TestMessagesRoutes(t *testing.T) {
 		t.Fatalf("add sam: %d", st)
 	}
 
-	// Recipient directory lists active users and Priya's non-blog workspaces.
+	// The recipient directory lists the people Priya shares a workspace with
+	// (the admin, who owns it, and Sam), not every account, and her non-blog
+	// workspaces.
 	st, dirBody, _ := priya.do("GET", "/api/v1/messages/recipients", nil)
 	if st != 200 {
 		t.Fatalf("recipients: %d %v", st, dirBody)
 	}
 	users := dirBody["users"].([]any)
 	workspaces := dirBody["workspaces"].([]any)
-	if len(users) != 4 || len(workspaces) != 1 {
+	if len(users) != 2 || len(workspaces) != 1 {
 		t.Fatalf("directory: users=%d workspaces=%d (%v)", len(users), len(workspaces), dirBody)
+	}
+	for _, u := range users {
+		if e := u.(map[string]any)["email"]; e == "outsider@example.com" || e == "priya@example.com" {
+			t.Fatalf("directory lists %v: %v", e, dirBody)
+		}
+	}
+	// Platform administrators see everyone but themselves.
+	if st, all, _ := adminClient.do("GET", "/api/v1/messages/recipients", nil); st != 200 || len(all["users"].([]any)) != 3 {
+		t.Fatalf("admin directory: %d %v", st, all)
+	}
+	// Someone Priya shares no workspace with is answered like an unknown address.
+	for _, to := range []string{"outsider@example.com", "@nobody_ever"} {
+		st, res, _ := priya.do("POST", "/api/v1/messages/threads", map[string]any{
+			"kind": "direct", "recipients": []string{to}, "subject": "Hello", "body": "Hi"})
+		if st != 400 || !strings.Contains(fmt.Sprint(res), "share a workspace") {
+			t.Fatalf("message to %s: %d %v", to, st, res)
+		}
+	}
+	if st, res, _ := outsider.do("GET", "/api/v1/messages/recipients", nil); st != 200 || len(res["users"].([]any)) != 0 {
+		t.Fatalf("outsider directory: %d %v", st, res)
 	}
 
 	// Priya sends a direct message to @sam.

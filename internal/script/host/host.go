@@ -82,6 +82,26 @@ func (d *Data) AfterCommit(fn func()) {
 	d.afterCommit = append(d.afterCommit, fn)
 }
 
+// Write runs fn in the active transaction, or else in a write transaction of
+// its own on Lease that is active while fn runs, so the hooks fn queues run
+// once it commits. The transaction is cleared whatever happens, including a
+// Lua error raised inside fn: a script that catches the error must never
+// reach a finished transaction (or, on SQLite, the writer connection without
+// holding the writer gate).
+func (d *Data) Write(ctx context.Context, p workspace.Priority, fn func(ctx context.Context, tx dbx.Tx) error) (err error) {
+	if tx, tctx, ok := d.Tx(); ok {
+		return fn(tctx, tx)
+	}
+	committed := false
+	defer func() { d.FinishTx(committed) }()
+	err = d.Lease.Write(ctx, p, func(tx dbx.Tx) error {
+		d.SetTx(ctx, tx)
+		return fn(ctx, tx)
+	})
+	committed = err == nil
+	return err
+}
+
 // FinishTx clears the transaction and runs (committed) or drops queued hooks.
 func (d *Data) FinishTx(committed bool) {
 	hooks := d.afterCommit

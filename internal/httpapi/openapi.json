@@ -11661,7 +11661,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Directory of active users and the caller's workspaces for composing messages",
+        "summary": "Directory of the users the caller shares a workspace with, and the caller's workspaces, for composing messages",
         "tags": [
           "messages"
         ]

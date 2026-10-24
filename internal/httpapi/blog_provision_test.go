@@ -47,6 +47,10 @@ func TestBlogProvisioning(t *testing.T) {
 	if st, body, _ := ann.do("GET", "/api/v1/w/"+ws, nil); st != 200 || body["system_kind"] != "blog" {
 		t.Fatalf("workspace info %d %v", st, body)
 	}
+	// Every user owns their blog workspace; it must not list the platform's users.
+	if st, body, _ := ann.do("GET", "/api/v1/w/"+ws+"/members/candidates", nil); st != 400 {
+		t.Fatalf("member candidates of a blog workspace: %d %v", st, body)
+	}
 
 	// The blog has one member, its user: no sharing, role changes or leaving.
 	if st, body, _ := ann.do("POST", "/api/v1/w/"+ws+"/members", map[string]any{"email": "root@example.com", "role": "editor"}); st != 409 || errCode(body) != "WORKSPACE_PROTECTED" {

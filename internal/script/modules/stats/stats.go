@@ -3,6 +3,7 @@
 package stats
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -15,6 +16,9 @@ import (
 func init() {
 	script.Register(script.ModuleDef{Doc: doc, Build: build})
 }
+
+// MaxHistogramBins caps stats.histogram's bins.
+const MaxHistogramBins = 10000
 
 var allContexts = []script.Context{script.UIEvent, script.Report, script.Job}
 
@@ -268,7 +272,7 @@ local forecast = fit.slope * nextX + fit.intercept`,
 			Name: "histogram", Signature: "stats.histogram(xs, bins [, field]) → table",
 			Params: []script.ParamDoc{
 				{Name: "xs", Type: "table", Doc: "Array of numbers or array of row tables."},
-				{Name: "bins", Type: "number", Doc: "Number of equal-width bins (at least 1)."},
+				{Name: "bins", Type: "number", Doc: "Number of equal-width bins (at least 1, at most 10000)."},
 				{Name: "field", Type: "string", Opt: true, Doc: "Field name if xs is an array of row tables."},
 			},
 			Returns: "array of bin tables: { {min, max, count, ratio}, ... }",
@@ -853,8 +857,10 @@ func build(r *script.Run) lua.LValue {
 	fn("histogram", func(L *lua.LState) int {
 		xs := extractFloats(L, 1)
 		bins := L.CheckInt(2)
-		if bins <= 0 {
-			L.ArgError(2, "bins must be at least 1")
+		// The bins are built here, outside the VM's instruction and memory
+		// accounting, so their number is capped.
+		if bins <= 0 || bins > MaxHistogramBins {
+			L.ArgError(2, fmt.Sprintf("bins must be between 1 and %d", MaxHistogramBins))
 		}
 		n := len(xs)
 		out := L.CreateTable(bins, 0)
