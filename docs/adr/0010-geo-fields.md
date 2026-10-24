@@ -1,6 +1,6 @@
 # ADR 0010: Geographic fields (points and areas)
 
-Status: Accepted · 2026-10-11 (server side implemented; the browser parts are still to build)
+Status: Accepted · 2026-10-11 (implemented, server and browser)
 
 ## Context
 Users want to record where things are and to draw boundaries. The driving use case is **tracking invasive species**:
@@ -99,7 +99,7 @@ The server side is built as decided, with these details and deviations:
 - **Containment is planar in longitude/latitude,** with a boundary tolerance of 1e-9 degrees (about 0.1 mm). Distance uses a 6,371,008.8 m radius. Self-intersecting rings are not detected.
 - **Lua:** also provides `geo.lat` and `geo.lon`; `geo.bbox` returns a list.
 - **Workspace portability:** a calculated field that uses `geo_*` cannot be read by stock sqlite3 tools; the stored GeoJSON text can.
-- **Deferred from this step:** CSV mapping from two numeric columns, GeoJSON FeatureCollection import/export, CSV/GeoJSON export, and everything under Maps in the browser and Where geo appears in the UI.
+- **Deferred from this step, done afterwards:** the browser parts (next section), CSV mapping from two numeric columns (`lon_source` on a column mapping; the wizard's "Points from two columns"), GeoJSON FeatureCollection import (`.geojson`; the geometry arrives as a final `geometry` column, and a column of Points or Polygons is inferred as `geo_point` or `geo_area`) and GeoJSON export (tables only; the first geo field is the geometry, other fields are properties). CSV export writes GeoJSON text.
 
 The browser side (maps, editors, controls, tile setting) followed with these details and deviations:
 - **The tile setting reaches users through `GET /auth/me`** (`maps: {tile_url, attribution}`), not a separate endpoint, since every page already loads it. The admin endpoint is `GET/PUT /admin/settings/maps`; the value is stored in `_adm_settings` (`maps_tiles`) and re-validated when loaded, so a hand-edited bad value never widens the CSP.
