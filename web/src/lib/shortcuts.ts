@@ -162,8 +162,9 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "grid.select", area: "Datasheet", action: "Select or deselect the current record", keys: "Shift+Space", scope: "Datasheet" },
   { id: "grid.toggle", area: "Datasheet", action: "Toggle a Yes/No cell", keys: "Space", scope: "Datasheet" },
   { id: "grid.resize", area: "Datasheet", action: "Resize a column (Alt+Left: narrower, Alt+Right: wider)", keys: "Alt+Right", scope: "Datasheet column header" },
-  { id: "grid.copy", area: "Datasheet", action: "Copy the current cell", keys: "Mod+C", scope: "Datasheet and query results" },
-  { id: "grid.paste", area: "Datasheet", action: "Paste into the current cell (opens it for editing with the pasted text)", keys: "Mod+V", scope: "Datasheet" },
+  { id: "grid.range", area: "Datasheet", action: "Extend the selection to a rectangle of cells (Shift+click or drag does too)", keys: "Shift+Arrows", scope: "Datasheet" },
+  { id: "grid.copy", area: "Datasheet", action: "Copy the current cell, or the selected cells as tab-separated text", keys: "Mod+C", scope: "Datasheet and query results" },
+  { id: "grid.paste", area: "Datasheet", action: "Paste into the current cell (opens it for editing with the pasted text); several cells open a preview first", keys: "Mod+V", scope: "Datasheet" },
 
   { id: "query.run", area: "Queries", action: "Run the query", keys: "Mod+Enter", scope: "SQL view and query designer" },
   { id: "query.results.move", area: "Queries", action: "Move between result cells", keys: "Arrows", scope: "Query results" },

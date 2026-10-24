@@ -3,6 +3,7 @@ import type { components } from "@/generated/api";
 
 export type Row = components["schemas"]["Row"];
 export type RowPage = components["schemas"]["RowPage"];
+export type BatchOp = components["schemas"]["BatchOp"];
 
 export const PAGE_SIZE = 200;
 
@@ -60,6 +61,24 @@ export async function insertRow(
         body: { fields },
       }),
     { label: "Saving record" },
+  );
+}
+
+/** Applies inserts and updates in one transaction: all of them, or none. */
+export async function batchRows(
+  ws: string,
+  tableId: string,
+  ops: BatchOp[],
+  client: ApiClient = defaultApi,
+): Promise<void> {
+  await client.requestData(
+    (c, init) =>
+      c.POST("/api/v1/w/{ws}/tables/{table}/rows/batch", {
+        ...init,
+        params: { path: { ws, table: tableId } },
+        body: { ops },
+      }),
+    { label: "Pasting records" },
   );
 }
 

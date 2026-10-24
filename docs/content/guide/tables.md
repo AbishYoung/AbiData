@@ -175,6 +175,8 @@ Click a cell, or move with the arrow keys. Press `Enter` or `F2` to edit the cel
 
 To keep identifying columns in view on wide tables, open a column's menu and choose **Freeze columns up to here**: that column and the ones before it stay in place while the rest scroll sideways, with a heavier line marking the edge. **Unfreeze all columns** undoes it. The setting is saved for you per table.
 
+To work on a block of cells, drag across them, `Shift+click`, or hold `Shift` with the arrow keys. `Mod+C` copies the block as tab-separated text that pastes into spreadsheets. Pasting several cells (from a spreadsheet or from AbiData) opens a preview: it shows the target, whether each value converts for its field, and lets you overwrite the cells or insert the rows as new records. Nothing changes until you choose Paste, and the whole block is saved in one step, so it is applied entirely or not at all. A paste covers up to 1,000 records. Lookup, file and read-only fields are skipped.
+
 Right-click a cell for its actions: **Copy**, **Paste**, **Edit cell**, sorting, **Filter by selection**, **Record history**, **New record** and **Delete record**. Right-click a column heading to sort it or move it left or right. `Mod+C` copies the current cell, and `Mod+V` pastes into it. The context-menu key or `Shift+F10` opens the same menu from the keyboard. A cell you are editing keeps your browser's own menu.
 
 See [Keyboard shortcuts](/docs/reference/shortcuts) for more.

@@ -14,6 +14,7 @@ import { menu, menuItem } from "@/components/styles";
 import { AttachmentCell } from "@/features/files/FileParts";
 import { CellEditor, type EditorHandle, type LookupInfo, type Move } from "./Editors";
 import type { Cell } from "./nav";
+import { inBounds, type Bounds } from "./range";
 import type { RowBuffer, RowKey } from "./buffer";
 import type { Row } from "./rowsApi";
 import { ariaSort, sortAriaLabel, type SortState } from "./filter";
@@ -64,7 +65,11 @@ export interface GridProps {
   /** Right-click anywhere in the grid (set by the ContextArea around it). */
   onContextMenu?: (e: ReactMouseEvent) => void;
   onPaste?: (e: ClipboardEvent<HTMLDivElement>) => void;
-  onCellMouseDown: (cell: Cell) => void;
+  /** The rectangle of selected cells, when more than one is selected. */
+  range?: Bounds | null;
+  onCellMouseDown: (cell: Cell, e: MouseEvent) => void;
+  /** The pointer moved onto a cell with the button held: the selection extends to it. */
+  onCellDrag: (cell: Cell) => void;
   onCellDoubleClick: (cell: Cell) => void;
   onRowHeaderClick: (index: number, e: MouseEvent) => void;
   onToggleBoolean: (cell: Cell) => void;
@@ -310,6 +315,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
     const text = formatValue(col, value, display);
     const frozenLeft = colIndex < frozen ? offsets[colIndex] : undefined;
     const isFrozen = frozenLeft !== undefined;
+    const inRange = inBounds(props.range ?? null, rowIndex, colIndex);
     const numeric = isNumericKind(kind);
     const align = numeric ? "justify-end text-right tabular-nums" : "";
 
@@ -371,18 +377,22 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
         id={cellId(gridId, rowIndex, colIndex)}
         aria-colindex={colIndex + 2}
         aria-readonly={readOnly ? true : undefined}
+        aria-selected={props.range ? inRange : undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errId : undefined}
         aria-busy={loading ? true : undefined}
         onMouseDown={(e) => {
-          if (e.button === 0) props.onCellMouseDown({ row: rowIndex, col: colIndex });
+          if (e.button === 0) props.onCellMouseDown({ row: rowIndex, col: colIndex }, e);
+        }}
+        onMouseEnter={(e) => {
+          if (e.buttons === 1) props.onCellDrag({ row: rowIndex, col: colIndex });
         }}
         onDoubleClick={() => props.onCellDoubleClick({ row: rowIndex, col: colIndex })}
         style={isFrozen ? { width: widths[colIndex], left: frozenLeft } : { width: widths[colIndex], scrollMarginLeft: scrollStart }}
         className={`${isFrozen ? "sticky z-[9]" : "relative"} flex h-full shrink-0 items-center gap-1 border-b border-r ${
           isFrozen && colIndex === frozen - 1 ? "border-r-2 border-r-border-strong" : "border-border"
-        } px-3 text-sm scroll-mt-8 ${align} ${isActive ? "outline-2 -outline-offset-2 outline-accent" : ""} ${
-          changed || (isFrozen && isSelected) ? "bg-accent-soft" : isSelected ? "bg-accent-soft/60" : isFrozen ? "bg-surface" : "bg-transparent"
+        } select-none px-3 text-sm scroll-mt-8 ${align} ${isActive ? "outline-2 -outline-offset-2 outline-accent" : ""} ${
+          changed || (isFrozen && (isSelected || inRange)) ? "bg-accent-soft" : isSelected || inRange ? "bg-accent-soft/60" : isFrozen ? "bg-surface" : "bg-transparent"
         } ${error ? "border-b-2 border-b-danger" : ""}`}
       >
         {error && !isEditing && (
