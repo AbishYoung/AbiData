@@ -173,7 +173,7 @@ test("builder opens the SQL console, runs a statement, and writes are refused", 
   await nav(page).getByRole("button", { name: "SQL console" }).click();
   await expect(page.getByRole("tab", { name: /SQL console/ })).toBeVisible();
   const editor = page.getByTestId("sql-editor");
-  await editor.getByLabel("SQL", { exact: true }).fill("SELECT Name FROM Customers ORDER BY Name");
+  await editor.getByLabel("SQL", { exact: true }).fill('SELECT "Name" FROM "Customers" ORDER BY "Name"');
   await editor.getByRole("button", { name: "Run", exact: true }).click();
   const results = page.getByRole("dialog", { name: "Query results" });
   const grid = results.getByRole("grid", { name: "Query results" });
@@ -183,7 +183,7 @@ test("builder opens the SQL console, runs a statement, and writes are refused", 
   await page.keyboard.press("Escape");
   await expect(results).toBeHidden();
 
-  await editor.getByLabel("SQL", { exact: true }).fill("DELETE FROM Customers");
+  await editor.getByLabel("SQL", { exact: true }).fill('DELETE FROM "Customers"');
   await editor.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Query results" }).getByRole("alert")).toBeVisible();
   await page.keyboard.press("Escape");
