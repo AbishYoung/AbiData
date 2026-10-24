@@ -35,6 +35,8 @@ A query that is written in SQL has only the **Datasheet** and **SQL** views. Its
 
 Builders can also open the **SQL console** from the **Queries** group. It runs a statement without saving it, and **Save query** keeps it as a SQL query.
 
+SQL is written in the dialect of the database the install runs on: SQLite, or PostgreSQL on a [PostgreSQL install](/docs/operations/postgresql). The SQL editor shows which one next to its toolbar. Visual queries work the same on both. In PostgreSQL, unquoted names fold to lower case, so quote mixed-case table and field names: `SELECT "Company" FROM "Customers"`. A saved SQL query from an install on the other backend, for example after a move with `abidata migrate-backend`, shows a warning until you check it.
+
 SQL queries are read-only. These are allowed:
 
 - `SELECT`, `WITH` and `VALUES` statements.

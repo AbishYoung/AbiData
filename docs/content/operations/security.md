@@ -26,7 +26,7 @@ This page summarises what AbiData defends against, what it assumes, and what is 
 - **Sessions.** The cookie holds a random identifier; the server stores only its hash. Sessions end after 12 hours idle or 7 days, and a new session is issued at sign-in.
 - **Stolen API keys.** Keys are 256-bit random secrets; the server stores only a keyed hash and compares it in constant time. See [API keys](#api-keys) below.
 - **Reading another workspace.** Every workspace request checks membership first. A workspace you do not belong to, or an object in a different workspace, answers "not found", the same as one that does not exist.
-- **Dangerous SQL.** User and script SQL runs under a database authorizer: only the allowed statements on workspace tables, no `ATTACH`, no `PRAGMA` except a few reads, no internal tables, no schema changes from scripts. See [Queries](/docs/guide/queries#sql). It also has time, row and memory limits.
+- **Dangerous SQL.** User and script SQL runs under a database authorizer: only the allowed statements on workspace tables, no `ATTACH`, no `PRAGMA` except a few reads, no internal tables, no schema changes from scripts. See [Queries](/docs/guide/queries#sql). It also has time, row and memory limits. On PostgreSQL the same rules come from database roles instead. User SQL runs as a per-workspace login that can only read that workspace's tables, never as the server's own role. See [PostgreSQL](/docs/operations/postgresql#security).
 - **Hostile scripts.** Lua runs in a sandbox with no file, process, network or module access except through reviewed functions. Time, string, pattern and memory limits stop runaway scripts. See [Scripts](/docs/guide/scripts#contexts).
 - **Server-side request forgery.** Outbound requests go through the egress gateway: see below.
 - **Hostile uploads.** Imports and exports are size-capped and parsed into a separate staging database. Exported CSV text is neutralised against spreadsheet formula injection. Downloads of job artifacts are served with a restrictive `Content-Security-Policy: sandbox` header.
@@ -40,6 +40,7 @@ This page summarises what AbiData defends against, what it assumes, and what is 
 - Weak passwords chosen by users above the minimum, and users sharing accounts.
 - Transport security. TLS is provided by your reverse proxy. Run AbiData over HTTPS only. Without it, cookies are not marked `Secure`.
 - Denial of service from the network. Put rate limits at the proxy if the service is exposed to the internet.
+- On PostgreSQL, people who can run SQL in one workspace can see the table and field names, never the data, of the other workspaces in the same database. See [PostgreSQL](/docs/operations/postgresql#security).
 
 ## Roles {#roles}
 
@@ -118,4 +119,5 @@ Files are not scanned for malware. If your people share files with each other ou
 6. Keep the platform egress allowlist as narrow as you can: list the exact hosts your jobs need.
 7. If you enable [user blogs](/docs/guide/blogs), set `ABIDATA_BLOG_HOST` to a separate host name, review reported pages in the **Blogs** tab, and purge any proxy or CDN cache when taking content down. Leave public blogs off if nobody can moderate them.
 8. Copy the backups and the keys off the host: see [Backup strategy](/docs/operations/backup-strategy).
-9. Keep the image up to date: see [Upgrade](/docs/operations/upgrade).
+9. On PostgreSQL, give the server's role only `LOGIN`, `CREATEROLE` and ownership of its database, never superuser. Accept its connections only from the AbiData host, use TLS, and set `temp_file_limit`. See [PostgreSQL](/docs/operations/postgresql#security).
+10. Keep the image up to date: see [Upgrade](/docs/operations/upgrade).

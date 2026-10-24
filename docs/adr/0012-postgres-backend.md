@@ -1,6 +1,6 @@
 # ADR 0012: PostgreSQL as an alternative storage backend
 
-Status: Proposed (plan for future implementation) · 2026-10-17 · Depends on [ADR 0013](0013-backend-agnostic-sql-layer.md) · Phase 1 spike done 2026-10-18 ([findings](#spike-findings-phase-1)); §3 and §5 are amended by it
+Status: Proposed (plan for future implementation) · 2026-10-17 · Depends on [ADR 0013](0013-backend-agnostic-sql-layer.md) · Phase 1 spike done 2026-10-18 ([findings](#spike-findings-phase-1)); §3 and §5 are amended by it · Phases 2–5 built (see the as-built notes in §11); Phase 6 open
 
 ## Context
 
@@ -270,7 +270,7 @@ Each phase merges on its own, keeps SQLite green, and has an exit criterion.
 | 2. Admin store on PostgreSQL | `<prefix>_admin` migrations and repositories; configuration, the backend lock and startup checks. | Admin, auth and API-key tests pass on both backends. |
 | 3. Workspaces on PostgreSQL | Schema-per-workspace lifecycle, roles, DDL, triggers, `<prefix>_lib`, records, catalog apply/preview, visual compiler, sandboxed user SQL, Lua `db`, soft quotas. | Full Go suite green on PostgreSQL except backup, restore and import. |
 | 4. Archive and interchange | Portable archive export/import (§8) with translation and the import report; backups and restore on top of it (§7). | Round-trip tests green; restore crash-recovery tests green on PostgreSQL. |
-| 5. Migration and docs | `abidata migrate-backend`; operations docs (install, configuration, security, backup strategy); UI dialect hints; e2e matrix in CI. | Migrating the demo install both ways passes e2e; docs reviewed. |
+| 5. Migration and docs | `abidata migrate-backend`; operations docs (install, configuration, security, backup strategy); UI dialect hints; e2e matrix in CI. | Migrating the demo install both ways passes e2e; docs reviewed. **Built** (see the note below); the round trip is a Go test, and e2e on PostgreSQL runs in CI from this phase. |
 | 6. Multi-instance (optional, own ADR) | `LISTEN/NOTIFY` events, claimed jobs and operations, shared files storage. | Two app instances behind one load balancer pass e2e. |
 
 Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everything after it.
@@ -426,6 +426,46 @@ Phases 0–1 are where the plan can still change cheaply. Phase 1 gates everythi
   - `cmd/abidata/backend.go`: startup check allows PostgreSQL workspaces once connection checks pass.
   - `cmd/abidata/serve.go`: installs shared functions library via `pgdb.InstallLib`, configures `workspace.PostgresConfig` (including `Adopt`), and wires full PostgreSQL backend.
   - `scripts/test-postgres.sh` and `tools/testplan`: added `internal/backup` to PostgreSQL test suite; verified 100% pass on PostgreSQL 17 and 18 with race detector.
+
+**Phase 5 (as built): migration, docs, dialect hints and CI.**
+
+- **`abidata migrate-backend --to postgres|sqlite --target-data-dir DIR [--target-backup-dir DIR]`** (`cmd/abidata/migrate.go`) does §9 offline.
+  - **Source.** The source install's configuration names it. The command holds the source's data-dir lock throughout and only reads the source. It refuses a source with an interrupted restore.
+  - **Target.**
+    - A new, empty data directory.
+    - On PostgreSQL, also a database named by `ABIDATA_TARGET_POSTGRES_URL` (or `_FILE`) under an unused `ABIDATA_TARGET_POSTGRES_SCHEMA_PREFIX` (`pgdb.InstallSchemas`). These are separate variables because the source's configuration refuses a URL under `sqlite`.
+  - **Admin store.** `admin.Store.CopyTo` copies every durable table row for row, in one transaction on the target, in either direction.
+    - Sessions and login attempts stay behind.
+    - The target records its own backend.
+    - A self-referencing column is filled in a second pass.
+    - The audit identity moves past the copied ids.
+    - Backup paths are rewritten to the copied backup directory.
+    - A test fails if a new admin table is neither copied nor listed as left behind.
+  - **Workspaces.** Each one goes through the portable archive: `backup.Service.ExportArchive` (`VACUUM INTO`, or the `REPEATABLE READ` export), then `catalog.AdoptPostgresReport` (§8, with its import report) or `workspace.Manager.Adopt`.
+  - **Data directory.** Keys, files buckets, artifacts and backups are copied.
+  - **Report.** One combined report goes to `system/migrate-backend-report.json`.
+  - **Failure.**
+    - Until the move finishes, the target holds `system/migrate-backend.json`, and `checkBackend` refuses it.
+    - A failed move removes what it wrote: `pgdb.DropInstall` and the emptied directories.
+    - After a crash, running the command again cleans up and starts over. There is no partial resume.
+  - **Credentials** are never printed.
+  - **Tests.** The demo install goes SQLite → PostgreSQL → SQLite, comparing users, row counts per table and file bytes. Refusals, cleanup after a failure, and restarting after an interruption are tested too.
+- **Offline commands on PostgreSQL.** `user create-admin`, `user reset-password` and `demo` always opened `system/admin.db`. On a PostgreSQL install that wrote to a store the server never reads, and the file then made `serve` refuse to start. They now open the configured backend (`cmd/abidata/install.go`).
+- **Dialect hints (§4).** `GET /api/v1/w/{ws}` returns `sql_dialect`.
+  - The SQL console, SQL queries and the read-only SQL of visual queries name the dialect.
+  - A saved query whose `dialect` differs from the install's shows a warning.
+- **Docs.**
+  - `docs/content/operations/postgresql.md` covers requirements, the role and database, configuration, the layout, the differences, the role's security, backups with PITR, and `migrate-backend`.
+  - Install, configuration, backup strategy, security, queries and scripts pages link to it.
+- **CI (§10).**
+  - The `postgres` job is a matrix over PostgreSQL 17 and 18. It runs `go test -race ./...` with `ABIDATA_TEST_DB=postgres` against a service container bound to localhost.
+  - `e2e-postgres` runs the Playwright areas with every server on PostgreSQL 18, each install under its own schema prefix.
+  - `scripts/ci-postgres.sh` replaces the service's throwaway password with random, masked ones. It also creates the non-superuser app role.
+  - `make test-postgres` stays for local runs.
+- **Gaps found, not closed here:**
+  - The single-instance row lock of §5 is not implemented. Two servers on one database and prefix are not refused, and neither is a migration while a server on another data directory uses the source database.
+  - `pgdb.HardenDatabase` (revoking PUBLIC's `CONNECT` and `TEMPORARY`, §1) is never called at startup.
+  - The sandbox does not set `temp_file_limit` or `work_mem` (spike finding 9). The docs tell operators to set `temp_file_limit` on the database.
 
 ## Consequences
 

@@ -13,6 +13,7 @@ AbiData ships as one container image. The repository's `compose.yaml` runs it be
 - A Linux host with Docker and the Compose plugin.
 - A DNS name pointing at the host, and ports 80 and 443 open, so Caddy can get a certificate. For a trial on your own machine, `localhost` works with Caddy's local certificate.
 - Enough disk for the data and backups volumes. Each workspace is one SQLite file.
+- Optionally, a PostgreSQL 17 or later database, if you want to store the data there instead of in SQLite files. Choose before the first start. See [PostgreSQL](/docs/operations/postgresql).
 
 ## The image {#image}
 
@@ -78,7 +79,7 @@ The compose file defines:
 |---|---|
 | `abidata` | The application. `stop_grace_period` is 45 seconds so a shutdown can finish cleanly |
 | `caddy` | TLS, HTTP/2, reverse proxy to `abidata:8080`. `flush_interval -1` is required so live updates (server-sent events) are not buffered |
-| `abidata-data` | Mounted at `/var/lib/abidata`: the admin database, keys, every workspace file, staging files and job artifacts |
+| `abidata-data` | Mounted at `/var/lib/abidata`: the admin database, keys, every workspace file, staging files and job artifacts (on [PostgreSQL](/docs/operations/postgresql), only the keys, file attachments, staging files and artifacts) |
 | `abidata-backups` | Mounted at `/var/lib/abidata-backups`: the backups |
 | `caddy-data`, `caddy-config` | Caddy's certificates and configuration |
 
