@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { keys } from "@/lib/events";
 import { useRowHeight } from "@/lib/density";
 import { HEADER_HEIGHT } from "./Grid";
+import { QUICK_ADD_HEIGHT } from "./quickAdd";
 import { CARD_SLOT } from "./CardList";
 import type { RowKey } from "./buffer";
 import { PAGE_SIZE, fetchCount, fetchRows, type Row, type RowPage } from "./rowsApi";
@@ -20,6 +21,7 @@ export function useRowPages({
   canEdit,
   mode,
   sheetIndex,
+  quickAddOpen = false,
   scrollRef,
   cardScrollRef,
 }: {
@@ -31,6 +33,8 @@ export function useRowPages({
   mode: "cards" | "grid";
   /** The record open in the phone's record sheet, whose page must be loaded too. */
   sheetIndex: number | null;
+  /** The quick-add strip is open under the headers: the rows start below it. */
+  quickAddOpen?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   cardScrollRef: RefObject<HTMLDivElement | null>;
 }) {
@@ -53,8 +57,8 @@ export function useRowPages({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 10,
-    scrollMargin: HEADER_HEIGHT,
-    scrollPaddingStart: HEADER_HEIGHT,
+    scrollMargin: HEADER_HEIGHT + (quickAddOpen ? QUICK_ADD_HEIGHT : 0),
+    scrollPaddingStart: HEADER_HEIGHT + (quickAddOpen ? QUICK_ADD_HEIGHT : 0),
   });
   // A density change resizes every row: drop the measured sizes so the new estimate applies.
   useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);

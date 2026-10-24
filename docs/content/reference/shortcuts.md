@@ -42,7 +42,7 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 | Insert a line break in a long text cell | `⌥ Enter` | `Alt+Enter` | Datasheet cell editor |
 | Save the record | `⇧ Enter` | `Shift+Enter` | Datasheet |
 | Cancel the edit, or discard unsaved changes to the record | `Esc` | `Esc` | Datasheet |
-| Go to the new record row | `⌘ ⇧ N` | `Ctrl+Shift+N` | Datasheet |
+| Open the quick-add row under the column headers | `⌘ ⇧ N` | `Ctrl+Shift+N` | Datasheet |
 | Focus the filter box | `⌘ F` | `Ctrl+F` | Datasheet (elsewhere the browser's find) |
 | Apply the filter | `Enter` | `Enter` | Datasheet filter box |
 | Delete the selected records | `Delete` | `Delete` | Datasheet |

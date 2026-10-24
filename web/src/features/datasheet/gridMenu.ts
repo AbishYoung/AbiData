@@ -91,7 +91,7 @@ export function gridMenu(target: MenuTarget | null, x: GridMenuContext): MenuEnt
     { id: "history", label: "Record history", icon: History, disabled: !row, run: () => row && x.openHistory(row.id) },
     ...(x.canEdit
       ? ([
-          { id: "new", label: "New record", icon: Plus, shortcut: "Mod+Shift+N", run: () => x.newRecord(cell.col) },
+          { id: "new", label: "New record", icon: Plus, run: () => x.newRecord(cell.col) },
           {
             id: "delete",
             label: ids.length > 1 ? `Delete ${x.formatCount(ids.length)} records` : "Delete record",
