@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -78,24 +79,35 @@ func (l *Lease) Postgres() (pgdb.Names, bool) {
 // failure leaves neither its schema nor its roles behind.
 func (m *Manager) pgCreate(ctx context.Context, id ids.WorkspaceID) error {
 	pc, n := m.pg(), m.Names(id)
-	err := pgx.BeginFunc(ctx, pc.Pool, func(tx pgx.Tx) error {
-		d := pgdb.WrapTx(tx)
-		if err := pgdb.ProvisionWorkspace(ctx, d, pc.Database, n); err != nil {
-			return err
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		err := pgx.BeginFunc(ctx, pc.Pool, func(tx pgx.Tx) error {
+			d := pgdb.WrapTx(tx)
+			if err := pgdb.ProvisionWorkspace(ctx, d, pc.Database, n); err != nil {
+				return err
+			}
+			if pc.Migrate != nil {
+				return pc.Migrate(ctx, id, d, n)
+			}
+			return nil
+		})
+		if err == nil {
+			return nil
 		}
-		if pc.Migrate != nil {
-			return pc.Migrate(ctx, id, d, n)
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) {
+			if pe.Code == "42P06" || pe.Code == "42710" { // duplicate_schema, duplicate_object
+				return fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
+			}
+			if pe.Code == "XX000" && strings.Contains(pe.Message, "concurrently updated") && attempt < 4 {
+				time.Sleep(time.Duration(25*(1<<attempt)) * time.Millisecond)
+				lastErr = err
+				continue
+			}
 		}
-		return nil
-	})
-	var pe *pgconn.PgError
-	if errors.As(err, &pe) && (pe.Code == "42P06" || pe.Code == "42710") { // duplicate_schema, duplicate_object
-		return fmt.Errorf("workspace %s: %w", id, fs.ErrExist)
-	}
-	if err != nil {
 		return fmt.Errorf("workspace %s: %w", id, err)
 	}
-	return nil
+	return fmt.Errorf("workspace %s: %w", id, lastErr)
 }
 
 // pgOpen checks the workspace's schema exists and migrates it.

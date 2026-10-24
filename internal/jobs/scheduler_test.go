@@ -413,6 +413,8 @@ func TestQueuedEnqueueArgsSurvive(t *testing.T) {
 		t.Fatal(err)
 	}
 	close(r.exec.gate)
+	r.waitStarted(2)
+	r.exec.gate = nil
 	r.settle()
 	r.exec.mu.Lock()
 	defer r.exec.mu.Unlock()
