@@ -33,10 +33,14 @@ export interface Condition {
   label: string;
 }
 
-export interface SortState {
+/** One key of the sort: a column and its direction. */
+export interface MultiSortKey {
   col: string;
   desc: boolean;
 }
+
+/** The sort keys in priority order; empty means unsorted. The server takes up to 8 (`MaxSorts`). */
+export type SortState = MultiSortKey[];
 
 /** Columns the quick text filter searches. */
 export function textColumnIds(columns: readonly Column[]): string[] {
@@ -230,18 +234,62 @@ export function selectionCondition(col: Column, value: unknown, shown: string): 
   return { col: col.id, op: "eq", value, label: `${col.display_name} = ${shown}` };
 }
 
-/** Header click: ascending, then descending, then unsorted. */
-export function nextSort(current: SortState | null, col: string): SortState | null {
-  if (!current || current.col !== col) return { col, desc: false };
-  if (!current.desc) return { col, desc: true };
-  return null;
+/** The most sort keys the API accepts (internal/records MaxSorts). */
+export const MAX_SORT_KEYS = 8;
+
+/**
+ * Header click. Plain click replaces the sort with the clicked column: ascending, then descending,
+ * then unsorted. Shift+click (`additive`) keeps the other keys: a new column is appended ascending,
+ * a column already in the sort flips to descending, then drops out.
+ */
+export function nextSort(current: SortState, col: string, additive = false): SortState {
+  const at = current.findIndex((k) => k.col === col);
+  const existing = at >= 0 ? current[at] : undefined;
+  if (additive) {
+    if (!existing) return current.length >= MAX_SORT_KEYS ? current : [...current, { col, desc: false }];
+    if (!existing.desc) return current.map((k, i) => (i === at ? { col, desc: true } : k));
+    return current.filter((_, i) => i !== at);
+  }
+  if (!existing) return [{ col, desc: false }];
+  // From a multi-column sort a plain click keeps just this column; the next click cycles it.
+  if (current.length > 1) return [existing];
+  return existing.desc ? [] : [{ col, desc: true }];
 }
 
-export function sortParam(sort: SortState | null): string | undefined {
-  return sort ? `${sort.desc ? "-" : ""}${sort.col}` : undefined;
+/** Sets one column's direction: alone (menu) or in place among the other keys (`additive`). */
+export function setSortDirection(current: SortState, col: string, desc: boolean, additive = false): SortState {
+  if (!additive) return [{ col, desc }];
+  if (current.some((k) => k.col === col)) return current.map((k) => (k.col === col ? { col, desc } : k));
+  return current.length >= MAX_SORT_KEYS ? current : [...current, { col, desc }];
 }
 
-export function ariaSort(sort: SortState | null, col: string): "ascending" | "descending" | "none" {
-  if (!sort || sort.col !== col) return "none";
-  return sort.desc ? "descending" : "ascending";
+/** Takes a column out of the sort, leaving the other keys. */
+export function removeSort(current: SortState, col: string): SortState {
+  return current.some((k) => k.col === col) ? current.filter((k) => k.col !== col) : current;
+}
+
+/** The API's `sort` parameter: "country,-order_total,id". */
+export function sortParam(sorts: SortState): string | undefined {
+  return sorts.length === 0 ? undefined : sorts.map((k) => `${k.desc ? "-" : ""}${k.col}`).join(",");
+}
+
+/** `aria-sort` for a header: the primary key only (the others are described by their label). */
+export function ariaSort(sorts: SortState, col: string): "ascending" | "descending" | "none" {
+  const primary = sorts[0];
+  if (!primary || primary.col !== col) return "none";
+  return primary.desc ? "descending" : "ascending";
+}
+
+/** A column's place in the sort: priority (1 is first) and direction, or null when it is not sorted. */
+export function sortRank(sorts: SortState, col: string): { rank: number; desc: boolean } | null {
+  const at = sorts.findIndex((k) => k.col === col);
+  const key = sorts[at];
+  return key ? { rank: at + 1, desc: key.desc } : null;
+}
+
+/** Spoken name of a header that is part of a multi-column sort: "Total, sorted descending, priority 2". */
+export function sortAriaLabel(name: string, sorts: SortState, col: string): string | undefined {
+  const r = sortRank(sorts, col);
+  if (!r || sorts.length < 2 || r.rank === 1) return undefined;
+  return `${name}, sorted ${r.desc ? "descending" : "ascending"}, priority ${r.rank}`;
 }

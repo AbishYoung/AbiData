@@ -14,6 +14,7 @@ import { docFooter } from "@/components/EditorParts";
 import { Grid, cellId, type EditingState, type SortChoice } from "./Grid";
 import { Toolbar } from "./Toolbar";
 import { CardList } from "./CardList";
+import { SortStrip } from "./MultiSortBadges";
 import { RecordSheet, type FieldChange, type SheetSave } from "./RecordSheet";
 import { hasGeoField } from "@/features/imports/exportPrefs";
 import { ExportDialog } from "@/features/workspace/lazyFeatures";
@@ -37,8 +38,10 @@ import {
   buildFilter,
   canFilterBySelection as canSelectFilter,
   nextSort,
+  removeSort,
   selectionCondition,
   serializeFilter,
+  setSortDirection,
   sortParam,
   textColumnIds,
   updateCondition,
@@ -109,7 +112,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const gridId = `ds${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   const [layout, setLayout] = useState<Layout>(() => loadLayout(ws, tableId));
-  const [sort, setSort] = useState<SortState | null>(null);
+  const [sort, setSort] = useState<SortState>([]);
   const [exportOpen, setExportOpen] = useState(false);
   const [geoFilterOpen, setGeoFilterOpen] = useState(false);
   const [historyRow, setHistoryRow] = useState<number | null>(null);
@@ -618,9 +621,22 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
 
   function onSort(colId: string, choice: SortChoice) {
     setSort((prev) => {
-      if (choice === "toggle") return nextSort(prev, colId);
-      if (choice === "none") return prev?.col === colId ? null : prev;
-      return { col: colId, desc: choice === "desc" };
+      switch (choice) {
+        case "toggle":
+          return nextSort(prev, colId);
+        case "toggle-add":
+          return nextSort(prev, colId, true);
+        case "none":
+          return removeSort(prev, colId);
+        case "clear":
+          return [];
+        case "asc":
+        case "desc":
+          return setSortDirection(prev, colId, choice === "desc");
+        case "then-asc":
+        case "then-desc":
+          return setSortDirection(prev, colId, choice === "then-desc", true);
+      }
     });
     resetView();
   }
@@ -725,7 +741,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   function menuEntries(): MenuEntry[] {
     return gridMenu(menuTarget.current, {
       columns,
-      sortedCol: sort?.col ?? null,
+      sorts: sort,
       total,
       canEdit,
       selected,
@@ -903,6 +919,12 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         mode={mode}
         onMode={setViewMode}
         onQuickAdd={canEdit ? () => setQuickAddOpen(true) : undefined}
+      />
+      <SortStrip
+        sorts={sort}
+        columns={columns}
+        onRemove={(colId) => onSort(colId, "none")}
+        onClear={() => onSort("", "clear")}
       />
       {geoFilterOpen && (
         <GeoFilterDialog

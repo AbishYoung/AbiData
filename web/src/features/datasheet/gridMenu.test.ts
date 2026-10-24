@@ -7,7 +7,7 @@ function ctx(over: Partial<GridMenuContext> = {}): GridMenuContext {
   const rows = [row(1, 1, { name: "Ann" }), row(2, 1, { name: "Bob" })];
   return {
     columns: [col("name", "short_text"), col("qty", "integer")],
-    sortedCol: null,
+    sorts: [],
     total: rows.length,
     canEdit: true,
     selected: new Set(),
@@ -43,13 +43,26 @@ describe("gridMenu", () => {
   });
 
   it("offers sorting and moving on a column header, with the edges disabled", () => {
-    const c = ctx({ sortedCol: "name" });
+    const c = ctx({ sorts: [{ col: "name", desc: false }] });
     const m = gridMenu({ kind: "column", col: 0 }, c);
-    expect(ids(m)).toEqual(["asc", "desc", "unsort", "s1", "left", "right"]);
+    expect(ids(m)).toEqual(["asc", "desc", "then-asc", "then-desc", "unsort", "s1", "left", "right"]);
     expect(item(m, "unsort").disabled).toBe(false);
     expect(item(m, "left").disabled).toBe(true);
     item(m, "desc").run();
     expect(c.onSort).toHaveBeenCalledWith("name", "desc");
+  });
+
+  it("offers sorting by further columns and clearing every key once a sort exists", () => {
+    const none = gridMenu({ kind: "column", col: 1 }, ctx());
+    expect(ids(none)).toEqual(["asc", "desc", "unsort", "s1", "left", "right"]);
+    expect(item(none, "unsort").disabled).toBe(true);
+    const c = ctx({ sorts: [{ col: "name", desc: false }, { col: "qty", desc: true }] });
+    const m = gridMenu({ kind: "column", col: 1 }, c);
+    expect(ids(m)).toContain("unsort-all");
+    item(m, "then-asc").run();
+    expect(c.onSort).toHaveBeenCalledWith("qty", "then-asc");
+    item(m, "unsort-all").run();
+    expect(c.onSort).toHaveBeenCalledWith("qty", "clear");
   });
 
   it("deletes the whole selection when the clicked record is part of it", () => {
