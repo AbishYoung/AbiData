@@ -64,6 +64,7 @@ import { NAV_KEYS, clampCell, moveActive, tabTarget, type Cell, type NavDims } f
 import {
   classifyFailure,
   deleteRow,
+  insertRow,
   type Row,
 } from "./rowsApi";
 import { formatValue, isReadOnlyColumn, kindOf } from "./values";
@@ -126,6 +127,10 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const mode: "cards" | "grid" = compact ? viewMode : "grid";
   /** Index of the record open in the full-screen sheet; `total` means the new record. */
   const [sheetIndex, setSheetIndex] = useState<number | null>(null);
+  /** The pinned quick-add strip under the column headers (Shift+Mod+N). */
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  /** The record just added with the strip: its row pulses for a moment. */
+  const [addedId, setAddedId] = useState<number | null>(null);
 
   const buffersRef = useRef<ReadonlyMap<RowKey, RowBuffer>>(buffers);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -155,7 +160,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
 
   // ---- data -------------------------------------------------------------------
   const { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData } =
-    useRowPages({ ws, tableId, filterStr, sortStr, canEdit, mode, sheetIndex, scrollRef, cardScrollRef });
+    useRowPages({ ws, tableId, filterStr, sortStr, canEdit, mode, sheetIndex, quickAddOpen: quickAddOpen && mode === "grid" && canEdit, scrollRef, cardScrollRef });
 
   // ---- buffers ------------------------------------------------------------------
   function updateBuffers(fn: (m: Map<RowKey, RowBuffer>) => void) {
@@ -439,6 +444,32 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
   }
 
+  /** Saves a record typed into the quick-add strip; resolves to inline field errors, or null when saved. */
+  async function submitQuickAdd(fields: Record<string, unknown>): Promise<Record<string, string> | null> {
+    try {
+      const created = await insertRow(ws, tableId, fields);
+      refreshData();
+      setAddedId(created.id);
+      return null;
+    } catch (e) {
+      const failure = classifyFailure(e);
+      if (failure.kind === "fields") return failure.errors;
+      if (failure.kind === "error") useErrorStore.getState().show(failure.error);
+      return {};
+    }
+  }
+
+  function closeQuickAdd() {
+    setQuickAddOpen(false);
+    focusGrid();
+  }
+
+  useEffect(() => {
+    if (addedId === null) return;
+    const t = setTimeout(() => setAddedId(null), 2000);
+    return () => clearTimeout(t);
+  }, [addedId]);
+
   function cancelEdit() {
     setEditing(null);
     focusGrid();
@@ -483,7 +514,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
     if (mod && e.shiftKey && e.key.toLowerCase() === "n") {
       e.preventDefault();
-      if (canEdit) moveTo({ row: total, col: activeCell.col });
+      if (canEdit) setQuickAddOpen(true);
       return;
     }
     if (NAV_KEYS.has(e.key)) {
@@ -870,6 +901,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         compact={compact}
         mode={mode}
         onMode={setViewMode}
+        onQuickAdd={canEdit ? () => setQuickAddOpen(true) : undefined}
       />
       {geoFilterOpen && (
         <GeoFilterDialog
@@ -965,6 +997,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onCommit={commitEdit}
         onCancel={cancelEdit}
         onPaste={onGridPaste}
+        quickAdd={quickAddOpen && canEdit ? { onSubmit: submitQuickAdd, onClose: closeQuickAdd } : null}
+        highlightRowId={addedId}
       />
       </ContextArea>
       )}

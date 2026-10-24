@@ -170,7 +170,7 @@ Click a cell, or move with the arrow keys. Press `Enter` or `F2` to edit the cel
 - `Tab` and `Shift+Tab` move between cells.
 - `Shift+Enter` saves the record. `Esc` discards your unsaved changes to the record.
 - When you move to another row, AbiData saves the row you left. A half-edited record therefore does not reach other people until you leave it.
-- The empty row at the bottom adds a new record. `Mod+Shift+N` jumps to it.
+- The empty row at the bottom adds a new record. To add records without scrolling there, choose **Quick Add** in the toolbar or press `Mod+Shift+N`: a row pinned under the column headers takes the values. `Enter` saves the record, clears the row and keeps it open for the next one; `Esc` closes it. Lookup, file and area fields are not in the quick-add row: use the new record row for them.
 - To delete records, click a row header to select a record. `Shift+click` selects a range, and `Ctrl+click` (`⌘ click` on Mac) adds one. Then press `Delete` or choose **Delete record** in the toolbar. AbiData asks you to confirm.
 
 Right-click a cell for its actions: **Copy**, **Paste**, **Edit cell**, sorting, **Filter by selection**, **Record history**, **New record** and **Delete record**. Right-click a column heading to sort it or move it left or right. `Mod+C` copies the current cell, and `Mod+V` pastes into it. The context-menu key or `Shift+F10` opens the same menu from the keyboard. A cell you are editing keeps your browser's own menu.

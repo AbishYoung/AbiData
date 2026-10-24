@@ -21,6 +21,7 @@ import type { Row } from "./rowsApi";
 import { ariaSort, type SortState } from "./filter";
 import { clampWidth, widthOf, type Layout } from "./layout";
 import { formatValue, isNumericKind, isReadOnlyColumn, kindOf } from "./values";
+import { QuickAddRow } from "./QuickAddRow";
 
 export const HEADER_HEIGHT = 32;
 export const ROW_HEADER_WIDTH = 76;
@@ -69,6 +70,10 @@ export interface GridProps {
   onDropColumn: (colId: string, targetId: string) => void;
   onCommit: (value: unknown, display: string | undefined, move: Move, also?: { col: Column; value: unknown }[]) => void;
   onCancel: () => void;
+  /** The pinned quick-add strip under the headers, when open. */
+  quickAdd?: { onSubmit: (fields: Record<string, unknown>) => Promise<Record<string, string> | null>; onClose: () => void } | null;
+  /** A record just added: its row pulses briefly. */
+  highlightRowId?: number | null;
 }
 
 export function cellId(gridId: string, row: number, col: number): string {
@@ -416,6 +421,16 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
           ))}
         </div>
       </div>
+      {props.quickAdd && (
+        <QuickAddRow
+          columns={columns}
+          widths={widths}
+          totalWidth={totalWidth}
+          top={HEADER_HEIGHT}
+          onSubmit={props.quickAdd.onSubmit}
+          onClose={props.quickAdd.onClose}
+        />
+      )}
       <div role="rowgroup" className="relative" style={{ height: virtualizer.getTotalSize(), width: totalWidth }}>
         <div role="presentation">
           {items.map((v) => {
@@ -432,7 +447,9 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                 aria-rowindex={v.index + 1}
                 aria-selected={isNew ? undefined : isSelected}
                 aria-busy={buffer?.status === "saving" ? true : undefined}
-                className={`group/r absolute left-0 top-0 flex ${v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"} hover:bg-surface-2/60`}
+                className={`group/r absolute left-0 top-0 flex ${
+                  row !== undefined && row.id === props.highlightRowId ? "bg-accent-soft" : v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"
+                } transition-colors duration-700 hover:bg-surface-2/60`}
                 style={{
                   width: totalWidth,
                   height: v.size,

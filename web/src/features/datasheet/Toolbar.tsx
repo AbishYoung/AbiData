@@ -1,6 +1,6 @@
 import { useId, type Ref } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, MapPin, RefreshCw, Search, Table2, Trash2 } from "lucide-react";
+import { Download, Ellipsis, Plus, FilterX, History, LayoutList, ListFilter, MapPin, RefreshCw, Search, Table2, Trash2 } from "lucide-react";
 import type { Column } from "@/lib/schema";
 import { Tip } from "@/components/Tip";
 import { btnGhost, iconBtn, input, menu, menuItem, menuSeparator } from "@/components/styles";
@@ -37,6 +37,8 @@ interface ToolbarProps {
   compact?: boolean;
   mode?: "cards" | "grid";
   onMode?: (mode: "cards" | "grid") => void;
+  /** Opens the pinned quick-add row (editable tables only). */
+  onQuickAdd?: () => void;
 }
 
 function CompactToolbar({ filterRef, ...p }: ToolbarProps) {
@@ -181,6 +183,17 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       </div>
       <Divider />
+      {p.onQuickAdd && (
+        <>
+          <Tip label="Add a record in a row pinned under the column headers" shortcut="Mod+Shift+N">
+            <button type="button" className={btnGhost} onClick={p.onQuickAdd} aria-keyshortcuts="Control+Shift+N Meta+Shift+N">
+              <Plus size={14} aria-hidden="true" />
+              Quick Add
+            </button>
+          </Tip>
+          <Divider />
+        </>
+      )}
       <Tip label={p.canFilterBySelection ? "Show only records with this value" : "Select a saved record's cell to filter by its value"}>
         <span className="inline-flex">
           <button type="button" className={btnGhost} onClick={p.onFilterBySelection} disabled={!p.canFilterBySelection}>

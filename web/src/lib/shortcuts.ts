@@ -155,7 +155,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "grid.newline", area: "Datasheet", action: "Insert a line break in a long text cell", keys: "Alt+Enter", scope: "Datasheet cell editor" },
   { id: "grid.save", area: "Datasheet", action: "Save the record", keys: "Shift+Enter", scope: "Datasheet" },
   { id: "grid.cancel", area: "Datasheet", action: "Cancel the edit, or discard unsaved changes to the record", keys: "Esc", scope: "Datasheet" },
-  { id: "grid.new", area: "Datasheet", action: "Go to the new record row", keys: "Mod+Shift+N", scope: "Datasheet" },
+  { id: "grid.new", area: "Datasheet", action: "Open the quick-add row under the column headers", keys: "Mod+Shift+N", scope: "Datasheet" },
   { id: "grid.filter", area: "Datasheet", action: "Focus the filter box", keys: "Mod+F", scope: "Datasheet (elsewhere the browser's find)" },
   { id: "grid.filter.apply", area: "Datasheet", action: "Apply the filter", keys: "Enter", scope: "Datasheet filter box" },
   { id: "grid.delete", area: "Datasheet", action: "Delete the selected records", keys: "Delete", scope: "Datasheet" },

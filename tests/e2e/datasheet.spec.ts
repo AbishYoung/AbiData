@@ -515,7 +515,9 @@ test("keyboard-only flow edits and saves a cell", async ({ page }) => {
   }).toBe("Typed");
 
   await pressMod(page, "Shift+N");
-  await expect(page.getByText("New record").first()).toBeVisible();
+  await expect(page.getByRole("row", { name: "Quick add record" })).toBeVisible();
+  await page.keyboard.press("Escape"); // closes the strip and returns to the grid
+  await expect(page.getByRole("row", { name: "Quick add record" })).toHaveCount(0);
   await pressMod(page, "f");
   await expect(page.getByRole("searchbox", { name: "Filter records" })).toBeFocused();
 });

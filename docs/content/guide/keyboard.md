@@ -42,7 +42,7 @@ The datasheet is a grid.
 - `Shift+Enter` saves the record. `Esc` cancels the edit, or discards your unsaved changes to the record.
 - `Space` toggles a Yes/No cell. `Shift+Space` selects or deselects the current record.
 - `Delete` deletes the selected records, after you confirm.
-- `Mod+Shift+N` goes to the new record row. `Mod+F` moves to the filter box. Elsewhere, `Mod+F` is your browser's find.
+- `Mod+Shift+N` opens the quick-add row under the column headers: type the values, press `Enter` to save the record and start the next one, `Esc` to close it. `Mod+End` goes to the new record row at the bottom. `Mod+F` moves to the filter box. Elsewhere, `Mod+F` is your browser's find.
 - With a column header focused, `Alt+Left` and `Alt+Right` make the column narrower or wider.
 
 See [Tables](/docs/guide/tables#editing) for editing and [conflicts](/docs/guide/tables#editing-conflicts).
