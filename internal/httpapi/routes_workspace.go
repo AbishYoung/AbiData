@@ -21,6 +21,7 @@ type WorkspaceInfo struct {
 	Role   string `json:"role" enum:"owner,builder,editor,viewer"`
 	// SystemKind is "blog" for a user's blog workspace (ADR 0017), empty otherwise.
 	SystemKind string `json:"system_kind,omitempty"`
+	SQLDialect string `json:"sql_dialect" enum:"sqlite,postgres" doc:"The SQL dialect of the install's storage backend (ADR 0012 §4): console SQL, saved SQL queries and Lua db.* strings are written in it."`
 }
 
 // MemberDTO is a workspace member.
@@ -53,6 +54,15 @@ func (s *Server) removeWorkspaceFiles(id ids.WorkspaceID) {
 	}
 }
 
+// sqlDialect names the install's SQL dialect: every workspace of an install
+// is on the same backend (ADR 0012 §1).
+func (s *Server) sqlDialect() string {
+	if s.deps.Workspaces != nil && s.deps.Workspaces.Postgres() != nil {
+		return "postgres"
+	}
+	return "sqlite"
+}
+
 func (s *Server) registerWorkspace(api huma.API) {
 	tags := []string{"workspace"}
 	// Membership is managed by signed-in owners only: sessionOnly keeps API keys
@@ -67,7 +77,7 @@ func (s *Server) registerWorkspace(api huma.API) {
 	}) (*struct{ Body WorkspaceInfo }, error) {
 		m, _ := MembershipFrom(ctx)
 		return &struct{ Body WorkspaceInfo }{Body: WorkspaceInfo{ID: string(m.Workspace.ID), Name: m.Workspace.Name,
-			Status: string(m.Workspace.Status), Role: string(m.Role), SystemKind: string(m.Workspace.SystemKind)}}, nil
+			Status: string(m.Workspace.Status), Role: string(m.Role), SystemKind: string(m.Workspace.SystemKind), SQLDialect: s.sqlDialect()}}, nil
 	})
 
 	huma.Register(api, huma.Operation{

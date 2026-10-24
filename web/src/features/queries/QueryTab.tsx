@@ -57,6 +57,7 @@ function QueryDraftHost({ ws, queryId, tabKey, view }: { ws: string; queryId: st
           savedId: data.id,
           version: data.version,
           compiledSql: data.sql_text,
+          dialect: data.dialect,
         }),
       );
     }

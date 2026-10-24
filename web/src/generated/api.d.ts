@@ -4119,6 +4119,11 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "owner" | "builder" | "editor" | "viewer";
+            /**
+             * @description The SQL dialect of the install's storage backend (ADR 0012 §4): console SQL, saved SQL queries and Lua db.* strings are written in it.
+             * @enum {string}
+             */
+            sql_dialect: "sqlite" | "postgres";
             status: string;
             system_kind?: string;
         };

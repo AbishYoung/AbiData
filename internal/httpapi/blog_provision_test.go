@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"testing"
+
+	"abidata/internal/workspace/wstest"
 )
 
 func blogMembership(t *testing.T, me map[string]any) map[string]any {
@@ -46,6 +48,8 @@ func TestBlogProvisioning(t *testing.T) {
 	ws := m["workspace_id"].(string)
 	if st, body, _ := ann.do("GET", "/api/v1/w/"+ws, nil); st != 200 || body["system_kind"] != "blog" {
 		t.Fatalf("workspace info %d %v", st, body)
+	} else if want := map[bool]string{true: "postgres", false: "sqlite"}[wstest.Postgres()]; body["sql_dialect"] != want {
+		t.Fatalf("sql_dialect = %v, want %s", body["sql_dialect"], want)
 	}
 	// Every user owns their blog workspace; it must not list the platform's users.
 	if st, body, _ := ann.do("GET", "/api/v1/w/"+ws+"/members/candidates", nil); st != 400 {
