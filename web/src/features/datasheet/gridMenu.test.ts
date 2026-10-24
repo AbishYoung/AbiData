@@ -20,6 +20,7 @@ function ctx(over: Partial<GridMenuContext> = {}): GridMenuContext {
     onMoveColumn: vi.fn(),
     frozen: 0,
     onFreeze: vi.fn(),
+    onProfile: vi.fn(),
     copyCell: vi.fn(),
     pasteInto: vi.fn(),
     startEdit: vi.fn(),
@@ -47,8 +48,10 @@ describe("gridMenu", () => {
   it("offers sorting and moving on a column header, with the edges disabled", () => {
     const c = ctx({ sorts: [{ col: "name", desc: false }] });
     const m = gridMenu({ kind: "column", col: 0 }, c);
-    expect(ids(m)).toEqual(["asc", "desc", "then-asc", "then-desc", "unsort", "s1", "left", "right", "s2", "freeze", "unfreeze"]);
+    expect(ids(m)).toEqual(["asc", "desc", "then-asc", "then-desc", "unsort", "s1", "left", "right", "s2", "freeze", "unfreeze", "s-profile", "profile"]);
     expect(item(m, "unsort").disabled).toBe(false);
+    item(m, "profile").run();
+    expect(c.onProfile).toHaveBeenCalledWith("name");
     expect(item(m, "left").disabled).toBe(true);
     item(m, "desc").run();
     expect(c.onSort).toHaveBeenCalledWith("name", "desc");
@@ -56,7 +59,7 @@ describe("gridMenu", () => {
 
   it("offers sorting by further columns and clearing every key once a sort exists", () => {
     const none = gridMenu({ kind: "column", col: 1 }, ctx());
-    expect(ids(none)).toEqual(["asc", "desc", "unsort", "s1", "left", "right", "s2", "freeze", "unfreeze"]);
+    expect(ids(none)).toEqual(["asc", "desc", "unsort", "s1", "left", "right", "s2", "freeze", "unfreeze", "s-profile", "profile"]);
     expect(item(none, "unsort").disabled).toBe(true);
     const c = ctx({ sorts: [{ col: "name", desc: false }, { col: "qty", desc: true }] });
     const m = gridMenu({ kind: "column", col: 1 }, c);

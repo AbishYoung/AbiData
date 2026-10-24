@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUpDown,
   ArrowUpNarrowWide,
+  ChartColumn,
   ClipboardPaste,
   Copy,
   Filter,
@@ -46,6 +47,7 @@ export interface GridMenuContext {
   /** How many leading columns are frozen. */
   frozen: number;
   onFreeze: (count: number) => void;
+  onProfile: (colId: string) => void;
   copyCell: (cell: Cell) => void;
   pasteInto: (cell: Cell) => void;
   startEdit: (cell: Cell) => void;
@@ -87,6 +89,8 @@ export function gridMenu(target: MenuTarget | null, x: GridMenuContext): MenuEnt
       { id: "s2", separator: true },
       { id: "freeze", label: "Freeze columns up to here", icon: PanelLeftClose, disabled: x.frozen === target.col + 1, run: () => x.onFreeze(target.col + 1) },
       { id: "unfreeze", label: "Unfreeze all columns", icon: PanelLeftOpen, disabled: x.frozen === 0, run: () => x.onFreeze(0) },
+      { id: "s-profile", separator: true },
+      { id: "profile", label: "Column statistics & profiling", icon: ChartColumn, run: () => x.onProfile(col.id) },
     ];
   }
   const { cell } = target;

@@ -76,6 +76,7 @@ export interface GridProps {
   onSort: (colId: string, choice: SortChoice) => void;
   onResize: (colId: string, width: number) => void;
   onMoveColumn: (colId: string, delta: number) => void;
+  onProfile: (colId: string) => void;
   onDropColumn: (colId: string, targetId: string) => void;
   /** Freezes the first `count` columns so they stay in view while the others scroll (0 unfreezes). */
   onFreeze: (count: number) => void;
@@ -100,6 +101,7 @@ interface HeaderCellProps {
   onSort: GridProps["onSort"];
   onResize: GridProps["onResize"];
   onMoveColumn: GridProps["onMoveColumn"];
+  onProfile: GridProps["onProfile"];
   onDropColumn: GridProps["onDropColumn"];
   onFreeze: GridProps["onFreeze"];
   /** Sticky left offset when the column is frozen. */
@@ -111,7 +113,7 @@ interface HeaderCellProps {
   isLast: boolean;
 }
 
-function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveColumn, onDropColumn, onFreeze, frozenLeft, frozenEdge, frozenTotal, isFirst, isLast }: HeaderCellProps) {
+function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveColumn, onProfile, onDropColumn, onFreeze, frozenLeft, frozenEdge, frozenTotal, isFirst, isLast }: HeaderCellProps) {
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
   const direction = ariaSort(sort, col.id);
   const rankLabel = sortAriaLabel(col.display_name, sort, col.id);
@@ -202,6 +204,7 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
                 ["Move right", () => onMoveColumn(col.id, 1), isLast],
                 ["Freeze columns up to here", () => onFreeze(index + 1), frozenTotal === index + 1],
                 ["Unfreeze all columns", () => onFreeze(0), frozenTotal === 0],
+                ["Column statistics & profiling", () => onProfile(col.id), false],
               ] as const
             ).map(([text, run, disabled]) => (
               <DropdownMenu.Item
@@ -456,6 +459,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
               onSort={props.onSort}
               onResize={props.onResize}
               onMoveColumn={props.onMoveColumn}
+              onProfile={props.onProfile}
               onDropColumn={props.onDropColumn}
               onFreeze={props.onFreeze}
               frozenLeft={offsets[i]}
