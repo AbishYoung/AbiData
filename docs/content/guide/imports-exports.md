@@ -21,7 +21,7 @@ The import wizard has four steps: **File**, **Preview and mapping**, **Check** a
    Under **File options** you can set **Format**, **Delimiter**, **Sheet** and whether **The first row holds column names**. Leave these on automatic unless the preview comes out wrong. Choose **Upload and preview** to continue.
 3. **Preview and mapping.** The first rows are shown, and a type is guessed for each column from the first 1,000 rows.
    - For a new table, the **Fields of the new table** table has one row per source column. Choose whether to **Include** it, its **Field name**, its **Type**, and whether it is **Required**.
-   - For an existing table, the **Column mapping** table has an **Import into** choice for each source column. Pick the field, or **Skip this column**. Columns with the same name are matched automatically.
+   - For an existing table, the **Column mapping** table has an **Import into** choice for each source column. Pick the field, or **Skip this column**. Columns with the same name are matched automatically. Attachments fields cannot be filled by an import: a source column mapped to one is ignored, and a note under the table says so.
    - Choose a **Mode**:
 
      | Mode | What it does |
@@ -56,6 +56,8 @@ If rows are rejected, the operation ends with [IMPORT_ROW_ERRORS](/docs/referenc
 3. Choose the **Format**: **CSV**, **Excel (.xlsx)** or **JSON** (an array of objects). For a query with parameters, fill in the values first.
 4. For CSV, leave **Excel compatible (UTF-8 with BOM)** checked if you will open the file in Excel on Windows. It starts the file with a byte-order mark so accented and non-Latin text (é, ü, 北京) shows correctly. Turn it off for tools that do not expect a byte-order mark. Your choice is remembered in this browser. Excel and JSON files are not affected.
 5. Choose **Export**. The export runs in the background. When the file is ready the download starts by itself. If it does not, the dialog keeps a **Download** link.
+
+In CSV and Excel files an attachments cell holds the file names separated by `; `. JSON files hold the file ids.
 
 Exports of saved queries are limited to 50,000 rows. Exported files are kept for 30 days.
 

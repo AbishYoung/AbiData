@@ -344,8 +344,9 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 	if err := sk.header(names); err != nil {
 		return 0, err
 	}
+	fn := newFileNamer(sk, cols)
 	if view != nil {
-		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view)
+		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view, fn)
 	}
 	// Keyset paging: one placeholder for the last id seen, one for the page size.
 	page, err := sqlgen.Render(l.Dialect(), &sqlgen.Select{Columns: sel, From: sqlgen.Table{Name: t.PhysicalName},
@@ -385,12 +386,19 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 		if err != nil {
 			return n, err
 		}
-		for _, raw := range page {
+		batch := make([][]any, len(page))
+		for j, raw := range page {
 			vals := make([]any, len(raw))
 			vals[0] = raw[0]
 			for i, c := range cols {
 				vals[i+1] = records.EncodeValue(c, catalog.StorageForm(c.Type, raw[i+1]))
 			}
+			batch[j] = vals
+		}
+		if err := fn.apply(ctx, l, batch); err != nil {
+			return n, err
+		}
+		for _, vals := range batch {
 			if err := sk.row(vals, textual); err != nil {
 				return n, err
 			}
@@ -406,7 +414,7 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 
 // exportView writes the rows matching a filter in the requested order, paging
 // by offset through the same read path as the rows endpoint.
-func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, cols []catalog.Column, textual []bool, view records.ListQuery) (int64, error) {
+func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, cols []catalog.Column, textual []bool, view records.ListQuery, fn *fileNamer) (int64, error) {
 	total, _, err := s.Records.Count(ctx, l, tableID, view.Filter)
 	if err != nil {
 		return 0, err
@@ -422,12 +430,19 @@ func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.
 		if err != nil {
 			return n, err
 		}
-		for _, r := range page {
+		batch := make([][]any, len(page))
+		for j, r := range page {
 			vals := make([]any, len(cols)+1)
 			vals[0] = r.ID
 			for i, c := range cols {
 				vals[i+1] = r.Fields[c.ID]
 			}
+			batch[j] = vals
+		}
+		if err := fn.apply(ctx, l, batch); err != nil {
+			return n, err
+		}
+		for _, vals := range batch {
 			if err := sk.row(vals, textual); err != nil {
 				return n, err
 			}

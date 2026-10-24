@@ -3,6 +3,7 @@ import type { Column, Table } from "@/lib/schema";
 import type { SourceColumn } from "./importsApi";
 import {
   defaultMapping,
+  attachmentNotes,
   eligibleKeys,
   keyCandidates,
   mappingProblems,
@@ -183,5 +184,30 @@ describe("mode rules", () => {
   it("carries the transaction choice into the request", () => {
     const m = { ...defaultMapping(columns, "p.csv", []), transaction: "all_or_nothing" as const };
     expect(toApiMapping(m, columns).transaction).toBe("all_or_nothing");
+  });
+});
+
+describe("attachments fields", () => {
+  const t = table([col("n", "Species"), col("p", "Photos", "attachments")]);
+  const srcCols = [src(0, "Species"), src(1, "Photos")];
+
+  it("notes a source column mapped to an attachments field", () => {
+    const m = defaultMapping(srcCols, "s.csv", [t], "t1");
+    expect(m.columnMap).toEqual({ 0: "n", 1: "p" });
+    expect(attachmentNotes(m, t)).toEqual(["“Photos” is an attachments field. Imports cannot attach files, so source column 2 is ignored."]);
+    expect(mappingProblems(m, t, [t])).toEqual([]);
+  });
+
+  it("has no notes for a new table or without attachments mapped", () => {
+    const m = defaultMapping(srcCols, "s.csv", [t], "t1");
+    expect(attachmentNotes({ ...m, columnMap: { 0: "n" } }, t)).toEqual([]);
+    expect(attachmentNotes({ ...m, target: "new" }, t)).toEqual([]);
+    expect(attachmentNotes(m, undefined)).toEqual([]);
+  });
+
+  it("does not count an attachments-only mapping as importable", () => {
+    const m = defaultMapping(srcCols, "s.csv", [t], "t1");
+    const only = mappingProblems({ ...m, columnMap: { 1: "p" } }, t, [t]);
+    expect(only[0]?.message).toContain("at least one");
   });
 });
