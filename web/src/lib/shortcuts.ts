@@ -34,6 +34,7 @@ export type ShortcutId =
   | "grid.record"
   | "grid.delete"
   | "grid.select"
+  | "grid.range"
   | "grid.toggle"
   | "grid.resize"
   | "grid.copy"
