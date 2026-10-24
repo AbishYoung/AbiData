@@ -7628,6 +7628,14 @@
             ],
             "type": "string"
           },
+          "sql_dialect": {
+            "description": "The SQL dialect of the install's storage backend (ADR 0012 §4): console SQL, saved SQL queries and Lua db.* strings are written in it.",
+            "enum": [
+              "sqlite",
+              "postgres"
+            ],
+            "type": "string"
+          },
           "status": {
             "type": "string"
           },
@@ -7639,7 +7647,8 @@
           "id",
           "name",
           "status",
-          "role"
+          "role",
+          "sql_dialect"
         ],
         "type": "object"
       }

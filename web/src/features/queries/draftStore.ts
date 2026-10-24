@@ -21,6 +21,8 @@ export interface QueryDraft {
   description: string;
   savedId: string | null;
   version: number | null;
+  /** The SQL dialect the saved query was written in (ADR 0012), when it is a saved query. */
+  dialect?: string;
   /** Snapshot of kind/model/sqlText the draft started from; differing means dirty. */
   original: string;
   showTotals: boolean;
@@ -48,6 +50,7 @@ export function newDraft(init: {
   savedId: string | null;
   version: number | null;
   compiledSql: string;
+  dialect?: string;
 }): QueryDraft {
   return {
     kind: init.kind,
@@ -57,6 +60,7 @@ export function newDraft(init: {
     description: init.description,
     savedId: init.savedId,
     version: init.version,
+    ...(init.dialect ? { dialect: init.dialect } : {}),
     original: snapshot(init),
     showTotals: init.model.fields.some((f) => f.group !== ""),
     compile: { sql: init.compiledSql, columns: [], editable: false, tableId: undefined, error: null, pending: false },

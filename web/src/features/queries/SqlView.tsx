@@ -15,6 +15,7 @@ import { ApiError } from "@/lib/api";
 import { ResultsPanel } from "./ResultsPanel";
 import { parseSqlError } from "./sqlErrorParser";
 import type { MonacoSqlEditorHandle } from "./MonacoSqlEditor";
+import { DialectBadge, DialectMismatch, dialectLabel, useSqlDialect } from "./dialect";
 
 const MonacoSqlEditor = lazy(() => import("./MonacoSqlEditor"));
 
@@ -40,15 +41,18 @@ function CopyButton({ text }: { text: string }) {
 /** The compiled SQL of a visual query, read-only. */
 export function ReadOnlySql({ ws, tabKey }: { ws: string; tabKey: string }) {
   const entry = useQueryDrafts((s) => s.entries[draftKey(ws, tabKey)]);
+  const dialect = useSqlDialect(ws);
   const sql = entry?.compile.sql ?? "";
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="sql-view">
       <div className={docToolbar}>
         <h2 className="m-0 text-sm font-semibold">SQL (read-only)</h2>
         <CopyButton text={sql} />
+        <DialectBadge dialect={dialect} />
       </div>
       <p className="m-0 px-3 pt-3 text-sm text-fg-muted">
-        Generated from the visual design. To edit the SQL, use Convert to SQL in the Design view; that cannot be undone.
+        Generated from the visual design{dialect ? ` for ${dialectLabel(dialect)}` : ""}. To edit the SQL, use Convert to SQL in
+        the Design view; that cannot be undone.
       </p>
       {entry?.compile.error && (
         <p role="alert" className={`${alertBox} mx-3 mt-3`}>
@@ -74,6 +78,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
   const textId = useId();
   const save = useQuerySave(ws, tabKey);
   const role = useRole(ws);
+  const dialect = useSqlDialect(ws);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showRun, setShowRun] = useState(false);
@@ -167,6 +172,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
           </Tip>
         )}
         <CopyButton text={sql} />
+        <DialectBadge dialect={dialect} />
         {saveError && (
           <span role="alert" className="text-sm text-danger">
             {saveError}
@@ -191,6 +197,7 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 bg-bg p-3">
+        <DialectMismatch dialect={dialect} saved={entry.dialect} />
         <label htmlFor={textId} className={eyebrow}>
           SQL
         </label>
@@ -220,7 +227,10 @@ export function SqlEditor({ ws, tabKey }: { ws: string; tabKey: string }) {
             }}
           />
         </Suspense>
-        <p className="m-0 text-sm text-fg-muted">One read-only SELECT, WITH or VALUES statement. Use :name for parameters.</p>
+        <p className="m-0 text-sm text-fg-muted">
+          One read-only SELECT, WITH or VALUES statement{dialect ? `, in ${dialectLabel(dialect)} SQL` : ""}. Use :name for
+          parameters.
+        </p>
       </div>
 
       {showRun && (
