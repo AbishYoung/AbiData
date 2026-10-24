@@ -17,11 +17,12 @@ func TestExportGeoJSON(t *testing.T) {
 	tb := e.table("Sightings", catalog.ColumnSpec{DisplayName: "Species", Type: catalog.ShortText},
 		catalog.ColumnSpec{DisplayName: "Spot", Type: catalog.GeoPoint},
 		catalog.ColumnSpec{DisplayName: "Zone", Type: catalog.GeoArea},
-		catalog.ColumnSpec{DisplayName: "Seen", Type: catalog.Integer})
+		catalog.ColumnSpec{DisplayName: "Seen", Type: catalog.Integer},
+		catalog.ColumnSpec{DisplayName: "Notes", Type: catalog.LongText})
 	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
-		_, err := tx.Exec(e.ctx, `INSERT INTO "Sightings"("Species", "Spot", "Zone", "Seen") VALUES
-			('Kudzu', '{"type":"Point","coordinates":[-0.14,51.5]}', '{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}', 3),
-			('Reed', NULL, NULL, NULL)`)
+		_, err := tx.Exec(e.ctx, `INSERT INTO "Sightings"("Species", "Spot", "Zone", "Seen", "Notes") VALUES
+			('Kudzu', '{"type":"Point","coordinates":[-0.14,51.5]}', '{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}', 3, '{"a":1}'),
+			('Reed', NULL, NULL, NULL, NULL)`)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -54,6 +55,9 @@ func TestExportGeoJSON(t *testing.T) {
 		if kudzu.Type != "Feature" || kudzu.ID == 0 || !strings.Contains(string(kudzu.Geometry), `"Point"`) ||
 			kudzu.Props["Species"] != "Kudzu" || kudzu.Props["Seen"] != float64(3) {
 			t.Fatalf("%+v", kudzu)
+		}
+		if kudzu.Props["Notes"] != `{"a":1}` {
+			t.Fatalf("a text field holding JSON must stay a string: %#v", kudzu.Props["Notes"])
 		}
 		zone, ok := kudzu.Props["Zone"].(map[string]any)
 		if !ok || zone["type"] != "Polygon" {
