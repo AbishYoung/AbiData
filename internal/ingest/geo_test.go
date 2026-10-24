@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -68,7 +69,16 @@ func TestImportPointFromTwoColumns(t *testing.T) {
 	var got string
 	if err := e.l.Read(e.ctx, func(q dbx.Querier) error {
 		return q.QueryRow(e.ctx, `SELECT "Spot" FROM "Sightings" WHERE "Species" = 'Kudzu'`).Scan(&got)
-	}); err != nil || got != `{"type":"Point","coordinates":[-0.14,51.5]}` {
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Compared as JSON: PostgreSQL's jsonb stores it with its own spacing.
+	var pt struct {
+		Type        string    `json:"type"`
+		Coordinates []float64 `json:"coordinates"`
+	}
+	if err := json.Unmarshal([]byte(got), &pt); err != nil || pt.Type != "Point" || len(pt.Coordinates) != 2 ||
+		pt.Coordinates[0] != -0.14 || pt.Coordinates[1] != 51.5 {
 		t.Fatalf("%q %v", got, err)
 	}
 }
