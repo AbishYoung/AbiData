@@ -22,6 +22,7 @@ The import wizard has four steps: **File**, **Preview and mapping**, **Check** a
 3. **Preview and mapping.** The first rows are shown, and a type is guessed for each column from the first 1,000 rows.
    - For a new table, the **Fields of the new table** table has one row per source column. Choose whether to **Include** it, its **Field name**, its **Type**, and whether it is **Required**.
    - For an existing table, the **Column mapping** table has an **Import into** choice for each source column. Pick the field, or **Skip this column**. Columns with the same name are matched automatically. Attachments fields cannot be filled by an import: a source column mapped to one is ignored, and a note under the table says so.
+   - To fill a point field from a latitude column and a longitude column, use **Points from two columns** below the table. Both columns must hold numbers, and a row with neither leaves the point empty. Columns named `lat`/`latitude` and `lon`/`lng`/`longitude` are chosen for you.
    - Choose a **Mode**:
 
      | Mode | What it does |

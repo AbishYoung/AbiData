@@ -34,6 +34,9 @@ type NewTable struct {
 type ColumnMap struct {
 	Source   int    `json:"source"`
 	ColumnID string `json:"column_id,omitempty"`
+	// LonSource builds a geo_point from two numeric columns: source is then
+	// the latitude column and lon_source the longitude column (ADR 0010).
+	LonSource *int `json:"lon_source,omitempty" doc:"geo_point fields only: the source column holding longitude. source is then the latitude column, and both must be numbers."`
 }
 
 // ImportMapping says where staged rows go.
@@ -58,6 +61,10 @@ type mapCol struct {
 	Src   int    // source column index
 	Stage string // staging column name
 	Col   catalog.Column
+	// Stage2 is set for a point built from two columns: Stage holds the
+	// latitude and Stage2 the longitude (Src2 is its source index).
+	Src2   int
+	Stage2 string
 }
 
 // plan is a validated mapping.
@@ -165,7 +172,19 @@ func planFor(sch *catalog.Schema, m ImportMapping, ncols int) (*plan, error) {
 			return nil, fault.Newf(fault.BadRequest, "Source column %d is listed twice.", cm.Source)
 		}
 		seenSrc[cm.Source] = true
+		if cm.LonSource != nil {
+			if err := checkSrc(*cm.LonSource); err != nil {
+				return nil, err
+			}
+			if seenSrc[*cm.LonSource] {
+				return nil, fault.Newf(fault.BadRequest, "Source column %d is listed twice.", *cm.LonSource)
+			}
+			seenSrc[*cm.LonSource] = true
+		}
 		if cm.ColumnID == "" {
+			if cm.LonSource != nil {
+				return nil, fault.New(fault.BadRequest, "lon_source needs a column_id (a geo_point field).")
+			}
 			continue
 		}
 		c, ok := t.Column(cm.ColumnID)
@@ -185,7 +204,14 @@ func planFor(sch *catalog.Schema, m ImportMapping, ncols int) (*plan, error) {
 			p.Notes = append(p.Notes, fmt.Sprintf("%q is an attachments field. Imports cannot attach files, so source column %d is ignored.", c.DisplayName, cm.Source+1))
 			continue
 		}
-		p.Cols = append(p.Cols, mapCol{Src: cm.Source, Stage: stagingCol(cm.Source), Col: *c})
+		mc := mapCol{Src: cm.Source, Stage: stagingCol(cm.Source), Col: *c}
+		if cm.LonSource != nil {
+			if c.Type != catalog.GeoPoint {
+				return nil, fault.Newf(fault.BadRequest, "%q is not a geo point field, so it cannot be built from a latitude and a longitude column.", c.DisplayName)
+			}
+			mc.Src2, mc.Stage2 = *cm.LonSource, stagingCol(*cm.LonSource)
+		}
+		p.Cols = append(p.Cols, mc)
 	}
 	if len(p.Cols) == 0 {
 		return nil, fault.New(fault.BadRequest, "Map at least one source column to a field.")
@@ -224,6 +250,9 @@ func planFor(sch *catalog.Schema, m ImportMapping, ncols int) (*plan, error) {
 // toInput turns a staged value (nil, string, int64, float64) into what
 // records.DecodeValue accepts for column c.
 func toInput(c catalog.Column, v any) (any, error) {
+	if pair, ok := v.(latLon); ok {
+		return pair.input(c)
+	}
 	if v == nil {
 		return nil, nil
 	}
@@ -439,6 +468,14 @@ func readChunks(ctx context.Context, c *sqlitex.Conn, p *plan, chunk int, fn fun
 	for i, mc := range p.Cols {
 		cols[i] = catalog.Quote(mc.Stage)
 	}
+	// Longitude columns of two-column points follow the plan columns.
+	var lonAt []int
+	for i, mc := range p.Cols {
+		if mc.Stage2 != "" {
+			cols = append(cols, catalog.Quote(mc.Stage2))
+			lonAt = append(lonAt, i)
+		}
+	}
 	sql := `SELECT n, ` + strings.Join(cols, ", ") + ` FROM data WHERE n > ? ORDER BY n LIMIT ?`
 	var last int64
 	for {
@@ -452,7 +489,11 @@ func readChunks(ctx context.Context, c *sqlitex.Conn, p *plan, chunk int, fn fun
 		var batch []stagedRow
 		for rows.Next() {
 			v := rows.Values()
-			batch = append(batch, stagedRow{n: v[0].(int64), vals: v[1:]})
+			vals := v[1 : 1+len(p.Cols)]
+			for j, i := range lonAt {
+				vals[i] = latLon{lat: vals[i], lon: v[1+len(p.Cols)+j]}
+			}
+			batch = append(batch, stagedRow{n: v[0].(int64), vals: vals})
 		}
 		if err := rows.Err(); err != nil {
 			return err

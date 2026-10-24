@@ -9,8 +9,10 @@ import {
   eligibleKeys,
   modeAvailability,
   normalizeState,
+  pointFields,
   retarget,
   setColumnTarget,
+  setPointPair,
   typeLabel,
   writableColumns,
   type ImportMode,
@@ -231,6 +233,39 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
               ))}
             </ul>
           )}
+        </section>
+      )}
+
+      {state.target === "existing" && pointFields(table).length > 0 && (
+        <section aria-label="Points from two columns" data-testid="point-pairs">
+          <h4 className="m-0 mb-1.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Points from two columns</h4>
+          <p className="m-0 mb-2 text-sm text-fg-muted">Fill a point field from a latitude column and a longitude column, both numbers. A row with neither is left empty.</p>
+          <div className="space-y-2">
+            {pointFields(table).map((f) => {
+              const pair = state.pairs[f.id] ?? { lat: null, lon: null };
+              return (
+                <div key={f.id} className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="min-w-32 font-medium">{f.display_name}</span>
+                  {(["lat", "lon"] as const).map((part) => (
+                    <select
+                      key={part}
+                      className={selectClass}
+                      aria-label={`${part === "lat" ? "Latitude" : "Longitude"} column for ${f.display_name}`}
+                      value={pair[part] ?? ""}
+                      onChange={(e) => onChange(setPointPair(state, table, f.id, part, e.target.value === "" ? null : Number(e.target.value)))}
+                    >
+                      <option value="">{part === "lat" ? "Latitude: none" : "Longitude: none"}</option>
+                      {columns.map((c) => (
+                        <option key={c.index} value={c.index}>
+                          {c.original || c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 

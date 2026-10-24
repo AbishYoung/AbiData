@@ -2522,6 +2522,11 @@ export interface components {
         };
         ColumnMap: {
             column_id?: string;
+            /**
+             * Format: int64
+             * @description geo_point fields only: the source column holding longitude. source is then the latitude column, and both must be numbers.
+             */
+            lon_source?: number;
             /** Format: int64 */
             source: number;
         };
