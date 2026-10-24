@@ -730,6 +730,7 @@ func sortSysTables(tables []string) {
 		"_sys_scripts":       7,
 		"_sys_jobs":          8,
 		"_sys_job_runs":      9,
+		"_sys_files":         10, // before _sys_file_refs, which references it
 	}
 	sort.Slice(tables, func(i, j int) bool {
 		oi, oki := order[tables[i]]
