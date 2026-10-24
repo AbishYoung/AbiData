@@ -1,6 +1,6 @@
 # ADR 0011: File attachments (workspace bucket)
 
-Status: Accepted (server side implemented; UI pending) · 2026-10-11
+Status: Accepted · 2026-10-11 (implemented; WebP thumbnails and a workspace hard-delete route are deferred, see the as-built notes)
 
 ## Context
 Rows need documents: photos of a sighting, permit PDFs, specification sheets. The driving use case is **tracking invasive species**:
@@ -91,5 +91,8 @@ The platform keeps each workspace in one SQLite file and backs it up as a signed
 - **WebP** is stored, served inline and has its size read from the header, but has **no thumbnail** (no `golang.org/x/image` dependency). HEIC/HEIF is accepted and served as a download. SVG/HTML/XML are never served as themselves.
 - **Backups**: a `<id>.files.tar` beside the `.db.gz`, listed and hashed in the signed manifest (`files`, `files_bytes`, `sha256_files`, `files_missing`; all omitted when empty, so old manifests verify unchanged). Restore merges missing blobs into the live bucket before the swap rather than replacing the bucket. Restore-as-new extracts into the new workspace's bucket. No workspace hard-delete route exists yet; `files.Service.RemoveBucket` is called from the create-failure path and is ready for it.
 - **Lua `files`**: `info`, `read`, `create` as proposed. `read` raises `BAD_REQUEST` when the file exceeds the context cap (1 MiB form events and reports, 10 MiB jobs) and a limit error when the run's reads exceed its string budget. `create` is job-only, not allowed inside `db.transaction`, and ignores the declared content type.
-- **Import** skips attachments columns and says so in `notes` (mapping response, import view, validation warnings). **CSV export** is unchanged: an attachments cell currently exports as Go's list formatting of the ids; the file-name form (`; `-separated) is left to the export work. JSON export shows the id array.
+- **Import** skips attachments columns and says so in `notes` (mapping response, import view, validation warnings). **CSV and Excel export** write the file names joined by `; ` (a file purged since shows `(file removed)`); JSON export keeps the id array, which is the API form.
 - Migration `0003_files.sql` (after the geo migration that opened the field type list).
+
+## As built (browser, 2026-10)
+The UI landed after the server work, as decided: attachment cells with thumbnails, the attachment manager (drag and drop, browse, "Take photo" on phones, remove, reorder, download, full-screen viewer), the forms Attachments control, the report Image control, the admin quota field (`max_file_bytes`), and, in the import wizard, a note under the column mapping when a source column is mapped to an attachments field (the server repeats it in `notes`; mapping only attachments fields is refused as "nothing to import"). Still not done, by choice: thumbnails for WebP (no `golang.org/x/image` dependency) and a workspace hard-delete route (`files.Service.RemoveBucket` is ready for it).

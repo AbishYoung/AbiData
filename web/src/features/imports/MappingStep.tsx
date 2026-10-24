@@ -5,6 +5,7 @@ import type { Table } from "@/lib/schema";
 import type { ImportView } from "./importsApi";
 import {
   NEW_FIELD_TYPES,
+  attachmentNotes,
   eligibleKeys,
   modeAvailability,
   normalizeState,
@@ -54,6 +55,7 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
   const keys = eligibleKeys(table, state.columnMap);
   const sortedTables = [...tables].sort((a, b) => a.display_name.localeCompare(b.display_name, undefined, { sensitivity: "base" }));
   const rowCount = view.row_count;
+  const notes = attachmentNotes(state, table);
 
   return (
     <div className="space-y-4">
@@ -222,6 +224,13 @@ export function MappingStep({ view, tables, state, problems, onChange }: Props) 
               </tbody>
             </table>
           </div>
+          {notes.length > 0 && (
+            <ul className="m-0 mt-2 list-none space-y-1 p-0 text-sm text-fg-muted" data-testid="mapping-notes" aria-label="Mapping notes">
+              {notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

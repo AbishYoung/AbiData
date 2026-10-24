@@ -12,7 +12,7 @@ import (
 )
 
 // ADR 0011: imports ignore attachments fields and say so; exporting a table
-// with an attachments column works (the cell shows the file ids for now).
+// with an attachments column writes file names to CSV and Excel, ids to JSON.
 func TestImportSkipsAttachmentsColumns(t *testing.T) {
 	e := newEnv(t)
 	tb := e.table("Sightings", catalog.ColumnSpec{DisplayName: "Species", Type: catalog.ShortText},
@@ -76,8 +76,46 @@ func TestExportWithAttachmentsColumn(t *testing.T) {
 			}
 			continue
 		}
-		if !strings.Contains(body, fid) {
-			t.Fatalf("%s export lacks the file id: %s", format, body)
+		if format == "json" && !strings.Contains(body, fid) {
+			t.Fatalf("json export lacks the file id: %s", body)
 		}
+		if format == "csv" && (strings.Contains(body, fid) || !strings.Contains(body, "Kudzu,a.jpg")) {
+			t.Fatalf("csv export should list file names: %s", body)
+		}
+	}
+}
+
+// Several files join with "; " (the CSV writer quotes the commas in names),
+// and a purged file shows as removed.
+func TestExportAttachmentNamesJoined(t *testing.T) {
+	e := newEnv(t)
+	tb := e.table("Sightings", catalog.ColumnSpec{DisplayName: "Species", Type: catalog.ShortText},
+		catalog.ColumnSpec{DisplayName: "Photos", Type: catalog.Attachments})
+	f1, f2, gone := ids.New(), ids.New(), ids.New()
+	if err := e.l.Write(e.ctx, workspace.Interactive, func(tx dbx.Tx) error {
+		for i, f := range []struct{ id, name string }{{f1, "a.jpg"}, {f2, "b, c.pdf"}} {
+			if _, err := tx.Exec(e.ctx, `INSERT INTO _sys_files(id, sha256, size, name, content_type, created_at) VALUES (?, ?, 1, ?, 'image/jpeg', '2026-01-01T00:00:00.000Z')`,
+				f.id, strings.Repeat(string(rune('a'+i)), 64), f.name); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(e.ctx, `INSERT INTO "Sightings"("Species", "Photos") VALUES ('Kudzu', ?)`, `["`+f1+`","`+f2+`"]`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, body := e.export(ExportRequest{SourceKind: "table", SourceID: tb.ID, Format: "csv"}, query.Policy{})
+	if !strings.Contains(body, `"a.jpg; b, c.pdf"`) {
+		t.Fatalf("%s", body)
+	}
+
+	// An id with no file row (purged since) reads as removed; both cell shapes work.
+	fn := &fileNamer{idx: []int{1, 2}, names: map[string]string{}}
+	rows := [][]any{{int64(1), []string{f1, gone}, `["` + f2 + `"]`}, {int64(2), nil, ""}}
+	if err := fn.apply(e.ctx, e.l, rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows[0][1] != "a.jpg; (file removed)" || rows[0][2] != "b, c.pdf" || rows[1][1] != nil || rows[1][2] != nil {
+		t.Fatalf("%v", rows)
 	}
 }

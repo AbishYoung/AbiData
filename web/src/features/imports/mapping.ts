@@ -199,6 +199,23 @@ export function setColumnTarget(state: MappingState, table: Table | undefined, s
   return normalizeState({ ...state, columnMap }, table);
 }
 
+/**
+ * Notes for source columns mapped to attachments fields: files cannot arrive in a
+ * spreadsheet, so the server leaves these columns out (ADR 0011). Shown before the
+ * mapping is sent; the server repeats them in `notes`.
+ */
+export function attachmentNotes(state: MappingState, table: Table | undefined): string[] {
+  if (state.target !== "existing" || !table) return [];
+  const out: string[] = [];
+  for (const [source, id] of Object.entries(state.columnMap)) {
+    const c = (table.columns ?? []).find((x) => x.id === id);
+    if (c?.field_type === "attachments") {
+      out.push(`“${c.display_name}” is an attachments field. Imports cannot attach files, so source column ${Number(source) + 1} is ignored.`);
+    }
+  }
+  return out.sort();
+}
+
 export interface Problem {
   /** Stable key for the part of the form at fault. */
   field: "table" | "name" | "columns" | "key" | "replace";
@@ -230,7 +247,8 @@ export function mappingProblems(state: MappingState, table: Table | undefined, t
     return out;
   }
   const mapped = new Set(Object.values(state.columnMap).filter((id) => id !== ""));
-  if (mapped.size === 0) out.push({ field: "columns", message: "Map at least one source column to a field." });
+  const importable = [...mapped].filter((id) => (table.columns ?? []).find((c) => c.id === id)?.field_type !== "attachments");
+  if (mapped.size === 0 || importable.length === 0) out.push({ field: "columns", message: "Map at least one source column to a field." });
   for (const c of writableColumns(table)) {
     if (c.is_required && !c.default_sql && !mapped.has(c.id)) {
       out.push({ field: "columns", message: `The required field “${c.display_name}” is not mapped and has no default value.` });
