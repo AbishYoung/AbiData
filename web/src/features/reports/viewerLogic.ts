@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { bandDef, type ReportControl, type ReportInstance, type ReportLayout } from "./paginate";
+import { bandDef, controlText, type ReportControl, type ReportInstance, type ReportLayout } from "./paginate";
 
 /** Indexes of instances whose band can grow and so must be measured before pagination. */
 export function growIndexes(layout: ReportLayout, instances: readonly ReportInstance[]): number[] {
@@ -135,4 +135,17 @@ export function fitWidthZoom(available: number, paperWidth: number): number {
 /** Print page height: 1px under the paper so sub-pixel rounding never spills a blank sheet. */
 export function printPageHeight(paperHeight: number): number {
   return paperHeight - 1;
+}
+
+/** The note added to a repeated group header: the group's own text, or " (continued)". */
+export function continuedSuffix(layout: ReportLayout, band: string): string {
+  const level = /^group_header_(\d+)$/.exec(band)?.[1];
+  const custom = level === undefined ? undefined : layout.groups?.[Number(level)]?.continued_suffix;
+  return custom ? custom : " (continued)";
+}
+
+/** The control that carries a repeated header's continued note: the first (top-left) label or textbox that prints text. */
+export function firstTextId(controls: readonly ReportControl[], instance: ReportInstance, page: number, pageCount: number): string | undefined {
+  const printing = controls.filter((c) => (c.type === "label" || c.type === "textbox") && (c.type === "label" && instance.values[c.id] === undefined ? (c.caption ?? "") : controlText(c, instance.values, page, pageCount)) !== "");
+  return [...printing].sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 }

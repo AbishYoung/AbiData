@@ -5,7 +5,7 @@ import { useMapTiles } from "@/components/maps/useMapTiles";
 import { parseGeometry } from "@/lib/geo/geometry";
 import { controlText, type ReportControl, type ReportInstance } from "./paginate";
 import { ReportImages } from "./ReportImages";
-import { clampCss, controlCss, fxCss, verticalJustify } from "./viewerLogic";
+import { clampCss, controlCss, firstTextId, fxCss, verticalJustify } from "./viewerLogic";
 import { Tip } from "@/components/Tip";
 
 /** The workspace a report runs in (map overlays run saved queries there). */
@@ -16,12 +16,6 @@ function ReportMap({ control, value }: { control: ReportControl; value: unknown 
   const overlay = useOverlay(ws, control.map);
   const tiles = useMapTiles();
   return <SvgMap width={control.w} height={control.h} geometry={parseGeometry(value)} overlay={overlay.shapes} tiles={tiles} label={control.name} />;
-}
-
-/** The control that carries a repeated header's continued note: the first (top-left) label or textbox that prints text. */
-function firstTextId(controls: readonly ReportControl[], instance: ReportInstance, page: number, pageCount: number): string | undefined {
-  const printing = controls.filter((c) => (c.type === "label" || c.type === "textbox") && (c.type === "label" && instance.values[c.id] === undefined ? (c.caption ?? "") : controlText(c, instance.values, page, pageCount)) !== "");
-  return [...printing].sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 }
 
 /** One band instance: its controls at their layout positions, relative to the band's top-left. */
