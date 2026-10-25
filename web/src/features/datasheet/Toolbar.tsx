@@ -1,4 +1,4 @@
-import { useId, type ReactNode, type Ref } from "react";
+import { useId, useRef, type ReactNode, type Ref } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Download, Ellipsis, FilterX, History, LayoutList, ListFilter, MapPin, MoreHorizontal, Paintbrush, Plus, RefreshCw, Search, Table2, Trash2 } from "lucide-react";
 import type { Column } from "@/lib/schema";
@@ -179,6 +179,13 @@ const GROUP_ORDER = ["records", "filter", "data", "view"] as const;
 function FullToolbar({ filterRef, ...p }: ToolbarProps) {
   const quickId = useId();
   const item = `${menuItem} data-[disabled]:opacity-50`;
+  const triggerRef = useRef<HTMLElement | null>(null);
+  // A dialog opened from the menu restores focus to whatever was focused when it opened; the menu item is
+  // about to disappear, so hand focus to the More button first.
+  const run = (fn?: () => void) => () => {
+    triggerRef.current?.focus();
+    fn?.();
+  };
   const entries: ToolbarEntry[] = [];
   if (p.onQuickAdd) {
     entries.push({
@@ -194,7 +201,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={p.onQuickAdd} aria-keyshortcuts="Control+Shift+N Meta+Shift+N">
+        <DropdownMenu.Item className={item} onSelect={run(p.onQuickAdd)} aria-keyshortcuts="Control+Shift+N Meta+Shift+N">
           <Plus size={16} aria-hidden="true" />
           Quick Add
         </DropdownMenu.Item>
@@ -220,7 +227,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.canDelete} onSelect={p.onDelete}>
+        <DropdownMenu.Item className={item} disabled={!p.canDelete} onSelect={run(p.onDelete)}>
           <Trash2 size={16} aria-hidden="true" />
           Delete record
         </DropdownMenu.Item>
@@ -241,7 +248,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.canHistory} onSelect={p.onHistory}>
+        <DropdownMenu.Item className={item} disabled={!p.canHistory} onSelect={run(p.onHistory)}>
           <History size={16} aria-hidden="true" />
           History
         </DropdownMenu.Item>
@@ -262,7 +269,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.canFilterBySelection} onSelect={p.onFilterBySelection}>
+        <DropdownMenu.Item className={item} disabled={!p.canFilterBySelection} onSelect={run(p.onFilterBySelection)}>
           <ListFilter size={16} aria-hidden="true" />
           Filter by selection
         </DropdownMenu.Item>
@@ -283,7 +290,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={p.onGeoFilter}>
+        <DropdownMenu.Item className={item} onSelect={run(p.onGeoFilter)}>
           <MapPin size={16} aria-hidden="true" />
           Location filter…
         </DropdownMenu.Item>
@@ -306,7 +313,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.filterActive} onSelect={p.onClearFilter}>
+        <DropdownMenu.Item className={item} disabled={!p.filterActive} onSelect={run(p.onClearFilter)}>
           <FilterX size={16} aria-hidden="true" />
           Clear filter
         </DropdownMenu.Item>
@@ -323,7 +330,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </button>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={p.onRefresh}>
+        <DropdownMenu.Item className={item} onSelect={run(p.onRefresh)}>
           <RefreshCw size={16} aria-hidden="true" className={p.refreshing ? "animate-spin" : ""} />
           Refresh
         </DropdownMenu.Item>
@@ -342,7 +349,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </button>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={p.onExport}>
+        <DropdownMenu.Item className={item} onSelect={run(p.onExport)}>
           <Download size={16} aria-hidden="true" />
           Export…
         </DropdownMenu.Item>
@@ -363,7 +370,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </button>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={p.onFormatting}>
+        <DropdownMenu.Item className={item} onSelect={run(p.onFormatting)}>
           <Paintbrush size={16} aria-hidden="true" />
           Formatting Rules
           {count > 0 && <span className="ml-auto rounded-full bg-accent-soft px-1.5 text-xs font-semibold text-accent">{count}</span>}
@@ -423,8 +430,22 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </span>
       ))}
       {overflowing && (
+        // Moved actions stay in the DOM, invisible and inert, so their live width is measured and they come
+        // back the moment there is room (a width cached before the fonts loaded would never correct itself).
+        <div aria-hidden="true" inert className="pointer-events-none invisible absolute left-0 top-0 flex flex-nowrap items-center gap-1.5">
+          {moved.map((e) => (
+            <span key={e.id} data-overflow-id={e.id} className="inline-flex shrink-0 items-center">
+              {e.inline}
+            </span>
+          ))}
+        </div>
+      )}
+      {overflowing && (
         <DropdownMenu.Root>
-          <DropdownMenu.Trigger ref={(n) => void (moreRef.current = n)} className={`${iconBtn} ml-auto shrink-0`} aria-label="More actions">
+          <DropdownMenu.Trigger ref={(n) => {
+              moreRef.current = n;
+              triggerRef.current = n;
+            }} className={`${iconBtn} ml-auto shrink-0`} aria-label="More actions">
             <MoreHorizontal size={16} aria-hidden="true" />
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>

@@ -27,6 +27,25 @@ export async function expectNoAxeViolations(page: Page, include?: string): Promi
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }
 
+/**
+ * Clicks a datasheet toolbar action. The toolbar keeps to one row, so at narrower widths an action can sit
+ * in the "More actions" menu instead; this clicks the button when it is inline, else the menu item.
+ */
+export async function toolbarAction(page: Page, name: string): Promise<void> {
+  const toolbar = page.getByRole("toolbar", { name: "Datasheet tools" });
+  const button = toolbar.getByRole("button", { name, exact: true });
+  const more = toolbar.getByRole("button", { name: "More actions" });
+  await expect(button.or(more).first()).toBeVisible();
+  // Let the overflow measurement settle (a late font load can move an action between the row and the menu).
+  await page.evaluate(() => document.fonts.ready);
+  if (await button.isVisible()) {
+    await button.click();
+    return;
+  }
+  await more.click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
+
 /** Waits until finite CSS transitions/animations have finished, so axe measures settled colours. */
 export async function settleAnimations(page: Page): Promise<void> {
   await page

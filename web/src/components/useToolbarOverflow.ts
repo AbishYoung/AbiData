@@ -30,7 +30,8 @@ function usedWidth(items: readonly OverflowItem[], gap: number, dividerWidth: nu
     if (prevGroup !== null && prevGroup !== it.group) total += dividerWidth + gap;
     prevGroup = it.group;
   }
-  return total;
+  // The last item has no gap after it.
+  return Math.max(0, total - gap);
 }
 
 /**
@@ -64,6 +65,7 @@ export function useToolbarOverflow(meta: readonly Omit<OverflowItem, "width">[],
   const widths = useRef(new Map<string, number>());
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [size, setSize] = useState(0);
+  const [fontTick, setFontTick] = useState(0);
   const key = meta.map((m) => `${m.id}:${m.group}:${m.priority}`).join("|");
 
   useLayoutEffect(() => {
@@ -72,7 +74,16 @@ export function useToolbarOverflow(meta: readonly Omit<OverflowItem, "width">[],
     const ro = new ResizeObserver(() => setSize(el.clientWidth));
     ro.observe(el);
     setSize(el.clientWidth);
-    return () => ro.disconnect();
+    // Web fonts change every text width once they load.
+    let alive = true;
+    void document.fonts?.ready.then(() => {
+      if (alive) setSize(el.clientWidth);
+      if (alive) setFontTick((n) => n + 1);
+    });
+    return () => {
+      alive = false;
+      ro.disconnect();
+    };
   }, []);
 
   const measure = useCallback(() => {
@@ -98,7 +109,7 @@ export function useToolbarOverflow(meta: readonly Omit<OverflowItem, "width">[],
     setHidden((prev) => (prev.size === next.size && [...next].every((id) => prev.has(id)) ? prev : next));
     // `meta` is covered by `key`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, size, gap, dividerWidth]);
+  }, [key, size, fontTick, gap, dividerWidth]);
 
   // Re-measure after every render: an item's width can change (a count badge) without a resize.
   useLayoutEffect(measure);

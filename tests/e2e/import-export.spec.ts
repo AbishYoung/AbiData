@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { expectNoAxeViolations, signOut } from "./helpers";
+import { expectNoAxeViolations, signOut, toolbarAction } from "./helpers";
 import { addEditorMember, EDITOR_EMAIL, EDITOR_PASSWORD, signInAs } from "./queries-helpers";
 import { createWorkspace, openWorkspace } from "./scripts-helpers";
 import { csvFile, createTable, insertRows, readRows, startImport, tabTo, toCheck, toMapping, wizard } from "./import-export-helpers";
@@ -200,7 +200,7 @@ test("the datasheet toolbar exports JSON", async ({ page }) => {
   await openWorkspace(page, WS);
   await nav(page).getByRole("button", { name: "Fruit", exact: true }).click();
   await expect(page.getByRole("grid", { name: "Fruit datasheet" })).toBeVisible();
-  await page.getByRole("toolbar", { name: "Datasheet tools" }).getByRole("button", { name: "Export…" }).click();
+  await toolbarAction(page, "Export…");
   const dialog = page.getByRole("dialog", { name: /Export “Fruit”/ });
   await dialog.getByRole("radio", { name: "JSON" }).check();
   const download = page.waitForEvent("download");
@@ -263,14 +263,14 @@ test("CSV exports start with a UTF-8 BOM, which can be turned off and is remembe
   await nav(page).getByRole("button", { name: "Cafes", exact: true }).click();
   await expect(page.getByRole("grid", { name: "Cafes datasheet" })).toBeVisible();
   const tools = page.getByRole("toolbar", { name: "Datasheet tools" });
-  await tools.getByRole("button", { name: "Export…" }).click();
+  await toolbarAction(page, "Export…");
   dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
   await expect(dialog.getByRole("radio", { name: "All records" })).toBeChecked();
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByRole("searchbox", { name: "Filter records" }).fill("Caf");
   await expect(page.getByRole("grid", { name: "Cafes datasheet" })).not.toContainText("北京");
-  await tools.getByRole("button", { name: "Export…" }).click();
+  await toolbarAction(page, "Export…");
   dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
   await expect(dialog.getByRole("radio", { name: "Current view" })).toBeChecked();
   download = page.waitForEvent("download");
@@ -281,7 +281,7 @@ test("CSV exports start with a UTF-8 BOM, which can be turned off and is remembe
   await dialog.getByRole("button", { name: "Close" }).click();
 
   // "All records" ignores the filter.
-  await tools.getByRole("button", { name: "Export…" }).click();
+  await toolbarAction(page, "Export…");
   dialog = page.getByRole("dialog", { name: /Export “Cafes”/ });
   await dialog.getByRole("radio", { name: "All records" }).check();
   download = page.waitForEvent("download");
@@ -341,7 +341,8 @@ test("an editor can export but sees no Import entry", async ({ page }) => {
   await page.keyboard.press("Escape");
   await nav(page).getByRole("button", { name: "Fruit", exact: true }).click();
   await expect(page.getByRole("grid", { name: "Fruit datasheet" })).toBeVisible();
-  await expect(page.getByRole("toolbar", { name: "Datasheet tools" }).getByRole("button", { name: "Export…" })).toBeVisible();
+  await toolbarAction(page, "Export…");
+  await expect(page.getByRole("dialog", { name: /Export “Fruit”/ })).toBeVisible();
 });
 
 test("a saved query with parameters asks for them before exporting", async ({ page }) => {

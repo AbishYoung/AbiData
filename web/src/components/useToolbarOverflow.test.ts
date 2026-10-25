@@ -19,7 +19,7 @@ describe("planOverflow", () => {
   });
 
   it("moves the highest priority numbers first, leaving room for More", () => {
-    // all four: 4*106 + 2 dividers*(9+6)=454. Hiding d: 3*106+15+32=365.
+    // all four: 4*106+30-6 = 448; hiding d: 327+32 = 359.
     expect([...planOverflow({ ...base, items, available: 400 })]).toEqual(["d"]);
     expect([...planOverflow({ ...base, items, available: 300 })].sort()).toEqual(["c", "d"]);
   });

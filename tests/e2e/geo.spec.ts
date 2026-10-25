@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { expectNoAxeViolations } from "./helpers";
+import { expectNoAxeViolations, toolbarAction } from "./helpers";
 import { apiPost } from "./queries-helpers";
 import {
   addField,
@@ -246,7 +246,7 @@ test("datasheet: draws an area by clicking, shows its size and filters by locati
   await expect(await cell(grid, 1, "Zone")).toHaveText(/^Area · 3 points · [\d,.]+ (m|km)²$/);
 
   // Location filter: near Buckingham Palace (row 1) and the mocked GPS fix (row 3), not the clicked point.
-  await page.getByRole("button", { name: "Location filter…" }).click();
+  await toolbarAction(page, "Location filter…");
   const f = page.getByRole("dialog", { name: "Location filter" });
   await f.getByLabel("Near a point").check();
   await f.getByLabel("Distance (metres)").fill("2000");

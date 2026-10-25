@@ -9,7 +9,7 @@
 import { createRequire } from "node:module";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { prepare } from "./shots.mjs";
+import { prepare, toolbarAction } from "./shots.mjs";
 
 const VIEWPORTS = {
   desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
@@ -237,7 +237,7 @@ export async function review(ctx) {
       } else {
         await step(page, "row-history", variant, async () => {
           await page.getByRole("gridcell", { name: /SO-1003/ }).first().click();
-          await page.getByRole("button", { name: "History" }).click();
+          await toolbarAction(page, "History");
           await page.getByRole("dialog", { name: /History of record/ }).getByTestId("history-entry").first().waitFor();
         });
       }

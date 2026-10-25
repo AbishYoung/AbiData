@@ -12,6 +12,18 @@ const STYLE = `
   [role="status"][aria-label="Notifications"] { display: none !important; }
 `;
 
+/** Clicks a datasheet toolbar action, through the "More actions" menu when the toolbar has moved it there. */
+export async function toolbarAction(page, name) {
+  const toolbar = page.getByRole("toolbar", { name: "Datasheet tools" });
+  const button = toolbar.getByRole("button", { name, exact: true });
+  const more = toolbar.getByRole("button", { name: "More actions" });
+  await button.or(more).first().waitFor();
+  await page.evaluate(() => document.fonts.ready);
+  if (await button.isVisible()) return button.click();
+  await more.click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
+
 /**
  * First-run setup through the API (the setup token comes from the server log) and some activity, so
  * the screens have members, keys, history, a job run and a backup. Shared with the review mode
@@ -219,7 +231,7 @@ export async function shoot(ctx) {
     if (want("datasheet-orders")) await save(page, "datasheet-orders");
 
     if (want("export-dialog")) {
-      await page.getByRole("toolbar", { name: "Datasheet tools" }).getByRole("button", { name: "Export…" }).click();
+      await toolbarAction(page, "Export…");
       const d = page.getByRole("dialog", { name: /Export “Orders”/ });
       await d.waitFor();
       await d.getByRole("radio", { name: /Excel/ }).check();
@@ -232,7 +244,7 @@ export async function shoot(ctx) {
 
     if (want("row-history")) {
       await page.getByRole("gridcell", { name: /SO-1003/ }).first().click();
-      await page.getByRole("button", { name: "History" }).click();
+      await toolbarAction(page, "History");
       const panel = page.getByRole("dialog", { name: /History of record/ });
       await panel.waitFor();
       await panel.getByTestId("history-entry").first().waitFor();

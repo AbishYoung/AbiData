@@ -6,7 +6,7 @@ import { deflateSync } from "node:zlib";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { callApi, cellAt, getRow, type Fixture } from "./datasheet-helpers";
 import { createReportViaApi, openReport } from "./reports-helpers";
-import { expectNoAxeViolations, signIn } from "./helpers";
+import { expectNoAxeViolations, signIn, toolbarAction } from "./helpers";
 import { apiPost, signInAs } from "./queries-helpers";
 import { openForm } from "./forms-runtime-helpers";
 import {
@@ -309,7 +309,7 @@ test("datasheet: a refused upload shows its reason, and history lists file names
   await expect.poll(async () => (await storedPhotos(page)).length).toBe(2);
 
   // Row history names the files instead of printing [object Object] or raw ids.
-  await page.getByRole("button", { name: "History", exact: true }).click();
+  await toolbarAction(page, "History");
   const panel = page.getByRole("dialog", { name: /History of record/ });
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("history-change").first()).toContainText("echo.png");
