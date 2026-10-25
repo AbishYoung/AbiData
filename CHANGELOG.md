@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Added: Excel and CSV exports resolve lookup columns to the parent record display text, with an optional adjacent [ID] column (ADR 0020).
+
+### Changed
 Changed: Documentation screenshots re-shot in the Sylvan Atelier theme.
 
 ### Changed

@@ -2787,12 +2787,16 @@ export interface components {
              * @enum {string}
              */
             format: "csv" | "xlsx" | "json" | "geojson";
+            /** @description Tables only, csv and xlsx: with resolved lookups, add the parent id in an extra column after each lookup column (named like the column plus ' [ID]'), for round trips. Off by default. */
+            lookup_ids?: boolean;
             /** @description Query parameters (saved queries only). */
             params?: {
                 [key: string]: unknown;
             };
             /** @description xlsx only, saved queries only: add a second sheet, Query Info, with the query's name, SQL, parameter values, export time and row count. Off by default. */
             query_info?: boolean;
+            /** @description Tables only: write lookup columns as the parent record's display text instead of its id. Defaults to true for csv and xlsx and false for json and geojson. */
+            resolve_lookups?: boolean;
             /** @description Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter. */
             sort?: string;
             /** @description Table or saved query id. */

@@ -40,7 +40,9 @@ type ExportRequest struct {
 
 	Clean *bool `json:"clean,omitempty" default:"true" doc:"xlsx only: true writes a workbook for analysis (numbers, currency, dates and booleans as typed cells with number formats, styled header, frozen header row, filter dropdowns, fitted column widths). false writes the values as the rows API shows them, untyped. Ignored for other formats."`
 
-	QueryInfo *bool `json:"query_info,omitempty" doc:"xlsx only, saved queries only: add a second sheet, Query Info, with the query's name, SQL, parameter values, export time and row count. Off by default."`
+	ResolveLookups *bool `json:"resolve_lookups,omitempty" doc:"Tables only: write lookup columns as the parent record's display text instead of its id. Defaults to true for csv and xlsx and false for json and geojson."`
+	LookupIDs      *bool `json:"lookup_ids,omitempty" doc:"Tables only, csv and xlsx: with resolved lookups, add the parent id in an extra column after each lookup column (named like the column plus ' [ID]'), for round trips. Off by default."`
+	QueryInfo      *bool `json:"query_info,omitempty" doc:"xlsx only, saved queries only: add a second sheet, Query Info, with the query's name, SQL, parameter values, export time and row count. Off by default."`
 
 	// View is Filter and Sort parsed by the HTTP layer with the rows
 	// endpoint's parser. Nil exports every record in id order.
@@ -277,7 +279,7 @@ func (s *Service) runExport(ctx context.Context, l *workspace.Lease, prog *ops.P
 	}
 	res := ExportResult{Format: req.Format}
 	if req.SourceKind == "table" {
-		res.Rows, err = s.exportTable(ctx, l, prog, sk, req.SourceID, req.View)
+		res.Rows, err = s.exportTable(ctx, l, prog, sk, req)
 	} else {
 		res.Rows, res.Truncated, err = s.exportQuery(ctx, l, pol, sk, req)
 	}
@@ -299,7 +301,8 @@ func (s *Service) runExport(ctx context.Context, l *workspace.Lease, prog *ops.P
 	return res, nil
 }
 
-func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, view *records.ListQuery) (int64, error) {
+func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, req ExportRequest) (int64, error) {
+	tableID, view := req.SourceID, req.View
 	sch, err := s.Schemas.Get(ctx, l)
 	if err != nil {
 		return 0, err
@@ -326,11 +329,17 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 			return 0, err
 		}
 	}
+	kinds := []colKind{kGeneral}
+	for _, c := range cols {
+		kinds = append(kinds, kindOfColumn(c))
+	}
+	var lr *lookupResolver
+	if req.resolveLookups() {
+		keepIDs := req.LookupIDs != nil && *req.LookupIDs && (req.Format == "csv" || req.Format == "xlsx")
+		lr = newLookupResolver(sch, cols, keepIDs)
+	}
+	names, kinds, textual = lr.shape(names, kinds, textual)
 	if ts, ok := sk.(typedSink); ok {
-		kinds := []colKind{kGeneral}
-		for _, c := range cols {
-			kinds = append(kinds, kindOfColumn(c))
-		}
 		ts.bindKinds(kinds)
 	}
 	if err := sk.header(names); err != nil {
@@ -338,7 +347,7 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 	}
 	fn := newFileNamer(sk, cols)
 	if view != nil {
-		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view, fn)
+		return s.exportView(ctx, l, prog, sk, tableID, cols, textual, *view, fn, lr)
 	}
 	// Keyset paging: one placeholder for the last id seen, one for the page size.
 	page, err := sqlgen.Render(l.Dialect(), &sqlgen.Select{Columns: sel, From: sqlgen.Table{Name: t.PhysicalName},
@@ -390,6 +399,9 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 		if err := fn.apply(ctx, l, batch); err != nil {
 			return n, err
 		}
+		if batch, err = lr.apply(ctx, l, batch); err != nil {
+			return n, err
+		}
 		for _, vals := range batch {
 			if err := sk.row(vals, textual); err != nil {
 				return n, err
@@ -406,7 +418,7 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 
 // exportView writes the rows matching a filter in the requested order, paging
 // by offset through the same read path as the rows endpoint.
-func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, cols []catalog.Column, textual []bool, view records.ListQuery, fn *fileNamer) (int64, error) {
+func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.Progress, sk sink, tableID string, cols []catalog.Column, textual []bool, view records.ListQuery, fn *fileNamer, lr *lookupResolver) (int64, error) {
 	total, _, err := s.Records.Count(ctx, l, tableID, view.Filter)
 	if err != nil {
 		return 0, err
@@ -432,6 +444,9 @@ func (s *Service) exportView(ctx context.Context, l *workspace.Lease, prog *ops.
 			batch[j] = vals
 		}
 		if err := fn.apply(ctx, l, batch); err != nil {
+			return n, err
+		}
+		if batch, err = lr.apply(ctx, l, batch); err != nil {
 			return n, err
 		}
 		for _, vals := range batch {
