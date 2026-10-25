@@ -190,7 +190,7 @@ func describe(p Plan) {
 	}
 	line("vitest", p.Web(), webDetail)
 	line("e2e", p.E2E(), strings.Join(p.E2EAreas, " "))
-	line("postgres", p.Postgres, "make test-postgres (CI)")
+	line("postgres", p.Postgres, "go test ./... on PostgreSQL 17 and 18, e2e on 18 (CI)")
 	line("image", p.Image, "docker build + container smoke (CI)")
 }
 

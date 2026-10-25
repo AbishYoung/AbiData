@@ -13,7 +13,11 @@ import { useNow } from "./useNow";
 /** One run: facts, error, cancel, artifacts and log. Live through job.run invalidation. */
 export function RunDetailPanel({ ws, jobId, runId }: { ws: string; jobId: string; runId: string }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: jobKeys.run(ws, runId), queryFn: () => getRun(ws, runId) });
+  const q = useQuery({
+    queryKey: jobKeys.run(ws, runId),
+    queryFn: () => getRun(ws, runId),
+    refetchInterval: (query) => (query.state.data && isRunActive(query.state.data.status) ? 1000 : false),
+  });
   const [cancelError, setCancelError] = useState<string | null>(null);
   const cancel = useMutation({
     meta: { inline: true },

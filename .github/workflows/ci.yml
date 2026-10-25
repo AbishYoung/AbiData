@@ -187,16 +187,103 @@ jobs:
           if-no-files-found: ignore
 
   postgres:
-    # The PostgreSQL backend tests (ADR 0012) against throwaway servers in Docker.
+    # The whole Go suite on PostgreSQL (ADR 0012 §10), once per supported server version, against
+    # a service container bound to localhost. scripts/ci-postgres.sh replaces the service's
+    # throwaway password with random, masked ones. Locally, make test-postgres does the same in
+    # Docker.
     needs: plan
     if: needs.plan.outputs.postgres == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["17", "18"]
+    name: postgres (${{ matrix.postgres }})
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        ports:
+          - 127.0.0.1:5432:5432
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: make test-postgres
+      - name: Prepare PostgreSQL
+        run: ./scripts/ci-postgres.sh "${{ job.services.postgres.id }}" 5432
+      - name: Test on PostgreSQL ${{ matrix.postgres }}
+        env:
+          ABIDATA_TEST_DB: postgres
+        run: go test -race -count=1 ./...
+
+  e2e-postgres:
+    # The Playwright suite with every server on PostgreSQL (ADR 0012 §10), per area, on the
+    # recommended server version, whenever both the e2e and the PostgreSQL layers are selected.
+    needs: [plan, e2e-build]
+    if: needs.plan.outputs.e2e == 'true' && needs.plan.outputs.postgres == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ${{ fromJSON(needs.plan.outputs.e2e_areas) }}
+    name: e2e on postgres (${{ matrix.area }})
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        ports:
+          - 127.0.0.1:5432:5432
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v7
+        with:
+          name: e2e-binary
+          path: tests/e2e/.bin
+      - run: chmod +x tests/e2e/.bin/abidata
+      - run: npm --prefix tests/e2e ci
+      - id: browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/package-lock.json') }}
+      - name: Install Chromium
+        working-directory: tests/e2e
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft*.list /etc/apt/sources.list.d/azure*.list
+          if [ "${{ steps.browsers.outputs.cache-hit }}" = true ]; then
+            npx playwright install-deps chromium || true
+          else
+            npx playwright install --with-deps chromium || npx playwright install chromium
+          fi
+      - name: Prepare PostgreSQL
+        run: ./scripts/ci-postgres.sh "${{ job.services.postgres.id }}" 5432
+      - name: Playwright on PostgreSQL (${{ matrix.area }})
+        env:
+          E2E_SKIP_BUILD: "1"
+        run: go run ./tools/testplan e2e ${{ matrix.area }}
+      - name: Upload traces and server logs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-postgres-${{ matrix.area }}-traces
+          path: |
+            tests/e2e/test-results
+            tests/e2e/.servers
+          include-hidden-files: true
+          if-no-files-found: ignore
 
   docker:
     needs: plan
@@ -240,7 +327,7 @@ jobs:
   ci-ok:
     # One check for branch protection: fails if any selected job failed or was cancelled;
     # skipped jobs (not needed by this change) pass.
-    needs: [plan, go, web, e2e-build, e2e, postgres, docker, container-smoke]
+    needs: [plan, go, web, e2e-build, e2e, postgres, e2e-postgres, docker, container-smoke]
     if: always()
     runs-on: ubuntu-latest
     steps:

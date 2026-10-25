@@ -98,6 +98,11 @@ func HardenDatabase(ctx context.Context, c dbx.Execer, database string) error {
 // and keeps membership in _read and _write for generated SQL, which runs on
 // the app's own pool under SET LOCAL ROLE as defence in depth.
 func ProvisionWorkspace(ctx context.Context, c dbx.Execer, database string, n Names) error {
+	// Serialize role and schema provisioning across concurrent callers so
+	// PostgreSQL's shared pg_auth_members catalog is not updated concurrently.
+	if _, err := c.Exec(ctx, `SELECT pg_advisory_xact_lock(7017280114002624863)`); err != nil {
+		return fmt.Errorf("pgdb: provision %s lock: %w", n.Workspace, err)
+	}
 	s, r, w := ident(n.Schema()), ident(n.ReadRole()), ident(n.WriteRole())
 	lr, lw := ident(n.ReadLogin()), ident(n.WriteLogin())
 	for _, q := range []string{

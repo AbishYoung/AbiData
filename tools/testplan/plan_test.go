@@ -228,6 +228,13 @@ func TestPostgresScript(t *testing.T) {
 	if p := compute("scripts/test-postgres.sh"); !p.Postgres || p.Go() || p.E2E() {
 		t.Fatalf("plan = %+v", p)
 	}
+	if p := compute("scripts/ci-postgres.sh"); !p.Postgres || p.Go() {
+		t.Fatalf("ci-postgres.sh: plan = %+v", p)
+	}
+	// The e2e servers' backend switch runs the e2e suite on PostgreSQL too.
+	if p := compute("tests/e2e/server.mjs"); !p.Postgres || !p.E2EAll {
+		t.Fatalf("server.mjs: plan = %+v", p)
+	}
 }
 
 func TestCrossCuttingFilesSelectEverything(t *testing.T) {

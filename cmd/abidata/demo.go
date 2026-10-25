@@ -6,16 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"time"
 
 	"abidata/internal/admin"
-	"abidata/internal/catalog"
 	"abidata/internal/config"
 	"abidata/internal/demo"
 	"abidata/internal/files"
-	"abidata/internal/ids"
-	"abidata/internal/workspace"
 )
 
 // createDemoAfterSetup builds both sample workspaces for the first
@@ -80,29 +76,22 @@ func demoCmd(args []string) error {
 	defer lock.Release()
 
 	ctx := context.Background()
-	adm, err := admin.Open(ctx, filepath.Join(cfg.DataDir, "system", "admin.db"), cfg.Synchronous)
+	in, err := openOffline(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = adm.Close() }()
+	defer in.Close()
+	adm := in.Admin
 	u, err := adm.GetUserByEmail(ctx, *owner)
 	if errors.Is(err, admin.ErrNotFound) {
 		return fmt.Errorf("no user has the email %q", *owner)
 	} else if err != nil {
 		return err
 	}
-	wm, err := workspace.NewManager(workspace.Config{DataDir: cfg.DataDir, MaxOpen: 4, Synchronous: cfg.Synchronous, Migrate: catalog.Migrate,
-		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
-			w, err := adm.GetWorkspace(ctx, id)
-			if err != nil {
-				return 0, err
-			}
-			return w.Quota.MaxPageCount, nil
-		}})
+	wm, err := in.Workspaces(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = wm.Shutdown(ctx) }()
 
 	b := demo.NewBuilder(adm, wm, nil, &files.Service{DataDir: cfg.DataDir}, slog.Default())
 	for _, kind := range kinds {

@@ -1,6 +1,6 @@
 import { EmptyState, SkeletonLines } from "@/components/EditorParts";
 import { useEffect, useRef } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { alertBox, btn } from "@/components/styles";
 import { ApiError } from "@/lib/api";
@@ -34,6 +34,7 @@ export function RunHistory({
   selected: string | null;
   onSelect: (runId: string) => void;
 }) {
+  const qc = useQueryClient();
   const q = useInfiniteQuery({
     queryKey: jobKeys.runs(ws, jobId),
     queryFn: ({ pageParam }) => listRuns(ws, jobId, pageParam),
@@ -117,7 +118,10 @@ export function RunHistory({
                     data-run-id={r.id}
                     data-status={r.status}
                     data-trigger={r.trigger_kind}
-                    onClick={() => onSelect(r.id)}
+                    onClick={() => {
+                      onSelect(r.id);
+                      void qc.invalidateQueries({ queryKey: jobKeys.run(ws, r.id) });
+                    }}
                     className={`${compact ? CARD : GRID} cursor-pointer border-b border-border transition-colors hover:bg-surface-2/60 ${r.id === selected ? "bg-accent-soft/60" : vi.index % 2 === 1 ? "bg-surface-2/30" : ""}`}
                     style={{ height: rowHeight }}
                   >
@@ -129,6 +133,7 @@ export function RunHistory({
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelect(r.id);
+                          void qc.invalidateQueries({ queryKey: jobKeys.run(ws, r.id) });
                         }}
                         className="cursor-pointer rounded bg-transparent p-0 text-left"
                       >
