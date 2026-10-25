@@ -162,18 +162,17 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
                 onAuxClick={(e) => {
                   if (e.button === 1) void onClose(t);
                 }}
-                className={`group relative flex h-full max-w-60 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition-colors ${
+                className={`group relative flex h-full max-w-60 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition-[color,background-color,box-shadow] ${
                   on
-                    ? "border-border bg-surface font-medium text-fg shadow-[0_1px_0_var(--surface)]"
+                    ? "border-border border-t-2 border-t-accent bg-surface font-medium text-fg shadow-md"
                     : "border-transparent text-fg-muted hover:bg-surface/60 hover:text-fg"
                 }`}
               >
-                {on && <span aria-hidden="true" className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-accent" />}
                 <KindIcon kind={t.kind} size="sm" />
                 <span className="truncate">{t.title}</span>
                 {t.dirty && (
                   <>
-                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning shadow-[0_0_6px_var(--warning)]" />
                     <span className="sr-only">(unsaved)</span>
                   </>
                 )}
@@ -244,7 +243,7 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
               <span className="min-w-0 flex-1 truncate">{current.title}</span>
               {current.dirty && (
                 <>
-                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning shadow-[0_0_6px_var(--warning)]" />
                   <span className="sr-only">(unsaved)</span>
                 </>
               )}
@@ -414,7 +413,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
   if (compact) {
     return (
       <div data-shell className="flex h-full flex-col">
-        <header className="shell-header flex shrink-0 items-center gap-1 border-b border-border bg-surface">
+        <header className="shell-header glass flex shrink-0 items-center gap-1 border-b border-border/80">
           <button ref={menuButtonRef} type="button" className={iconBtn} aria-label="Open navigation" aria-haspopup="dialog" onClick={() => setNavOpen(true)}>
             <Menu size={20} aria-hidden="true" />
           </button>
@@ -496,7 +495,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
 
   return (
     <div data-shell className="flex h-full flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+      <header className="glass flex h-12 shrink-0 items-center gap-2 border-b border-border/80 px-3">
         <Link to="/" className="group inline-flex items-center gap-2 rounded-md px-1 py-1 text-sm font-medium text-fg-muted hover:text-fg">
           <LogoMark size={24} />
           <span>Workspaces</span>

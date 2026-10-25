@@ -178,11 +178,11 @@ export function NavPane({ ws, role, variant = "sidebar" }: { ws: string; role: s
                     aria-expanded={open}
                     aria-controls={panelId}
                     onClick={() => toggle(g.id)}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-fg-subtle transition-colors hover:text-fg"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-subtle transition-colors hover:text-fg"
                   >
                     <KindIcon kind={g.kind} size="sm" />
                     <span className="flex-1">{g.label}</span>
-                    <ChevronDown size={14} aria-hidden="true" className={`transition-transform ${open ? "" : "-rotate-90"}`} />
+                    <ChevronDown size={14} aria-hidden="true" className={`transition-transform duration-200 motion-reduce:transition-none ${open ? "" : "-rotate-90"}`} />
                   </button>
                 </h2>
                 {g.id === "queries" && design && (
