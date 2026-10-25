@@ -8,7 +8,7 @@ export function SortBadge({ rank, desc }: { rank: number; desc: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-px font-mono text-[10px] font-semibold leading-4 text-accent"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-accent bg-accent px-1.5 py-px font-mono text-[10px] font-bold leading-4 text-accent-fg"
     >
       {rank}
       {desc ? <ArrowDown size={10} /> : <ArrowUp size={10} />}
