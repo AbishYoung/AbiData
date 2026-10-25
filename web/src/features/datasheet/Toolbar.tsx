@@ -184,7 +184,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
   // about to disappear, so the action waits until the menu has closed and handed focus back to the More
   // button (onCloseAutoFocus below), and the dialog then returns focus there.
   const pending = useRef<(() => void) | null>(null);
-  const run = (fn?: () => void) => () => {
+  const queue = (fn?: () => void) => {
     pending.current = fn ?? null;
   };
   const afterMenuClose = (e: Event) => {
@@ -210,7 +210,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={run(p.onQuickAdd)} aria-keyshortcuts="Control+Shift+N Meta+Shift+N">
+        <DropdownMenu.Item className={item} onSelect={() => queue(p.onQuickAdd)} aria-keyshortcuts="Control+Shift+N Meta+Shift+N">
           <Plus size={16} aria-hidden="true" />
           Quick Add
         </DropdownMenu.Item>
@@ -236,7 +236,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.canDelete} onSelect={run(p.onDelete)}>
+        <DropdownMenu.Item className={item} disabled={!p.canDelete} onSelect={() => queue(p.onDelete)}>
           <Trash2 size={16} aria-hidden="true" />
           Delete record
         </DropdownMenu.Item>
@@ -257,7 +257,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.canHistory} onSelect={run(p.onHistory)}>
+        <DropdownMenu.Item className={item} disabled={!p.canHistory} onSelect={() => queue(p.onHistory)}>
           <History size={16} aria-hidden="true" />
           History
         </DropdownMenu.Item>
@@ -278,7 +278,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.canFilterBySelection} onSelect={run(p.onFilterBySelection)}>
+        <DropdownMenu.Item className={item} disabled={!p.canFilterBySelection} onSelect={() => queue(p.onFilterBySelection)}>
           <ListFilter size={16} aria-hidden="true" />
           Filter by selection
         </DropdownMenu.Item>
@@ -299,7 +299,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={run(p.onGeoFilter)}>
+        <DropdownMenu.Item className={item} onSelect={() => queue(p.onGeoFilter)}>
           <MapPin size={16} aria-hidden="true" />
           Location filter…
         </DropdownMenu.Item>
@@ -322,7 +322,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </Tip>
       ),
       menu: (
-        <DropdownMenu.Item className={item} disabled={!p.filterActive} onSelect={run(p.onClearFilter)}>
+        <DropdownMenu.Item className={item} disabled={!p.filterActive} onSelect={() => queue(p.onClearFilter)}>
           <FilterX size={16} aria-hidden="true" />
           Clear filter
         </DropdownMenu.Item>
@@ -339,7 +339,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </button>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={run(p.onRefresh)}>
+        <DropdownMenu.Item className={item} onSelect={() => queue(p.onRefresh)}>
           <RefreshCw size={16} aria-hidden="true" className={p.refreshing ? "animate-spin" : ""} />
           Refresh
         </DropdownMenu.Item>
@@ -358,7 +358,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </button>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={run(p.onExport)}>
+        <DropdownMenu.Item className={item} onSelect={() => queue(p.onExport)}>
           <Download size={16} aria-hidden="true" />
           Export…
         </DropdownMenu.Item>
@@ -379,7 +379,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
         </button>
       ),
       menu: (
-        <DropdownMenu.Item className={item} onSelect={run(p.onFormatting)}>
+        <DropdownMenu.Item className={item} onSelect={() => queue(p.onFormatting)}>
           <Paintbrush size={16} aria-hidden="true" />
           Formatting Rules
           {count > 0 && <span className="ml-auto rounded-full bg-accent-soft px-1.5 text-xs font-semibold text-accent">{count}</span>}
