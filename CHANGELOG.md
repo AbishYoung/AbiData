@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Repeated group headers, page header/footer suppression, keep-together, distinct and percent aggregates (ADR 0018).
+
 ### Added
 - Banded report typography, accounting underlines, band background shading and detail alternate zebra striping (ADR 0018).
 - Server-evaluated per-control conditional formatting rules with screen reader accessibility labels.
