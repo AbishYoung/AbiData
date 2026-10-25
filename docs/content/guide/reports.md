@@ -22,6 +22,8 @@ A report turns a table or saved query into paginated output with headers, groups
 5. Choose a band, then add controls to it from the **Toolbox**, or drag fields from the **Field list**.
 6. Choose **Save**. Use the **Preview** panel to see the report with data.
 
+![The report designer's Preview panel showing the product catalogue](../../images/report-designer-preview.jpg)
+
 Right-click the design canvas to duplicate, delete or align the selected controls.
 
 Text in a band that cannot grow shows as many whole lines as fit, ending in "…". Point at it to see the full text in the viewer, or turn on **Can grow** for the band.
