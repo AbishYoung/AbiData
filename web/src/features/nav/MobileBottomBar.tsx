@@ -66,7 +66,7 @@ export function MobileBottomBar({ ws, onMenu, menuRef }: { ws: string; onMenu: (
         <button
           type="button"
           className={item}
-          aria-label={mode === "cards" ? "Switch to grid view" : "Switch to card view"}
+          aria-label={mode === "cards" ? "Show records as grid" : "Show records as cards"}
           onClick={() => setMode(mode === "cards" ? "grid" : "cards")}
         >
           {mode === "cards" ? <LayoutGrid size={22} aria-hidden="true" /> : <Rows3 size={22} aria-hidden="true" />}

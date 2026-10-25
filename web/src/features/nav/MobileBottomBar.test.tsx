@@ -30,9 +30,9 @@ describe("MobileBottomBar", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Menu" }));
     expect(onMenu).toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Switch to grid view" }));
+    await user.click(screen.getByRole("button", { name: "Show records as grid" }));
     expect(useMobileView.getState().mode).toBe("grid");
-    expect(screen.getByRole("button", { name: "Switch to card view" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show records as cards" })).toBeInTheDocument();
   });
 
   it("swipes to the next and previous tab", () => {
