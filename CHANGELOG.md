@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palettes, tactile gradient controls and segmented trays, jewel object-kind chips, line-art wildlife in empty states, and "system is alive" motion (connection beacon, top-edge progress beam, save ripple, shimmer skeletons), all disabled under reduced motion.
+
+### Changed
 - Repeated group headers, page header/footer suppression, keep-together, distinct and percent aggregates (ADR 0018).
 
 ### Added
