@@ -63,6 +63,7 @@ test("seed workspace, data and reports", async ({ page }) => {
   ids = {
     letter: await createReportViaApi(page, salesReportBody(sales, "Sales Letter", "letter")),
     a4: await createReportViaApi(page, salesReportBody(sales, "Sales A4", "a4")),
+    repeat: await createReportViaApi(page, salesReportBody(sales, "Sales Repeat", "letter", { repeatHeader: true })),
     big: await createReportViaApi(page, bigReportBody(big)),
   };
   await page.reload();
@@ -101,6 +102,25 @@ test("opens a grouped report and paginates it with a growing detail band", async
   expect(LONG_NOTE.length).toBeGreaterThan(100);
 
   await expectNoAxeViolations(page);
+});
+
+test("a group that continues onto the next page repeats its header with (continued) (ADR 0018)", async ({ page }) => {
+  await openWorkspace(page, WS);
+  await openReport(page, "Sales Repeat");
+  const { total } = await pageOf(page);
+  expect(total).toBeGreaterThan(1);
+  // Page 1 starts the first group: no "(continued)" there. The groups run over page breaks, so a later page opens with one.
+  await expect(page.locator('.rv-page[data-page="1"] [data-band="group_header_0"]').first()).not.toContainText("(continued)");
+  await page.getByRole("region", { name: "Report pages" }).focus();
+  await page.keyboard.press("PageDown");
+  const second = page.locator('.rv-page[data-page="2"]');
+  await expect(second).toBeVisible();
+  await expect(second.locator('[data-band="group_header_0"]').first()).toContainText("(continued)");
+  // The same report without repeat_header never prints it.
+  await openReport(page, "Sales Letter");
+  await page.getByRole("region", { name: "Report pages" }).focus();
+  await page.keyboard.press("PageDown");
+  await expect(page.locator('.rv-page[data-page="2"]')).not.toContainText("(continued)");
 });
 
 test("keyboard-only page navigation", async ({ page }) => {

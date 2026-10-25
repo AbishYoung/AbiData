@@ -1,6 +1,6 @@
 # ADR 0018: Banded Report Formatting, Intelligent Pagination & Direct Export
 
-Status: Proposed · 2026-10-24 (approved for implementation)
+Status: Accepted · implemented 2026-10-25 (see "As built" for the deviations)
 
 ## Context
 
@@ -56,3 +56,22 @@ AbiData's banded report engine (D11, BRIEF §4) streams section instances (`inte
 - Full backward compatibility with existing report definitions.
 - Paginator remains a pure function of (layout, setup, instances, measured heights).
 - Playwright E2E specs in `tests/e2e/reports.spec.ts` extended to assert repeated headers and PDF downloads.
+
+## As built
+
+Delivered in six slices (PRs #110, #113, #114, #115, #117, #131 plus this one). Everything is backward compatible: reports saved before this change load, validate and print as before.
+
+1. **Formatting (#110).** `ReportControl` gained `currency` (`symbol`, `placement`, `spaced`, `negative` = `minus|paren|sign_after`, `decimals`), `prefix` and `suffix` (at most 32 characters each). `Format` accepts `pattern:<mask>` (Excel-style `positive;negative;zero` sections with quoted literals, `%`, `,` grouping) and `datepattern:<tokens>` (`YYYY YY MMMM MMM MM M dddd ddd DD D HH H hh h mm ss A a`, `[literal]`). Masks are validated on save. The structured options live in their own `currency` field rather than inside the `format` string.
+2. **Typography and shading (#113).** Style tokens `border_top|border_bottom` (`solid|dashed|double|none`), `border_color`, `border_width`, `font_family`, `vertical_align`, `text_decoration`; `Band.background` and `Band.alternate_background` (zebra, even rows of the detail band); `--paper-zebra|muted|danger` tokens. All values are validated on save and re-checked in the viewer. Conditional formatting is a list of at most eight rules per control (`<, <=, >, >=, =, !=, is_empty, is_not_empty`) evaluated by the server on the unformatted value; the matching rule's colour, bold and background arrive as `fx` on the instance, with a screen-reader label read after the value. Lua-expression rules were not built (the declarative operators cover the datasheet's rule set).
+3. **Pagination (#114).** `Group.repeat_header` / `continued_suffix` (default ` (continued)`), `Group.keep_together` (`none|first_detail|all`; empty = `first_detail`, today's behaviour), `suppress_first_page` / `suppress_last_page` on the page header and footer, aggregates `count_distinct` (text compares case-insensitively; `007` and `7` stay distinct) and `percent_of_total` (running supported; prints as a percentage unless a format is set; empty for a zero total). `paginate()` is still a pure function of layout, setup, instances and measured heights. First-page suppression gives the body the freed room; last-page suppression moves the page's bands up.
+4. **Draft preview (#115).** `POST /api/v1/w/{ws}/reports/preview` (builder role) validates an unsaved definition exactly like a save and streams the same NDJSON as `runReport`, storing nothing. The designer's Preview tab runs the current design and lists validation problems instead of asking to save.
+5. **Direct generation (#131 and this PR).** The viewer has Download PDF, Export CSV and Export JSON, built in the browser. The PDF is written by a small in-repo PDF 1.4 writer (no new dependency): exact paper size, text in the base-14 fonts, rules, fills, conditional formatting and repeated headers. CSV has one leading column per group level, a UTF-8 BOM and spreadsheet-formula protection; JSON is the group tree.
+6. **Automation (#117).** `reports.generate(report, params?, {format, name})` for jobs runs a report (by id or name) with the job's editor rights and saves a `csv`, `json` or `html` artifact on the run, within the artifact limits.
+
+### Deviations
+
+- **Excel (`.xlsx`) export from the report viewer was not built here.** ADR 0020 owns the typed Excel exporter; reports export CSV and JSON.
+- **PDF fidelity.** The PDF uses the standard Helvetica, Times and Courier families (Times widths are approximated), so wrapping can differ slightly from the on-screen font. Characters outside Windows-1252 print as `?`, and maps and images are drawn as labelled placeholders (print the report to get them).
+- **`reports.generate` cannot produce a PDF.** The paginator runs in the browser, so jobs get CSV, JSON or a self-contained HTML table instead.
+- **Conditional formatting** uses the declarative operators only, not Lua expressions.
+- **Not built:** workstream 5.5's multi-control alignment toolbar and tabular column synchronisation (the designer already has align and distribute commands from earlier work); they were outside this ADR's decision.
