@@ -113,3 +113,12 @@ export const iconChip = "inline-flex h-8 w-8 shrink-0 items-center justify-cente
 export const docToolbar = "glass flex min-h-11 flex-wrap items-center gap-1.5 border-b border-border/80 px-3 py-1.5";
 /** Slim footer bar under an editor (counts, status). */
 export const docFooter = "flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-surface-2 px-3 py-1 text-xs text-fg-muted";
+
+// Underline tabs (admin console and any other page-level tab strip). The active tab carries a glowing
+// accent bar like the nav anchor (`navRowActive`). Works with Radix `data-state` and with `aria-selected`.
+export const tabList = "flex gap-1 overflow-x-auto border-b border-border";
+export const tab =
+  "relative -mb-px inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 px-3 text-sm font-medium text-fg-muted transition-colors hover:text-fg " +
+  "data-[state=active]:text-fg aria-selected:text-fg " +
+  "after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent after:opacity-0 after:shadow-[0_0_8px_var(--accent)] motion-safe:after:transition-opacity " +
+  "data-[state=active]:after:opacity-100 aria-selected:after:opacity-100";

@@ -18,7 +18,7 @@ import {
 export interface ChartSeries {
   key: string;
   label: string;
-  /** A CSS colour, normally a token such as `var(--accent)`. */
+  /** A CSS colour, a token: `var(--chart-1)`…`var(--chart-6)` for neutral series, `var(--success)`/`--warning`/`--danger` for status. */
   color: string;
   values: Nullable[];
 }
@@ -194,17 +194,17 @@ export function XYChart(props: XYChartProps) {
                   x2={left + plotW}
                   y1={sy(t)}
                   y2={sy(t)}
-                  style={{ stroke: t === geometry.y.min ? "var(--border-strong)" : "var(--border)" }}
+                  style={{ stroke: t === geometry.y.min ? "var(--chart-axis)" : "var(--chart-grid)" }}
                   strokeWidth={1}
                   strokeDasharray={t === geometry.y.min ? undefined : "3 3"}
                 />
-                <text x={left - 6} y={sy(t)} textAnchor="end" dominantBaseline="middle" style={{ fill: "var(--fg-subtle)", fontSize: 12 }}>
+                <text x={left - 6} y={sy(t)} textAnchor="end" dominantBaseline="middle" style={{ fill: "var(--chart-axis)", fontSize: 12 }}>
                   {formatY(t)}
                 </text>
               </g>
             ))}
             {xTicks.map((t) => (
-              <text key={t} x={sx(t)} y={height - 6} textAnchor="middle" style={{ fill: "var(--fg-subtle)", fontSize: 12 }}>
+              <text key={t} x={sx(t)} y={height - 6} textAnchor="middle" style={{ fill: "var(--chart-axis)", fontSize: 12 }}>
                 {formatClock(t, span)}
               </text>
             ))}
@@ -230,7 +230,10 @@ export function XYChart(props: XYChartProps) {
                 const y0 = band ? band.map((b) => sy(b[0])) : s.values.map(() => sy(geometry.y.min));
                 return (
                   <g key={s.key}>
-                    <path d={areaPath(xs, y0, y1)} style={{ fill: s.color }} fillOpacity={stacked ? 0.8 : 0.16} />
+                    <path
+                      d={areaPath(xs, y0, y1)}
+                      style={{ fill: s.color, fillOpacity: stacked ? "calc(var(--chart-fill-opacity) * 2)" : "var(--chart-fill-opacity)" }}
+                    />
                     <path
                       d={stacked ? nonZeroRuns(s.values).map(([a, b]) => linePath(xs.slice(a, b), y1.slice(a, b))).join(" ") : linePath(xs, y1)}
                       fill="none"

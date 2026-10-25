@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Tabs } from "radix-ui";
 import { Boxes, ChevronRight, Globe, KeyRound, LayoutDashboard, PenLine, ScrollText, Settings, ShieldCheck, ShieldOff, Users, type LucideIcon } from "lucide-react";
-import { buttonClass, StatusPage } from "@/components/ui";
+import { buttonClass, PageHeader, StatusPage } from "@/components/ui";
 import { LogoMark } from "@/components/brand/Logo";
-import { pageTitle } from "@/components/styles";
+import { tab as tabClass, tabList } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import { UserMenu } from "@/features/nav/UserMenu";
 import { ADMIN_TABS, parseAdminTab, type AdminTab } from "./adminTabs";
@@ -71,17 +71,24 @@ export function AdminPage({ me, tab, onTabChange }: { me: Me; tab: AdminTab; onT
         </div>
       </header>
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6">
-        <div className="mb-5">
-          <h1 className={`m-0 ${pageTitle}`}>Admin console</h1>
-          <p className="m-0 mt-1 text-sm text-fg-muted">Monitor the server and manage workspaces, users, API keys and platform settings.</p>
-        </div>
+        <PageHeader
+          className="mb-5"
+          eyebrow="Platform"
+          title="Admin console"
+          description="Monitor the server and manage workspaces, users, API keys and platform settings."
+          icon={
+            <span aria-hidden="true" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+              <ShieldCheck size={20} />
+            </span>
+          }
+        />
         <Tabs.Root value={tab} onValueChange={(v) => onTabChange(parseAdminTab(v))} className="flex min-h-0 flex-1 flex-col">
-          <Tabs.List aria-label="Admin sections" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 compact:pr-10 compact:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:mx-0 sm:px-0">
+          <Tabs.List aria-label="Admin sections" className={`${tabList} -mx-4 mb-5 px-4 compact:pr-10 compact:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:mx-0 sm:px-0`}>
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <Tabs.Trigger
                 key={id}
                 value={id}
-                className="-mb-px inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-fg-muted transition-colors hover:text-fg data-[state=active]:border-accent data-[state=active]:text-fg"
+                className={tabClass}
               >
                 <Icon size={15} aria-hidden="true" />
                 {label}

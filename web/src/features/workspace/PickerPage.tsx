@@ -11,7 +11,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
 import { PineCanopyIllustration } from "@/components/wildlife";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { AddDialog } from "@/features/members/MembersPanel";
 import { roleAccessSummary } from "@/features/members/memberLogic";
 import {
@@ -24,7 +24,6 @@ import {
   label,
   menu,
   menuItem,
-  pageTitle,
   sectionTitle,
   segActive,
   segInactive,
@@ -145,33 +144,29 @@ export function PickerPage({ me: initial }: { me: Me }) {
         <PineCanopyIllustration className="absolute inset-x-0 bottom-0 h-full w-full" />
       </div>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className={pageTitle}>Your workspaces</h1>
-            <p className="mt-1 text-sm text-fg-muted">
-              {memberships.length === 0
-                ? "Pick up where you left off once you have a workspace."
-                : `You belong to ${memberships.length} ${memberships.length === 1 ? "workspace" : "workspaces"}. Choose one to open.`}
-            </p>
-          </div>
-          {memberships.length > 6 && (
-            <div className="relative w-full sm:w-64">
-              <Search
-                size={14}
-                aria-hidden="true"
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
-              />
-              <input
-                type="search"
-                aria-label="Filter workspaces"
-                placeholder="Filter workspaces"
-                className={`${input} pl-8`}
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            </div>
-          )}
-        </div>
+        <PageHeader
+          title="Your workspaces"
+          description={
+            memberships.length === 0
+              ? "Pick up where you left off once you have a workspace."
+              : `You belong to ${memberships.length} ${memberships.length === 1 ? "workspace" : "workspaces"}. Choose one to open.`
+          }
+          actions={
+            memberships.length > 6 ? (
+              <div className="relative w-full sm:w-64">
+                <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+                <input
+                  type="search"
+                  aria-label="Filter workspaces"
+                  placeholder="Filter workspaces"
+                  className={`${input} pl-8`}
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                />
+              </div>
+            ) : undefined
+          }
+        />
 
         {(memberships.length > 1 || sharedCount > 0) && (
           <div role="tablist" aria-label="Filter workspaces by ownership" className={`${segTray} mt-4 flex flex-wrap gap-1`}>

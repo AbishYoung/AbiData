@@ -21,6 +21,7 @@ import {
   EmptyState,
   Select,
   Skeleton,
+  PageHeader,
 } from "@/components/ui";
 import { alertBox, input } from "@/components/styles";
 import {
@@ -122,11 +123,10 @@ export function MessagesPage({
           </>
         )}
         <ChevronRight size={14} aria-hidden="true" className="text-fg-subtle" />
-        <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-fg">
           <Mail size={16} aria-hidden="true" className="text-accent" />
-          <h1 className="m-0 text-sm font-semibold text-fg">Messages</h1>
-          {unreadCount > 0 && <Badge tone="accent">{unreadCount} unread</Badge>}
-        </div>
+          Messages
+        </span>
         <div className="ml-auto flex items-center gap-1.5">
           <Button
             variant="primary"
@@ -141,7 +141,15 @@ export function MessagesPage({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="px-3 pt-3 sm:px-4">
+        <PageHeader
+          title="Messages"
+          description="Conversations with the people in your workspaces."
+          actions={unreadCount > 0 ? <Badge tone="accent">{unreadCount} unread</Badge> : undefined}
+        />
+      </div>
+
+      <div className="flex min-h-0 flex-1 pt-3">
         {(!compact || !activeThreadId) && (
           <aside
             aria-label="Message threads"

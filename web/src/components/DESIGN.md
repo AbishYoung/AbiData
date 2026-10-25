@@ -54,7 +54,13 @@ Inputs and editors: text inputs, selects and textareas are an inset well (`surfa
 - `Field` with `Input`, `Select` or `Textarea` inside: the label, hint and error, with the id, `aria-describedby` and `aria-invalid` wired automatically.
 - `Dialog` (title row with optional icon, body, `footer`, close button), `Sheet` (right side sheet) and `ConfirmDialog` (`role="alertdialog"`, focus starts on Cancel, `danger` for destructive actions). All of them give focus back to the element that opened them. The close button comes last in the tab order and has no tooltip (a tooltip opened by focus would take the first Escape).
 - `askToConfirm({ title, message, confirmLabel, danger })` returns a promise of the answer; it replaces `window.confirm` (ADR 0015). `ConfirmHost` is mounted once in `main.tsx`.
+- `PageHeader` (`eyebrow`, `title` as `h1` or `h2` via `level`, `description`, `actions`, `icon`): the header of a full page on a faint `bg-canopy` wash. Used by the admin console, workspace settings, messages and the workspace picker.
 - `Card` (optional header with title, description and actions; `flush` for edge-to-edge lists), `Badge` (`tone`), `EmptyState`, `Skeleton`, `Toolbar` (a named `role="toolbar"` when given a `label`), `ToolbarSeparator` and `ToolbarSpacer`.
+
+## Charts, stat cards and tabs
+- Charts (`components/charts`) read tokens only: series use `var(--chart-1…6)` (status series keep `--success`, `--warning`, `--danger`), gridlines `--chart-grid`, axis text and the baseline `--chart-axis`, and area fills `--chart-fill-opacity` (stacked areas use twice that), so dark and light match and a dark area is never a solid slab. Summaries and roles are unchanged.
+- Stat cards (`features/admin/dashboardParts`): an icon chip tinted by status, label, then a tabular value (`AnimatedNumber` when the value is a plain number). A card lifts on hover only when it is a link.
+- Tabs: `tabList` and `tab` in `styles.ts` are the one underline-tab style; the active tab shows a glowing accent bar like the nav anchor and works with Radix `data-state` or `aria-selected`.
 
 ## Patterns
 - **Page header** (full pages such as the picker and admin):
