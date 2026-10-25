@@ -879,7 +879,7 @@ func TestExports(t *testing.T) {
 		t.Fatalf("json %v %v", err, js[:3])
 	}
 	// XLSX
-	_, body = e.export(ExportRequest{SourceKind: "table", SourceID: tb.ID, Format: "xlsx"}, query.Policy{})
+	_, body = e.export(ExportRequest{SourceKind: "table", SourceID: tb.ID, Format: "xlsx", Clean: boolp(false)}, query.Policy{})
 	f, err := excelize.OpenReader(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

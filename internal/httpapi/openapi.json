@@ -2492,6 +2492,11 @@
             "description": "CSV only: start the file with a UTF-8 byte-order mark so Excel on Windows reads non-ASCII text correctly. Ignored for other formats.",
             "type": "boolean"
           },
+          "clean": {
+            "default": true,
+            "description": "xlsx only: true writes a workbook for analysis (numbers, currency, dates and booleans as typed cells with number formats, styled header, frozen header row, filter dropdowns, fitted column widths). false writes the values as the rows API shows them, untyped. Ignored for other formats.",
+            "type": "boolean"
+          },
           "filter": {
             "description": "Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record.",
             "type": "string"
@@ -2510,6 +2515,10 @@
             "additionalProperties": {},
             "description": "Query parameters (saved queries only).",
             "type": "object"
+          },
+          "query_info": {
+            "description": "xlsx only, saved queries only: add a second sheet, Query Info, with the query's name, SQL, parameter values, export time and row count. Off by default.",
+            "type": "boolean"
           },
           "sort": {
             "description": "Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter.",
