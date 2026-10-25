@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Shell cockpit polish: frosted-glass header, glowing active nav anchor and elevated active tab.
+
+### Changed
 Changed: Documentation screenshots re-shot, with new export dialog and report preview images.
 
 ### Changed
