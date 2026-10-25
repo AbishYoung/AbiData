@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/AbishYoung/AbiData/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue. See SECURITY.md.
+  - name: Documentation
+    url: https://abishyoung.github.io/AbiData/
+    about: Guides for users and operators, and the API and Lua references.
