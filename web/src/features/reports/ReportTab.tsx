@@ -91,7 +91,7 @@ export function DraftRun({ ws, input }: { ws: string; input: ReportInput }) {
     return q ? effectiveParams(q.parameters ?? [], q.sql_text) : [];
   }, [sourceQuery.data]);
   const sourceReady = input.source_kind !== "query" || !sourceQuery.isPending;
-  const def = useMemo(() => ({ layout: input.layout, page_setup: input.page_setup }), [input.layout, input.page_setup]);
+  const def = useMemo(() => ({ name: input.name || "Report", layout: input.layout, page_setup: input.page_setup }), [input.name, input.layout, input.page_setup]);
   const run = useCallback(
     async (values: Params, signal: AbortSignal, tick: (n: number) => void) => {
       const got = await previewReport(ws, input, values, signal, tick);
@@ -112,6 +112,7 @@ export function DraftRun({ ws, input }: { ws: string; input: ReportInput }) {
 
 /** What the viewer needs of a report definition. */
 export interface RunnableReport {
+  name?: string;
   layout: Report["layout"];
   page_setup: Report["page_setup"];
 }
@@ -296,6 +297,7 @@ export function ReportRunView({
           layout={layout}
           instances={instances}
           pageSetup={def.page_setup}
+          title={def.name ?? "Report"}
           onRefresh={() => (last.current ? void execute(last.current) : start())}
           onChangeParams={declared.length > 0 ? start : undefined}
         />

@@ -32,7 +32,7 @@ export function safeColor(v: string | undefined): v is string {
   return v !== undefined && v !== "" && v.length <= 64 && SAFE_COLOR.test(v);
 }
 
-const FONT_FAMILY: Readonly<Record<string, string>> = {
+export const FONT_FAMILY: Readonly<Record<string, string>> = {
   sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   serif: 'Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif',
   mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace',
