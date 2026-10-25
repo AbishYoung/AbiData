@@ -182,7 +182,7 @@ func TestImportExportOverHTTP(t *testing.T) {
 				t.Fatal(err)
 			}
 			rows, _ := f.GetRows("Sheet1")
-			if len(rows) != 4 || rows[1][2] != "19.9900" {
+			if len(rows) != 4 || rows[1][2] != "$19.99" {
 				t.Fatalf("xlsx %v", rows)
 			}
 		}
