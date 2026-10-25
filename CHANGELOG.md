@@ -7,83 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-Changed: Documentation screenshots re-shot for the finished Sylvan Atelier theme; the pine banner on sign-in and the workspace picker is no longer cropped.
-
-### Changed
-- Datasheet headers, rows and focus ring polished, and record counts animate smoothly
-
-### Changed
-- Whispering Pines canopy banner on sign-in and workspace picker, owl hover tilt, jewel kind badge component and softer tooltip entrance.
-
-### Changed
-- Shell cockpit polish: frosted-glass header, glowing active nav anchor and elevated active tab.
-
-### Changed
-Changed: Documentation screenshots re-shot, with new export dialog and report preview images.
-
-### Changed
-- PDF downloads of reports mark repeated group headers \"(continued)\", as the viewer does.
-
-### Changed
-Documented how the mobile touch ergonomics (ADR 0022) were built.
-
-### Changed
-Phone bottom dock with Menu, Search and Cards/Grid switch, tab swiping on the dock, and a round floating New record button (ADR 0022).
-
-### Changed
-Long-press multi-select on record cards with a floating Duplicate, Export and Delete bar (ADR 0022).
-
-### Changed
-Touch-first controls on phones: 50x30 toggle switches for yes/no fields, large minus/plus steppers (hold to repeat) for whole numbers, and pinch to change grid row density (ADR 0022).
-
-### Changed
-- Repeated group headers are covered by an end-to-end test; ADR 0018 documents what was built
-
-### Changed
-- Download a report as a PDF, or export its rows as CSV or JSON, straight from the report viewer (ADR 0018)
-
-### Changed
-none (documentation only)
-
-### Changed
-Added: The export dialog offers a clean or raw Excel workbook, a Query Info sheet for saved queries and exporting just the selected records (ADR 0020).
-
-### Changed
-Added: Excel and CSV exports resolve lookup columns to the parent record display text, with an optional adjacent [ID] column (ADR 0020).
-
-### Changed
-Changed: Documentation screenshots re-shot in the Sylvan Atelier theme.
-
-### Changed
-- Pull-to-refresh on record cards, form records and query results on touch screens (ADR 0022).
-
-### Changed
-- Pasting one cell or row over a selection fills the whole selection, and a single value pastes straight into the cell (ADR 0019)
-
-### Changed
-- Pasting into a lookup field matches the pasted names to the related records (ambiguous or missing names are flagged), and a new "Update matching records, add the rest" paste mode updates records by a unique field (ADR 0019).
-
-### Changed
-Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palettes, tactile gradient controls and segmented trays, jewel object-kind chips, line-art wildlife in empty states, and "system is alive" motion (connection beacon, top-edge progress beam, save ripple, shimmer skeletons), all disabled under reduced motion.
-
-### Changed
-- Repeated group headers, page header/footer suppression, keep-together, distinct and percent aggregates (ADR 0018).
+## [1.4.0] - 2026-10-25
 
 ### Added
-- Banded report typography, accounting underlines, band background shading and detail alternate zebra striping (ADR 0018).
-- Server-evaluated per-control conditional formatting rules with screen reader accessibility labels.
-- Designer property UI for accounting rules, typography, zebra striping, and conditional formatting.
-- Swipeable record cards with edit, duplicate and delete actions on touch screens (ADR 0022).
+- **Report bands and PDF output (ADR 0018)**: repeated group headers marked "(continued)" in the viewer and in PDFs, page header and footer suppression, keep-together groups, distinct and percent aggregates, banded typography, accounting underlines, band shading and alternate-row striping. Reports download as PDF, or export their rows as CSV or JSON, straight from the viewer. Currency options, number and date pattern masks, prefixes and suffixes; a live in-memory draft preview in the designer; and `reports.generate` for background jobs saves CSV, JSON or HTML artifacts.
+- **Conditional formatting in reports**: server-evaluated per-control rules with screen reader labels, and designer properties for accounting rules, typography, striping and formatting rules.
+- **Clipboard (ADR 0019)**: copying cells puts TSV, Excel-safe HTML and a structured payload on the clipboard. Paste coerces currencies, European number formats, dates and booleans. Datasheet paste reads HTML tables from Excel and Google Sheets (as text only), detects a header row, and matches pasted columns to fields by name with a mapping you can change. It understands rows copied from other AbiData tables, matches pasted names to lookup records (flagging ambiguous or missing ones), and adds an "Update matching records, add the rest" mode. Pasting one cell or row over a selection fills the selection.
+- **Typed Excel export (ADR 0020)**: Excel workbooks keep column types and number formats. The export dialog offers a clean or raw Excel workbook, a Query Info sheet for saved queries and exporting only the selected records; Excel and CSV exports resolve lookup columns to the parent record's display text, with an optional adjacent `[ID]` column.
+- **"Sylvan Atelier" theme (ADR 0021)**: evergreen light and dark palettes, tactile gradient controls and segmented trays, jewel object-kind chips and badges, line-art wildlife in empty states and a pine-ridge banner on sign-in and the workspace picker. The shell has a frosted-glass header, a glowing active nav anchor and an elevated active tab. Datasheet headers, rows and the focus ring are refined and record counts count up smoothly. "System is alive" motion includes a connection beacon, a top-edge progress beam, save ripples, shimmer skeletons and softer tooltips. All motion is off under reduced motion.
+- **Mobile touch ergonomics (ADR 0022)**: a drag-to-dismiss record sheet with a grab bar, swipeable record cards (edit, duplicate, delete), long-press multi-select with a floating action bar, pull-to-refresh, a phone bottom dock with tab swiping, a round floating New record button, touch-sized toggle switches and hold-to-repeat steppers, and pinch to change grid row density.
 - Community health files: code of conduct, contributing guide, security policy, accessibility statement, issue forms and a pull request template.
-- Datasheet paste reads HTML tables from Excel and Google Sheets (as text only), detects a header row, matches pasted columns to fields by name in any order with a mapping you can change, and understands rows copied from other AbiData tables (ADR 0019).
+- Project website at https://abishyoung.github.io/AbiData/, built from the documentation.
 
 ### Changed
-- README rewritten as a shorter front door with the website, quick start, database choice, API example and community links; the long feature detail lives in the documentation and on the project site.
+- README rewritten as a shorter front door; the long feature detail lives in the documentation and on the project site.
 - Versioning: every pull request bumps the patch version; releases are cut on minor versions and on special fix patch versions.
+- Documentation screenshots re-shot in the new theme, with new export dialog and report preview images.
 
 ### Fixed
-- Workspace maintenance race condition on PostgreSQL during user creation and demo workspace provisioning.
+- Workspace maintenance race on PostgreSQL during user creation and demo workspace provisioning.
+
+### Security
+- Dependency overrides for `undici` and `zod` resolve Dependabot alerts.
 
 ## [1.3.1] - 2026-10-24
 
@@ -204,7 +149,8 @@ Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palett
 - Sandboxed script and query execution with resource quotas and process isolation.
 - Automated axe accessibility scanning in CI across both light and dark themes.
 
-[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/AbishYoung/AbiData/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/AbishYoung/AbiData/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/AbishYoung/AbiData/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/AbishYoung/AbiData/compare/v1.1.0...v1.2.0

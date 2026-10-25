@@ -19,7 +19,8 @@ AbiData strictly adheres to [Semantic Versioning 2.0.0](https://semver.org/):
   - **Phase 1 (`v1.1.0`)**: Query Console Ergonomics (`Mod+Enter`, Monaco SQL, Error Markers) & Selection Aggregation ([Plan](docs/planning/phase-1-query-grid-power.md)).
   - **Phase 2 (`v1.2.0`)**: Active Filter Pills Bar, Rich Message Formatting & Cross-Workspace Command Palette ([Plan](docs/planning/phase-2-clarity-and-collaboration.md)).
   - **Phase 3 (`v1.3.0`)**: Mobile Record Swipe Gestures, iOS Keyboard Dismissal & Form Accordions ([Plan](docs/planning/phase-3-mobile-touch-and-forms.md)).
-  - **Phase 4 (`v1.4.0`)**: Pinned Quick Add, Multi-Sort Badges, Column Freezing & Range Clipboard ([Plan](docs/planning/phase-4-data-exploration-and-datasheet.md)).
+  - **Phase 4 (`v1.3.1`)**: Pinned Quick Add, Multi-Sort Badges, Column Freezing & Range Clipboard ([Plan](docs/planning/phase-4-data-exploration-and-datasheet.md)). Shipped early in a 1.3 patch.
+  - **`v1.4.0`**: Report bands and PDF output, clipboard interchange, typed Excel export, the Sylvan Atelier theme and mobile touch ergonomics ([ADRs 0018-0022](docs/adr/0000-record-of-decisions.md)).
   - Additive endpoints and optional fields in `/api/v1`.
   - Automated database schema migrations that run cleanly on startup.
 - **Patch (`1.0.X`)**: Backward-compatible bug fixes, security patches, refactors, and incremental changes.
