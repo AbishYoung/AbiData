@@ -20,3 +20,9 @@
 .ui-tip[data-state="delayed-open"][data-side="bottom"], .ui-tip[data-state="instant-open"][data-side="bottom"] { animation: ui-tip-in-bottom 100ms ease-out; }
 .ui-tip[data-state="delayed-open"][data-side="left"], .ui-tip[data-state="instant-open"][data-side="left"] { animation: ui-tip-in-left 100ms ease-out; }
 .ui-tip[data-state="delayed-open"][data-side="right"], .ui-tip[data-state="instant-open"][data-side="right"] { animation: ui-tip-in-right 100ms ease-out; }
+
+/* Datasheet console (ADR 0021): satin column headers, a soft frozen-column edge and a glowing resize handle. */
+.grid-head { background-image: linear-gradient(to bottom, transparent, color-mix(in oklch, var(--surface-3) 55%, transparent)); }
+.grid-frozen-edge { box-shadow: 3px 0 10px -2px var(--shadow-color-2); }
+.grid-resize::after { content: ""; position: absolute; inset-block: 0; right: 0; width: 2px; background: transparent; transition: background-color 120ms, box-shadow 120ms; }
+.grid-resize:hover::after { background: var(--accent); box-shadow: 0 0 8px 1px var(--accent); }

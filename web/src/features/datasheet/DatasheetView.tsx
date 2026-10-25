@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { keys } from "@/lib/events";
@@ -1303,10 +1304,17 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       </div>
       <div className={docFooter}>
         <span className="tabular-nums">
-          {countReady ? `${formatCount(total)}${capped ? "+" : ""} ${total === 1 ? "record" : "records"}` : "Counting records…"}
+          {countReady ? (
+            <>
+              <AnimatedNumber value={total} />
+              {capped ? "+" : ""} {total === 1 ? "record" : "records"}
+            </>
+          ) : (
+            "Counting records…"
+          )}
         </span>
         {filterActive && <span className={badge}>Filtered</span>}
-        {selected.size > 0 && <span className="tabular-nums">{formatCount(selected.size)} selected</span>}
+        {selected.size > 0 && <span className="tabular-nums"><AnimatedNumber value={selected.size} /> selected</span>}
         {dirty && <span className={badgeWarning}>Unsaved changes</span>}
         <span className="ml-auto flex items-center gap-3">
           {fetching && <span>Updating…</span>}

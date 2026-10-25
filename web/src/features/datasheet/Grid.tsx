@@ -163,8 +163,8 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
       }}
       style={frozenLeft === undefined ? { width } : { width, left: frozenLeft }}
       className={`group/h ${frozenLeft === undefined ? "relative" : "sticky z-[9]"} flex shrink-0 items-center border-b border-r ${
-        frozenEdge ? "border-r-2 border-r-border-strong" : "border-border"
-      } bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3`}
+        frozenEdge ? "grid-frozen-edge border-r-border-strong" : "border-r-border/70"
+      } grid-head border-b-border bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3`}
     >
       <Tip label={`${col.display_name}. Click to sort, Shift+click to add a sort column. Alt+Left or Alt+Right resizes the column.`}>
         <button
@@ -231,7 +231,7 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
         onPointerUp={() => {
           drag.current = null;
         }}
-        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-accent"
+        className="grid-resize absolute right-0 top-0 h-full w-1.5 cursor-col-resize"
       />
     </div>
   );
@@ -419,12 +419,12 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
         onDoubleClick={() => props.onCellDoubleClick({ row: rowIndex, col: colIndex })}
         style={isFrozen ? { width: widths[colIndex], left: frozenLeft } : { width: widths[colIndex], scrollMarginLeft: scrollStart }}
         className={`${isFrozen ? "sticky z-[9]" : "relative"} flex h-full shrink-0 items-center gap-1 border-b border-r ${
-          isFrozen && colIndex === frozen - 1 ? "border-r-2 border-r-border-strong" : "border-border"
-        } select-none px-3 text-sm scroll-mt-8 ${align} ${isActive ? "outline-2 -outline-offset-2 outline-accent" : ""} ${
+          isFrozen && colIndex === frozen - 1 ? "grid-frozen-edge border-r-border-strong" : "border-border"
+        } select-none px-3 text-sm scroll-mt-8 ${align} ${isActive ? "rounded-[3px] ring-2 ring-inset ring-focus" : ""} ${
           changed || (isFrozen && (isSelected || inRange))
             ? "bg-accent-soft"
             : isSelected || inRange
-              ? "bg-accent-soft/60"
+              ? "bg-accent-soft/50"
               : tone
                 ? TONE_CLASSES[tone]
                 : isFrozen
@@ -479,7 +479,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
             role="columnheader"
             aria-colindex={1}
             style={{ width: ROW_HEADER_WIDTH }}
-            className="sticky left-0 z-10 flex shrink-0 items-center border-b border-r border-border bg-surface-2 px-3 text-xs font-semibold text-fg-muted"
+            className="sticky left-0 z-10 flex shrink-0 items-center grid-head border-b border-r border-border bg-surface-2 px-3 text-xs font-semibold text-fg-muted"
           >
             Record
           </div>
@@ -535,7 +535,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                 aria-busy={buffer?.status === "saving" ? true : undefined}
                 className={`group/r absolute left-0 top-0 flex ${
                   row !== undefined && row.id === props.highlightRowId ? "row-saved" : v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"
-                } transition-colors duration-700 hover:bg-surface-2/60`}
+                } transition-colors duration-100 hover:bg-surface-2/60`}
                 style={{
                   width: totalWidth,
                   height: v.size,
