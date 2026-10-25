@@ -1,5 +1,5 @@
 import { bandDef, controlText, type Pagination, type PlacedBand, type ReportControl, type ReportInstance, type ReportLayout } from "../paginate";
-import { FONT_FAMILY, LINE_HEIGHT, bandBackground, controlCss, fxCss } from "../viewerLogic";
+import { FONT_FAMILY, LINE_HEIGHT, bandBackground, continuedSuffix, controlCss, firstTextId, fxCss } from "../viewerLogic";
 import { BLACK, parseCssColor } from "./color";
 import { baseFont, textWidth, type FontFamily } from "./fontMetrics";
 import { PdfDoc, type PdfPage, type Rgb } from "./pdfWriter";
@@ -72,6 +72,9 @@ interface Ctx {
   grow: boolean;
   ox: number;
   oy: number;
+  /** The repeated group header's note, appended to the control suffixId names. */
+  suffix?: string;
+  suffixId?: string;
 }
 
 function drawRules(ctx: Ctx, x: number, y: number, w: number, h: number, top: Rule | null, bottom: Rule | null): void {
@@ -155,7 +158,7 @@ function drawControl(ctx: Ctx, c: ReportControl): void {
     return;
   }
   const raw = c.type === "label" && ctx.instance.values[c.id] === undefined ? (c.caption ?? "") : controlText(c, ctx.instance.values, ctx.pageNumber, ctx.pageCount);
-  drawText(ctx, c, raw);
+  drawText(ctx, c, c.id === ctx.suffixId ? raw + (ctx.suffix ?? "") : raw);
 }
 
 function drawSlice(doc: { page: PdfPage; pagination: Pagination; layout: ReportLayout; instances: readonly ReportInstance[]; number: number }, placed: PlacedBand): void {
@@ -180,6 +183,11 @@ function drawSlice(doc: { page: PdfPage; pagination: Pagination; layout: ReportL
     ox: content.x,
     oy: sliceY - placed.offset,
   };
+  // A group header repeated at the top of a page carries its "(continued)" note, as on screen.
+  if (placed.repeated) {
+    ctx.suffix = continuedSuffix(layout, placed.band);
+    ctx.suffixId = firstTextId(controls, instance, doc.number, pagination.pageCount);
+  }
   for (const c of controls) drawControl(ctx, c);
   page.restore();
 }

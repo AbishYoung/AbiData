@@ -1,14 +1,7 @@
 import { memo } from "react";
 import { BandView } from "./BandView";
 import { bandDef, type Page, type PlacedBand, type ReportInstance, type ReportLayout, type Pagination } from "./paginate";
-import { bandBackground, printPageHeight } from "./viewerLogic";
-
-/** The note added to a repeated group header: the group's own text, or " (continued)". */
-function continuedSuffix(layout: ReportLayout, band: string): string {
-  const level = /^group_header_(\d+)$/.exec(band)?.[1];
-  const custom = level === undefined ? undefined : layout.groups?.[Number(level)]?.continued_suffix;
-  return custom ? custom : " (continued)";
-}
+import { bandBackground, continuedSuffix, printPageHeight } from "./viewerLogic";
 
 function Slice({
   placed,

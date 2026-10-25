@@ -128,6 +128,25 @@ describe("renderReportPdf", () => {
     expect(s).toContain("/Title (Sales)");
   });
 
+  it("adds the continued note to a group header repeated at the top of a page", () => {
+    const grouped = {
+      ...layout,
+      groups: [{ repeat_header: true, header: { height: 20, controls: [ctl("g", "label", 0, 300, { caption: "Region North" })] }, footer: { height: 20, controls: [] } }],
+    } as unknown as ReportLayout;
+    const instances: ReportInstance[] = [
+      ...inst(0),
+      { band: "group_header_0", values: {} },
+      ...Array.from({ length: 100 }, (_, i) => ({ band: "detail", row: i + 1, values: { a: `Row${i + 1}`, b: "1" } })),
+      { band: "group_footer_0", values: {} },
+    ];
+    const p = paginate(grouped, setup, instances);
+    expect(p.pageCount).toBeGreaterThan(1);
+    const s = text(renderReportPdf(p, grouped, instances));
+    // The first header prints plain; each repeat carries the note.
+    expect((s.match(/\(Region North\) Tj/g) ?? []).length).toBe(1);
+    expect((s.match(/\(Region North \\\(continued\\\)\) Tj/g) ?? []).length).toBe(p.pageCount - 1);
+  });
+
   it("clips text that does not fit a fixed-height control with an ellipsis", () => {
     const instances: ReportInstance[] = [{ band: "page_header", template: true, values: {} }, { band: "page_footer", template: true, values: {} }, { band: "report_header", values: {} }, { band: "detail", row: 1, values: { a: "word ".repeat(60), b: "" } }];
     const p = paginate(layout, setup, instances);

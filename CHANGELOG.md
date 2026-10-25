@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- PDF downloads of reports mark repeated group headers \"(continued)\", as the viewer does.
+
+### Changed
 Documented how the mobile touch ergonomics (ADR 0022) were built.
 
 ### Changed
