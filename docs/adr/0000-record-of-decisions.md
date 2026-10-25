@@ -26,4 +26,30 @@ The implementation brief ([docs/BRIEF.md](../BRIEF.md)) is the governing spec. I
 | D18 | API contract generated (huma v2 on chi if Spike S5 passes; else chi + tygo). |
 | D19 | Single sources of truth (Lua API manifest, error catalog, shortcut registry) generate downstream artifacts. |
 
-Deviations are recorded as later ADRs in this directory.
+Deviations and subsequent architectural decisions are recorded as ADRs in this directory:
+
+| ADR | Title | Status |
+|---|---|---|
+| [0001](0001-sqlite-driver.md) | SQLite driver is ncruces/go-sqlite3 (Spike S1) | Accepted |
+| [0002](0002-lua-sandbox-spike.md) | Lua sandbox construction (Spike S2) | Accepted |
+| [0003](0003-huma-chi.md) | huma v2 on chi for the API contract (Spike S5) | Accepted |
+| [0004](0004-gopher-lua-fork.md) | Vendored gopher-lua with a concatenation limit | Accepted |
+| [0005](0005-form-save-endpoints.md) | Form saves go through /forms/{id}/save and /delete | Accepted |
+| [0006](0006-pdfjs-test-dependency.md) | pdfjs-dist as a test-only dependency for PDF snapshots | Accepted |
+| [0007](0007-restore-as-new-for-owners.md) | Restore-as-new for owners, and backup caps | Accepted |
+| [0008](0008-global-egress-allowlist.md) | One global egress allowlist, managed by platform administrators | Accepted |
+| [0009](0009-workspace-api-keys.md) | Workspace API keys for external clients | Accepted |
+| [0010](0010-geo-fields.md) | Geographic fields (points and areas) | Implemented |
+| [0011](0011-file-attachments.md) | File attachments (workspace bucket) | Implemented |
+| [0012](0012-postgres-backend.md) | PostgreSQL as an alternative storage backend | Implemented |
+| [0013](0013-backend-agnostic-sql-layer.md) | A backend-agnostic SQL layer (one model, SQL generated per dialect) | Implemented |
+| [0014](0014-public-apps.md) | Public apps: forms and reports behind a secret link | Accepted |
+| [0015](0015-web-ui-review-and-modernisation.md) | Web UI review and modernisation | Implemented |
+| [0016](0016-layered-testing.md) | Layered, change-aware testing | Accepted |
+| [0017](0017-user-blogs.md) | User blogs: a public blog for every user | Implemented |
+| [0018](0018-report-formatting-and-generation-refinements.md) | Banded Report Formatting, Intelligent Pagination & Direct Export | Proposed |
+| [0019](0019-intelligent-clipboard-and-spreadsheet-interoperability.md) | Intelligent Clipboard & Multi-MIME Spreadsheet Interoperability | Proposed |
+| [0020](0020-typed-clean-excel-data-export.md) | Typed Clean Excel Data Export Engine | Proposed |
+| [0021](0021-visual-style-overhaul-and-sylvan-atelier-theme.md) | Visual Design Overhaul, "Sylvan Atelier" Wildlife Theme & Alive Motion | Proposed |
+| [0022](0022-mobile-touch-ergonomics-and-advanced-gestures.md) | Mobile Touch Ergonomics & Advanced Gestures | Proposed |
+
