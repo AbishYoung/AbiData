@@ -9,7 +9,7 @@ Colleagues collaborate with real-time updates from desktop or mobile devices, wo
 [Features](#features) | [Quick start](#quick-start) | [Choosing a database](#choosing-a-database) | [API](#using-the-api) | [Architecture](#architecture) | [Security](#security) | [Versioning](#versioning-and-releases) | [Development](#development) | [Documentation](#documentation) | [License](#license)
 
 [![CI Status](https://github.com/AbishYoung/AbiData/actions/workflows/ci.yml/badge.svg)](https://github.com/AbishYoung/AbiData/actions/workflows/ci.yml)
-[![Release: 1.0.0](https://img.shields.io/badge/release-v1.0.0-blue.svg)](https://github.com/AbishYoung/AbiData/releases)
+[![Release: 1.3.1](https://img.shields.io/badge/release-v1.3.1-blue.svg)](https://github.com/AbishYoung/AbiData/releases)
 [![Go: 1.24+](https://img.shields.io/badge/Go-1.24+-00ADD8.svg)](go.mod)
 [![React: 19](https://img.shields.io/badge/React-19-61DAFB.svg)](web/package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

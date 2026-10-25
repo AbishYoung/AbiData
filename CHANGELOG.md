@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-24
+
+### Added
+- **Datasheet Ergonomics & Power Exploration (Phase 4)**:
+  - Pinned quick-add row beneath headers (`Mod+Shift+N` or toolbar) for rapid record creation with keyboard navigation (`Enter` to save, `Esc` to close).
+  - Multi-column sorting with rank badges indicating sort order (`1`, `2`, `3`) and directional arrows (`Shift+click` to chain keys).
+  - Column freezing allowing leading columns to stay sticky while horizontally scrolling wide tables, with saved per-user layout.
+  - Multi-cell range selection with click-and-drag or `Shift+arrows`, TSV clipboard copy (`Mod+C`), and multi-row validated paste dialog with type conversion checks.
+  - Column profiling dialog displaying row counts, distinct counts, top 5 value distributions with frequency bars, and numeric/date quartile statistics.
+  - Conditional formatting rules modal configuring color tones (`danger`, `warning`, `success`, `info`, `accent`), matching icons, and screen-reader accessibility labels.
+- **Geographic Data Interchange (ADR 0010 & ADR 0011)**:
+  - Latitude and longitude column pair detection in tabular data import to automatically construct `Location` (geo_point) fields.
+  - GeoJSON FeatureCollection export for tables containing geographic columns.
+  - GeoJSON FeatureCollection file import creating geospatial tables with coordinates and property attributes.
+  - Attachment file name export and import mapping indicators.
+- **PostgreSQL Backend Operations & Compatibility (ADR 0012 Phase 5)**:
+  - `abidata migrate-backend` CLI command for zero-downtime database migration from SQLite to PostgreSQL.
+  - Interactive SQL dialect hints displayed in the query console and SQL editors.
+  - Comprehensive PostgreSQL operations guide covering administration, backup strategies, and production deployments.
+  - Dual-database CI matrix validating the Go test suite and all 13 Playwright E2E suites across both PostgreSQL 17 and PostgreSQL 18.
+
+### Fixed
+- **Security Vulnerability Remediation**:
+  - Implemented survey fixes across authentication session checks, input sanitization, attachment reference ordering, and outbound network egress restrictions.
+- **Database & Job Scheduler Compatibility**:
+  - Quoted SQL table and column identifiers to prevent PostgreSQL automatic lowercase folding on PascalCase schema objects.
+  - Synchronized workspace provisioning with advisory locks and retry mechanisms to eliminate concurrency races.
+  - Fixed race condition in job scheduler tests (`TestQueuedEnqueueArgsSurvive`).
+  - Added active run polling in `RunDetailPanel` and explicit cache invalidation in `RunHistory` to ensure rapid job logs refresh reliably.
+
 ## [1.3.0] - 2026-10-20
 
 ### Added
@@ -96,7 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sandboxed script and query execution with resource quotas and process isolation.
 - Automated axe accessibility scanning in CI across both light and dark themes.
 
-[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/AbishYoung/AbiData/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/AbishYoung/AbiData/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/AbishYoung/AbiData/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AbishYoung/AbiData/compare/v1.0.0...v1.1.0
