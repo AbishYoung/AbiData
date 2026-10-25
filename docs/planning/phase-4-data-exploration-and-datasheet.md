@@ -1,7 +1,7 @@
 # Phase 4: Advanced Data Exploration & Deep Datasheet Ergonomics
 
 - **Target Release:** `v1.4.0` (Minor Release)
-- **Status:** Approved for Implementation
+- **Status:** Implemented in PRs #89, #90, #92, #96, #99 and #100; release (version bump and tag) pending
 - **Milestone:** UX Refinement Phase 4
 - **Related ADRs:** [ADR 0013: Backend-Agnostic SQL Layer](../adr/0013-backend-agnostic-sql-layer.md), [ADR 0015: Web UI Modernisation](../adr/0015-web-ui-review-and-modernisation.md), [ADR 0016: Layered Testing](../adr/0016-layered-testing.md)
 - **Design Guidelines:** `web/src/components/DESIGN.md`
@@ -200,13 +200,25 @@ Completing Phase 4 fulfills the requirements for the **`v1.4.0`** minor release 
 
 ---
 
+## 9a. As-built notes
+
+- **4.1 Quick add (#89).** `QuickAddRow` sits in the sticky header area; the virtualizer's scroll margin grows by its height while open. `Mod+Shift+N` previously jumped to the bottom new-record row; it now opens the strip (`Mod+End` still reaches the bottom row), and the shortcut registry, reference page and e2e spec were updated. Lookup, file and area fields are not in the strip. The saved row pulses for 2 seconds (a colour transition, so reduced-motion safe).
+- **4.2 Multi-sort (#90).** `SortState` is `MultiSortKey[]` (empty means none), capped at the server's 8 keys. Rank badges show once two or more keys exist; a single key keeps the arrow. A "Sorted by" strip and the column menus (Then sort ascending/descending, Clear sort, Clear all sorting) cover keyboard use. No server change.
+- **4.3 Freezing (#92).** `Layout.frozen` (optional, localStorage). The plan's `rgba` shadow was replaced by a `border-r-2 border-border-strong` edge to satisfy the token lint. Freezing is refused if the frozen block would exceed 60% of the grid width.
+- **4.4 Range clipboard (#96).** Drag, Shift+click and Shift+arrows select a rectangle (saved rows only). Copy is TSV with Excel-style quoting. Paste of several cells opens `PastePreviewDialog` (overwrite or insert as new records, per-cell conversion, skip-invalid option) and is saved through `rows/batch` as one atomic transaction, limited to the API's 1,000 operations. This replaces the plan's 500-cell chunks with a progress bar: chunking would break the all-or-nothing guarantee. Lookup, file and read-only fields are skipped on paste.
+- **4.5 Profiling (#99).** Computed in the browser by streaming pages of 500 records (cancellable, first 20,000 records) rather than by a server aggregate endpoint or Web Worker, so no Go change was needed. Percentiles use linear interpolation. A server endpoint remains an option for exact figures on very large tables.
+- **4.6 Formatting (#100).** Rules live in `Layout.rules` (per user and table, in the browser). Tones use the AA-tested token pairs; `info` maps to the accent-soft pair and `accent` to the solid accent. Matches add an icon and screen-reader text. Operators offered depend on the field type.
+- **Not done:** the Playwright specs added for 4.1, 4.2 and 4.3 were not run locally; there are no e2e specs for 4.4 to 4.6 and no axe run on the new dialogs; the version bump to 1.4.0 and the tag are left to the release PR.
+
+---
+
 ## 10. Exit Criteria for `v1.4.0`
 
-- [ ] Pinned quick-add row creates records instantly via `Shift+Mod+N`.
-- [ ] `Shift+Click` multi-column sorting displays visual rank badges (`1 ▲`, `2 ▼`).
-- [ ] Columns can be frozen and stay sticky during horizontal scrolling.
-- [ ] Rectangular cell selections copy as TSV and paste with validation preview.
-- [ ] Column data profiling modal computes cardinality, null counts, and quartiles.
-- [ ] Conditional formatting rules highlight rows and cells using semantic tokens.
-- [ ] Zero axe accessibility violations.
+- [x] Pinned quick-add row creates records instantly via `Shift+Mod+N`.
+- [x] `Shift+Click` multi-column sorting displays visual rank badges (`1 ▲`, `2 ▼`).
+- [x] Columns can be frozen and stay sticky during horizontal scrolling.
+- [x] Rectangular cell selections copy as TSV and paste with validation preview.
+- [x] Column data profiling modal computes cardinality, null counts, and quartiles.
+- [x] Conditional formatting rules highlight rows and cells using semantic tokens.
+- [ ] Zero axe accessibility violations (the e2e axe suite has not been run against the new UI).
 - [ ] Version metadata incremented to `1.4.0` in `web/package.json` and tagged as `v1.4.0`.
