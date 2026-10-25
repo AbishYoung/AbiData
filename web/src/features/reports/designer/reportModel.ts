@@ -68,6 +68,9 @@ export interface BandProps {
   background?: string;
   /** Detail band only: tint of every even row (zebra striping). */
   alternate_background?: string;
+  /** Page header/footer only: hide the band on the first / last page. */
+  suppress_first_page?: boolean;
+  suppress_last_page?: boolean;
 }
 
 export interface GroupSpec {
@@ -75,6 +78,12 @@ export interface GroupSpec {
   lua_expr: string;
   sort: "asc" | "desc";
   interval: number;
+  /** Repeat the group header on every page the group continues onto. */
+  repeat_header?: boolean;
+  /** Text appended to the repeated header (server default " (continued)"). */
+  continued_suffix?: string;
+  /** "all" keeps a group that fits on one page together; "none" lets a header sit at the foot of a page. */
+  keep_together?: "none" | "first_detail" | "all";
 }
 
 export interface SortSpec {
@@ -201,6 +210,8 @@ function bandProps(b: ReportBand): BandProps {
     visible: b.visible !== false,
     ...(b.background ? { background: b.background } : {}),
     ...(b.alternate_background ? { alternate_background: b.alternate_background } : {}),
+    ...(b.suppress_first_page ? { suppress_first_page: true } : {}),
+    ...(b.suppress_last_page ? { suppress_last_page: true } : {}),
   };
 }
 
@@ -230,6 +241,9 @@ export function stateFromReport(r: Report): ReportState {
       lua_expr: g.lua_expr ?? "",
       sort: g.sort === "desc" ? "desc" : "asc",
       interval: g.interval ?? 0,
+      ...(g.repeat_header ? { repeat_header: true } : {}),
+      ...(g.continued_suffix ? { continued_suffix: g.continued_suffix } : {}),
+      ...(g.keep_together ? { keep_together: g.keep_together } : {}),
     })),
     sorts: (l.sorts ?? []).map((s) => ({ column_id: s.column_id, desc: s.desc === true })),
     controls,
@@ -261,6 +275,8 @@ function toApiBand(s: ReportState, id: BandId): ReportBand {
     ...(p.visible ? {} : { visible: false }),
     ...(p.background ? { background: p.background } : {}),
     ...(id === "detail" && p.alternate_background ? { alternate_background: p.alternate_background } : {}),
+    ...((id === "page_header" || id === "page_footer") && p.suppress_first_page ? { suppress_first_page: true } : {}),
+    ...((id === "page_header" || id === "page_footer") && p.suppress_last_page ? { suppress_last_page: true } : {}),
     controls: s.controls.filter((c) => c.band === id).map(toApiControl),
   };
 }
@@ -280,6 +296,9 @@ export function layoutFromState(s: ReportState): ReportLayout {
       ...(g.lua_expr ? { lua_expr: g.lua_expr } : {}),
       sort: g.sort,
       ...(g.interval > 0 ? { interval: g.interval } : {}),
+      ...(g.repeat_header ? { repeat_header: true } : {}),
+      ...(g.continued_suffix ? { continued_suffix: g.continued_suffix } : {}),
+      ...(g.keep_together && g.keep_together !== "first_detail" ? { keep_together: g.keep_together } : {}),
       header: toApiBand(s, groupHeaderId(i)),
       footer: toApiBand(s, groupFooterId(i)),
     })),

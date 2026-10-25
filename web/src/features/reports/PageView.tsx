@@ -3,6 +3,13 @@ import { BandView } from "./BandView";
 import { bandDef, type Page, type PlacedBand, type ReportInstance, type ReportLayout, type Pagination } from "./paginate";
 import { bandBackground, printPageHeight } from "./viewerLogic";
 
+/** The note added to a repeated group header: the group's own text, or " (continued)". */
+function continuedSuffix(layout: ReportLayout, band: string): string {
+  const level = /^group_header_(\d+)$/.exec(band)?.[1];
+  const custom = level === undefined ? undefined : layout.groups?.[Number(level)]?.continued_suffix;
+  return custom ? custom : " (continued)";
+}
+
 function Slice({
   placed,
   layout,
@@ -26,7 +33,7 @@ function Slice({
       style={{ top: placed.y, height: placed.height, width: layout.width, backgroundColor: bandBackground(def, inst.band, inst.row) }}
     >
       <div className="rv-band" style={{ width: layout.width, transform: placed.offset ? `translateY(${-placed.offset}px)` : undefined }}>
-        <BandView controls={def.controls ?? []} instance={inst} page={page} pageCount={pageCount} grow={def.can_grow === true} />
+        <BandView controls={def.controls ?? []} instance={inst} page={page} pageCount={pageCount} grow={def.can_grow === true} suffix={placed.repeated ? continuedSuffix(layout, placed.band) : undefined} />
       </div>
     </div>
   );

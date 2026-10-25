@@ -103,6 +103,32 @@ export function GroupsPanel({ state, columns, onChange }: { state: ReportState; 
                   hint="0 groups on the whole value. Text: the first N characters. Numbers: multiples of N."
                   onCommit={(v) => onChange(updateGroup(state, i, { interval: v }))}
                 />
+                <CheckField
+                  label={`Group ${n} repeat header on each page`}
+                  hint="When the group runs onto another page, its header is shown again at the top with a continued note."
+                  checked={g.repeat_header === true}
+                  onChange={(e) => onChange(updateGroup(state, i, { repeat_header: e.target.checked }))}
+                />
+                {g.repeat_header === true && (
+                  <TextField
+                    label={`Group ${n} continued text`}
+                    autoComplete="off"
+                    maxLength={32}
+                    placeholder=" (continued)"
+                    value={g.continued_suffix ?? ""}
+                    hint="Added after the repeated header's first text. Empty uses (continued)."
+                    onChange={(e) => onChange(updateGroup(state, i, { continued_suffix: e.target.value }))}
+                  />
+                )}
+                <SelectField
+                  label={`Group ${n} page breaks`}
+                  value={g.keep_together ?? "first_detail"}
+                  onChange={(e) => onChange(updateGroup(state, i, { keep_together: e.target.value as NonNullable<typeof g.keep_together> }))}
+                >
+                  <option value="first_detail">Keep the header with its first row</option>
+                  <option value="all">Keep the whole group on one page when it fits</option>
+                  <option value="none">Allow a break anywhere</option>
+                </SelectField>
                 <RowButtons
                   label={`group ${n}`}
                   index={i}

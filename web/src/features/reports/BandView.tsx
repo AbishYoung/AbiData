@@ -18,6 +18,12 @@ function ReportMap({ control, value }: { control: ReportControl; value: unknown 
   return <SvgMap width={control.w} height={control.h} geometry={parseGeometry(value)} overlay={overlay.shapes} tiles={tiles} label={control.name} />;
 }
 
+/** The control that carries a repeated header's continued note: the first (top-left) label or textbox that prints text. */
+function firstTextId(controls: readonly ReportControl[], instance: ReportInstance, page: number, pageCount: number): string | undefined {
+  const printing = controls.filter((c) => (c.type === "label" || c.type === "textbox") && (c.type === "label" && instance.values[c.id] === undefined ? (c.caption ?? "") : controlText(c, instance.values, page, pageCount)) !== "");
+  return [...printing].sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
+}
+
 /** One band instance: its controls at their layout positions, relative to the band's top-left. */
 export const BandView = memo(function BandView({
   controls,
@@ -25,13 +31,17 @@ export const BandView = memo(function BandView({
   page,
   pageCount,
   grow,
+  suffix,
 }: {
   controls: readonly ReportControl[];
   instance: ReportInstance;
   page: number;
   pageCount: number;
   grow: boolean;
+  /** Appended to the band's first text (the "(continued)" note of a repeated group header). */
+  suffix?: string;
 }) {
+  const suffixId = suffix ? firstTextId(controls, instance, page, pageCount) : undefined;
   return (
     <>
       {controls.map((c) => {
@@ -54,7 +64,7 @@ export const BandView = memo(function BandView({
           );
         }
         const fixed = !(grow && (c.type === "textbox" || c.type === "label"));
-        const text = c.type === "label" && instance.values[c.id] === undefined ? (c.caption ?? "") : controlText(c, instance.values, page, pageCount);
+        const text = (c.type === "label" && instance.values[c.id] === undefined ? (c.caption ?? "") : controlText(c, instance.values, page, pageCount)) + (c.id === suffixId ? (suffix ?? "") : "");
         // Screen readers hear why a value is highlighted (rule label), not just the colour.
         const note = fx && text ? <span className="sr-only">, {fx.label}</span> : null;
         if (justify) {

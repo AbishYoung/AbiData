@@ -5,6 +5,7 @@ package reports
 import (
 	"fmt"
 	"regexp"
+	"unicode/utf8"
 
 	"abidata/internal/catalog"
 	"abidata/internal/fault"
@@ -36,9 +37,12 @@ type Band struct {
 	ForceNewPage bool  `json:"force_new_page,omitempty"`
 	Visible      *bool `json:"visible,omitempty"`
 	// Background fills the band; AlternateBackground tints every even detail row (zebra striping).
-	Background          string          `json:"background,omitempty" maxLength:"64"`
-	AlternateBackground string          `json:"alternate_background,omitempty" maxLength:"64"`
-	Controls            []ReportControl `json:"controls"`
+	Background          string `json:"background,omitempty" maxLength:"64"`
+	AlternateBackground string `json:"alternate_background,omitempty" maxLength:"64"`
+	// SuppressFirstPage and SuppressLastPage hide a page header or footer band on the first or last page.
+	SuppressFirstPage bool            `json:"suppress_first_page,omitempty"`
+	SuppressLastPage  bool            `json:"suppress_last_page,omitempty"`
+	Controls          []ReportControl `json:"controls"`
 }
 
 // Control is a report control.
@@ -70,7 +74,7 @@ type ReportControl struct {
 
 // Aggregate is a structured aggregate (never parsed from text, D12).
 type Aggregate struct {
-	Func     string `json:"aggregate" enum:"sum,avg,count,min,max"`
+	Func     string `json:"aggregate" enum:"sum,avg,count,min,max,count_distinct,percent_of_total"`
 	ColumnID string `json:"column_id,omitempty"` // empty with count = row count
 	Scope    string `json:"scope" enum:"group,report"`
 	Running  bool   `json:"running,omitempty"`
@@ -84,6 +88,12 @@ type Group struct {
 	Interval   int    `json:"interval,omitempty" doc:"Text: group by first N characters; number: by multiples of N."`
 	Header     Band   `json:"header"`
 	Footer     Band   `json:"footer"`
+	// RepeatHeader repeats the group header at the top of each page the group continues onto.
+	RepeatHeader bool `json:"repeat_header,omitempty"`
+	// ContinuedSuffix is appended to the repeated header's first text (default " (continued)").
+	ContinuedSuffix string `json:"continued_suffix,omitempty" maxLength:"32"`
+	// KeepTogether keeps a group's header with its first detail row (first_detail, the default) or the whole group on one page when it fits (all).
+	KeepTogether string `json:"keep_together,omitempty" enum:"none,first_detail,all,"`
 }
 
 // Sort orders detail rows within groups.
@@ -177,6 +187,14 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 		if g.Interval < 0 || g.Interval > 1_000_000 {
 			return bad("Group %d interval is out of range.", i+1)
 		}
+		switch g.KeepTogether {
+		case "", "none", "first_detail", "all":
+		default:
+			return bad("Group %d keep-together must be none, first_detail or all.", i+1)
+		}
+		if utf8.RuneCountInString(g.ContinuedSuffix) > 32 {
+			return bad("Group %d: the continued text is too long.", i+1)
+		}
 	}
 	for _, s := range l.Sorts {
 		if !has(s.ColumnID) {
@@ -191,6 +209,9 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 		}
 		if err := validateBandColors(label, b); err != nil {
 			return err
+		}
+		if (b.SuppressFirstPage || b.SuppressLastPage) && label != "page_header" && label != "page_footer" {
+			return bad("Only the page header and footer can be hidden on the first or last page.")
 		}
 		for _, c := range b.Controls {
 			where := fmt.Sprintf("Control %q", c.Name)
@@ -249,6 +270,14 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 				case "count":
 					if a.ColumnID != "" && !has(a.ColumnID) {
 						return bad("%s: the aggregate field is not in the record source.", where)
+					}
+				case "count_distinct":
+					if a.ColumnID == "" || !has(a.ColumnID) {
+						return bad("%s: the aggregate needs a field of the record source.", where)
+					}
+				case "percent_of_total":
+					if a.ColumnID == "" || !has(a.ColumnID) {
+						return bad("%s: the aggregate needs a numeric field of the record source.", where)
 					}
 				default:
 					return bad("%s: unknown aggregate %q.", where, a.Func)

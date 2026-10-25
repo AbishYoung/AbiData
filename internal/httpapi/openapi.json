@@ -873,7 +873,9 @@
               "avg",
               "count",
               "min",
-              "max"
+              "max",
+              "count_distinct",
+              "percent_of_total"
             ],
             "type": "string"
           },
@@ -1194,6 +1196,12 @@
             "type": "integer"
           },
           "keep_together": {
+            "type": "boolean"
+          },
+          "suppress_first_page": {
+            "type": "boolean"
+          },
+          "suppress_last_page": {
             "type": "boolean"
           },
           "visible": {
@@ -2940,6 +2948,10 @@
           "column_id": {
             "type": "string"
           },
+          "continued_suffix": {
+            "maxLength": 32,
+            "type": "string"
+          },
           "footer": {
             "$ref": "#/components/schemas/Band"
           },
@@ -2951,8 +2963,20 @@
             "format": "int64",
             "type": "integer"
           },
+          "keep_together": {
+            "enum": [
+              "none",
+              "first_detail",
+              "all",
+              ""
+            ],
+            "type": "string"
+          },
           "lua_expr": {
             "type": "string"
+          },
+          "repeat_header": {
+            "type": "boolean"
           },
           "sort": {
             "enum": [

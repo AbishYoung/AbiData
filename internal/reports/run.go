@@ -150,7 +150,11 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 			}
 		}
 	}
+	grandSum := map[string]decimal.Decimal{} // per column, for percent_of_total
 	aggValue := func(a *Aggregate, from, to int) any {
+		if a.Func == "percent_of_total" {
+			return percentOfTotal(a, rows, from, to, byKey[a.ColumnID], grandSum)
+		}
 		return aggregate(a, rows[from:to], byKey[a.ColumnID])
 	}
 	// staticValues renders a band's controls for a given row context.
@@ -203,11 +207,15 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 					sp.to = rowIdx + 1
 				}
 				f := byKey[c.Aggregate.ColumnID]
-				if c.Aggregate.Func == "count" {
+				if c.Aggregate.Func == "count" || c.Aggregate.Func == "count_distinct" || c.Aggregate.Func == "percent_of_total" {
 					f = nil // a count is a plain number, whatever the counted column holds
 				}
+				ac := c
+				if ac.Aggregate.Func == "percent_of_total" && ac.Format == "" {
+					ac.Format = "percent" // a share of the total prints as a percentage unless told otherwise
+				}
 				raw = aggValue(c.Aggregate, sp.from, sp.to)
-				vals[c.ID] = fmtv(c, raw, f)
+				vals[c.ID] = fmtv(ac, raw, f)
 			case c.Type == "textbox":
 				vals[c.ID] = c.Caption
 			}
@@ -692,6 +700,13 @@ func aggregate(a *Aggregate, rows []*row, f *field) any {
 	if a.Func == "count" {
 		return int64(len(vals))
 	}
+	if a.Func == "count_distinct" {
+		seen := make(map[string]struct{}, len(vals))
+		for _, v := range vals {
+			seen[distinctKey(v, f)] = struct{}{}
+		}
+		return int64(len(seen))
+	}
 	if len(vals) == 0 {
 		return nil
 	}
@@ -765,4 +780,43 @@ func aggregate(a *Aggregate, rows []*row, f *field) any {
 		return isum
 	}
 	return fsum
+}
+
+// distinctKey identifies a value for count_distinct: numbers compare by value ("1.0" equals "1"), text case-insensitively.
+func distinctKey(v any, f *field) string {
+	if s, ok := v.(string); ok {
+		if f != nil && f.col != nil && f.col.Type == catalog.Currency {
+			if d, ok := asDecimal(s); ok {
+				return "n" + d.String()
+			}
+		}
+		return "s" + strings.ToLower(s) // text such as "007" and "7" stay distinct
+	}
+	if d, ok := asDecimal(v); ok {
+		return "n" + d.String()
+	}
+	return "o" + fmt.Sprint(v)
+}
+
+// percentOfTotal is the sum of rows[from:to] as a share of the sum over all rows
+// (a decimal string such as "0.2500"; nil when the total is zero or not numeric).
+func percentOfTotal(a *Aggregate, rows []*row, from, to int, f *field, cache map[string]decimal.Decimal) any {
+	sum := &Aggregate{Func: "sum", ColumnID: a.ColumnID}
+	total, ok := cache[a.ColumnID]
+	if !ok {
+		d, isNum := asDecimal(aggregate(sum, rows, f))
+		if !isNum {
+			return nil
+		}
+		total = d
+		cache[a.ColumnID] = d
+	}
+	if total.IsZero() {
+		return nil
+	}
+	part, isNum := asDecimal(aggregate(sum, rows[from:to], f))
+	if !isNum {
+		return nil
+	}
+	return part.DivRound(total, 6).String()
 }

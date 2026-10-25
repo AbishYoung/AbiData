@@ -2305,7 +2305,7 @@ export interface components {
         };
         Aggregate: {
             /** @enum {string} */
-            aggregate: "sum" | "avg" | "count" | "min" | "max";
+            aggregate: "sum" | "avg" | "count" | "min" | "max" | "count_distinct" | "percent_of_total";
             column_id?: string;
             running?: boolean;
             /** @enum {string} */
@@ -2389,6 +2389,8 @@ export interface components {
             /** Format: int64 */
             height: number;
             keep_together?: boolean;
+            suppress_first_page?: boolean;
+            suppress_last_page?: boolean;
             visible?: boolean;
         };
         Bands: {
@@ -2888,6 +2890,7 @@ export interface components {
         };
         Group: {
             column_id?: string;
+            continued_suffix?: string;
             footer: components["schemas"]["Band"];
             header: components["schemas"]["Band"];
             /**
@@ -2895,7 +2898,10 @@ export interface components {
              * @description Text: group by first N characters; number: by multiples of N.
              */
             interval?: number;
+            /** @enum {string} */
+            keep_together?: "none" | "first_detail" | "all" | "";
             lua_expr?: string;
+            repeat_header?: boolean;
             /** @enum {string} */
             sort?: "asc" | "desc" | "";
         };

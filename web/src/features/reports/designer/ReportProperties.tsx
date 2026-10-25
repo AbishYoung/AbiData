@@ -207,6 +207,8 @@ export function ControlProperties({
                 <option value="sum">Sum</option>
                 <option value="avg">Average</option>
                 <option value="count">Count</option>
+                <option value="count_distinct">Count of distinct values</option>
+                <option value="percent_of_total">Percent of report total</option>
                 <option value="min">Minimum</option>
                 <option value="max">Maximum</option>
               </SelectField>
@@ -584,6 +586,17 @@ export function BandProperties({ id, props, onChange }: { id: BandId; props: Ban
           check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")}
           onCommit={(v) => onChange({ alternate_background: v })}
         />
+      )}
+      {(id === "page_header" || id === "page_footer") && (
+        <>
+          <CheckField
+            label="Hide on first page"
+            hint="Useful when the report header acts as a cover page."
+            checked={props.suppress_first_page === true}
+            onChange={(e) => onChange({ suppress_first_page: e.target.checked })}
+          />
+          <CheckField label="Hide on last page" checked={props.suppress_last_page === true} onChange={(e) => onChange({ suppress_last_page: e.target.checked })} />
+        </>
       )}
     </form>
   );
