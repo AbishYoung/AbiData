@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Planning document for theme cohesion and UI polish (v1.5.0).
 
+### Changed
+- Light and dark themes share one forest-toned neutral ladder, with new chart, glow, selection and scrollbar tokens.
+
 ## [1.4.0] - 2026-10-25
 
 ### Added

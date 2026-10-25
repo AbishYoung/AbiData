@@ -53,6 +53,13 @@ const PAIRS: [string, string, number][] = [
   ["ember", "bg", 3],
   ["focus", "surface", 3],
   ["focus", "bg", 3],
+  ["fg", "selection", 4.5],
+  ["chart-axis", "surface", 4.5],
+  ["chart-axis", "bg", 4.5],
+  ...[1, 2, 3, 4, 5, 6].flatMap((n): [string, string, number][] => [
+    [`chart-${n}`, "surface", 3],
+    [`chart-${n}`, "bg", 3],
+  ]),
   ...["table", "query", "form", "report", "script", "job"].flatMap((k): [string, string, number][] => [
     [`kind-${k}`, `kind-${k}-soft`, 3],
     [`kind-${k}`, "surface", 3],
@@ -79,6 +86,15 @@ describe("design tokens", () => {
   it("fail a pair below its minimum (the check itself works)", () => {
     expect(contrast(parseColor("#777") as Rgb, parseColor("#fff") as Rgb)).toBeLessThan(4.5);
     expect(contrast(parseColor("oklch(0% 0 0)") as Rgb, parseColor("oklch(100% 0 0)") as Rgb)).toBeCloseTo(21, 1);
+  });
+
+  it("define the chart, selection and scrollbar tokens in both themes", () => {
+    for (const theme of [light, dark]) {
+      for (const n of ["accent-glow", "chart-1", "chart-6", "chart-grid", "chart-axis", "selection", "scrollbar-thumb"]) expect(theme[n]).toBeTruthy();
+      const op = Number(theme["chart-fill-opacity"]);
+      expect(op).toBeGreaterThan(0);
+      expect(op).toBeLessThanOrEqual(1);
+    }
   });
 
   it("keep white avatar initials at AA on every avatar fill", () => {
