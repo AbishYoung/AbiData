@@ -3,7 +3,7 @@ import type { Virtualizer } from "@tanstack/react-virtual";
 import { Check, ChevronRight, Copy, Download, Ellipsis, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { Column } from "@/lib/schema";
-import { badgeWarning, btnPrimary, iconBtn, menu, menuItem } from "@/components/styles";
+import { badgeWarning, iconBtn, menu, menuItem } from "@/components/styles";
 import type { Row } from "./rowsApi";
 import type { RowBuffer, RowKey } from "./buffer";
 import { AttachmentCell } from "@/features/files/FileParts";
@@ -299,10 +299,10 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
         <button
           type="button"
           onClick={onNew}
-          className={`${btnPrimary} absolute bottom-4 right-4 !h-12 gap-2 rounded-full !px-5 text-base shadow-lg`}
+          aria-label="New record"
+          className="absolute bottom-4 right-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg hover:bg-accent-hover active:brightness-95"
         >
-          <Plus size={20} aria-hidden="true" />
-          New record
+          <Plus size={26} aria-hidden="true" />
         </button>
       )}
     </div>
