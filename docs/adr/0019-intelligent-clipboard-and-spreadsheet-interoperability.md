@@ -1,6 +1,6 @@
 # ADR 0019: Intelligent Clipboard & Multi-MIME Spreadsheet Interoperability
 
-Status: Proposed · 2026-10-24 (approved for implementation)
+Status: Accepted · implemented 2026-10-25 (see "As built")
 
 ## Context
 
@@ -57,3 +57,16 @@ Phase 4 introduced rectangular cell range selection (`CellRange`) and basic TSV 
 - Clipboard writes fall back gracefully to `copyText` when multi-MIME clipboard API is blocked.
 - Batch writes continue to commit atomically through `batchRows()` under OCC protection.
 - `MAX_PASTE_ROWS` remains bounded at 1,000 records per operation.
+
+## As built
+
+Delivered in five pull requests (copy, coercion, mapping, lookups and upsert, fill). Deviations from the text above:
+
+- **Clipboard flavors.** `text/plain`, `text/html` and `application/x-abidata-cells` are written with `navigator.clipboard.write`; the custom type goes under the `web ` prefix (Chromium) and is retried without it where refused. Browsers that do not expose custom types still carry the structured payload as an escaped `data-abidata-cells` attribute on the HTML `<table>`, which the paste side reads. Blocks over 2,000 records are copied as text only. `Mod+Shift+C` copies with headers; there is no context-menu item.
+- **Reading.** `clipboardRead.ts` parses `text/html` with `DOMParser` into text only (nothing is inserted as markup), preferring AbiData payload, then an HTML table, then TSV/CSV. Rows (5,000), columns (200) and cell length (32,768) are capped; the 1,000-record limit of a paste is unchanged.
+- **Header detection and mapping** live in `headers.ts`; the preview dialog has a "First row contains column headers" toggle and a per-column "Goes into" selector (or skip). Rows copied from another AbiData table map by name, then by field type; auto-number and calculated fields never carry over.
+- **Coercion** (`coerce.ts`): currency symbols and codes, accounting negatives, European and Swiss grouping, dates (ISO, MDY/DMY by the reader locale, named months, Excel serials of five to seven digits), times, zoned instants and more Yes/No spellings. A serial below 10,000 is not read as a date.
+- **Lookups.** One request per distinct pasted name (at most 200 per field), exact case-insensitive match on the display field. Missing or ambiguous names are errors with suggestions that the user can skip; there is no pick-one-candidate control.
+- **Upsert.** Offered when a mapped field has a single-column unique index; existing records are fetched with the `in` filter in chunks of 100 and compared exactly. Repeated keys in the paste are flagged.
+- **Fill.** One cell or one row onto a larger selection opens the preview with the repeated block. A single value into one cell is written straight into the row's pending change when it converts (lookups and unconvertible values still open the editor). The datasheet has no undo stack, so `Mod+Z` is not wired; the pending change is discarded with Esc like any edit.
+- **Not done.** No Playwright end-to-end test for paste; behaviour is covered by Vitest.
