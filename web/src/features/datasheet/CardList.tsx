@@ -67,30 +67,10 @@ function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete,
   const tile = "flex h-full flex-col items-center justify-center gap-1 text-xs font-medium";
   return (
     <div className="relative h-full overflow-hidden rounded-xl" data-swipe-open={open ?? undefined}>
-      {enabled && (
-        <>
-          <div inert={open !== "right"} className="absolute inset-y-0 left-0 flex" style={{ width: RIGHT_REVEAL }}>
-            <button type="button" tabIndex={-1} className={`${tile} w-full bg-surface-3 text-fg`} onClick={() => { onOpenChange(null); onDuplicate(); }}>
-              <Copy size={20} aria-hidden="true" />
-              Duplicate
-            </button>
-          </div>
-          <div inert={open !== "left"} className="absolute inset-y-0 right-0 flex" style={{ width: LEFT_REVEAL }}>
-            <button type="button" tabIndex={-1} className={`${tile} w-1/2 bg-accent text-accent-fg`} onClick={() => { onOpenChange(null); onEdit(); }}>
-              <Pencil size={20} aria-hidden="true" />
-              Edit
-            </button>
-            <button type="button" tabIndex={-1} className={`${tile} w-1/2 bg-danger text-danger-fg`} onClick={() => { onOpenChange(null); onDelete(); }}>
-              <Trash2 size={20} aria-hidden="true" />
-              Delete
-            </button>
-          </div>
-        </>
-      )}
       <div
         ref={ref}
         {...handlers}
-        className="relative h-full touch-pan-y"
+        className="relative z-10 h-full touch-pan-y"
         style={{ transform: open === "left" ? `translate3d(-${LEFT_REVEAL}px,0,0)` : open === "right" ? `translate3d(${RIGHT_REVEAL}px,0,0)` : undefined }}
       >
         {children}
@@ -118,6 +98,26 @@ function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete,
           </DropdownMenu.Root>
         )}
       </div>
+      {enabled && (
+        <>
+          <div inert={open !== "right"} className="absolute inset-y-0 left-0 flex" style={{ width: RIGHT_REVEAL }}>
+            <button type="button" tabIndex={-1} className={`${tile} w-full bg-surface-3 text-fg`} onClick={() => { onOpenChange(null); onDuplicate(); }}>
+              <Copy size={20} aria-hidden="true" />
+              Duplicate
+            </button>
+          </div>
+          <div inert={open !== "left"} className="absolute inset-y-0 right-0 flex" style={{ width: LEFT_REVEAL }}>
+            <button type="button" tabIndex={-1} className={`${tile} w-1/2 bg-accent text-accent-fg`} onClick={() => { onOpenChange(null); onEdit(); }}>
+              <Pencil size={20} aria-hidden="true" />
+              Edit
+            </button>
+            <button type="button" tabIndex={-1} className={`${tile} w-1/2 bg-danger text-danger-fg`} onClick={() => { onOpenChange(null); onDelete(); }}>
+              <Trash2 size={20} aria-hidden="true" />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
