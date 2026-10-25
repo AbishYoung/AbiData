@@ -254,7 +254,7 @@ test("datasheet: draws an area by clicking, shows its size and filters by locati
   await f.getByLabel("Longitude").fill("-0.135");
   await f.getByRole("button", { name: "Apply filter" }).click();
   await expect(page.getByRole("list", { name: "Active filters" })).toContainText("Location within 2.0 km of 51.50100, -0.13500");
-  await expect(page.getByText("2 records")).toBeVisible();
+  await expect(page.getByText(/^Record \d+ of 2$/)).toBeVisible();
 });
 
 for (const scheme of ["light", "dark"] as const) {

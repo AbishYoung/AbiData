@@ -1302,25 +1302,22 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       <div role="status" aria-live="polite" className="sr-only">
         {bounds ? describeRange(bounds) : ""}
       </div>
-      <div className={docFooter}>
-        <span className="tabular-nums">
-          {countReady ? (
-            <>
-              <AnimatedNumber value={total} />
-              {capped ? "+" : ""} {total === 1 ? "record" : "records"}
-            </>
-          ) : (
-            "Counting records…"
+      {/* The record count lives in the shell status bar ("Record N of M"); this strip carries only what it does not. */}
+      {(filterActive || selected.size > 0 || dirty || fetching || !canEdit) && (
+        <div className={docFooter} data-testid="grid-summary">
+          {filterActive && (
+            <span className={badge}>
+              Filtered{countReady ? <> · <span className="tabular-nums"><AnimatedNumber value={total} />{capped ? "+" : ""} {total === 1 ? "match" : "matches"}</span></> : null}
+            </span>
           )}
-        </span>
-        {filterActive && <span className={badge}>Filtered</span>}
-        {selected.size > 0 && <span className="tabular-nums"><AnimatedNumber value={selected.size} /> selected</span>}
-        {dirty && <span className={badgeWarning}>Unsaved changes</span>}
-        <span className="ml-auto flex items-center gap-3">
-          {fetching && <span>Updating…</span>}
-          {!canEdit && <span className={badge}>Read-only</span>}
-        </span>
-      </div>
+          {selected.size > 0 && <span className="tabular-nums"><AnimatedNumber value={selected.size} /> selected</span>}
+          {dirty && <span className={badgeWarning}>Unsaved changes</span>}
+          <span className="ml-auto flex items-center gap-3">
+            {fetching && <span>Updating…</span>}
+            {!canEdit && <span className={badge}>Read-only</span>}
+          </span>
+        </div>
+      )}
       {sheetIndex !== null && mode === "cards" && (
         <RecordSheet
           tableName={table.display_name}
