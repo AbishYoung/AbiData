@@ -227,6 +227,10 @@ export async function shoot(ctx) {
       await save(page, "row-history");
       await page.keyboard.press("Escape");
       await panel.waitFor({ state: "hidden" });
+      // Closing the panel returns focus to the History button, which reopens its tooltip over the next
+      // control: drop the focus and park the pointer.
+      await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+      await page.mouse.move(700, 450);
     }
 
     if (want("table-design")) {
