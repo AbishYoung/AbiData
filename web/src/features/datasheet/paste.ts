@@ -2,6 +2,7 @@ import type { Column } from "@/lib/schema";
 import type { BatchOp, Row } from "./rowsApi";
 import { localeDateOrder, normalizeDate, normalizeDateTime, normalizeNumber, parseBooleanText, type DateOrder } from "./coerce";
 import { positionalMapping, type Mapping } from "./headers";
+import { lookupKey, type LookupDict } from "./lookupResolve";
 import { isReadOnlyColumn, kindOf, parseDraft, valuesEqual } from "./values";
 
 // Pasting a block of cells: what each pasted text becomes in its column, and the batch of writes
@@ -15,6 +16,22 @@ export type Conversion =
 export interface ConvertOptions {
   /** How to read 3/2/2026: month first (en-US) or day first. Defaults to the browser's locale. */
   dateOrder?: DateOrder;
+  /** The related records the lookup field's pasted texts name; without it a lookup cell is skipped. */
+  lookup?: LookupDict;
+}
+
+/** A lookup cell: the text names one related record (its id), none or several (an error), or nothing yet (skipped). */
+function convertLookup(raw: string, dict: LookupDict | undefined): Conversion {
+  const text = raw.trim();
+  if (text === "") return { status: "ok", value: null };
+  const found = dict?.get(lookupKey(text));
+  if (!found) return { status: "skip", reason: dict ? "Not looked up" : "Looking up related records" };
+  if (found.skipped) return { status: "error", message: "Too many different names to look up at once. Paste fewer rows." };
+  const [only, ...more] = found.ids;
+  if (only !== undefined && more.length === 0) return { status: "ok", value: only };
+  if (only !== undefined) return { status: "error", message: `${found.ids.length} related records have this name. Make it unique, or choose the record in the cell.` };
+  const near = found.suggestions.length > 0 ? ` Closest: ${found.suggestions.join(", ")}.` : "";
+  return { status: "error", message: `No related record is named this.${near}` };
 }
 
 let defaultOrder: DateOrder | undefined;
@@ -29,7 +46,7 @@ export function convertPaste(col: Column, raw: string, opts: ConvertOptions = {}
   const kind = kindOf(col);
   const order = opts.dateOrder ?? readerOrder();
   if (kind === "attachments") return { status: "skip", reason: "Files cannot be pasted" };
-  if (kind === "lookup") return { status: "skip", reason: "Lookup fields cannot be pasted yet" };
+  if (kind === "lookup") return convertLookup(raw, opts.lookup);
   if (kind === "boolean") {
     if (raw.trim() === "") return { status: "ok", value: null };
     const b = parseBooleanText(raw);
@@ -91,6 +108,8 @@ export interface PasteInput {
   startCol: number;
   /** For each pasted column, the index in `columns` it goes to (null: left out). Default: side by side from `startCol`. */
   mapping?: Mapping;
+  /** Resolved lookup texts by lookup column id. */
+  lookups?: ReadonlyMap<string, LookupDict>;
   /** Saved records in the view. */
   total: number;
   rowAt: (index: number) => Row | undefined;
@@ -135,7 +154,7 @@ export function planPaste(p: PasteInput): PastePlan {
         continue;
       }
       const text = cells[c] ?? "";
-      const result = convertPaste(col, text);
+      const result = convertPaste(col, text, { lookup: p.lookups?.get(col.id) });
       converted.push(result);
       if (result.status === "skip") {
         plan.skipped++;

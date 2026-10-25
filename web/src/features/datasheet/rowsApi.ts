@@ -187,10 +187,11 @@ export async function searchParent(
   query: string,
   signal?: AbortSignal,
   client: ApiClient = defaultApi,
+  limit = 20,
 ): Promise<Row[]> {
   const filter = query.trim() === "" ? undefined : JSON.stringify({ col: displayColumnId, op: "contains", value: query.trim() });
   const page = await fetchRows(
-    { ws, tableId: parentTableId, offset: 0, limit: 20, sort: displayColumnId, filter },
+    { ws, tableId: parentTableId, offset: 0, limit, sort: displayColumnId, filter },
     signal,
     client,
   );

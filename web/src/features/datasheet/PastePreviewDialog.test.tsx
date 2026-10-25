@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PastePreviewDialog } from "./PastePreviewDialog";
+import { resolveLookups } from "./lookupResolve";
 import { col, row } from "./testutil";
+
+vi.mock("./lookupResolve", async (orig) => ({
+  ...(await orig<typeof import("./lookupResolve")>()),
+  resolveLookups: vi.fn(async () => new Map([["acme corp", { ids: [7], suggestions: [] }]])),
+}));
 
 afterEach(cleanup);
 
@@ -111,6 +117,29 @@ describe("PastePreviewDialog", () => {
     });
     expect(screen.getByText(/from the table Prospects/)).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Field for Qty" })).toHaveValue("1");
+  });
+
+  it("resolves lookup names to related records before it allows the paste", async () => {
+    const user = userEvent.setup();
+    const parent = col("parent", "lookup", { display_name: "Customer" });
+    const { onApply } = setup([["Acme Corp"], ["Acme Corp"]], {
+      columns: [parent],
+      lookupFor: () => ({ ws: "w", parentTableId: "p", displayColumnId: "name" }),
+    });
+    const paste = screen.getByRole("button", { name: /^Paste/ });
+    expect(paste).toBeDisabled();
+    expect(await screen.findByText(/Paste as 2 new records|Paste into 0 records/)).toBeVisible();
+    await user.click(screen.getByRole("radio", { name: /Insert as new records/ }));
+    expect(await screen.findByRole("button", { name: /Paste as 2 new records/ })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: /Paste as 2 new records/ }));
+    expect(onApply).toHaveBeenCalledWith(
+      [
+        { op: "insert", fields: { parent: 7 } },
+        { op: "insert", fields: { parent: 7 } },
+      ],
+      "insert",
+    );
+    expect(resolveLookups).toHaveBeenCalledTimes(1);
   });
 
   it("starts in insert mode below the last record and shows the server's refusal", () => {

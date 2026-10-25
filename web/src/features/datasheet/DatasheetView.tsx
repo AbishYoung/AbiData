@@ -1338,6 +1338,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           columns={columns}
           matrix={paste.matrix}
           payload={paste.payload}
+          lookupFor={lookupFor}
           startRow={paste.startRow}
           startCol={paste.startCol}
           total={total}

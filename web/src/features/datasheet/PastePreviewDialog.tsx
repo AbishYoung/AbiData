@@ -1,13 +1,15 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Check, ClipboardPaste, TriangleAlert } from "lucide-react";
 import type { Column } from "@/lib/schema";
 import { Button, Dialog } from "@/components/ui";
 import { alertBox, infoBox, select as selectClass } from "@/components/styles";
 import type { CellsPayload } from "./clipboardFormats";
+import type { LookupInfo } from "./Editors";
+import { lookupKey, resolveLookups, type LookupDict } from "./lookupResolve";
 import { detectHeader, matchNames, payloadMapping, positionalMapping, type Mapping } from "./headers";
 import { blockingReason, planPaste, type PasteMode, type PastePlan } from "./paste";
 import type { BatchOp, Row } from "./rowsApi";
-import { isReadOnlyColumn } from "./values";
+import { isReadOnlyColumn, kindOf } from "./values";
 
 const PREVIEW_ROWS = 6;
 const PREVIEW_COLS = 6;
@@ -17,6 +19,8 @@ interface Props {
   matrix: readonly (readonly string[])[];
   /** Where the cells came from, when AbiData copied them. */
   payload?: CellsPayload | null;
+  /** How a lookup field finds its related records (pasted names are matched against their display field). */
+  lookupFor?: (col: Column) => LookupInfo | undefined;
   startRow: number;
   startCol: number;
   total: number;
@@ -51,7 +55,7 @@ function payloadFits(payload: CellsPayload | null | undefined, matrix: readonly 
  * field, the target range, how each value converts, and whether it overwrites the cells there or becomes
  * new records. Nothing is written until Paste is chosen; the whole block is then saved in one transaction.
  */
-export function PastePreviewDialog({ columns, matrix, payload, startRow, startCol, total, rowAt, busy, error, onApply, onCancel }: Props) {
+export function PastePreviewDialog({ columns, matrix, payload, lookupFor, startRow, startCol, total, rowAt, busy, error, onApply, onCancel }: Props) {
   const modeName = useId();
   const known = payloadFits(payload, matrix) ? payload : null;
   const guess = useMemo(() => detectHeader(matrix, columns), [matrix, columns]);
@@ -80,11 +84,50 @@ export function PastePreviewDialog({ columns, matrix, payload, startRow, startCo
   const mapping = useMemo<Mapping>(() => auto.map((m, c) => (overrides.has(c) ? (overrides.get(c) ?? null) : m)), [auto, overrides]);
   const mapped = mapping.some((m) => m !== null);
 
+  // Lookup fields: the pasted names are matched to related records (one request per distinct name).
+  const needed = useMemo(() => {
+    const out = new Map<string, { info: LookupInfo; texts: string[] }>();
+    mapping.forEach((m, c) => {
+      const col = m === null || m === undefined ? undefined : columns[m];
+      const info = col && kindOf(col) === "lookup" ? lookupFor?.(col) : undefined;
+      if (!col || !info) return;
+      const texts = data.map((r) => r[c] ?? "").filter((t) => t.trim() !== "");
+      out.set(col.id, { info, texts: [...(out.get(col.id)?.texts ?? []), ...texts] });
+    });
+    return out;
+  }, [mapping, columns, data, lookupFor]);
+  const [dicts, setDicts] = useState<ReadonlyMap<string, LookupDict>>(() => new Map());
+  const [lookupFailed, setLookupFailed] = useState(false);
+  const todo = useMemo(() => [...needed].filter(([id, n]) => n.texts.some((t) => !dicts.get(id)?.has(lookupKey(t)))), [needed, dicts]);
+  const resolving = todo.length > 0 && !lookupFailed;
+  useEffect(() => {
+    if (todo.length === 0 || lookupFailed) return;
+    const ctl = new AbortController();
+    void Promise.all(todo.map(async ([id, n]) => [id, await resolveLookups(n.info, n.texts, ctl.signal)] as const))
+      .then((done) =>
+        setDicts((prev) => {
+          const next = new Map(prev);
+          for (const [id, d] of done) next.set(id, new Map([...(prev.get(id) ?? []), ...d]));
+          return next;
+        }),
+      )
+      .catch(() => {
+        if (!ctl.signal.aborted) setLookupFailed(true);
+      });
+    return () => ctl.abort();
+  }, [todo, lookupFailed]);
+
   const plan = useMemo(
-    () => planPaste({ columns, matrix: data, startRow, startCol, mapping, total, rowAt, mode }),
-    [columns, data, startRow, startCol, mapping, total, rowAt, mode],
+    () => planPaste({ columns, matrix: data, startRow, startCol, mapping, lookups: dicts, total, rowAt, mode }),
+    [columns, data, startRow, startCol, mapping, dicts, total, rowAt, mode],
   );
-  const blocked = mapped ? blockingReason(plan, mode, skipInvalid) : "Choose at least one field to paste into.";
+  const blocked = !mapped
+    ? "Choose at least one field to paste into."
+    : resolving
+      ? "Looking up related records…"
+      : lookupFailed && needed.size > 0
+        ? "The related records could not be looked up. Close this and try again."
+        : blockingReason(plan, mode, skipInvalid);
   const writes = mode === "insert" ? count(plan.ops.length, "new record", "new records") : count(plan.ops.length, "record", "records");
   const shownCols = Array.from({ length: Math.min(width, PREVIEW_COLS) }, (_, c) => c);
   const writable = columns.map((c, i) => ({ c, i })).filter(({ c }) => !isReadOnlyColumn(c));
