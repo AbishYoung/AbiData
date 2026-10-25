@@ -8,6 +8,8 @@
   .wl-anim .wl-twitch { transform-origin: 56px 66px; animation: wl-twitch 7s ease-in-out 2s infinite; }
   .wl-anim .wl-antlers { transition: stroke 200ms ease, filter 200ms ease; }
   .wl-anim:hover .wl-antlers { stroke: var(--ember); filter: drop-shadow(0 0 3px var(--ember)); }
+  .wl-anim .wl-head { transform-box: view-box; transform-origin: 60px 50px; transition: transform 300ms ease; }
+  .wl-anim:hover .wl-head { transform: rotate(-7deg); }
 }
 @keyframes wl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes wl-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }

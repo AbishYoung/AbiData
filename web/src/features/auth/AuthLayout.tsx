@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { Database, History, ShieldCheck, Table2 } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
+import { PineCanopyIllustration } from "@/components/wildlife";
 
 const FEATURES = [
   { icon: Table2, text: "Tables, queries, forms and reports in one workspace" },
@@ -188,8 +189,11 @@ export function AuthLayout({
           </p>
         </div>
       </div>
-      <main className="flex items-start justify-center bg-bg px-4 py-6 sm:items-center sm:p-8">
-        <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-md sm:p-8">
+      <main className="bg-canopy relative flex items-start justify-center bg-bg px-4 py-6 sm:items-center sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-24 overflow-hidden text-accent/40 sm:h-32">
+          <PineCanopyIllustration className="absolute inset-x-0 bottom-0 h-full w-full" />
+        </div>
+        <div className="relative w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-md sm:p-8">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">
             {title}
           </h1>

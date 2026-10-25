@@ -33,7 +33,7 @@ export function Tip({
             side={side}
             sideOffset={6}
             collisionPadding={8}
-            className="z-[60] flex max-w-72 items-center gap-2 rounded-md bg-fg px-2 py-1 text-xs font-medium text-bg shadow-md"
+            className="ui-tip z-[60] flex max-w-72 items-center gap-2 rounded-md bg-fg px-2 py-1 text-xs font-medium text-bg shadow-md"
           >
             <span>{label}</span>
             {shortcut && <ShortcutKeys shortcut={shortcut} />}
