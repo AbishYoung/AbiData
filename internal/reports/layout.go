@@ -30,12 +30,15 @@ type Bands struct {
 
 // Band is one horizontal section.
 type Band struct {
-	Height       int             `json:"height"`
-	CanGrow      bool            `json:"can_grow,omitempty"`
-	KeepTogether bool            `json:"keep_together,omitempty"`
-	ForceNewPage bool            `json:"force_new_page,omitempty"`
-	Visible      *bool           `json:"visible,omitempty"`
-	Controls     []ReportControl `json:"controls"`
+	Height       int   `json:"height"`
+	CanGrow      bool  `json:"can_grow,omitempty"`
+	KeepTogether bool  `json:"keep_together,omitempty"`
+	ForceNewPage bool  `json:"force_new_page,omitempty"`
+	Visible      *bool `json:"visible,omitempty"`
+	// Background fills the band; AlternateBackground tints every even detail row (zebra striping).
+	Background          string          `json:"background,omitempty" maxLength:"64"`
+	AlternateBackground string          `json:"alternate_background,omitempty" maxLength:"64"`
+	Controls            []ReportControl `json:"controls"`
 }
 
 // Control is a report control.
@@ -61,6 +64,8 @@ type ReportControl struct {
 	// MaxImages is an image control's gallery size: how many of the field's images print (default 1, at most MaxImagesLimit).
 	MaxImages int               `json:"max_images,omitempty"`
 	Map       *forms.MapOptions `json:"map,omitempty"`
+	// Rules are conditional formatting rules; the first match restyles the control.
+	Rules []FormatRule `json:"rules,omitempty" maxItems:"8"`
 }
 
 // Aggregate is a structured aggregate (never parsed from text, D12).
@@ -184,6 +189,9 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 		if b.Height < 0 || b.Height > maxBand {
 			return bad("Band %s height is out of range.", label)
 		}
+		if err := validateBandColors(label, b); err != nil {
+			return err
+		}
 		for _, c := range b.Controls {
 			where := fmt.Sprintf("Control %q", c.Name)
 			if c.ID == "" || ids[c.ID] {
@@ -259,6 +267,12 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 				return err
 			}
 			if err := validateAffixes(where, &c); err != nil {
+				return err
+			}
+			if err := validateStyle(where, c.Style); err != nil {
+				return err
+			}
+			if err := validateRules(where, c.Rules); err != nil {
 				return err
 			}
 			if c.MaxImages < 0 || c.MaxImages > MaxImagesLimit {

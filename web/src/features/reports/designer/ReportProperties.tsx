@@ -10,6 +10,8 @@ import {
   MAX_AFFIX,
   MAX_IMAGES,
   MAX_MARGIN,
+  MAX_RULES,
+  RULE_OPERATORS,
   PAPER_LABEL,
   TYPE_LABEL,
   bandLabel,
@@ -19,10 +21,14 @@ import {
   formatChoice,
   formatPattern,
   numberPatternError,
+  needsValue,
+  newRule,
+  ruleError,
   validColor,
   withAffix,
   withCurrency,
   withDataKind,
+  withRules,
   withStyle,
   type BandId,
   type BandProps,
@@ -31,6 +37,7 @@ import {
   type Orientation,
   type Paper,
   type ReportState,
+  type RuleSpec,
   type SourceColumn,
   type SourceKind,
   type StyleKey,
@@ -349,8 +356,63 @@ export function ControlProperties({
             check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")}
             onCommit={(v) => setStyle("background", v)}
           />
+          <SelectField label="Font" value={style.font_family ?? ""} onChange={(e) => setStyle("font_family", e.target.value)}>
+            <option value="">Default (sans-serif)</option>
+            <option value="sans">Sans-serif</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+          </SelectField>
+          <SelectField label="Vertical align" value={style.vertical_align ?? ""} onChange={(e) => setStyle("vertical_align", e.target.value)}>
+            <option value="">Top</option>
+            <option value="middle">Middle</option>
+            <option value="bottom">Bottom</option>
+          </SelectField>
+          <SelectField label="Text decoration" value={style.text_decoration ?? ""} onChange={(e) => setStyle("text_decoration", e.target.value)}>
+            <option value="">None</option>
+            <option value="underline">Underline</option>
+            <option value="line-through">Strike-through</option>
+          </SelectField>
         </Group>
       )}
+      {caps.text && (
+        <Group title="Rules and underlines">
+          <SelectField
+            label="Top rule"
+            hint="A line above the value, for example over a subtotal."
+            value={style.border_top ?? ""}
+            onChange={(e) => setStyle("border_top", e.target.value)}
+          >
+            <option value="">None</option>
+            <option value="solid">Single</option>
+            <option value="dashed">Dashed</option>
+            <option value="double">Double</option>
+          </SelectField>
+          <SelectField
+            label="Bottom rule"
+            hint="Use Double under a grand total."
+            value={style.border_bottom ?? ""}
+            onChange={(e) => setStyle("border_bottom", e.target.value)}
+          >
+            <option value="">None</option>
+            <option value="solid">Single</option>
+            <option value="dashed">Dashed</option>
+            <option value="double">Double</option>
+          </SelectField>
+          <SelectField label="Rule thickness" value={style.border_width ?? ""} onChange={(e) => setStyle("border_width", e.target.value)}>
+            <option value="">1 px</option>
+            <option value="2">2 px</option>
+            <option value="3">3 px</option>
+          </SelectField>
+          <CheckedText
+            label="Rule color"
+            value={style.border_color ?? ""}
+            hint="A color name or #rrggbb; empty is black."
+            check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")}
+            onCommit={(v) => setStyle("border_color", v)}
+          />
+        </Group>
+      )}
+      {caps.data && hasData && <RuleProperties control={control} onChange={onChange} />}
     </form>
   );
 }
@@ -386,6 +448,46 @@ function CurrencyProperties({ control, onChange }: { control: DesignControl; onC
         <option value="sign_after">Sign after ($1.00-)</option>
       </SelectField>
       <NumField label="Decimal places" value={cur.decimals ?? 2} min={0} max={6} onCommit={(n) => onChange(withCurrency(control, { decimals: n === 2 ? undefined : n }))} />
+    </Group>
+  );
+}
+
+/** Conditional formatting: rules that restyle the value when a comparison holds (first match wins). */
+function RuleProperties({ control, onChange }: { control: DesignControl; onChange: (c: DesignControl) => void }) {
+  const rules = control.rules ?? [];
+  const set = (i: number, patch: Partial<RuleSpec>): void => onChange(withRules(control, rules.map((r, k) => (k === i ? { ...r, ...patch } : r))));
+  return (
+    <Group title="Conditional formatting">
+      {rules.length === 0 && <p className="m-0 mb-2 text-xs text-fg-muted">No rules. Add one to highlight values, for example negative amounts.</p>}
+      {rules.map((r, i) => {
+        const err = ruleError(r);
+        return (
+          <fieldset key={i} className="m-0 mb-2 rounded border border-border p-2">
+            <legend className="px-1 text-xs font-medium">Rule {i + 1}</legend>
+            <SelectField label="When the value" value={r.operator} onChange={(e) => set(i, { operator: e.target.value as RuleSpec["operator"] })}>
+              {RULE_OPERATORS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </SelectField>
+            {needsValue(r.operator) && (
+              <TextField label="Compare with" autoComplete="off" maxLength={64} value={r.value ?? ""} error={err?.startsWith("Enter a value") ? err : undefined} onChange={(e) => set(i, { value: e.target.value })} />
+            )}
+            <CheckedText label="Text color" value={r.color ?? ""} hint="A color name, #rrggbb or var(--paper-danger)." check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")} onCommit={(v) => set(i, { color: v })} />
+            <CheckedText label="Background" value={r.background ?? ""} check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")} onCommit={(v) => set(i, { background: v })} />
+            <CheckField label="Bold" checked={r.bold === true} onChange={(e) => set(i, { bold: e.target.checked })} />
+            <TextField label="Screen reader note" autoComplete="off" maxLength={64} value={r.label ?? ""} hint="Read after the value when the rule applies. Default: highlighted." onChange={(e) => set(i, { label: e.target.value })} />
+            {err && !err.startsWith("Enter a value") && <p className="m-0 mb-2 text-xs font-medium text-danger">Problem: {err}</p>}
+            <button type="button" className="text-xs underline" onClick={() => onChange(withRules(control, rules.filter((_, k) => k !== i)))}>
+              Remove rule {i + 1}
+            </button>
+          </fieldset>
+        );
+      })}
+      <button type="button" className="text-xs underline" disabled={rules.length >= MAX_RULES} onClick={() => onChange(withRules(control, [...rules, newRule()]))}>
+        Add a rule
+      </button>
     </Group>
   );
 }
@@ -467,6 +569,22 @@ export function BandProperties({ id, props, onChange }: { id: BandId; props: Ban
       <CheckField label="Keep together" hint="Moves the band to the next page rather than splitting it." checked={props.keep_together} onChange={(e) => onChange({ keep_together: e.target.checked })} />
       <CheckField label="Force new page" hint="Starts this band on a new page." checked={props.force_new_page} onChange={(e) => onChange({ force_new_page: e.target.checked })} />
       <CheckField label="Visible" checked={props.visible} onChange={(e) => onChange({ visible: e.target.checked })} />
+      <CheckedText
+        label="Band background"
+        value={props.background ?? ""}
+        hint="A color name, #rrggbb or var(--paper-muted)."
+        check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")}
+        onCommit={(v) => onChange({ background: v })}
+      />
+      {id === "detail" && (
+        <CheckedText
+          label="Alternate row background"
+          value={props.alternate_background ?? ""}
+          hint="Tints every even row for easier scanning, for example var(--paper-zebra)."
+          check={(v) => (validColor(v) ? undefined : "Use a color name, #rrggbb or rgb(…).")}
+          onCommit={(v) => onChange({ alternate_background: v })}
+        />
+      )}
     </form>
   );
 }

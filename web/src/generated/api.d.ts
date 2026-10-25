@@ -2361,6 +2361,8 @@ export interface components {
             raw_bytes: number;
         };
         Band: {
+            alternate_background?: string;
+            background?: string;
             can_grow?: boolean;
             controls: components["schemas"]["ReportControl"][] | null;
             force_new_page?: boolean;
@@ -2824,6 +2826,19 @@ export interface components {
             source_id?: string;
             /** @enum {string} */
             source_kind: "table" | "query" | "none";
+        };
+        FormatRule: {
+            /** @description Background colour override. */
+            background?: string;
+            bold?: boolean;
+            /** @description Text colour override. */
+            color?: string;
+            /** @description Accessible description read after the value when the rule applies (default: highlighted). */
+            label?: string;
+            /** @enum {string} */
+            operator: "<" | "<=" | ">" | ">=" | "=" | "!=" | "is_empty" | "is_not_empty";
+            /** @description Comparison value (numbers compare numerically, other text case-insensitively). */
+            value?: string;
         };
         FuncDoc: {
             contexts?: string[] | null;
@@ -3717,6 +3732,7 @@ export interface components {
             max_images?: number;
             name: string;
             prefix?: string;
+            rules?: components["schemas"]["FormatRule"][] | null;
             style?: {
                 [key: string]: string;
             };

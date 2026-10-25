@@ -41,6 +41,8 @@ type Instance struct {
 	Template   bool           `json:"template,omitempty"` // page header/footer: repeated by the paginator
 	Values     map[string]any `json:"values"`             // control id → formatted text
 	Row        int            `json:"row,omitempty"`      // 1-based detail row number
+	// Fx holds the conditional formatting a control's rules applied (control id → style).
+	Fx map[string]CellFx `json:"fx,omitempty"`
 }
 
 // field describes one source column for typing and formatting.
@@ -152,9 +154,12 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 		return aggregate(a, rows[from:to], byKey[a.ColumnID])
 	}
 	// staticValues renders a band's controls for a given row context.
+	var pendingFx map[string]CellFx // set by render, attached to the next emitted instance
 	render := func(b *Band, r *row, rowIdx int, scope span, groupLevel int, reportSpan span) map[string]any {
 		vals := map[string]any{}
+		pendingFx = nil
 		for _, c := range b.Controls {
+			var raw any // the unformatted value, for conditional formatting rules
 			switch {
 			case c.Type == "label":
 				vals[c.ID] = c.Caption
@@ -176,15 +181,18 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 				}
 			case c.Bind != nil && r != nil:
 				if text, ok := r.vals[displayKey(c.Bind.ColumnID)]; ok && r.vals[c.Bind.ColumnID] != nil {
+					raw = text
 					vals[c.ID] = fmtv(c, text, nil)
 					break
 				}
-				vals[c.ID] = fmtv(c, r.vals[c.Bind.ColumnID], byKey[c.Bind.ColumnID])
+				raw = r.vals[c.Bind.ColumnID]
+				vals[c.ID] = fmtv(c, raw, byKey[c.Bind.ColumnID])
 			case c.Calc != nil && r != nil:
 				if msg, bad := r.errs[c.ID]; bad {
 					vals[c.ID] = "#Error: " + msg
 				} else {
-					vals[c.ID] = fmtv(c, r.calc[c.ID], nil)
+					raw = r.calc[c.ID]
+					vals[c.ID] = fmtv(c, raw, nil)
 				}
 			case c.Aggregate != nil:
 				sp := reportSpan
@@ -198,9 +206,18 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 				if c.Aggregate.Func == "count" {
 					f = nil // a count is a plain number, whatever the counted column holds
 				}
-				vals[c.ID] = fmtv(c, aggValue(c.Aggregate, sp.from, sp.to), f)
+				raw = aggValue(c.Aggregate, sp.from, sp.to)
+				vals[c.ID] = fmtv(c, raw, f)
 			case c.Type == "textbox":
 				vals[c.ID] = c.Caption
+			}
+			if len(c.Rules) > 0 {
+				if fx := ruleMatch(c.Rules, raw); fx != nil {
+					if pendingFx == nil {
+						pendingFx = map[string]CellFx{}
+					}
+					pendingFx[c.ID] = *fx
+				}
 			}
 		}
 		return vals
@@ -210,6 +227,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 		if err := ctx.Err(); err != nil {
 			return fault.Newf(fault.WorkspaceBusy, "The report took longer than %s and was stopped.", MaxRunTime)
 		}
+		inst.Fx, pendingFx = pendingFx, nil
 		return in.Emit(inst)
 	}
 	var first, last *row

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReportControl, ReportLayout } from "./paginate";
-import { assembleMeasured, clampCss, contentHeight, controlCss, fitWidthZoom, growIndexes, pageAtScroll } from "./viewerLogic";
+import { assembleMeasured, bandBackground, clampCss, contentHeight, controlCss, fitWidthZoom, fxCss, growIndexes, pageAtScroll, safeColor, verticalJustify } from "./viewerLogic";
 
 const box = (c: Partial<ReportControl>): ReportControl => ({ id: "c", name: "C", type: "textbox", x: 1, y: 2, w: 30, h: 20, ...c });
 const band = (height: number, can_grow = false, controls: ReportControl[] = [box({})]) => ({ height, can_grow, controls });
@@ -70,5 +70,58 @@ describe("clampCss", () => {
     expect(clampCss({}, 30).WebkitLineClamp).toBe(2);
     expect(clampCss({ fontSize: 18 }, 30).WebkitLineClamp).toBe(1);
     expect(clampCss({}, 4).WebkitLineClamp).toBe(1); // never zero lines
+  });
+});
+
+describe("typography, accounting rules and shading (ADR 0018)", () => {
+  it("draws a single top rule and a double bottom rule for totals", () => {
+    const css = controlCss(box({ style: { border_top: "solid", border_bottom: "double" } }), false);
+    expect(css.borderTop).toBe("1px solid var(--paper-ink)");
+    expect(css.borderBottom).toBe("3px double var(--paper-ink)");
+  });
+
+  it("honours rule width and colour, and ignores unknown or unsafe values", () => {
+    const css = controlCss(box({ style: { border_bottom: "solid", border_width: "2", border_color: "#336699", border_top: "groove" } }), false);
+    expect(css.borderBottom).toBe("2px solid #336699");
+    expect(css.borderTop).toBeUndefined();
+    expect(controlCss(box({ style: { border_bottom: "solid", border_color: "url(x)" } }), false).borderBottom).toBe("1px solid var(--paper-ink)");
+    expect(controlCss(box({ style: { border_top: "none" } }), false).borderTop).toBe("none");
+  });
+
+  it("maps font families and decorations", () => {
+    expect(controlCss(box({ style: { font_family: "mono" } }), false).fontFamily).toMatch(/mono|Menlo/);
+    expect(controlCss(box({ style: { font_family: "comic" } }), false).fontFamily).toBeUndefined();
+    expect(controlCss(box({ style: { text_decoration: "underline" } }), false).textDecoration).toBe("underline");
+    expect(controlCss(box({ style: { text_decoration: "blink" } }), false).textDecoration).toBeUndefined();
+  });
+
+  it("vertical alignment only needs flex for middle and bottom", () => {
+    expect(verticalJustify(box({ style: { vertical_align: "middle" } }))).toBe("center");
+    expect(verticalJustify(box({ style: { vertical_align: "bottom" } }))).toBe("flex-end");
+    expect(verticalJustify(box({ style: { vertical_align: "top" } }))).toBeUndefined();
+    expect(verticalJustify(box({}))).toBeUndefined();
+  });
+
+  it("accepts paper tokens but no other var() or url()", () => {
+    expect(safeColor("var(--paper-zebra)")).toBe(true);
+    expect(safeColor("#abc")).toBe(true);
+    expect(safeColor("var(--danger)")).toBe(false);
+    expect(safeColor("url(javascript:x)")).toBe(false);
+    expect(safeColor("")).toBe(false);
+  });
+
+  it("zebra-stripes even detail rows only", () => {
+    const def = { alternate_background: "var(--paper-zebra)", background: "" };
+    expect(bandBackground(def, "detail", 1)).toBeUndefined();
+    expect(bandBackground(def, "detail", 2)).toBe("var(--paper-zebra)");
+    expect(bandBackground(def, "group_header_0", 2)).toBeUndefined();
+    expect(bandBackground({ background: "var(--paper-muted)" }, "group_header_0", undefined)).toBe("var(--paper-muted)");
+    expect(bandBackground({ alternate_background: "bad;color" }, "detail", 2)).toBeUndefined();
+  });
+
+  it("applies conditional formatting effects with safe colours", () => {
+    expect(fxCss({ color: "var(--paper-danger)", bold: true, background: "#fee" })).toEqual({ color: "var(--paper-danger)", fontWeight: 700, backgroundColor: "#fee" });
+    expect(fxCss({ color: "expression(1)" })).toEqual({});
+    expect(fxCss(undefined)).toEqual({});
   });
 });
