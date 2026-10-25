@@ -45,6 +45,10 @@ linters:
       - path: tools/testplan/
         linters: [gosec]
         text: "G204|G304"
+      # The site generator writes a public website from repository files and flags: its output is world-readable.
+      - path: tools/sitegen/
+        linters: [gosec]
+        text: "G301|G304|G306|G122|G703"
       # Generated artifacts are world-readable by design.
       - path: tools/gen/
         linters: [gosec]

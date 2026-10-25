@@ -6,6 +6,8 @@ Colleagues collaborate with real-time updates from desktop or mobile devices, wo
 
 ![The Orders datasheet in the Northwind Traders sample workspace](docs/images/datasheet-orders.jpg)
 
+**Website: <https://abishyoung.github.io/AbiData/>**
+
 [Features](#features) | [Quick start](#quick-start) | [Choosing a database](#choosing-a-database) | [API](#using-the-api) | [Architecture](#architecture) | [Security](#security) | [Versioning](#versioning-and-releases) | [Development](#development) | [Documentation](#documentation) | [License](#license)
 
 [![CI Status](https://github.com/AbishYoung/AbiData/actions/workflows/ci.yml/badge.svg)](https://github.com/AbishYoung/AbiData/actions/workflows/ci.yml)
@@ -429,6 +431,8 @@ Consult [CHANGELOG.md](CHANGELOG.md) for detailed version history, [RELEASING.md
 ---
 
 ## Documentation
+
+The same documentation is published, with a project home page, at **<https://abishyoung.github.io/AbiData/>** (built from `docs/content` and `site/`; see [the website notes](docs/planning/public-website.md)).
 
 Full documentation is embedded directly inside every AbiData installation — press `?` or click the documentation button in the top navigation bar.
 

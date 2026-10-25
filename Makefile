@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 ABIDATA_BOOTSTRAP_ADMIN_EMAIL ?= admin@example.com
 
-.PHONY: dev dev-web test test-changed test-plan test-go test-go-unit test-go-integration test-web test-e2e test-postgres lint gen build docker docker-local e2e screenshots screenshots-review web-deps web-build clean
+.PHONY: dev dev-web test test-changed test-plan test-go test-go-unit test-go-integration test-web test-e2e test-postgres lint gen build docker docker-local e2e screenshots screenshots-review web-deps web-build site clean
 
 web/node_modules: web/package-lock.json
 	npm --prefix web ci
@@ -103,6 +103,12 @@ screenshots:
 screenshots-review:
 	node scripts/screenshots.mjs --review
 
+# The public website (GitHub Pages): the home page in site/ plus docs/content, rendered to _site/.
+# SITE_BASE is the URL path it is served under.
+SITE_BASE ?= /AbiData/
+site:
+	go run ./tools/sitegen -base $(SITE_BASE) -out _site
+
 clean:
-	rm -rf bin .data web/node_modules
+	rm -rf bin .data _site web/node_modules
 	find web/dist -mindepth 1 ! -name .gitkeep -delete 2>/dev/null || true

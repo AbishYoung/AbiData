@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AbiData - a self-hosted data workspace</title>
+<meta name="description" content="AbiData is a self-hosted data workspace: datasheets, visual and SQL queries, forms, reports, Lua scripts and jobs, and user blogs. One Go binary, SQLite or PostgreSQL.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="AbiData - a self-hosted data workspace">
+<meta property="og:description" content="Datasheets, queries, forms, reports, Lua scripts and jobs in one self-hosted Go binary.">
+<meta property="og:type" content="website">
+<link rel="icon" href="{{BASE}}assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{BASE}}assets/site.css">
+<script>document.documentElement.classList.add("js")</script>
+<script src="{{BASE}}assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="{{BASE}}" aria-label="AbiData home">
+      <img src="{{BASE}}assets/favicon.svg" width="28" height="28" alt="">
+      <span>Abi<b>Data</b></span>
+    </a>
+    <nav aria-label="Site" class="top-nav">
+      <a class="opt" href="#features">Features</a>
+      <a class="opt" href="#screenshots">Screenshots</a>
+      <a class="opt" href="#how-it-works">How it works</a>
+      <a href="#quick-start">Quick start</a>
+      <a href="{{BASE}}docs/">Docs</a>
+      <a href="https://github.com/AbishYoung/AbiData" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <span class="eyebrow">Open source · self-hosted · MIT</span>
+      <h1 id="hero-title">Your data, <span class="grad">your server</span>, your workspace.</h1>
+      <p class="lead">Build datasheets, queries, forms, reports and Lua automations in the browser, then share them with your team. One Go binary. SQLite or PostgreSQL. No account with anyone else.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#quick-start">Get started</a>
+        <a class="btn" href="{{BASE}}docs/">Read the docs</a>
+        <a class="btn" href="https://github.com/AbishYoung/AbiData" rel="noopener">View on GitHub</a>
+      </div>
+      <p class="hero-note">Microsoft Access ideas, rebuilt for the web and for teams.</p>
+      <div class="window">
+        <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="{{BASE}}assets/img/datasheet-orders-dark.jpg">
+          <img src="{{BASE}}assets/img/datasheet-orders.jpg" alt="The Orders datasheet in the Northwind Traders sample workspace: a dense grid of records with sortable columns and a navigation pane of tables, queries, forms and reports." fetchpriority="high">
+        </picture>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2 id="features-title">Everything a small team needs to run on its own data</h2>
+        <p>Each object kind has its own colour and its own editor, and they all work together.</p>
+      </div>
+      <ul class="features">
+        <li class="feature reveal k-table">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg></span>
+          <h3>Datasheets and table design</h3>
+          <p>Typed fields, lookups, calculated columns, validation, record history with field-by-field conflict resolution, and CSV, Excel or JSON import.</p>
+        </li>
+        <li class="feature reveal k-query">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.5 6.5c5 0 5 5.5 7 5.5M8.5 17.5c5 0 5-5.5 7-5.5"/></svg></span>
+          <h3>Visual and SQL queries</h3>
+          <p>Drag-and-drop joins, grouping and filters for builders, plus a sandboxed read-only SQL editor with parameters and hard row and time limits.</p>
+        </li>
+        <li class="feature reveal k-form">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg></span>
+          <h3>Forms</h3>
+          <p>A canvas form builder with subforms and event hooks. Phone-friendly, with GPS capture and photo attachments for field work.</p>
+        </li>
+        <li class="feature reveal k-report">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg></span>
+          <h3>Banded reports and PDF</h3>
+          <p>Grouped tabular and columnar reports with maps, images and totals, printed or exported as PDF from the server.</p>
+        </li>
+        <li class="feature reveal k-script">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg></span>
+          <h3>Lua scripts</h3>
+          <p>Sandboxed Lua 5.1 with memory and CPU limits, a dialect-neutral query builder, an analysis toolkit and an egress allowlist.</p>
+        </li>
+        <li class="feature reveal k-job">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg></span>
+          <h3>Scheduled jobs</h3>
+          <p>Run any script on a cron schedule and inspect every run, its output and its errors.</p>
+        </li>
+        <li class="feature reveal k-accent">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span>
+          <h3>Public apps, no accounts</h3>
+          <p>Bundle forms and reports into a standalone app behind an unguessable link, for surveys, orders or public reporting.</p>
+        </li>
+        <li class="feature reveal k-accent">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="m14 7 3 3"/></svg></span>
+          <h3>User blogs</h3>
+          <p>Markdown authoring with live preview, published as static HTML with Atom feeds for each user.</p>
+        </li>
+        <li class="feature reveal k-accent">
+          <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
+          <h3>SQLite or PostgreSQL</h3>
+          <p>One SQLite file per workspace out of the box, or a schema per workspace in your PostgreSQL cluster. Signed backups either way.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section alt" id="screenshots" aria-labelledby="shots-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2 id="shots-title">See it working</h2>
+        <p>Screenshots from the Northwind Traders and Biosecurity Watch sample workspaces that come with every install. Light and dark follow your system.</p>
+      </div>
+      <div class="carousel reveal" data-carousel role="region" aria-roledescription="carousel" aria-label="Screenshots">
+        <div class="tabs" role="tablist" aria-label="Choose a screenshot">
+          <button type="button" role="tab" aria-selected="true">Datasheets</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Visual queries</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">SQL</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Forms</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Reports</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Scripts</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Jobs</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Blogs</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Admin</button>
+        </div>
+        <div class="track" tabindex="0" aria-label="Screenshot list, scroll sideways">
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="1 of 9">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="{{BASE}}assets/img/datasheet-orders-dark.jpg">
+              <img src="{{BASE}}assets/img/datasheet-orders.jpg" loading="lazy" decoding="async" alt="The Orders datasheet with sortable columns, a filter and the navigation pane.">
+            </picture>
+            <figcaption><strong>Keyboard-driven datasheets</strong>Sort, filter, search and edit in place, with a right-click menu and per-record history.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="2 of 9">
+            <img src="{{BASE}}assets/img/query-visual-designer.png" loading="lazy" decoding="async" alt="The visual query designer showing joined tables, selected output fields and criteria.">
+            <figcaption><strong>Visual query designer</strong>Joins, criteria, grouping and totals without writing SQL. Feeds forms and reports.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="3 of 9">
+            <img src="{{BASE}}assets/img/query-sql.png" loading="lazy" decoding="async" alt="The SQL editor with syntax highlighting and parameter bindings.">
+            <figcaption><strong>Sandboxed SQL</strong>A read-only editor with parameters, execution budgets and tabular export.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="4 of 9">
+            <img src="{{BASE}}assets/img/sighting-form.png" loading="lazy" decoding="async" alt="The Record a sighting form with a map of quarantine zones and two attached photos.">
+            <figcaption><strong>Forms with maps and photos</strong>Record sightings in the field with a GPS position, zones on a map and photo attachments.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="5 of 9">
+            <img src="{{BASE}}assets/img/report-viewer.jpg" loading="lazy" decoding="async" alt="A printable banded report open in the report viewer.">
+            <figcaption><strong>Banded reports</strong>Grouped pages with headers, footers and totals, ready to print or export as PDF.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="6 of 9">
+            <img src="{{BASE}}assets/img/script-editor.png" loading="lazy" decoding="async" alt="The Lua script editor with a script and its output.">
+            <figcaption><strong>Lua scripts</strong>Logic for forms, reports and jobs, in a sandbox with strict limits.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="7 of 9">
+            <img src="{{BASE}}assets/img/job-runs.jpg" loading="lazy" decoding="async" alt="The run history of a scheduled job with status and duration per run.">
+            <figcaption><strong>Scheduled jobs</strong>Cron-driven scripts with a full run history.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="8 of 9">
+            <img src="{{BASE}}assets/img/blog-editor.png" loading="lazy" decoding="async" alt="The blog editor with Markdown on one side and a live preview on the other.">
+            <figcaption><strong>User blogs</strong>Write in Markdown with a live preview and publish static pages.</figcaption>
+          </figure>
+          <figure class="slide" role="group" aria-roledescription="slide" aria-label="9 of 9">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="{{BASE}}assets/img/admin-dashboard-dark.jpg">
+              <img src="{{BASE}}assets/img/admin-dashboard.jpg" loading="lazy" decoding="async" alt="The administrator dashboard with live telemetry, storage use and an audit trail.">
+            </picture>
+            <figcaption><strong>Administration</strong>Telemetry, storage, audit trail, backups and the egress allowlist.</figcaption>
+          </figure>
+        </div>
+        <div class="arrows">
+          <button type="button" data-prev aria-label="Previous screenshot"><span aria-hidden="true">&larr;</span></button>
+          <button type="button" data-next aria-label="Next screenshot"><span aria-hidden="true">&rarr;</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how-it-works" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2 id="how-title">How it works</h2>
+        <p>One process, one place for your data, nothing else to run.</p>
+      </div>
+      <ol class="flow">
+        <li class="reveal"><h3>Run one binary</h3><p>The Go server embeds the React web app, the API and the scheduler. Ship it as a distroless container behind Caddy, or run the static binary yourself.</p></li>
+        <li class="reveal"><h3>Create a workspace</h3><p>Each project is an isolated workspace: its own SQLite file, or its own schema in PostgreSQL. Start from a sample or an empty one.</p></li>
+        <li class="reveal"><h3>Build in the browser</h3><p>Design tables, queries, forms, reports and scripts. Everyone you invite sees changes live, from a laptop or a phone.</p></li>
+        <li class="reveal"><h3>Share and automate</h3><p>Assign roles, publish public apps and blogs, schedule jobs, and use the REST API with scoped keys.</p></li>
+      </ol>
+      <ul class="arch reveal" aria-label="Built with">
+        <li><b>Go</b> server</li>
+        <li><b>React</b> web app, installable as a PWA</li>
+        <li><b>SQLite</b> or <b>PostgreSQL</b></li>
+        <li><b>OpenAPI 3.1</b> REST API</li>
+        <li><b>Lua 5.1</b> sandbox</li>
+        <li>Live updates over server-sent events</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section alt" id="quick-start" aria-labelledby="qs-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2 id="qs-title">Quick start</h2>
+        <p>Try it locally in a few minutes, or put it on a server with automatic HTTPS.</p>
+      </div>
+      <div class="qs">
+        <div class="qs-card reveal">
+          <h3>With Docker</h3>
+          <p>Start a local instance on port 8080:</p>
+          <div class="code"><pre><code>git clone https://github.com/AbishYoung/AbiData.git
+cd AbiData
+scripts/docker-dev.sh</code></pre></div>
+          <p>Read the one-time setup token from the logs, open <code>http://localhost:8080</code> and create the administrator:</p>
+          <div class="code"><pre><code>docker compose -p abidata-dev -f compose.yaml -f compose.dev.yaml \
+  logs abidata | grep setup_token</code></pre></div>
+          <p>For a server with HTTPS through Caddy:</p>
+          <div class="code"><pre><code>export ABIDATA_PUBLIC_URL=https://abidata.example.com
+export ABIDATA_SITE=abidata.example.com
+export ABIDATA_BOOTSTRAP_ADMIN_EMAIL=you@example.com
+scripts/docker-prod.sh</code></pre></div>
+        </div>
+        <div class="qs-card reveal">
+          <h3>As a single binary</h3>
+          <p>Needs Go 1.24 or later and Node.js 24 (LTS) to build. The result is one static executable with the web app embedded:</p>
+          <div class="code"><pre><code>git clone https://github.com/AbishYoung/AbiData.git
+cd AbiData
+make build
+./bin/abidata serve</code></pre></div>
+          <p>Set the same <code>ABIDATA_*</code> variables as for Docker, and put a TLS-terminating proxy in front. To store data in PostgreSQL instead of SQLite files, set <code>ABIDATA_DB=postgres</code> and the connection variables before the first start.</p>
+          <p>Prebuilt sources and notes for each version are on the <a href="https://github.com/AbishYoung/AbiData/releases" rel="noopener">releases page</a>.</p>
+        </div>
+      </div>
+      <p class="qs-more reveal"><a class="btn btn-primary" href="{{BASE}}docs/operations/install/">Read the full installation guide</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap foot">
+    <p><strong>AbiData</strong> is open source software under the MIT licence.</p>
+    <nav aria-label="Footer">
+      <a href="https://github.com/AbishYoung/AbiData" rel="noopener">GitHub</a> ·
+      <a href="https://github.com/AbishYoung/AbiData/releases" rel="noopener">Releases</a> ·
+      <a href="{{BASE}}docs/">Documentation</a> ·
+      <a href="https://github.com/AbishYoung/AbiData/issues" rel="noopener">Issues</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
