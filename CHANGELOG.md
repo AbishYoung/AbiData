@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Changed: Documentation screenshots re-shot for the finished Sylvan Atelier theme; the pine banner on sign-in and the workspace picker is no longer cropped.
+
+### Changed
 - Datasheet headers, rows and focus ring polished, and record counts animate smoothly
 
 ### Changed
