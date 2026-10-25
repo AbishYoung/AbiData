@@ -54,7 +54,7 @@ Adopt **`motion` (`framer-motion`)** as the core SVG animation library:
 
 ## As built
 
-Delivered in four slices (PRs #106 tokens, #116 controls, #118 wildlife, and the motion slice).
+Delivered in seven slices (PRs #106 tokens, #116 controls, #118 wildlife, #123 motion, #141 shell cockpit, #142 canopy and staging, #143 datasheet console).
 
 - **Palette**: as specified for the accents and the dark and light backgrounds; the surface, border and text steps were derived from them and are checked by `tokens.test.ts`. New tokens: `--ember` (campfire amber), `--specular`, `--canopy-a/b`; classes `.specular*`, `.glass`, `.bg-canopy`. The PWA theme colours, manifest and offline page follow the palette (the raster app icons are unchanged).
 - **Controls**: `btnPrimary` gradient ends in `color-mix(accent, black 8%)` instead of the ADR's fixed indigo, which would clash with the green accent. `segTray`/`segActive`/`segInactive` replace the ad-hoc view and filter toggles. `KindIcon` chips are jewel gradients.
