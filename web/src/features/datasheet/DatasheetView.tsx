@@ -1184,7 +1184,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           }}
         />
       )}
-      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, hasGeo: hasGeoField(table.columns), view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive } }} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, hasGeo: hasGeoField(table.columns), view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive, selectedIds: [...selected] } }} onClose={() => setExportOpen(false)} />}
       {historyRow !== null && (
         <RowHistoryPanel
           ws={ws}

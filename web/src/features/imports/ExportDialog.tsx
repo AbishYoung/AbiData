@@ -8,6 +8,7 @@ import type { Params } from "@/features/queries/savedQueries";
 import { ApiError } from "@/lib/api";
 import { cancelOperation, operationArtifactUrl } from "@/lib/operations";
 import { loadCsvBom, saveCsvBom } from "./exportPrefs";
+import { buildExportRequest, defaultScope, MAX_SELECTED, type Scope } from "./exportRequest";
 import { isFinished, parseExportResult, startExport, type ExportRequest } from "./importsApi";
 import { useOperationDetail } from "./useOperationDetail";
 
@@ -20,10 +21,8 @@ export interface ExportSource {
   /** The table has a point or area field, so GeoJSON can be offered. */
   hasGeo?: boolean;
   /** A datasheet's current filter and sort, in the rows endpoint's parameter form. */
-  view?: { filter: string | null; sort: string | null; filtered: boolean };
+  view?: { filter: string | null; sort: string | null; filtered: boolean; selectedIds?: readonly number[] };
 }
-
-type Scope = "view" | "all";
 
 type Format = ExportRequest["format"];
 
@@ -52,7 +51,9 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
   const downloadRef = useRef<HTMLAnchorElement>(null);
   const [format, setFormat] = useState<Format>("csv");
   const [bom, setBom] = useState(loadCsvBom);
-  const [scope, setScope] = useState<Scope>(source.view?.filtered ? "view" : "all");
+  const [scope, setScope] = useState<Scope>(() => defaultScope(source.view, source.view?.filtered === true));
+  const [clean, setClean] = useState(true);
+  const [queryInfo, setQueryInfo] = useState(false);
   const [asking, setAsking] = useState(false);
   const [opId, setOpId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -64,6 +65,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
   const result = status === "succeeded" && op.data ? parseExportResult(op.data.result) : null;
   const artifactUrl = result ? operationArtifactUrl(ws, opId ?? "", result.artifact) : null;
   const params = source.params ?? [];
+  const selectedCount = source.view?.selectedIds?.length ?? 0;
   const memoryKey = `export:${ws}:${source.id}`;
 
   // Start the download once the file is ready; the visible link stays as a fallback.
@@ -79,16 +81,17 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
     setStarting(true);
     setError(null);
     try {
-      const body: ExportRequest = {
-        source_kind: source.kind,
-        source_id: source.id,
+      const body: ExportRequest = buildExportRequest({
+        kind: source.kind,
+        id: source.id,
         format,
-        bom: format === "csv" ? bom : true,
-        clean: true,
-        ...(values ? { params: values } : {}),
-        ...(source.view && scope === "view" && source.view.filter ? { filter: source.view.filter } : {}),
-        ...(source.view && scope === "view" && source.view.sort ? { sort: source.view.sort } : {}),
-      };
+        bom,
+        clean,
+        queryInfo,
+        scope,
+        view: source.view,
+        params: values,
+      });
       if (format === "csv") saveCsvBom(bom);
       const started = await startExport(ws, body);
       downloaded.current = false;
@@ -159,6 +162,26 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
               <fieldset className="m-0 mt-3 border-0 p-0">
                 <legend className="mb-1 p-0 text-sm font-semibold">Records</legend>
                 <div className="space-y-2">
+                  {selectedCount > 0 && (
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input
+                          type="radio"
+                          name={`${baseId}-scope`}
+                          checked={scope === "selected"}
+                          disabled={selectedCount > MAX_SELECTED}
+                          aria-describedby={`${baseId}-scope-selected`}
+                          onChange={() => setScope("selected")}
+                        />
+                        Selected records ({selectedCount.toLocaleString()})
+                      </label>
+                      <p id={`${baseId}-scope-selected`} className="m-0 ml-6 text-sm text-fg-muted">
+                        {selectedCount > MAX_SELECTED
+                          ? `At most ${MAX_SELECTED} records can be exported from a selection. Use the filtered view instead.`
+                          : "Only the records selected in the datasheet, in its sort order."}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label className="flex items-center gap-2 text-sm font-medium">
                       <input type="radio" name={`${baseId}-scope`} checked={scope === "view"} aria-describedby={`${baseId}-scope-view`} onChange={() => setScope("view")} />
@@ -211,6 +234,36 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
                     Lets Excel on Windows show accented and non-Latin text correctly. Turn it off for tools that do not expect a byte-order mark.
                   </p>
                 </div>
+              )}
+              {format === "xlsx" && (
+                <fieldset className="m-0 mt-3 border-0 p-0">
+                  <legend className="mb-1 p-0 text-sm font-semibold">Workbook</legend>
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input type="radio" name={`${baseId}-clean`} checked={clean} aria-describedby={`${baseId}-clean-on`} onChange={() => setClean(true)} />
+                    Clean Excel for analysis
+                  </label>
+                  <p id={`${baseId}-clean-on`} className="m-0 ml-6 text-sm text-fg-muted">
+                    Numbers, currency, dates and Yes/No values as real Excel values, a styled header that stays in view, filter buttons and fitted column widths.
+                  </p>
+                  <label className="mt-2 flex items-center gap-2 text-sm font-medium">
+                    <input type="radio" name={`${baseId}-clean`} checked={!clean} aria-describedby={`${baseId}-clean-off`} onChange={() => setClean(false)} />
+                    Raw database export
+                  </label>
+                  <p id={`${baseId}-clean-off`} className="m-0 ml-6 text-sm text-fg-muted">
+                    The values exactly as the records API returns them, without formatting.
+                  </p>
+                  {source.kind === "query" && clean && (
+                    <div className="mt-3">
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input type="checkbox" checked={queryInfo} aria-describedby={`${baseId}-qinfo`} onChange={(e) => setQueryInfo(e.target.checked)} />
+                        Add a Query Info sheet
+                      </label>
+                      <p id={`${baseId}-qinfo`} className="m-0 ml-6 text-sm text-fg-muted">
+                        Lists the query's SQL, the parameter values, the export time and the row count. Leave it off if you will share the file.
+                      </p>
+                    </div>
+                  )}
+                </fieldset>
               )}
               {source.kind === "query" && (
                 <p className="m-0 mt-2 text-sm text-fg-muted">
