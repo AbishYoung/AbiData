@@ -198,7 +198,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const filterActive = appliedQuick.trim() !== "" || conditions.length > 0;
 
   // ---- data -------------------------------------------------------------------
-  const { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData } =
+  const { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData, refreshDataAsync } =
     useRowPages({ ws, tableId, filterStr, sortStr, canEdit, mode, sheetIndex, quickAddOpen: quickAddOpen && mode === "grid" && canEdit, scrollRef, cardScrollRef });
 
   // ---- buffers ------------------------------------------------------------------
@@ -1229,6 +1229,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           canEdit={canEdit}
           onOpen={openSheet}
           onNew={() => openSheet(total)}
+          onRefresh={refreshDataAsync}
           onDelete={(index) => {
             const row = rowAt(index);
             if (row) setDel({ ids: [row.id], busy: false, error: null });
