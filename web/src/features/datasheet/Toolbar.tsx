@@ -180,11 +180,20 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
   const quickId = useId();
   const item = `${menuItem} data-[disabled]:opacity-50`;
   const triggerRef = useRef<HTMLElement | null>(null);
-  // A dialog opened from the menu restores focus to whatever was focused when it opened; the menu item is
-  // about to disappear, so hand focus to the More button first.
+  // A dialog opened from the menu restores focus to whatever was focused when it opened. The menu item is
+  // about to disappear, so the action waits until the menu has closed and handed focus back to the More
+  // button (onCloseAutoFocus below), and the dialog then returns focus there.
+  const pending = useRef<(() => void) | null>(null);
   const run = (fn?: () => void) => () => {
+    pending.current = fn ?? null;
+  };
+  const afterMenuClose = (e: Event) => {
+    const fn = pending.current;
+    pending.current = null;
+    if (!fn) return;
+    e.preventDefault();
     triggerRef.current?.focus();
-    fn?.();
+    fn();
   };
   const entries: ToolbarEntry[] = [];
   if (p.onQuickAdd) {
@@ -449,7 +458,7 @@ function FullToolbar({ filterRef, ...p }: ToolbarProps) {
             <MoreHorizontal size={16} aria-hidden="true" />
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
-            <DropdownMenu.Content align="end" sideOffset={4} className={`ui-menu z-50 min-w-52 ${menu} text-fg`}>
+            <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={afterMenuClose} className={`ui-menu z-50 min-w-52 ${menu} text-fg`}>
               {movedGroups.map((group, gi) => (
                 <div key={group[0]?.group} role="group">
                   {gi > 0 && <DropdownMenu.Separator className={menuSeparator} />}
