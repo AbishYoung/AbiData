@@ -26,25 +26,53 @@ export function useToasts() {
   const [toasts, setToasts] = useState<readonly Toast[]>([]);
   const next = useRef(1);
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  // Per toast: when its timer last started and how much of its lifetime is left (for hover/focus pauses).
+  const clock = useRef(new Map<number, { started: number; left: number }>());
 
   const dismiss = useCallback((id: number) => {
     const t = timers.current.get(id);
     if (t) clearTimeout(t);
     timers.current.delete(id);
+    clock.current.delete(id);
     setToasts((all) => all.filter((x) => x.id !== id));
   }, []);
+
+  const arm = useCallback(
+    (id: number, ms: number) => {
+      clock.current.set(id, { started: Date.now(), left: ms });
+      timers.current.set(
+        id,
+        setTimeout(() => dismiss(id), ms),
+      );
+    },
+    [dismiss],
+  );
+
+  /** Holds a toast's auto-dismiss while it is hovered or focused; `resume` restarts it with the time left. */
+  const pause = useCallback((id: number) => {
+    const t = timers.current.get(id);
+    const c = clock.current.get(id);
+    if (!t || !c) return;
+    clearTimeout(t);
+    timers.current.delete(id);
+    c.left = Math.max(c.left - (Date.now() - c.started), 0);
+  }, []);
+  const resume = useCallback(
+    (id: number) => {
+      const c = clock.current.get(id);
+      if (c && !timers.current.has(id)) arm(id, c.left);
+    },
+    [arm],
+  );
 
   const push = useCallback(
     (level: ToastLevel, text: string, opts?: ToastOptions) => {
       const id = next.current++;
       setToasts((all) => [...all.slice(-4), { id, level, text, ...opts }]);
       if (opts?.sticky) return;
-      timers.current.set(
-        id,
-        setTimeout(() => dismiss(id), LIFETIME_MS),
-      );
+      arm(id, LIFETIME_MS);
     },
-    [dismiss],
+    [arm],
   );
 
   useEffect(() => {
@@ -55,7 +83,7 @@ export function useToasts() {
     };
   }, []);
 
-  return { toasts, push, dismiss };
+  return { toasts, push, dismiss, pause, resume };
 }
 
 const ICONS = {
@@ -96,9 +124,14 @@ const CHIP = {
 export function ToastRegion({
   toasts,
   onDismiss,
+  onPause,
+  onResume,
 }: {
   toasts: readonly Toast[];
   onDismiss: (id: number) => void;
+  /** Hold / restart a toast's auto-dismiss (hover and focus); the progress hairline pauses with it. */
+  onPause?: (id: number) => void;
+  onResume?: (id: number) => void;
 }) {
   return (
     <div
@@ -112,7 +145,11 @@ export function ToastRegion({
         return (
           <div
             key={t.id}
-            className="ui-toast pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-surface py-3 pl-4 pr-2.5 text-sm text-fg shadow-lg"
+            className="ui-toast pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-surface py-3 pl-4 pr-2.5 text-sm text-fg specular-lg"
+            onMouseEnter={() => onPause?.(t.id)}
+            onMouseLeave={() => onResume?.(t.id)}
+            onFocus={() => onPause?.(t.id)}
+            onBlur={() => onResume?.(t.id)}
           >
             <span
               aria-hidden="true"
@@ -149,6 +186,14 @@ export function ToastRegion({
                 <X size={14} aria-hidden="true" />
               </button>
             </Tip>
+            {!t.sticky && (
+              <span
+                aria-hidden="true"
+                data-testid="toast-progress"
+                className={`ui-toast-progress absolute bottom-0 left-1 right-0 h-0.5 ${STRIPE[t.level]}`}
+                style={{ animationDuration: `${LIFETIME_MS}ms` }}
+              />
+            )}
           </div>
         );
       })}

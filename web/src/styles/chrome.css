@@ -15,6 +15,15 @@
 .ui-menu[data-state="open"] { animation: ui-pop-in 120ms ease-out; }
 .ui-toast { animation: ui-slide-up 180ms ease-out; }
 
+/* Toast auto-dismiss hairline: drains over the toast's lifetime and holds while it is hovered or focused.
+   Reduced motion gets no bar at all (the timer still runs). */
+@keyframes ui-toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.ui-toast-progress { display: none; opacity: 0.55; transform-origin: left center; }
+@media (prefers-reduced-motion: no-preference) {
+  .ui-toast-progress { display: block; animation: ui-toast-drain linear forwards; }
+  .ui-toast:hover .ui-toast-progress, .ui-toast:focus-within .ui-toast-progress { animation-play-state: paused; }
+}
+
 /* Tooltips: a soft fade with a 2px drift away from the trigger. */
 .ui-tip[data-state="delayed-open"][data-side="top"], .ui-tip[data-state="instant-open"][data-side="top"] { animation: ui-tip-in-top 100ms ease-out; }
 .ui-tip[data-state="delayed-open"][data-side="bottom"], .ui-tip[data-state="instant-open"][data-side="bottom"] { animation: ui-tip-in-bottom 100ms ease-out; }

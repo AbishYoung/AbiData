@@ -1,6 +1,6 @@
 import { Tip } from "@/components/Tip";
 import { useState } from "react";
-import { navEmpty, navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
+import { navEmpty, navItemButton, navMenu, navMenuItemFor, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { ContextMenu, DropdownMenu } from "radix-ui";
 import { useQuery } from "@tanstack/react-query";
 import { Ellipsis, Eye, Pencil, Trash2, type LucideIcon } from "lucide-react";
@@ -56,7 +56,7 @@ function JobNavItem({ job, active, actions, onOpen }: { job: Job; active: boolea
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (
-                    <DropdownMenu.Item key={a.id} className={navMenuItem} onSelect={a.run}>
+                    <DropdownMenu.Item key={a.id} className={navMenuItemFor(a.id)} onSelect={a.run}>
                       <a.icon size={14} aria-hidden="true" />
                       {a.label}
                     </DropdownMenu.Item>
@@ -69,7 +69,7 @@ function JobNavItem({ job, active, actions, onOpen }: { job: Job; active: boolea
         <ContextMenu.Portal>
           <ContextMenu.Content className={navMenu}>
             {actions.map((a) => (
-              <ContextMenu.Item key={a.id} className={navMenuItem} onSelect={a.run}>
+              <ContextMenu.Item key={a.id} className={navMenuItemFor(a.id)} onSelect={a.run}>
                 <a.icon size={14} aria-hidden="true" />
                 {a.label}
               </ContextMenu.Item>

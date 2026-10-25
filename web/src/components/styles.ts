@@ -75,8 +75,14 @@ export const trHover = "hover:bg-surface-2/60";
 /** Menus and popovers (Radix content). */
 export const menu = "min-w-44 rounded-lg border border-border bg-surface p-1 specular-lg";
 export const menuItem =
-  "flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg outline-none " +
+  "flex cursor-pointer select-none items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm text-fg outline-none [&>svg:first-child]:w-4 [&>svg:first-child]:shrink-0 [&>svg:first-child]:text-fg-muted " +
   "data-[highlighted]:bg-surface-2 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50";
+/** A destructive menu item (Delete, Remove): danger text and icon, a danger-soft highlight. */
+export const menuItemDanger = `${menuItem} text-danger data-[highlighted]:bg-danger-soft [&>svg:first-child]:text-danger`;
+/** The item class for an action id: destructive ids get the danger style. */
+export const menuItemFor = (id: string, danger = id === "delete" || id === "remove") => (danger ? menuItemDanger : menuItem);
+/** Right-aligned shortcut caps inside a menu item: put `kbd` keys in it. */
+export const menuShortcut = "ml-auto flex shrink-0 items-center gap-1 pl-4";
 export const menuSeparator = "my-1 h-px bg-border";
 
 /** Dialog surfaces (Radix). */
@@ -84,7 +90,7 @@ export const overlay = "fixed inset-0 z-40 bg-scrim/40 backdrop-blur-[2px]";
 export const dialog = "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl border border-border bg-surface specular-lg";
 
 /** Dialog chrome (DESIGN.md "Dialogs"). Pair `dialogOverlay` with `dialogPanel` and give the content `p-5`. */
-export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-scrim/45 backdrop-blur-[2px]";
+export const dialogOverlay = "ui-overlay fixed inset-0 z-40 bg-scrim/45 backdrop-blur-[3px]";
 /** Centered dialog surface; set the width with a `w-[min(26rem,calc(100vw-2rem))]` class. */
 export const dialogPanel =
   "ui-dialog fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface text-fg specular-lg";
@@ -92,10 +98,12 @@ export const dialogTitle = "m-0 text-base font-semibold tracking-tight text-fg";
 export const dialogDescription = "mt-1 text-sm text-fg-muted";
 /** Footer strip for dialog content padded with `p-5`. */
 export const dialogFooter =
-  "-mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 rounded-b-xl border-t border-border bg-surface-2/50 px-5 py-3 compact:sticky compact:bottom-[-1.25rem] compact:z-10 compact:pb-[max(0.75rem,env(safe-area-inset-bottom))]";
+  "-mx-5 -mb-5 mt-5 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-border bg-surface-2 px-5 py-3 compact:sticky compact:bottom-[-1.25rem] compact:z-10 compact:pb-[max(0.75rem,env(safe-area-inset-bottom))]";
 /** Right-anchored side sheet (docs, history). */
 export const sheetPanel =
   "ui-sheet fixed inset-y-0 right-0 z-50 flex w-[min(92vw,28rem)] flex-col border-l border-border bg-surface text-fg specular-lg";
+/** Header band of a dialog padded with `p-5`: surface-2 with a hairline, bleeding to the panel edges. */
+export const dialogHeader = "-mx-5 -mt-5 flex items-start gap-3 rounded-t-xl border-b border-border bg-surface-2 px-5 py-4";
 /** Small tinted square for a semantic dialog icon. */
 export const iconChip = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg";
 
