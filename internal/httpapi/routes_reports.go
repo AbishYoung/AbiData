@@ -16,6 +16,12 @@ import (
 	"abidata/internal/workspace"
 )
 
+// PreviewRequest is an unsaved report draft to run.
+type PreviewRequest struct {
+	Report reports.ReportInput `json:"report"`
+	Params map[string]any      `json:"params,omitempty"`
+}
+
 // reportWriteTimeout bounds how long a report stream waits on a slow client.
 const reportWriteTimeout = 30 * time.Second
 
@@ -129,6 +135,33 @@ func (s *Server) registerReports(api huma.API) {
 			}
 			defer l.Release()
 			return nil, s.deps.Reports.Delete(ctx, l, in.ID, ver)
+		})
+	huma.Register(api, huma.Operation{OperationID: "previewReport", Method: http.MethodPost, Path: "/api/v1/w/{ws}/reports/preview", Tags: tags, Metadata: builder,
+		Summary:     "Run an unsaved report draft (NDJSON, as runReport); nothing is stored",
+		Description: "The designer's live preview: the body is a report definition as for createReport plus optional params. The draft is validated exactly like a save.",
+		Errors:      []int{400, 401, 403, 404, 422, 503}},
+		func(ctx context.Context, in *struct {
+			WS   string `path:"ws"`
+			Body PreviewRequest
+		}) (*huma.StreamResponse, error) {
+			l, err := s.lease(ctx)
+			if err != nil {
+				return nil, err
+			}
+			rep, err := s.deps.Reports.Draft(ctx, l, in.Body.Report)
+			if err != nil {
+				l.Release()
+				return nil, err
+			}
+			sch, err := s.deps.Schemas.Get(ctx, l)
+			if err != nil {
+				l.Release()
+				return nil, err
+			}
+			p, _ := PrincipalFrom(ctx)
+			m, _ := MembershipFrom(ctx)
+			caller := reports.Caller{UserID: p.UserID, Builder: m.Role.AtLeast(admin.RoleBuilder), TZ: workspaceTZ(ctx, l)}
+			return s.streamReport(l, sch, rep, query.Params(in.Body.Params), caller), nil
 		})
 	huma.Register(api, huma.Operation{OperationID: "runReport", Method: http.MethodPost, Path: "/api/v1/w/{ws}/reports/{id}/run", Tags: tags,
 		Summary:     "Run a report: NDJSON stream of section instances {band, group_level, template, values, row}",

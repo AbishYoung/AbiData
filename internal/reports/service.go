@@ -142,15 +142,12 @@ func (s *Service) Get(ctx context.Context, l *workspace.Lease, id string) (Repor
 	return r, err
 }
 
-// Put creates (id "") or replaces a report.
-func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in ReportInput, user string) (Report, error) {
-	name := strings.TrimSpace(in.Name)
-	if name == "" || len(name) > 200 {
-		return Report{}, fault.New(fault.BadRequest, "Enter a report name of at most 200 characters.")
-	}
+// check validates a report input against the workspace: its source, layout, page setup and module.
+// It returns the source table (nil for a query source).
+func (s *Service) check(ctx context.Context, l *workspace.Lease, in *ReportInput) (*catalog.Table, error) {
 	sch, err := s.Schemas.Get(ctx, l)
 	if err != nil {
-		return Report{}, err
+		return nil, err
 	}
 	var t *catalog.Table
 	var qcols []string
@@ -158,23 +155,46 @@ func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expect
 	case "table":
 		tt, ok := sch.Table(in.SourceID)
 		if !ok {
-			return Report{}, fault.New(fault.BadRequest, "The report's table does not exist.")
+			return nil, fault.New(fault.BadRequest, "The report's table does not exist.")
 		}
 		t = tt
 	case "query":
 		q, err := s.Queries.Get(ctx, l, in.SourceID)
 		if err != nil {
-			return Report{}, fault.New(fault.BadRequest, "The report's query does not exist.")
+			return nil, fault.New(fault.BadRequest, "The report's query does not exist.")
 		}
 		qcols = q.Columns
 	default:
-		return Report{}, fault.New(fault.BadRequest, "Reports need a table or query source.")
+		return nil, fault.New(fault.BadRequest, "Reports need a table or query source.")
 	}
 	if err := Validate(&in.ReportLayout, &in.PageSetup, t, qcols); err != nil {
-		return Report{}, err
+		return nil, err
 	}
 	if _, err := script.Compile(in.ModuleSource, "report module"); err != nil {
-		return Report{}, &fault.Error{Code: fault.ScriptError, Message: "The report module has a syntax error: " + fault.Classify(err).DisplayMessage()}
+		return nil, &fault.Error{Code: fault.ScriptError, Message: "The report module has a syntax error: " + fault.Classify(err).DisplayMessage()}
+	}
+	return t, nil
+}
+
+// Draft validates an unsaved report input and returns it as a Report that can be run but is not
+// stored (the designer's live preview, ADR 0018). Nothing is written.
+func (s *Service) Draft(ctx context.Context, l *workspace.Lease, in ReportInput) (Report, error) {
+	if _, err := s.check(ctx, l, &in); err != nil {
+		return Report{}, err
+	}
+	return Report{ID: "draft", Name: strings.TrimSpace(in.Name), SourceKind: in.SourceKind, SourceID: in.SourceID,
+		ReportLayout: in.ReportLayout, PageSetup: in.PageSetup, ModuleSource: in.ModuleSource, UpdatedAt: time.Now()}, nil
+}
+
+// Put creates (id "") or replaces a report.
+func (s *Service) Put(ctx context.Context, l *workspace.Lease, id string, expectedVersion int64, in ReportInput, user string) (Report, error) {
+	name := strings.TrimSpace(in.Name)
+	if name == "" || len(name) > 200 {
+		return Report{}, fault.New(fault.BadRequest, "Enter a report name of at most 200 characters.")
+	}
+	t, err := s.check(ctx, l, &in)
+	if err != nil {
+		return Report{}, err
 	}
 	r := Report{Name: name, SourceKind: in.SourceKind, SourceID: in.SourceID, ReportLayout: in.ReportLayout, PageSetup: in.PageSetup, UpdatedAt: time.Now(), UpdatedBy: user}
 	err = l.Write(ctx, workspace.Interactive, func(tx dbx.Tx) error {

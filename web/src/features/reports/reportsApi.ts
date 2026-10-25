@@ -76,6 +76,39 @@ export function useReport(ws: string, id: string | null) {
   });
 }
 
+/** Reads a report NDJSON response into instances, translating stream failures like runReport. */
+async function readInstances(response: Response, signal?: AbortSignal, onProgress?: (count: number) => void): Promise<ReportInstance[]> {
+  const out: ReportInstance[] = [];
+  try {
+    await readReportStream(response, (inst) => {
+      out.push(inst);
+      onProgress?.(out.length);
+    });
+  } catch (e) {
+    throw streamReadError(e, signal);
+  }
+  return out;
+}
+
+/**
+ * Runs an unsaved report draft on the server (builders only; nothing is stored) and reads the same
+ * NDJSON stream as runReport. This is the designer's live preview.
+ */
+export async function previewReport(
+  ws: string,
+  report: ReportInput,
+  params: Record<string, string | number | boolean>,
+  signal?: AbortSignal,
+  onProgress?: (count: number) => void,
+): Promise<ReportInstance[]> {
+  const response = await fetchStream(`/api/v1/w/${encodeURIComponent(ws)}/reports/preview`, {
+    method: "POST",
+    body: { report, params },
+    ...(signal ? { signal } : {}),
+  });
+  return readInstances(response, signal, onProgress);
+}
+
 /**
  * Runs a report and reads its NDJSON stream incrementally. Resolves with every instance in
  * order; rejects with an ApiError for an envelope error, a trailing error line, or cancellation.

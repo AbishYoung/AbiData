@@ -13,7 +13,7 @@ import { ReportWsContext } from "./BandView";
 import { prefetchOverlays } from "./mapOverlays";
 import { paginate, type ReportInstance } from "./paginate";
 import { ReportViewer } from "./ReportViewer";
-import { runReport, useReport, type Report } from "./reportsApi";
+import { previewReport, runReport, useReport, type Report, type ReportInput } from "./reportsApi";
 import { assembleMeasured, growIndexes } from "./viewerLogic";
 
 const ReportDesigner = lazy(() => import("./designer/ReportDesigner").then((m) => ({ default: m.ReportDesigner })));
@@ -75,6 +75,36 @@ export function ReportRun({ ws, reportId }: { ws: string; reportId: string }) {
           memoryKey={`report:${ws}:${reportId}`}
           run={run}
         />
+      </ReportWsContext.Provider>
+    </FilesWorkspaceProvider>
+  );
+}
+
+/**
+ * Runs an unsaved draft through the server's preview endpoint and shows the pages. The designer
+ * remounts it (by key) whenever the draft changes, so it always shows the current design.
+ */
+export function DraftRun({ ws, input }: { ws: string; input: ReportInput }) {
+  const sourceQuery = useSavedQuery(ws, input.source_kind === "query" ? input.source_id : null);
+  const declared = useMemo(() => {
+    const q = sourceQuery.data;
+    return q ? effectiveParams(q.parameters ?? [], q.sql_text) : [];
+  }, [sourceQuery.data]);
+  const sourceReady = input.source_kind !== "query" || !sourceQuery.isPending;
+  const def = useMemo(() => ({ layout: input.layout, page_setup: input.page_setup }), [input.layout, input.page_setup]);
+  const run = useCallback(
+    async (values: Params, signal: AbortSignal, tick: (n: number) => void) => {
+      const got = await previewReport(ws, input, values, signal, tick);
+      if (signal.aborted) return got;
+      await prefetchOverlays(ws, input.layout);
+      return got;
+    },
+    [ws, input],
+  );
+  return (
+    <FilesWorkspaceProvider ws={ws}>
+      <ReportWsContext.Provider value={ws}>
+        <ReportRunView def={def} loadError={null} sourceReady={sourceReady} declared={declared} memoryKey={`report-draft:${ws}:${input.source_id}`} run={run} />
       </ReportWsContext.Provider>
     </FilesWorkspaceProvider>
   );

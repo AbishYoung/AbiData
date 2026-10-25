@@ -137,7 +137,9 @@ test("builder designs a grouped report, saves it with Mod+S, reopens it and runs
   await expect(root.getByRole("textbox", { name: "Lua source of report module" })).toBeAttached();
   await expectNoAxeViolations(page);
   await openPanel(page, "Preview");
-  await expect(root.getByRole("button", { name: "Save to preview" })).toBeVisible();
+  // The preview runs the unsaved draft: no save needed (ADR 0018).
+  await expect(root.getByRole("button", { name: "Save to preview" })).toHaveCount(0);
+  await expect(page.getByTestId("report-page-of")).toBeVisible();
   await expectNoAxeViolations(page);
   await openPanel(page, "Layout");
 

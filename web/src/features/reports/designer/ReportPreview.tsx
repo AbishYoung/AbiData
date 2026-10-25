@@ -1,32 +1,41 @@
 import { KindIcon } from "@/components/objectKinds";
-import { Save } from "lucide-react";
-import { btnPrimary } from "@/components/styles";
-import type { Report } from "../reportsApi";
-import { ReportRun } from "../ReportTab";
+import { useMemo } from "react";
+import type { ReportInput } from "../reportsApi";
+import { DraftRun } from "../ReportTab";
+
+/** A short stable key for a draft, so the preview reruns exactly when the design changes. */
+export function draftKey(input: ReportInput): string {
+  const text = JSON.stringify(input);
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return `${text.length}-${(h >>> 0).toString(36)}`;
+}
 
 /**
- * Previews the real report through the viewer (run, measure, paginate). The viewer runs the saved
- * report on the server, so the preview needs a saved report with no pending edits: while the design
- * has unsaved changes it asks to save first instead of showing a stale version.
+ * Previews the report as currently designed, saved or not: the draft runs on the server through
+ * the preview endpoint (nothing is stored) and goes through the real viewer (measure, paginate).
+ * A design with problems cannot run, so those are listed instead.
  */
-export function ReportPreview({ ws, saved, dirty, saving, onSave }: { ws: string; saved: Report | null; dirty: boolean; saving: boolean; onSave: () => void }) {
-  if (!saved || dirty) {
+export function ReportPreview({ ws, input, problems }: { ws: string; input: ReportInput; problems: readonly string[] }) {
+  const key = useMemo(() => draftKey(input), [input]);
+  if (problems.length > 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center" data-testid="report-preview-gate">
         <KindIcon kind="report" size="lg" />
-        <p role="status" className="m-0 max-w-md text-sm text-fg-muted">
-          {saved ? "Save to preview your changes." : "Save to preview the report."} The preview runs the saved report, so it always matches what the report view shows.
-        </p>
-        <button type="button" className={btnPrimary} disabled={saving} onClick={onSave}>
-          <Save size={16} aria-hidden="true" />
-          Save to preview
-        </button>
+        <div role="status" className="max-w-md text-sm text-fg-muted">
+          <p className="m-0">Fix these problems to preview the report:</p>
+          <ul className="m-0 mt-2 list-disc pl-5 text-left">
+            {problems.slice(0, 5).map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
       </div>
     );
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="report-preview">
-      <ReportRun key={`${saved.id}-${saved.version}`} ws={ws} reportId={saved.id} />
+      <DraftRun key={key} ws={ws} input={input} />
     </div>
   );
 }
