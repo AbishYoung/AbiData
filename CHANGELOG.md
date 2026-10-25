@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Long-press multi-select on record cards with a floating Duplicate, Export and Delete bar (ADR 0022).
+
+### Changed
 Touch-first controls on phones: 50x30 toggle switches for yes/no fields, large minus/plus steppers (hold to repeat) for whole numbers, and pinch to change grid row density (ADR 0022).
 
 ### Changed

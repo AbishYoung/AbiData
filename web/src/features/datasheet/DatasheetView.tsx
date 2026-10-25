@@ -904,7 +904,12 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   /** Adds a copy of a record (swipe right or the card menu). Calculated, read-only and attachment fields are not copied. */
-  async function duplicateRecord(row: Row | undefined) {
+  async function duplicateRecords(ids: number[]) {
+    for (const id of ids) await duplicateRecord(findRow(id), false);
+    toast("success", `Duplicated ${formatCount(ids.length)} ${ids.length === 1 ? "record" : "records"}`);
+  }
+
+  async function duplicateRecord(row: Row | undefined, announce = true) {
     if (!row || !canEdit) return;
     const fields: Record<string, unknown> = {};
     for (const col of allColumns) {
@@ -914,7 +919,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
     try {
       await insertRow(ws, tableId, fields);
-      toast("success", "Record duplicated");
+      if (announce) toast("success", "Record duplicated");
     } catch (e) {
       const failure = classifyFailure(e);
       if (failure.kind === "error") useErrorStore.getState().show(failure.error);
@@ -1240,6 +1245,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
             if (row) setDel({ ids: [row.id], busy: false, error: null });
           }}
           onDuplicate={(index) => void duplicateRecord(rowAt(index))}
+          onBatchDelete={(ids) => setDel({ ids, busy: false, error: null })}
+          onBatchDuplicate={(ids) => void duplicateRecords(ids)}
+          onExport={() => setExportOpen(true)}
         />
       )}
       {mode === "grid" && (

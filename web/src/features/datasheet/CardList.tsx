@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode, type RefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
-import { ChevronRight, Copy, Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Copy, Download, Ellipsis, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { Column } from "@/lib/schema";
 import { badgeWarning, btnPrimary, iconBtn, menu, menuItem } from "@/components/styles";
@@ -10,6 +10,8 @@ import { AttachmentCell } from "@/features/files/FileParts";
 import { formatValue, isEmpty, kindOf } from "./values";
 import { PullIndicator } from "@/components/PullIndicator";
 import { usePullToRefresh } from "@/lib/usePullToRefresh";
+import { useLongPress } from "@/lib/useLongPress";
+import { haptic } from "@/lib/touchErgonomics";
 import { LEFT_REVEAL, RIGHT_REVEAL, useCardSwipeActions, type SwipeSide } from "./useCardSwipeActions";
 
 /**
@@ -48,7 +50,14 @@ interface Props {
   /** Delete the record at an index; the caller confirms (deletes are permanent). */
   onDelete: (index: number) => void;
   onDuplicate: (index: number) => void;
+  /** Multi-select actions work on record ids; the caller confirms deletes. */
+  onBatchDelete: (ids: number[]) => void;
+  onBatchDuplicate: (ids: number[]) => void;
+  onExport: () => void;
 }
+
+/** The most records one multi-select action covers. */
+export const MAX_SELECTED = 100;
 
 interface SwipeableProps {
   open: SwipeSide | null;
@@ -59,6 +68,11 @@ interface SwipeableProps {
   onEdit: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  /** Starts multi-select with this card (long press, or the Select menu item). */
+  onSelect: () => void;
+  /** In multi-select the card does not slide or open its menu. */
+  selecting: boolean;
+  checked: boolean;
   children: ReactNode;
 }
 
@@ -66,19 +80,38 @@ interface SwipeableProps {
  * A card that slides sideways on touch (ADR 0022): left reveals Edit and Delete, a long left swipe asks to delete,
  * right reveals Duplicate. The "Card actions" menu does the same without a gesture.
  */
-function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete, onDuplicate, children }: SwipeableProps) {
-  const { ref, handlers } = useCardSwipeActions({ enabled, open, onOpenChange, onFullLeft: onDelete });
+function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete, onDuplicate, onSelect, selecting, checked, children }: SwipeableProps) {
+  const swipe = useCardSwipeActions({ enabled: enabled && !selecting, open, onOpenChange, onFullLeft: onDelete });
+  const press = useLongPress(onSelect, enabled && !selecting);
+  const { ref } = swipe;
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => { swipe.handlers.onPointerDown(e); press.onPointerDown(e); },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => { swipe.handlers.onPointerMove(e); press.onPointerMove(e); },
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => { swipe.handlers.onPointerUp(e); press.onPointerUp(); },
+    onPointerCancel: (e: React.PointerEvent<HTMLDivElement>) => { swipe.handlers.onPointerCancel(e); press.onPointerCancel(); },
+    onClickCapture: (e: React.MouseEvent<HTMLDivElement>) => { press.onClickCapture(e); if (!e.isPropagationStopped()) swipe.handlers.onClickCapture(e); },
+    onContextMenu: press.onContextMenu,
+  };
   const tile = "flex h-full flex-col items-center justify-center gap-1 text-xs font-medium";
   return (
     <div className="relative h-full overflow-hidden rounded-xl" data-swipe-open={open ?? undefined}>
       <div
         ref={ref}
         {...handlers}
-        className="relative z-10 h-full touch-pan-y"
+        className="relative z-10 h-full touch-pan-y select-none [-webkit-touch-callout:none]"
         style={{ transform: open === "left" ? `translate3d(-${LEFT_REVEAL}px,0,0)` : open === "right" ? `translate3d(${RIGHT_REVEAL}px,0,0)` : undefined }}
       >
         {children}
-        {enabled && (
+        {selecting && (
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors motion-reduce:transition-none ${checked ? "border-accent bg-accent text-accent-fg" : "border-border-strong bg-surface"}`}
+            data-testid="select-check"
+          >
+            {checked && <Check size={14} />}
+          </span>
+        )}
+        {enabled && !selecting && (
           <DropdownMenu.Root>
             <DropdownMenu.Trigger className={`${iconBtn} absolute right-1 top-1 !h-11 !w-11`} aria-label="Card actions" aria-describedby={titleId}>
               <Ellipsis size={20} aria-hidden="true" />
@@ -93,6 +126,10 @@ function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete,
                   <Copy size={16} aria-hidden="true" />
                   Duplicate
                 </DropdownMenu.Item>
+                <DropdownMenu.Item className={menuItem} onSelect={onSelect}>
+                  <ListChecks size={16} aria-hidden="true" />
+                  Select
+                </DropdownMenu.Item>
                 <DropdownMenu.Item className={`${menuItem} text-danger`} onSelect={onDelete}>
                   <Trash2 size={16} aria-hidden="true" />
                   Delete…
@@ -102,7 +139,7 @@ function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete,
           </DropdownMenu.Root>
         )}
       </div>
-      {enabled && (
+      {enabled && !selecting && (
         <>
           <div inert={open !== "right"} className="absolute inset-y-0 left-0 flex" style={{ width: RIGHT_REVEAL }}>
             <button type="button" tabIndex={-1} className={`${tile} w-full bg-surface-3 text-fg`} onClick={() => { onOpenChange(null); onDuplicate(); }}>
@@ -127,12 +164,30 @@ function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete,
 }
 
 /** Record cards for phones: a tap opens the full-screen record sheet. */
-export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew, onRefresh, onDelete, onDuplicate }: Props) {
+export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew, onRefresh, onDelete, onDuplicate, onBatchDelete, onBatchDuplicate, onExport }: Props) {
   const { title, preview } = cardColumns(columns);
   const listId = useId();
   const pull = usePullToRefresh(scrollRef, onRefresh);
   /** Only one card is slid open at a time; a touch anywhere else closes it. */
   const [openCard, setOpenCard] = useState<{ index: number; side: SwipeSide } | null>(null);
+  /** Row ids picked in multi-select; null when not selecting. */
+  const [picked, setPicked] = useState<ReadonlySet<number> | null>(null);
+  function toggle(id: number) {
+    setPicked((cur) => {
+      if (!cur) return cur;
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < MAX_SELECTED) next.add(id);
+      else return cur;
+      haptic(8);
+      return next;
+    });
+    }
+  function finish(act: (ids: number[]) => void) {
+    const ids = [...(picked ?? [])];
+    setPicked(null);
+    if (ids.length > 0) act(ids);
+  }
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <PullIndicator state={pull} />
@@ -166,10 +221,14 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                     onEdit={() => onOpen(v.index)}
                     onDelete={() => onDelete(v.index)}
                     onDuplicate={() => onDuplicate(v.index)}
+                    onSelect={() => setPicked(new Set([row.id]))}
+                    selecting={picked !== null}
+                    checked={picked?.has(row.id) ?? false}
                   >
                   <button
                     type="button"
-                    onClick={() => onOpen(v.index)}
+                    {...(picked ? { role: "checkbox", "aria-checked": picked.has(row.id) } : {})}
+                    onClick={() => (picked ? toggle(row.id) : onOpen(v.index))}
                     className="flex h-full w-full items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-left shadow-sm transition-colors active:bg-surface-2"
                   >
                     <span className="min-w-0 flex-1">
@@ -192,7 +251,7 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                         ))}
                       </span>
                     </span>
-                    {canEdit ? (
+                    {canEdit || picked ? (
                       <span aria-hidden="true" className="w-9 shrink-0" />
                     ) : (
                       <ChevronRight size={18} aria-hidden="true" className="shrink-0 text-fg-subtle" />
@@ -213,7 +272,30 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
         {/* Room so the last card clears the floating button. */}
         <div aria-hidden="true" className={canEdit ? "h-24" : "h-4"} />
       </div>
-      {canEdit && (
+      {picked && (
+        <div
+          role="toolbar"
+          aria-label="Selected records"
+          className="absolute inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1 shadow-lg"
+        >
+          <button type="button" className={iconBtn} aria-label="Cancel selection" onClick={() => setPicked(null)}>
+            <X size={20} aria-hidden="true" />
+          </button>
+          <span role="status" className="min-w-0 flex-1 truncate text-sm font-medium tabular-nums text-fg">
+            {picked.size} selected{picked.size >= MAX_SELECTED ? " (limit)" : ""}
+          </span>
+          <button type="button" className={iconBtn} aria-label="Duplicate selected" disabled={picked.size === 0} onClick={() => finish(onBatchDuplicate)}>
+            <Copy size={20} aria-hidden="true" />
+          </button>
+          <button type="button" className={iconBtn} aria-label="Export" onClick={() => finish(() => onExport())}>
+            <Download size={20} aria-hidden="true" />
+          </button>
+          <button type="button" className={`${iconBtn} text-danger`} aria-label="Delete selected" disabled={picked.size === 0} onClick={() => finish(onBatchDelete)}>
+            <Trash2 size={20} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {canEdit && !picked && (
         <button
           type="button"
           onClick={onNew}
