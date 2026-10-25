@@ -466,3 +466,39 @@ describe("conditional formatting and band fills (ADR 0018)", () => {
     expect(l.bands.report_header.background).toBeUndefined();
   });
 });
+
+describe("pagination options round-trip (ADR 0018)", () => {
+  it("keeps group and page header/footer pagination settings through save and load", () => {
+    let s = newState({ name: "R", sourceKind: "table", sourceId: "T", paper: "letter", orientation: "portrait", margin: 48 });
+    s = addGroup(s, { ...newGroup("c1"), repeat_header: true, continued_suffix: " (cont.)", keep_together: "all" });
+    s = addGroup(s, { ...newGroup("c2"), keep_together: "first_detail" });
+    s = setBandProps(s, "page_header", { suppress_first_page: true });
+    s = setBandProps(s, "page_footer", { suppress_last_page: true });
+    s = setBandProps(s, "detail", { suppress_first_page: true });
+    const layout = layoutFromState(s);
+    expect(layout.groups?.[0]).toMatchObject({ repeat_header: true, continued_suffix: " (cont.)", keep_together: "all" });
+    expect(layout.groups?.[1]?.keep_together).toBeUndefined(); // the default is not stored
+    expect(layout.groups?.[1]?.repeat_header).toBeUndefined();
+    expect(layout.bands.page_header.suppress_first_page).toBe(true);
+    expect(layout.bands.page_footer.suppress_last_page).toBe(true);
+    expect(layout.bands.detail.suppress_first_page).toBeUndefined(); // only the page header and footer carry it
+
+    const back = stateFromReport({
+      id: "r",
+      name: "R",
+      source_kind: "table",
+      source_id: "T",
+      layout,
+      page_setup: s.page,
+      version: 1,
+      updated_at: "",
+      updated_by: "",
+      module_id: "",
+      module_source: "",
+      module_version: 0,
+    } as Report);
+    expect(back.groups[0]).toMatchObject({ repeat_header: true, continued_suffix: " (cont.)", keep_together: "all" });
+    expect(back.bands.page_header?.suppress_first_page).toBe(true);
+    expect(back.bands.page_footer?.suppress_last_page).toBe(true);
+  });
+});

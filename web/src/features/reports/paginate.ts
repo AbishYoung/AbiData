@@ -30,6 +30,8 @@ export interface PlacedBand {
   offset: number;
   /** True when the band continues on the next page. */
   continues: boolean;
+  /** True for a group header repeated at the top of a page the group continues onto (ADR 0018). */
+  repeated?: boolean;
 }
 
 export interface Page {
@@ -127,12 +129,13 @@ export function paginate(
 
   const headerIdx = instances.findIndex((x) => x.template && x.band === "page_header");
   const footerIdx = instances.findIndex((x) => x.template && x.band === "page_footer");
+  const headerDef = layout.bands.page_header;
+  const footerDef = layout.bands.page_footer;
   // Page header and footer never take more than the whole page between them.
   const footerH = Math.min(heightOf(instances[footerIdx], measured[footerIdx]), content.height);
   const headerH = Math.min(heightOf(instances[headerIdx], measured[headerIdx]), content.height - footerH);
-  const limit = content.height - footerH;
   /** Body height available on a fresh page (other than page 1 before its header). */
-  const fresh = limit - headerH;
+  const fresh = content.height - footerH - headerH;
 
   interface Entry {
     index: number;
@@ -141,17 +144,34 @@ export function paginate(
     h: number;
   }
   const body: Entry[] = [];
+  const heightAt: number[] = new Array<number>(instances.length).fill(0);
   instances.forEach((inst, index) => {
     const def = bandDef(layout, inst.band);
     const h = heightOf(inst, measured[index]);
-    if (!inst.template && def && h > 0) body.push({ index, band: inst.band, def, h });
+    if (!inst.template && def && h > 0) {
+      body.push({ index, band: inst.band, def, h });
+      heightAt[index] = h;
+    }
   });
 
+  /** Total height of a group from its header instance through its footer (keep_together "all"). */
+  const groupExtent = (from: number, level: number): number => {
+    let total = 0;
+    for (let i = from; i < instances.length; i++) {
+      total += heightAt[i] ?? 0;
+      if (instances[i]?.band === `group_footer_${level}`) break;
+    }
+    return total;
+  };
+
   const pages: Page[] = [];
-  const st = { page: null as Page | null, cursor: 0, headerPending: false };
+  const st = { page: null as Page | null, cursor: 0, headerPending: false, limit: content.height - footerH };
+  /** The open group headers by level, for repeat_header. */
+  const open: Entry[] = [];
 
   const placeHeader = (page: Page): void => {
-    if (headerH > 0) {
+    // suppress_first_page leaves page 1 without its header (and gives the body that room).
+    if (headerH > 0 && !(page.number === 1 && headerDef.suppress_first_page === true)) {
       page.header = { index: headerIdx, band: "page_header", y: st.cursor, height: headerH, offset: 0, continues: false };
       st.cursor += headerH;
     }
@@ -159,7 +179,9 @@ export function paginate(
   };
   const newPage = (): Page => {
     const page: Page = { number: pages.length + 1, header: null, footer: null, bands: [] };
-    if (footerH > 0) page.footer = { index: footerIdx, band: "page_footer", y: limit, height: footerH, offset: 0, continues: false };
+    const showFooter = footerH > 0 && !(page.number === 1 && footerDef.suppress_first_page === true);
+    st.limit = content.height - (showFooter ? footerH : 0);
+    if (showFooter) page.footer = { index: footerIdx, band: "page_footer", y: st.limit, height: footerH, offset: 0, continues: false };
     pages.push(page);
     st.page = page;
     st.cursor = 0;
@@ -168,36 +190,64 @@ export function paginate(
     else placeHeader(page);
     return page;
   };
-  /** A new page with its header in place. */
-  const nextPage = (): Page => {
-    const page = newPage();
-    if (st.headerPending) placeHeader(page);
-    return page;
-  };
-  const place = (page: Page, e: Entry, height: number, offset: number, continues: boolean): void => {
-    page.bands.push({ index: e.index, band: e.band, y: st.cursor, height, offset, continues });
+  const place = (page: Page, e: Entry, height: number, offset: number, continues: boolean, repeated = false): void => {
+    page.bands.push({ index: e.index, band: e.band, y: st.cursor, height, offset, continues, ...(repeated ? { repeated: true } : {}) });
     st.cursor += height;
   };
+  /** Clones of the open group headers whose group continues onto a new page that starts with e. */
+  const repeatsFor = (): Entry[] => {
+    const out: Entry[] = [];
+    open.forEach((h, level) => {
+      if (layout.groups?.[level]?.repeat_header === true) out.push(h);
+    });
+    // Repeats must leave most of the page for content; otherwise skip them to guarantee progress.
+    return out.reduce((sum, h) => sum + h.h, 0) * 2 <= fresh ? out : [];
+  };
+  /** A new page with its header in place and, when asked, the continued group headers. */
+  const nextPage = (repeat = true): Page => {
+    const page = newPage();
+    if (st.headerPending) placeHeader(page);
+    if (repeat) for (const h of repeatsFor()) place(page, h, h.h, 0, false, true);
+    return page;
+  };
+  /** True when nothing but repeated group headers is on the page yet. */
+  const isEmpty = (page: Page): boolean => page.bands.every((b) => b.repeated === true);
 
   body.forEach((e, k) => {
+    const gh = /^group_header_(\d+)$/.exec(e.band);
+    const gf = /^group_footer_(\d+)$/.exec(e.band);
+    if (gh) open.length = Math.min(open.length, Number(gh[1]));
+    const group = gh ? layout.groups?.[Number(gh[1])] : undefined;
+
     let page = st.page ?? newPage();
     if (st.headerPending && e.band !== "report_header") placeHeader(page);
-    if (e.def.force_new_page && page.bands.length > 0) page = nextPage();
+    if (e.def.force_new_page && !isEmpty(page)) page = nextPage();
+    // keep_together "all": a group that fits on a fresh page but not in the room left starts on a new page.
+    if (group?.keep_together === "all" && !isEmpty(page) && groupExtent(e.index, Number(gh?.[1])) <= fresh && groupExtent(e.index, Number(gh?.[1])) > st.limit - st.cursor) {
+      page = nextPage();
+    }
 
-    const avail = limit - st.cursor;
+    const avail = st.limit - st.cursor;
     const next = body[k + 1];
     const nextMin = next ? Math.min(next.h, next.def.height) : 0;
-    const orphan = e.band.startsWith("group_header_") && e.h + nextMin > avail && e.h + nextMin <= fresh;
+    // A group header never ends a page (keep_together "none" opts out).
+    const orphan = gh !== null && group?.keep_together !== "none" && e.h + nextMin > avail && e.h + nextMin <= fresh;
+    const done = (): void => {
+      if (gh) open[Number(gh[1])] = e;
+      if (gf) open.length = Math.min(open.length, Number(gf[1]));
+    };
     if (e.h <= avail && !orphan) {
       place(page, e, e.h, 0, false);
+      done();
       return;
     }
 
-    const empty = page.bands.length === 0;
+    const empty = isEmpty(page);
     if (e.def.keep_together || !e.def.can_grow || orphan) {
       if (!empty) page = nextPage();
-      if (e.h <= limit - st.cursor) {
+      if (e.h <= st.limit - st.cursor) {
         place(page, e, e.h, 0, false);
+        done();
         return;
       }
     } else if (Math.min(e.def.height, e.h) > avail && !empty) {
@@ -208,18 +258,27 @@ export function paginate(
     // Split across pages.
     let offset = 0;
     while (offset < e.h) {
-      if (limit - st.cursor <= 0) {
-        page = nextPage();
+      if (st.limit - st.cursor <= 0) {
+        page = nextPage(false);
         // A page whose header and footer leave no body room cannot hold anything: stop.
-        if (limit - st.cursor <= 0) break;
+        if (st.limit - st.cursor <= 0) break;
       }
-      const take = Math.min(e.h - offset, limit - st.cursor);
+      const take = Math.min(e.h - offset, st.limit - st.cursor);
       place(page, e, take, offset, offset + take < e.h);
       offset += take;
     }
+    done();
   });
   const last = st.page ?? newPage();
   if (st.headerPending) placeHeader(last);
+
+  // suppress_last_page: the last page drops its footer, and its header with the bands below it moving up.
+  if (footerDef.suppress_last_page === true) last.footer = null;
+  if (headerDef.suppress_last_page === true && last.header) {
+    const h = last.header;
+    last.header = null;
+    for (const b of last.bands) if (b.y >= h.y) b.y -= h.height;
+  }
 
   return { pages, pageCount: pages.length, paper, content };
 }

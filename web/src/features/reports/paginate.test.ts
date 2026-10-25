@@ -221,3 +221,149 @@ describe("controlText", () => {
     expect(controlText(c("textbox"), {}, 1, 1)).toBe("");
   });
 });
+
+describe("repeated group headers (ADR 0018)", () => {
+  type G = NonNullable<ReportLayout["groups"]>[number];
+  const withGroups = (groups: Partial<G>[], over: Partial<ReportLayout["bands"]> = {}): ReportLayout => ({
+    ...layout(over),
+    groups: groups.map((g) => ({ header: band(30), footer: band(20), ...g })),
+  });
+  const nested = (outer: number, inner: number, per: number): ReportInstance[] => {
+    const out: ReportInstance[] = [{ band: "page_header", template: true, values: {} }, { band: "page_footer", template: true, values: {} }];
+    for (let i = 0; i < outer; i++) {
+      out.push(inst("group_header_0"));
+      for (let j = 0; j < inner; j++) {
+        out.push(inst("group_header_1"));
+        for (let k = 0; k < per; k++) out.push(inst("detail"));
+        out.push(inst("group_footer_1"));
+      }
+      out.push(inst("group_footer_0"));
+    }
+    return out;
+  };
+
+  it("clones the group header at the top of every page the group continues onto", () => {
+    const p = paginate(withGroups([{ repeat_header: true }]), letter, stream(0, { groups: [100] }));
+    expect(p.pageCount).toBeGreaterThan(2);
+    const one = at(p.pages, 0);
+    expect(one.bands.some((b) => b.repeated)).toBe(false);
+    for (const pg of p.pages.slice(1)) {
+      expect(at(pg.bands, 0)).toMatchObject({ band: "group_header_0", repeated: true, y: 20, height: 30 });
+      expect(at(pg.bands, 1).band).toBe("detail");
+      expect(at(pg.bands, 1).y).toBe(50);
+    }
+    // All 100 details are still placed exactly once.
+    expect(p.pages.flatMap((pg) => pg.bands).filter((b) => b.band === "detail")).toHaveLength(100);
+  });
+
+  it("leaves pages alone when repeat_header is off", () => {
+    const p = paginate(withGroups([{}]), letter, stream(0, { groups: [100] }));
+    expect(at(at(p.pages, 1).bands, 0).band).toBe("detail");
+    expect(p.pages.flatMap((pg) => pg.bands).some((b) => b.repeated)).toBe(false);
+  });
+
+  it("does not repeat a group that has already ended", () => {
+    // Group 1 ends on page 1; group 2 starts on a later page with its own header, not a clone of group 1's.
+    const p = paginate(withGroups([{ repeat_header: true }]), letter, stream(0, { groups: [10, 100] }));
+    const headers = p.pages.flatMap((pg) => pg.bands).filter((b) => b.band === "group_header_0");
+    expect(headers.filter((b) => !b.repeated)).toHaveLength(2);
+    expect(at(p.pages, 0).bands.filter((b) => b.band === "group_header_0")).toHaveLength(2);
+  });
+
+  it("repeats outer headers first, then inner ones", () => {
+    const p = paginate(withGroups([{ repeat_header: true }, { repeat_header: true, header: band(24) }]), letter, nested(1, 1, 120));
+    const two = at(p.pages, 1);
+    expect(two.bands.slice(0, 2).map((b) => `${b.band}${b.repeated ? "*" : ""}`)).toEqual(["group_header_0*", "group_header_1*"]);
+    expect(at(two.bands, 1).y).toBe(20 + 30);
+    expect(at(two.bands, 2)).toMatchObject({ band: "detail", y: 20 + 30 + 24 });
+  });
+
+  it("repeats only the levels that ask for it", () => {
+    const p = paginate(withGroups([{}, { repeat_header: true }]), letter, nested(1, 1, 120));
+    expect(at(p.pages, 1).bands.filter((b) => b.repeated).map((b) => b.band)).toEqual(["group_header_1"]);
+  });
+
+  it("skips repeats that would eat most of the page", () => {
+    const p = paginate(withGroups([{ repeat_header: true, header: band(600) }]), letter, stream(0, { groups: [100] }));
+    expect(p.pages.flatMap((pg) => pg.bands).some((b) => b.repeated)).toBe(false);
+  });
+});
+
+describe("page header and footer suppression (ADR 0018)", () => {
+  it("hides the page header on page 1 and gives the body its room", () => {
+    const base = paginate(layout(), letter, stream(10));
+    const p = paginate(layout({ page_header: band(20, { suppress_first_page: true }) }), letter, stream(10));
+    expect(p.pages[0]?.header).toBeNull();
+    expect(at(at(p.pages, 0).bands, 1).y).toBe(at(at(base.pages, 0).bands, 1).y - 20);
+    const many = paginate(layout({ page_header: band(20, { suppress_first_page: true }) }), letter, stream(100));
+    expect(at(many.pages, 1).header).not.toBeNull();
+    expect(at(many.pages, 0).bands.filter((b) => b.band === "detail").length).toBe(45); // 940 - 40 report header = 900 / 20
+  });
+
+  it("hides the page footer on page 1 and gives the body its room", () => {
+    const p = paginate(layout({ page_footer: band(20, { suppress_first_page: true }) }), letter, stream(100));
+    expect(at(p.pages, 0).footer).toBeNull();
+    expect(at(p.pages, 1).footer).toMatchObject({ y: 940 });
+    expect(at(p.pages, 0).bands.filter((b) => b.band === "detail").length).toBe(45); // 960 - 60 = 900 / 20
+  });
+
+  it("hides the page header on the last page and moves its bands up", () => {
+    const base = paginate(layout(), letter, stream(50));
+    const p = paginate(layout({ page_header: band(20, { suppress_last_page: true }) }), letter, stream(50));
+    const last = at(p.pages, -1);
+    expect(last.header).toBeNull();
+    expect(at(last.bands, 0).y).toBe(at(at(base.pages, -1).bands, 0).y - 20);
+    expect(at(p.pages, 0).header).not.toBeNull();
+  });
+
+  it("hides the page footer on the last page only", () => {
+    const p = paginate(layout({ page_footer: band(20, { suppress_last_page: true }) }), letter, stream(50));
+    expect(at(p.pages, 0).footer).not.toBeNull();
+    expect(at(p.pages, -1).footer).toBeNull();
+  });
+
+  it("handles a one-page report that suppresses both first and last", () => {
+    const p = paginate(layout({ page_header: band(20, { suppress_first_page: true, suppress_last_page: true }), page_footer: band(20, { suppress_last_page: true }) }), letter, stream(5));
+    expect(p.pageCount).toBe(1);
+    expect(at(p.pages, 0).header).toBeNull();
+    expect(at(p.pages, 0).footer).toBeNull();
+  });
+});
+
+describe("group keep-together (ADR 0018)", () => {
+  type G = NonNullable<ReportLayout["groups"]>[number];
+  const withGroups = (g: Partial<G>, groups = 1): ReportLayout => ({ ...layout(), groups: Array.from({ length: groups }, () => ({ header: band(30), footer: band(20), ...g })) });
+
+  it('"all" moves a group that fits on one page but not in the room left', () => {
+    // Group 1: 30 + 200 + 20 = 250. Group 2: 30 + 600 + 20 = 650 does not fit the 630 left of page 1.
+    const split = paginate(withGroups({}), letter, stream(0, { groups: [10, 30] }));
+    expect(at(split.pages, 0).bands.filter((b) => b.band === "group_header_0")).toHaveLength(2);
+    const together = paginate(withGroups({ keep_together: "all" }), letter, stream(0, { groups: [10, 30] }));
+    expect(together.pageCount).toBe(2);
+    expect(at(together.pages, 0).bands.filter((b) => b.band === "group_header_0")).toHaveLength(1);
+    expect(at(at(together.pages, 1).bands, 0)).toMatchObject({ band: "group_header_0", y: 20 });
+  });
+
+  it('"all" still splits a group taller than a page', () => {
+    const p = paginate(withGroups({ keep_together: "all" }), letter, stream(0, { groups: [100] }));
+    expect(p.pageCount).toBeGreaterThan(1);
+    expect(p.pages.flatMap((pg) => pg.bands).filter((b) => b.band === "detail")).toHaveLength(100);
+  });
+
+  it('"all" does not leave a blank page when the group already starts a page', () => {
+    const p = paginate(withGroups({ keep_together: "all" }), letter, stream(0, { groups: [30] }));
+    expect(p.pageCount).toBe(1);
+  });
+
+  it("never leaves a group header at the foot of a page, unless keep_together is none", () => {
+    // Group 1 ends with a 30 px footer at y 900, leaving 40 px: header (30) + a detail (20) do not fit.
+    const lay = (g: Partial<G>): ReportLayout => ({ ...layout(), groups: [{ header: band(30), footer: band(30), ...g }] });
+    const guarded = paginate(lay({ keep_together: "first_detail" }), letter, stream(0, { groups: [39, 5] }));
+    expect(at(guarded.pages, 0).bands.filter((b) => b.band === "group_header_0")).toHaveLength(1);
+    const dflt = paginate(lay({}), letter, stream(0, { groups: [39, 5] }));
+    expect(shape(dflt)).toEqual(shape(guarded));
+    const loose = paginate(lay({ keep_together: "none" }), letter, stream(0, { groups: [39, 5] }));
+    expect(at(loose.pages, 0).bands.filter((b) => b.band === "group_header_0")).toHaveLength(2);
+    expect(at(at(loose.pages, 0).bands, -1).band).toBe("group_header_0");
+  });
+});
