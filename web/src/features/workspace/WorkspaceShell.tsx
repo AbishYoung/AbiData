@@ -24,7 +24,7 @@ import { ReportTab } from "@/features/reports/ReportTab";
 import { EgressSettings, JobTab, ScriptTab, TableDesignTab } from "./lazyFeatures";
 import { OperationsStatus } from "@/components/OperationsStatus";
 import { HelpButton } from "@/features/docs/HelpButton";
-import { alertBox, badge, btn, infoBox, dialogOverlay, dialogPanel, dialogTitle, iconBtn, kbd } from "@/components/styles";
+import { alertBox, badge, btn, infoBox, dialogOverlay, dialogPanel, dialogTitle, iconBtn, kbd, segActive, segInactive, segTray } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { askToConfirm, type ConfirmRequest } from "@/components/ui";
 import { KindIcon } from "@/components/objectKinds";
@@ -185,7 +185,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
       {current && (
         <div className="flex items-center gap-2 px-2">
           {current.objectId && canDesign(role) && views.length > 0 && (
-            <div role="group" aria-label="View" className="flex items-center rounded-lg border border-border bg-surface p-0.5 shadow-xs">
+            <div role="group" aria-label="View" className={segTray}>
               {views.map((v) => (
                 <Tip key={v} label={`${VIEW_LABEL[v]} view`}>
                   <button
@@ -193,7 +193,7 @@ function TabStrip({ ws, role }: { ws: string; role: WorkspaceRole | undefined })
                     aria-pressed={shown === v}
                     onClick={() => setView(ws, current.key, v)}
                     className={`h-6 rounded-md px-2.5 text-xs font-medium transition-colors ${
-                      shown === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                      shown === v ? segActive : segInactive
                     }`}
                   >
                     {VIEW_LABEL[v]}
@@ -292,7 +292,7 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
         </button>
       </div>
       {views.length > 0 && (
-        <div role="group" aria-label="View" className="mx-2 mb-2 flex rounded-lg border border-border bg-surface p-0.5 shadow-xs">
+        <div role="group" aria-label="View" className={`${segTray} mx-2 mb-2 flex`}>
           {views.map((v) => (
             <button
               key={v}
@@ -300,7 +300,7 @@ function CompactTabBar({ ws, role, onClose }: { ws: string; role: WorkspaceRole 
               aria-pressed={shown === v}
               onClick={() => setView(ws, current.key, v)}
               className={`flex-1 rounded-md px-2 text-sm font-medium transition-colors ${
-                shown === v ? "bg-accent text-accent-fg shadow-xs" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                shown === v ? segActive : segInactive
               }`}
             >
               {VIEW_LABEL[v]}

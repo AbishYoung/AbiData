@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, MailPlus, Send, UserPlus, X } from "lucide-react";
 import { Button, Dialog, Field, Input, Select, Textarea } from "@/components/ui";
 import { Tip } from "@/components/Tip";
-import { alertBox, badgeAccent, iconChip } from "@/components/styles";
+import { alertBox, badgeAccent, iconChip, segActive, segInactive, segTray } from "@/components/styles";
 import type { Me } from "@/lib/session";
 import {
   createMessageThread,
@@ -171,7 +171,7 @@ export function ComposeMessageDialog({
         <div
           role="group"
           aria-label="Message kind"
-          className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5"
+          className={segTray}
         >
           <button
             type="button"
@@ -182,8 +182,8 @@ export function ComposeMessageDialog({
             }}
             className={`inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-focus ${
               kind === "direct"
-                ? "bg-accent text-accent-fg shadow-xs"
-                : "text-fg-muted hover:text-fg"
+                ? segActive
+                : segInactive
             }`}
           >
             <UserPlus size={14} aria-hidden="true" />
@@ -198,8 +198,8 @@ export function ComposeMessageDialog({
             }}
             className={`inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-focus ${
               kind === "workspace"
-                ? "bg-accent text-accent-fg shadow-xs"
-                : "text-fg-muted hover:text-fg"
+                ? segActive
+                : segInactive
             }`}
           >
             <Building2 size={14} aria-hidden="true" />
@@ -317,7 +317,7 @@ export function ComposeMessageDialog({
             <div
               role="group"
               aria-label="Editor mode"
-              className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5"
+              className={segTray}
             >
               <button
                 type="button"
