@@ -1,12 +1,14 @@
-import type { RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Copy, Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
+import { DropdownMenu } from "radix-ui";
 import type { Column } from "@/lib/schema";
-import { badgeWarning, btnPrimary } from "@/components/styles";
+import { badgeWarning, btnPrimary, iconBtn, menu, menuItem } from "@/components/styles";
 import type { Row } from "./rowsApi";
 import type { RowBuffer, RowKey } from "./buffer";
 import { AttachmentCell } from "@/features/files/FileParts";
 import { formatValue, isEmpty, kindOf } from "./values";
+import { LEFT_REVEAL, RIGHT_REVEAL, useCardSwipeActions, type SwipeSide } from "./useCardSwipeActions";
 
 /**
  * Height of one card slot (the gap above it plus the card); cards are fixed
@@ -39,14 +41,102 @@ interface Props {
   canEdit: boolean;
   onOpen: (index: number) => void;
   onNew: () => void;
+  /** Delete the record at an index; the caller confirms (deletes are permanent). */
+  onDelete: (index: number) => void;
+  onDuplicate: (index: number) => void;
+}
+
+interface SwipeableProps {
+  open: SwipeSide | null;
+  onOpenChange: (side: SwipeSide | null) => void;
+  enabled: boolean;
+  recordName: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  children: ReactNode;
+}
+
+/**
+ * A card that slides sideways on touch (ADR 0022): left reveals Edit and Delete, a long left swipe asks to delete,
+ * right reveals Duplicate. The "Card actions" menu does the same without a gesture.
+ */
+function SwipeableCard({ open, onOpenChange, enabled, recordName, onEdit, onDelete, onDuplicate, children }: SwipeableProps) {
+  const { ref, handlers } = useCardSwipeActions({ enabled, open, onOpenChange, onFullLeft: onDelete });
+  const tile = "flex h-full flex-col items-center justify-center gap-1 text-xs font-medium";
+  return (
+    <div className="relative h-full overflow-hidden rounded-xl" data-swipe-open={open ?? undefined}>
+      {enabled && (
+        <>
+          <div inert={open !== "right"} className="absolute inset-y-0 left-0 flex" style={{ width: RIGHT_REVEAL }}>
+            <button type="button" tabIndex={-1} className={`${tile} w-full bg-surface-3 text-fg`} onClick={() => { onOpenChange(null); onDuplicate(); }}>
+              <Copy size={20} aria-hidden="true" />
+              Duplicate
+            </button>
+          </div>
+          <div inert={open !== "left"} className="absolute inset-y-0 right-0 flex" style={{ width: LEFT_REVEAL }}>
+            <button type="button" tabIndex={-1} className={`${tile} w-1/2 bg-accent text-accent-fg`} onClick={() => { onOpenChange(null); onEdit(); }}>
+              <Pencil size={20} aria-hidden="true" />
+              Edit
+            </button>
+            <button type="button" tabIndex={-1} className={`${tile} w-1/2 bg-danger text-danger-fg`} onClick={() => { onOpenChange(null); onDelete(); }}>
+              <Trash2 size={20} aria-hidden="true" />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+      <div
+        ref={ref}
+        {...handlers}
+        className="relative h-full touch-pan-y"
+        style={{ transform: open === "left" ? `translate3d(-${LEFT_REVEAL}px,0,0)` : open === "right" ? `translate3d(${RIGHT_REVEAL}px,0,0)` : undefined }}
+      >
+        {children}
+        {enabled && (
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger className={`${iconBtn} absolute right-1 top-1 !h-11 !w-11`} aria-label={`Actions for ${recordName}`}>
+              <Ellipsis size={20} aria-hidden="true" />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content align="end" sideOffset={4} className={`ui-menu z-[60] min-w-44 ${menu} text-fg`}>
+                <DropdownMenu.Item className={menuItem} onSelect={onEdit}>
+                  <Pencil size={16} aria-hidden="true" />
+                  Edit
+                </DropdownMenu.Item>
+                <DropdownMenu.Item className={menuItem} onSelect={onDuplicate}>
+                  <Copy size={16} aria-hidden="true" />
+                  Duplicate
+                </DropdownMenu.Item>
+                <DropdownMenu.Item className={`${menuItem} text-danger`} onSelect={onDelete}>
+                  <Trash2 size={16} aria-hidden="true" />
+                  Delete…
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /** Record cards for phones: a tap opens the full-screen record sheet. */
-export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew }: Props) {
+export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew, onDelete, onDuplicate }: Props) {
   const { title, preview } = cardColumns(columns);
+  /** Only one card is slid open at a time; a touch anywhere else closes it. */
+  const [openCard, setOpenCard] = useState<{ index: number; side: SwipeSide } | null>(null);
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="record-cards">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        data-testid="record-cards"
+        onPointerDownCapture={(e) => {
+          if (openCard && !(e.target as Element).closest("[data-swipe-open]")) setOpenCard(null);
+        }}
+        onScroll={() => openCard && setOpenCard(null)}
+      >
         <div role="list" aria-label={label} style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
           {virtualizer.getVirtualItems().map((v) => {
             const row = rowAt(v.index);
@@ -60,6 +150,15 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                 style={{ top: 0, height: CARD_SLOT, transform: `translateY(${v.start}px)` }}
               >
                 {row ? (
+                  <SwipeableCard
+                    enabled={canEdit}
+                    open={openCard?.index === v.index ? openCard.side : null}
+                    onOpenChange={(side) => setOpenCard((cur) => (side ? { index: v.index, side } : cur?.index === v.index ? null : cur))}
+                    recordName={(title && textOf(title, row)) || `record ${row.id}`}
+                    onEdit={() => onOpen(v.index)}
+                    onDelete={() => onDelete(v.index)}
+                    onDuplicate={() => onDuplicate(v.index)}
+                  >
                   <button
                     type="button"
                     onClick={() => onOpen(v.index)}
@@ -85,8 +184,13 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                         ))}
                       </span>
                     </span>
-                    <ChevronRight size={18} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+                    {canEdit ? (
+                      <span aria-hidden="true" className="w-9 shrink-0" />
+                    ) : (
+                      <ChevronRight size={18} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+                    )}
                   </button>
+                  </SwipeableCard>
                 ) : (
                   <div role="status" className="h-full rounded-xl border border-border bg-surface px-4 py-4">
                     <span className="sr-only">Loading record</span>
