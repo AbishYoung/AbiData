@@ -91,7 +91,7 @@ export function ColumnProfileDialog({ ws, tableId, column, filter, onClose }: Pr
     >
       {state.phase === "loading" && (
         <div role="status" className="space-y-2">
-          <div className="h-2 w-full animate-pulse rounded bg-surface-3" />
+          <div className="h-2 w-full animate-shimmer rounded bg-surface-3" />
           <p className="m-0 text-sm text-fg-muted">Reading records… {state.read.toLocaleString("en-US")} so far</p>
         </div>
       )}

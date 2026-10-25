@@ -196,8 +196,8 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                 ) : (
                   <div role="status" className="h-full rounded-xl border border-border bg-surface px-4 py-4">
                     <span className="sr-only">Loading record</span>
-                    <div aria-hidden="true" className="h-4 w-2/3 animate-pulse rounded bg-surface-3" />
-                    <div aria-hidden="true" className="mt-2 h-3 w-1/2 animate-pulse rounded bg-surface-3" />
+                    <div aria-hidden="true" className="h-4 w-2/3 animate-shimmer rounded bg-surface-3" />
+                    <div aria-hidden="true" className="mt-2 h-3 w-1/2 animate-shimmer rounded bg-surface-3" />
                   </div>
                 )}
               </div>

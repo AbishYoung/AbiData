@@ -6,11 +6,13 @@ import "./styles/tokens.css";
 import "./styles/chrome.css";
 import "./styles/mobile.css";
 import "./styles/wildlife.css";
+import "./styles/motion.css";
 import { queryClient } from "./app/queryClient";
 import { router } from "./app/router";
 import { ErrorHost } from "./components/ErrorDialog";
 import { ConfirmHost } from "./components/ui";
 import { ActivityBanner } from "./components/ActivityBanner";
+import { ActivityBeam } from "./components/ActivityBeam";
 import { DocsHost } from "./features/docs/DocsHost";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { GlobalShortcuts } from "./features/palette/GlobalShortcuts";
@@ -33,6 +35,7 @@ createRoot(rootElement).render(
       <ErrorHost />
       <ConfirmHost />
       <ActivityBanner />
+      <ActivityBeam />
       <CommandPalette />
       <DocsHost />
       <GlobalShortcuts />

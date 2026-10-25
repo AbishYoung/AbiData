@@ -162,7 +162,7 @@ export function PanelEmpty({ icon: Icon = CheckCircle2, title, children }: { ico
 
 /** A pulsing placeholder block. */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded bg-surface-3 ${className}`} />;
+  return <div aria-hidden="true" className={`animate-shimmer rounded bg-surface-3 ${className}`} />;
 }
 
 /** The dashboard's loading skeleton, matching the final layout. */

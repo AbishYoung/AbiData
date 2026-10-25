@@ -259,7 +259,7 @@ export function RecordSheet(props: Props) {
               <div role="status" className="space-y-4">
                 <span className="sr-only">Loading record</span>
                 {columns.slice(0, 5).map((c) => (
-                  <div key={c.id} aria-hidden="true" className="h-12 animate-pulse rounded-md bg-surface-3" />
+                  <div key={c.id} aria-hidden="true" className="h-12 animate-shimmer rounded-md bg-surface-3" />
                 ))}
               </div>
             ) : (

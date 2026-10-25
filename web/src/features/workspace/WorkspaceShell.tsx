@@ -24,6 +24,7 @@ import { ReportTab } from "@/features/reports/ReportTab";
 import { EgressSettings, JobTab, ScriptTab, TableDesignTab } from "./lazyFeatures";
 import { OperationsStatus } from "@/components/OperationsStatus";
 import { HelpButton } from "@/features/docs/HelpButton";
+import { LiveBeacon } from "@/components/LiveBeacon";
 import { alertBox, badge, btn, infoBox, dialogOverlay, dialogPanel, dialogTitle, iconBtn, kbd, segActive, segInactive, segTray } from "@/components/styles";
 import { Tip } from "@/components/Tip";
 import { askToConfirm, type ConfirmRequest } from "@/components/ui";
@@ -76,7 +77,6 @@ const LIVE_TIP: Record<LiveState, string> = {
   reconnecting: "Connection interrupted. Reconnecting to receive live updates.",
   offline: "Live updates are paused. Open data may be out of date.",
 };
-const LIVE_DOT: Record<LiveState, string> = { live: "bg-success", reconnecting: "bg-warning animate-pulse", offline: "bg-danger" };
 
 export { WorkspaceAvatar };
 
@@ -482,7 +482,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
               <OperationsStatus ws={ws} />
             </span>
             <span className="inline-flex items-center gap-1.5 leading-7">
-              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+              <LiveBeacon state={live} />
               <span className="sr-only">Updates: </span>
               {LIVE_LABEL[live]}
             </span>
@@ -563,7 +563,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Tip label={LIVE_TIP[live]}>
-              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${LIVE_DOT[live]}`} />
+              <LiveBeacon state={live} />
             </Tip>
             Updates: {LIVE_LABEL[live]}
           </span>

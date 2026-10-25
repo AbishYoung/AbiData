@@ -101,7 +101,7 @@ export default function MonacoEditor({ value, onChange, kind, label, height, pat
       // (a stale value prop would make the wrapper overwrite the newest keystrokes).
       onChange={(v) => flushSync(() => onChange(v ?? ""))}
       onMount={(ed) => setEditor(ed)}
-      loading={<div role="status" className="space-y-2 p-4"><span className="sr-only">Loading the code editor…</span>{[80, 60, 70, 40].map((w) => <div key={w} aria-hidden="true" className="h-3 animate-pulse rounded bg-surface-3" style={{ width: `${w}%` }} />)}</div>}
+      loading={<div role="status" className="space-y-2 p-4"><span className="sr-only">Loading the code editor…</span>{[80, 60, 70, 40].map((w) => <div key={w} aria-hidden="true" className="h-3 animate-shimmer rounded bg-surface-3" style={{ width: `${w}%` }} />)}</div>}
       options={{
         ariaLabel: label,
         automaticLayout: true,

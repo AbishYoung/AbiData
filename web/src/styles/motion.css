@@ -1,0 +1,37 @@
+/* "System is alive" motion (ADR 0021): breathing connection beacon, top-edge laser beam, save ripple and
+   shimmer skeletons. Each static look is complete on its own; every animation lives inside
+   prefers-reduced-motion: no-preference, so reduced motion gets a still beacon, a still beam, a still highlight
+   and plain skeleton bars. */
+
+/* Connection beacon: a solid core with a soft ping ring while the live stream is connected. */
+.beacon { position: relative; display: inline-flex; width: 0.5rem; height: 0.5rem; flex-shrink: 0; }
+.beacon-core, .beacon-ring { position: absolute; inset: 0; border-radius: 9999px; background: var(--success); }
+.beacon-ring { opacity: 0; }
+.beacon[data-state="reconnecting"] .beacon-core, .beacon[data-state="reconnecting"] .beacon-ring { background: var(--warning); }
+.beacon[data-state="offline"] .beacon-core { background: var(--danger); }
+
+/* Top-edge laser progress beam: 2px, never intercepts the pointer. */
+.laser-beam { position: fixed; inset: 0 0 auto 0; z-index: 60; height: 2px; overflow: hidden; pointer-events: none; }
+.laser-beam::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--accent), var(--ember), var(--brand-to)); }
+
+/* Save ripple: the row that was just committed. The tint is the whole effect under reduced motion. */
+.row-saved { background-color: color-mix(in oklch, var(--accent-soft) 70%, transparent); }
+
+/* Shimmer-wave skeletons: an angled light sweep across the placeholder. */
+.animate-shimmer { background-image: linear-gradient(110deg, transparent 30%, var(--surface-2) 50%, transparent 70%); background-size: 200% 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .beacon[data-state="live"] .beacon-ring { animation: beacon-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
+  .beacon[data-state="reconnecting"] .beacon-core { animation: beacon-breathe 1.2s ease-in-out infinite; }
+  .beacon[data-state="reconnecting"] .beacon-ring { animation: beacon-ping 1.2s cubic-bezier(0, 0, 0.2, 1) 0.15s 2 both, beacon-ping 1.2s cubic-bezier(0, 0, 0.2, 1) 1.4s infinite; }
+  .laser-beam { opacity: 0; animation: beam-in 200ms ease-out 250ms forwards; }
+  .laser-beam::before { width: 40%; animation: beam-sweep 1.3s cubic-bezier(0.45, 0, 0.25, 1) infinite; filter: drop-shadow(0 0 4px var(--accent)); }
+  .row-saved { animation: row-saved 1200ms ease-out both; }
+  .animate-shimmer { animation: shimmer-sweep 1.6s linear infinite; }
+}
+@keyframes beacon-ping { 0% { transform: scale(1); opacity: 0.45; } 80%, 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes beacon-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes beam-in { to { opacity: 1; } }
+@keyframes beam-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes row-saved { from { background-color: color-mix(in oklch, var(--accent-soft) 100%, transparent); } to { background-color: transparent; } }
+@keyframes shimmer-sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
