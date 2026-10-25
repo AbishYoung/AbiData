@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Added: The export dialog offers a clean or raw Excel workbook, a Query Info sheet for saved queries and exporting just the selected records (ADR 0020).
+
+### Changed
 Added: Excel and CSV exports resolve lookup columns to the parent record display text, with an optional adjacent [ID] column (ADR 0020).
 
 ### Changed
