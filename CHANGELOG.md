@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Touch-first controls on phones: 50x30 toggle switches for yes/no fields, large minus/plus steppers (hold to repeat) for whole numbers, and pinch to change grid row density (ADR 0022).
+
+### Changed
 - Repeated group headers are covered by an end-to-end test; ADR 0018 documents what was built
 
 ### Changed
