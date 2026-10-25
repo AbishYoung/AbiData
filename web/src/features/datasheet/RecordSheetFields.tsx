@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, MapPin } from "lucide-react";
+import { Switch } from "@/components/Switch";
+import { Stepper } from "@/components/Stepper";
 import { GeoValueDialog } from "@/components/maps/lazy";
 import { LocateButton } from "@/components/maps/LocateButton";
 import { formatGeoValue } from "@/lib/geo/format";
@@ -112,17 +114,15 @@ export function Field({
   if (kind === "boolean") {
     const v = draft && "value" in draft ? draft.value : null;
     control = (
-      <label className="flex min-h-11 items-center gap-3 text-base text-fg">
-        <input
+      <label className="flex min-h-11 items-center justify-between gap-3 text-base text-fg">
+        <span>{col.display_name}</span>
+        <Switch
           id={id}
-          type="checkbox"
           checked={v === true}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errId : undefined}
           onChange={(e) => onChange({ value: e.target.checked })}
-          className="h-5 w-5 accent-accent"
         />
-        {col.display_name}
       </label>
     );
     return (
@@ -170,7 +170,7 @@ export function Field({
     );
   } else {
     const maxLength = kind === "text" ? col.type_options.max_length : undefined;
-    control = (
+    const field = (
       <input
         id={id}
         type={inputTypeOf(kind)}
@@ -183,6 +183,14 @@ export function Field({
         onChange={(e) => onChange({ text: e.target.value })}
         className={input}
       />
+    );
+    const text = draft && "text" in draft ? draft.text : "";
+    control = kind === "integer" ? (
+      <Stepper text={text} onText={(t) => onChange({ text: t })} label={col.display_name}>
+        {field}
+      </Stepper>
+    ) : (
+      field
     );
   }
   return (
