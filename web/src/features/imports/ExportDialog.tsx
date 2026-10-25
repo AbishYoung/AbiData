@@ -7,7 +7,7 @@ import { recallParams, rememberParams, type ParamRaw } from "@/features/queries/
 import type { Params } from "@/features/queries/savedQueries";
 import { ApiError } from "@/lib/api";
 import { cancelOperation, operationArtifactUrl } from "@/lib/operations";
-import { loadCsvBom, saveCsvBom } from "./exportPrefs";
+import { loadCsvBom, lookupOptions, saveCsvBom } from "./exportPrefs";
 import { buildExportRequest, defaultScope, MAX_SELECTED, type Scope } from "./exportRequest";
 import { isFinished, parseExportResult, startExport, type ExportRequest } from "./importsApi";
 import { useOperationDetail } from "./useOperationDetail";
@@ -20,6 +20,8 @@ export interface ExportSource {
   params?: readonly Param[];
   /** The table has a point or area field, so GeoJSON can be offered. */
   hasGeo?: boolean;
+  /** The table has a lookup field, so the lookup options are offered. */
+  hasLookup?: boolean;
   /** A datasheet's current filter and sort, in the rows endpoint's parameter form. */
   view?: { filter: string | null; sort: string | null; filtered: boolean; selectedIds?: readonly number[] };
 }
@@ -54,6 +56,8 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
   const [scope, setScope] = useState<Scope>(() => defaultScope(source.view, source.view?.filtered === true));
   const [clean, setClean] = useState(true);
   const [queryInfo, setQueryInfo] = useState(false);
+  const [showNames, setShowNames] = useState(true);
+  const [withIds, setWithIds] = useState(false);
   const [asking, setAsking] = useState(false);
   const [opId, setOpId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -92,6 +96,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
         view: source.view,
         params: values,
       });
+      Object.assign(body, lookupOptions(format, source.hasLookup === true, showNames, withIds));
       if (format === "csv") saveCsvBom(bom);
       const started = await startExport(ws, body);
       downloaded.current = false;
@@ -264,6 +269,24 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
                     </div>
                   )}
                 </fieldset>
+              )}
+              {source.kind === "table" && source.hasLookup === true && (format === "csv" || format === "xlsx") && (
+                <div className="mt-3">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input type="checkbox" checked={showNames} aria-describedby={`${baseId}-names`} onChange={(e) => setShowNames(e.target.checked)} />
+                    Show lookup names
+                  </label>
+                  <p id={`${baseId}-names`} className="m-0 ml-6 text-sm text-fg-muted">
+                    Lookup fields show the linked record's name instead of its id.
+                  </p>
+                  <label className="mt-2 flex items-center gap-2 text-sm font-medium">
+                    <input type="checkbox" checked={withIds} disabled={!showNames} aria-describedby={`${baseId}-ids`} onChange={(e) => setWithIds(e.target.checked)} />
+                    Also include the ids
+                  </label>
+                  <p id={`${baseId}-ids`} className="m-0 ml-6 text-sm text-fg-muted">
+                    Adds a column with the linked record's id after each lookup column, for importing the file again.
+                  </p>
+                </div>
               )}
               {source.kind === "query" && (
                 <p className="m-0 mt-2 text-sm text-fg-muted">

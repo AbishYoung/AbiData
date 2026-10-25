@@ -16,7 +16,7 @@ import { useSavedQueries, type Saved } from "@/features/queries/savedQueries";
 import { DeleteQueryDialog, RenameQueryDialog } from "./QueryCrudDialogs";
 import { QueryNavItem, queryActions } from "./QueryNavItem";
 import type { ExportSource } from "@/features/imports/ExportDialog";
-import { hasGeoField } from "@/features/imports/exportPrefs";
+import { hasGeoField, hasLookupField } from "@/features/imports/exportPrefs";
 import { ExportDialog, ImportWizard, prefetchFor } from "@/features/workspace/lazyFeatures";
 import { effectiveParams } from "@/features/queries/params";
 
@@ -231,7 +231,7 @@ export function NavPane({ ws, role, variant = "sidebar" }: { ws: string; role: s
                             design: () => openTable(t, "design"),
                             rename: () => setDialog({ kind: "rename", table: t }),
                             remove: () => setDialog({ kind: "delete", table: t }),
-                            export: () => setExporting({ kind: "table", id: t.id, name: t.display_name, hasGeo: hasGeoField(t.columns) }),
+                            export: () => setExporting({ kind: "table", id: t.id, name: t.display_name, hasGeo: hasGeoField(t.columns), hasLookup: hasLookupField(t.columns) }),
                             importInto: () => setImporting({ intoTableId: t.id }),
                           })}
                         />
