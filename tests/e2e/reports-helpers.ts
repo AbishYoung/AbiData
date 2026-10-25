@@ -87,7 +87,7 @@ const ctl = (id: string, type: string, x: number, w: number, extra: Record<strin
 });
 
 /** Mirrors the golden test layout: report header, page header, group header/footer, grow detail, report footer. */
-export function salesReportBody(t: ApiTable, name: string, paper: PaperName) {
+export function salesReportBody(t: ApiTable, name: string, paper: PaperName, opts: { repeatHeader?: boolean } = {}) {
   const bind = (c: string) => ({ column_id: colId(t, c) });
   const sum = (scope: string) => ({ aggregate: "sum", column_id: colId(t, "Amount"), scope });
   return {
@@ -127,6 +127,7 @@ export function salesReportBody(t: ApiTable, name: string, paper: PaperName) {
         {
           column_id: colId(t, "Region"),
           sort: "asc",
+          ...(opts.repeatHeader ? { repeat_header: true } : {}),
           header: { height: 24, keep_together: true, controls: [ctl("gh", "textbox", 0, 200, { bind: bind("Region"), style: { bold: "true" } })] },
           footer: {
             height: 24,

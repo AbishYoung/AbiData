@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Repeated group headers are covered by an end-to-end test; ADR 0018 documents what was built
+
+### Changed
 - Download a report as a PDF, or export its rows as CSV or JSON, straight from the report viewer (ADR 0018)
 
 ### Changed
