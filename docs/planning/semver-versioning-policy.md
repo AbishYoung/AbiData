@@ -15,7 +15,15 @@ AbiData strictly adheres to **Semantic Versioning 2.0.0**. Because AbiData is di
 
 > [!IMPORTANT]
 > **All changes landing on the `main` branch must increment SemVer project-wide.**
-> There are no unversioned merges on `main`. Every Pull Request merged into `main` must bump the project version (typically a patch increment `1.0.X`), ensuring every commit on `main` corresponds to a verifiable, reproducible release artifact.
+> There are no unversioned merges on `main`. Every Pull Request merged into `main` must bump the project version (a patch increment `1.X.Y` → `1.X.Y+1`) and record its change under `[Unreleased]` in `CHANGELOG.md`, so every commit on `main` is an identifiable, reproducible build.
+
+### 1.1.1 What Gets Released
+
+Releases (a `vX.Y.Z` tag, the GitHub Release, binaries and container images) are cut only:
+- **on minor versions**, when a milestone is complete (`1.4.7` → `1.5.0`); and
+- **on special fix patch versions**, when a security fix or serious regression cannot wait for the next minor. The fix lands on `main` with its normal patch bump and that patch version is tagged (see §5).
+
+The patch versions in between are versioned builds of `main`, not releases.
 
 ### 1.2 Version Structure: `MAJOR.MINOR.PATCH`
 
@@ -46,7 +54,7 @@ AbiData strictly adheres to **Semantic Versioning 2.0.0**. Because AbiData is di
 | Version | Milestone / Scope | Status | Planning Document |
 |---|---|---|---|
 | **`v1.0.0`** | Initial General Availability Release | Released | [CHANGELOG.md](../../CHANGELOG.md#100---2026-10-20) |
-| **`v1.0.1`+** | Incremental PRs, bug fixes, performance, stepping stones | In Progress | Continuous Patch Releases |
+| **`v1.0.1`+** | Incremental PRs, bug fixes, performance, stepping stones | In Progress | Patch version per PR; released only as special fix releases (§5) |
 | **`v1.1.0`** | **Phase 1:** Query Console Power (`Mod+Enter`, Monaco SQL, Error Markers) & Selection Aggregation | Completed | [phase-1-query-grid-power.md](phase-1-query-grid-power.md) |
 | **`v1.2.0`** | **Phase 2:** Filter Pills Bar, Rich Thread Messaging & Cross-Workspace Palette | Completed | [phase-2-clarity-and-collaboration.md](phase-2-clarity-and-collaboration.md) |
 | **`v1.3.0`** | **Phase 3:** Mobile Touch Swipe Gestures, iOS Keyboard Dismissal & Form Accordions | Completed | [phase-3-mobile-touch-and-forms.md](phase-3-mobile-touch-and-forms.md) |
@@ -91,13 +99,13 @@ flowchart TD
    - Tagged as `ghcr.io/abishyoung/abidata:vX.Y.Z` and `ghcr.io/abishyoung/abidata:latest` (on major/minor milestones).
 4. **Changelog (`CHANGELOG.md`):**
    - Maintained under the [Keep a Changelog](https://keepachangelog.com/) standard.
-   - Every version has an explicit section with release date: `## [X.Y.Z] - YYYY-MM-DD`.
+   - PRs add their entries under `## [Unreleased]`; every *released* version has an explicit section with release date: `## [X.Y.Z] - YYYY-MM-DD`.
 
 ---
 
 ## 4. Step-by-Step Release Verification & Execution Checklist
 
-When preparing to land a release on `main` (whether a patch PR or a completed milestone minor release):
+When preparing a release (a completed milestone minor release, or a special fix patch release):
 
 ### Step 1: Pre-Release Verification (Local Clean State)
 Run all verification gates locally before cutting the release branch or merging the PR:
@@ -168,16 +176,18 @@ Pushing the `v*.*.*` tag automatically triggers `.github/workflows/release.yml`:
 
 ---
 
-## 5. Hotfix & Patch Release Workflow
+## 5. Special Fix (Patch) Release Workflow
 
-If a critical security vulnerability or regression is discovered in a published release:
-1. Branch off the offending tag: `git checkout -b hotfix/vX.Y.Z+1 vX.Y.Z`.
+If a critical security vulnerability or serious regression is found and the fix cannot wait for the next minor release:
+1. Branch from the latest `main`: `git checkout -b fix/<short-name> origin/main`.
 2. Apply the surgical fix and add a targeted regression test.
-3. Verify test passes: `go test ./...` and `npm test`.
-4. Update `CHANGELOG.md` under `## [X.Y.Z+1] - YYYY-MM-DD` citing the security or defect fix.
-5. Bump `web/package.json` to `X.Y.Z+1`.
-6. Merge hotfix branch into `main` (and rebase if needed).
-7. Cut and push tag `vX.Y.Z+1`.
+3. Verify it passes: `go test ./...` and `npm test`.
+4. Bump `web/package.json` to the next patch above `main` (`X.Y.Z` → `X.Y.Z+1`).
+5. Move `[Unreleased]` (including the fix, under `### Security` or `### Fixed`) into `## [X.Y.Z+1] - YYYY-MM-DD`, since this patch version is released.
+6. Merge to `main` once CI is green.
+7. Cut and push tag `vX.Y.Z+1` on that merge commit (Step 4 above).
+
+Security fixes follow [SECURITY.md](../../SECURITY.md) for disclosure: the advisory is published once the release is out.
 
 ---
 

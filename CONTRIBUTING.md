@@ -46,7 +46,8 @@ make dev-web    # in a second terminal: the Vite dev server with hot reload
 2. **Keep the change focused.** Small pull requests are reviewed and merged quickly, while large ones wait. Split big work into steps that each leave `main` working.
 3. **Write tests.** Every behaviour change needs a test at the right layer ([ADR 0016](docs/adr/0016-layered-testing.md)): Go unit or integration tests, Vitest for the web app, Playwright for end-to-end flows.
 4. **Run the checks** below.
-5. **Open a pull request** using the template, and link the issue it addresses.
+5. **Bump the version and note the change** (see [Versions and releases](#versions-and-releases)).
+6. **Open a pull request** using the template, and link the issue it addresses.
 
 ### Checks
 
@@ -83,7 +84,19 @@ make test-postgres  # starts throwaway PostgreSQL 17 and 18 servers in container
 
 - CI must be green: Go, web, end-to-end, PostgreSQL (when the change touches the database layers) and the Docker build.
 - A maintainer reviews every pull request. Expect questions, and feel free to push follow-up commits; we merge with a merge commit.
-- Versions and releases follow the [SemVer policy](docs/planning/semver-versioning-policy.md) and [RELEASING.md](RELEASING.md). Maintainers apply the version bump, so don't change version numbers in your pull request unless asked.
+
+## Versions and releases
+
+AbiData follows [Semantic Versioning](https://semver.org); see [RELEASING.md](RELEASING.md) and the [SemVer policy](docs/planning/semver-versioning-policy.md) for the details.
+
+- **Every pull request bumps the patch version.** No commit lands on `main` without a new version. In your pull request:
+  - increase the patch number in `web/package.json` (`1.4.2` → `1.4.3`). The version is shared by the server, the CLI, the container image and the web app;
+  - add your change under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in the right group (`Added`, `Changed`, `Fixed`, `Security`, …).
+  If `main` moves while your pull request is open, rebase and take the next free patch number before it merges.
+- **Releases are minor versions.** When a milestone is complete, a maintainer bumps to the next minor (`1.4.7` → `1.5.0`), turns `[Unreleased]` into that version's changelog section and tags it. The tag builds and publishes the binaries and the container image. Patch versions in between are not released.
+- **Special fix releases.** When a security fix or a serious regression cannot wait for the next minor, its pull request lands on `main` like any other, with its patch bump, and maintainers tag and release that patch version (for example `v1.5.3`).
+- Breaking changes (to `/api/v1`, the Lua host API, storage formats, the CLI or environment variables) need a major version and must be agreed in an issue first.
+- Only maintainers create tags and releases.
 
 ## Licence
 

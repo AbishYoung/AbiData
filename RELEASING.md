@@ -29,7 +29,15 @@ AbiData strictly adheres to [Semantic Versioning 2.0.0](https://semver.org/):
 
 > [!IMPORTANT]
 > **Mandatory SemVer Increment on `main`**:
-> Every pull request or change that lands on `main` must increment SemVer project-wide (patch releases `1.0.1`, `1.0.2`, etc. for individual PRs, refactors, and stepping stones). There are no unversioned commits on `main`.
+> Every pull request or change that lands on `main` must increment SemVer project-wide: the patch number (`1.4.1`, `1.4.2`, …) for individual PRs, refactors and stepping stones. There are no unversioned commits on `main`. Each PR also adds its notes under `## [Unreleased]` in `CHANGELOG.md`.
+
+> [!NOTE]
+> **Releases are minor versions, plus special fix patches.**
+> Not every version is released. A release (a `vX.Y.Z` tag, with binaries, a GitHub Release and container images) is cut:
+> - **on a minor version** when a milestone is complete: the release PR bumps to the next minor (`1.4.7` → `1.5.0`);
+> - **on a special fix patch** when a security fix or serious regression cannot wait for the next minor: the fix lands on `main` with its normal patch bump, and that patch version is tagged (for example `v1.5.3`).
+>
+> The patch versions in between are versioned builds of `main`, not releases.
 
 ---
 
@@ -58,7 +66,8 @@ make e2e
 ```
 
 ### 2. Prepare the Release
-1. Update `web/package.json` to the target version `"version": "X.Y.Z"`.
+For a **minor release**, open a release PR; for a **special fix release**, the fix PR itself carries these changes.
+1. Update `web/package.json` to the target version `"version": "X.Y.Z"` (the next minor `X.Y.0`, or the fix's patch version).
 2. Update `CHANGELOG.md`:
    - Move entries under `[Unreleased]` into a new version section: `## [X.Y.Z] - YYYY-MM-DD`.
    - Update comparison links at the bottom of the changelog.

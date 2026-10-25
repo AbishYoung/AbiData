@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Community health files: code of conduct, contributing guide, security policy, accessibility statement, issue forms and a pull request template.
+
+### Changed
+- Versioning: every pull request bumps the patch version; releases are cut on minor versions and on special fix patch versions.
+
 ## [1.3.1] - 2026-10-24
 
 ### Added
