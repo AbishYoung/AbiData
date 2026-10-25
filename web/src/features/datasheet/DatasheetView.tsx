@@ -856,6 +856,27 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
   }
 
+  /** Adds a copy of a record (swipe right or the card menu). Calculated, read-only and attachment fields are not copied. */
+  async function duplicateRecord(row: Row | undefined) {
+    if (!row || !canEdit) return;
+    const fields: Record<string, unknown> = {};
+    for (const col of allColumns) {
+      if (isReadOnlyColumn(col) || kindOf(col) === "attachments") continue;
+      const v = row.fields[col.id];
+      if (v !== undefined && v !== null) fields[col.id] = v;
+    }
+    try {
+      await insertRow(ws, tableId, fields);
+      toast("success", "Record duplicated");
+    } catch (e) {
+      const failure = classifyFailure(e);
+      if (failure.kind === "error") useErrorStore.getState().show(failure.error);
+      else if (failure.kind === "fields") toast("error", "The record could not be duplicated: " + Object.values(failure.errors).join(" "));
+    } finally {
+      refreshData();
+    }
+  }
+
   // ---- context menu ------------------------------------------------------------------------
   // What the right-click was on, worked out when the menu opens (before React re-renders), so the
   // entries describe that cell even though the active cell has not caught up yet.
@@ -1156,6 +1177,11 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           canEdit={canEdit}
           onOpen={openSheet}
           onNew={() => openSheet(total)}
+          onDelete={(index) => {
+            const row = rowAt(index);
+            if (row) setDel({ ids: [row.id], busy: false, error: null });
+          }}
+          onDuplicate={(index) => void duplicateRecord(rowAt(index))}
         />
       )}
       {mode === "grid" && (

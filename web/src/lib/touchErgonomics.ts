@@ -25,3 +25,18 @@ export function dismissActiveInput(target?: EventTarget | null): void {
     document.activeElement.blur();
   }
 }
+
+/** True when the user asked the OS for less motion; gestures then skip drag animation and springs. */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** A short vibration where the device supports it (Android browsers); a silent no-op elsewhere. */
+export function haptic(ms: number): void {
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(ms);
+  } catch {
+    // Vibration may be blocked by permissions policy; it is only a cue.
+  }
+}
