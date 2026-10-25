@@ -4,6 +4,8 @@ AbiData is a professional data tool in the lineage of Microsoft Access: dense, k
 
 The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/components/ui/` (see "Primitives" below), the shared class strings in `web/src/components/styles.ts`, and the object-kind icons and colours in `web/src/components/objectKinds.tsx`. The logo is in `web/src/components/brand/Logo.tsx`. The reference implementation of the style is the workspace shell (`features/workspace/WorkspaceShell.tsx`) and the navigation pane (`features/nav/NavPane.tsx`, `navStyles.ts`).
 
+Shell chrome: both shell headers use `.glass` with `border-border/80`; the active nav row (`navRowActive`) carries a glowing accent anchor bar; the active tab has a `border-t-2 border-t-accent` top edge and `shadow-md`; the dirty-tab dot glows with `--warning`.
+
 ## Principles
 1. **Hierarchy through layering.** Use `bg` for the page, `surface` for panels and cards, `surface-2` for toolbars, headers and inputs at rest, and `surface-3` for hover and pressed states and badges. In light mode a card gets `shadow-sm`; dialogs and menus get `shadow-lg`. Borders use `border` (soft). Only interactive outlines (inputs) use `border-strong`.
 2. **One primary action per view.** Use `btnPrimary` for the main action, `btn` for secondary actions, and `btnGhost` or `iconBtn` for tertiary actions and toolbars. Use `btnDanger` only inside a confirmation. Group related toolbar buttons and separate the groups with a `h-5 w-px bg-border` divider.

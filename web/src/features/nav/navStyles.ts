@@ -2,7 +2,7 @@
 import { menu, menuItem } from "@/components/styles";
 
 export const navRow = "group relative mx-2 flex items-center rounded-md pr-0.5 transition-colors hover:bg-surface-2";
-export const navRowActive = "bg-accent-soft hover:bg-accent-soft";
+export const navRowActive = "bg-accent-soft hover:bg-accent-soft before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent before:shadow-[0_0_8px_var(--accent)]";
 export const navItemButton = (active: boolean) =>
   `min-w-0 flex-1 cursor-pointer truncate rounded-md py-1.5 pl-7 pr-2 text-left text-sm ${active ? "font-medium text-accent" : "text-fg"}`;
 export const navMoreButton =
