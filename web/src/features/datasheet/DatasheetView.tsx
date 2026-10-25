@@ -21,7 +21,7 @@ import { ExportDialog } from "@/features/workspace/lazyFeatures";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
 import { PastePreviewDialog } from "./PastePreviewDialog";
-import { boundsOf, cellCount, describeRange, inBounds, isMultiCell, parseClipboard, type Bounds, type CellRange } from "./range";
+import { boundsOf, cellCount, describeRange, inBounds, isMultiCell, type Bounds, type CellRange } from "./range";
 import type { BatchOp } from "./rowsApi";
 import type { PasteMode } from "./paste";
 import { ColumnProfileDialog } from "./ColumnProfileDialog";
@@ -70,8 +70,9 @@ import {
 import type { MergeField } from "./merge";
 import { toast } from "@/components/AppToasts";
 import { ContextArea, type MenuEntry } from "@/components/ContextArea";
-import { copyRich, readClipboardText } from "@/lib/clipboard";
-import { blockFormats, blockTsv, type CopyBlock } from "./clipboardFormats";
+import { copyRich, readClipboardFlavors } from "@/lib/clipboard";
+import { blockFormats, blockTsv, CELLS_MIME, type CellsPayload, type CopyBlock } from "./clipboardFormats";
+import { readCells } from "./clipboardRead";
 import { detectPlatform, formatKeys } from "@/lib/shortcuts";
 import { gridMenu, type MenuTarget } from "./gridMenu";
 import { useRowPages } from "./useRowPages";
@@ -108,6 +109,7 @@ const MAX_RICH_COPY_ROWS = 2000;
 
 interface PasteState {
   matrix: string[][];
+  payload: CellsPayload | null;
   startRow: number;
   startCol: number;
   busy: boolean;
@@ -462,32 +464,43 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   /** One value goes into the cell (opened for editing); a block opens the paste preview. */
-  function pasteText(cell: Cell, text: string) {
-    const matrix = parseClipboard(text);
+  function pasteFlavors(cell: Cell, flavors: Readonly<Record<string, string | undefined>>) {
+    const cells = readCells(flavors);
+    if (!cells) return;
+    const { matrix, payload } = cells;
     const single = matrix.every((r) => r.length <= 1);
     const col = columns[cell.col];
     // A single value, or lines of text pasted into one long text cell, edit that cell.
-    if ((matrix.length === 1 && single) || (single && !bounds && col !== undefined && kindOf(col) === "longtext")) {
-      pasteInto(cell, text);
+    if (matrix.length === 1 && single) {
+      pasteInto(cell, matrix[0]?.[0] ?? "");
+      return;
+    }
+    if (single && !bounds && col !== undefined && kindOf(col) === "longtext") {
+      pasteInto(cell, matrix.map((r) => r[0] ?? "").join("\n"));
       return;
     }
     if (!canEdit) return;
     const start = bounds ? { row: bounds.r0, col: bounds.c0 } : cell;
-    setPaste({ matrix, startRow: start.row, startCol: start.col, busy: false, error: null });
+    setPaste({ matrix, payload, startRow: start.row, startCol: start.col, busy: false, error: null });
   }
 
   async function pasteFromMenu(cell: Cell) {
-    const text = await readClipboardText();
-    if (text === null) toast("info", `The browser did not allow reading the clipboard. Press ${formatKeys("Mod+V", detectPlatform())} in the cell instead.`);
-    else pasteText(cell, text);
+    const flavors = await readClipboardFlavors();
+    if (flavors === null) toast("info", `The browser did not allow reading the clipboard. Press ${formatKeys("Mod+V", detectPlatform())} in the cell instead.`);
+    else pasteFlavors(cell, flavors);
   }
 
   function onGridPaste(e: ClipboardEvent<HTMLDivElement>) {
     if (editing) return;
-    const text = e.clipboardData.getData("text/plain");
-    if (!text) return;
+    const dt = e.clipboardData;
+    const flavors: Record<string, string> = {};
+    for (const type of ["text/plain", "text/html", CELLS_MIME]) {
+      const v = dt.getData(type);
+      if (v) flavors[type] = v;
+    }
+    if (Object.keys(flavors).length === 0) return;
     e.preventDefault();
-    pasteText(activeCell, text);
+    pasteFlavors(activeCell, flavors);
   }
 
   async function applyPaste(ops: BatchOp[], mode: PasteMode) {
@@ -1323,6 +1336,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         <PastePreviewDialog
           columns={columns}
           matrix={paste.matrix}
+          payload={paste.payload}
           startRow={paste.startRow}
           startCol={paste.startCol}
           total={total}

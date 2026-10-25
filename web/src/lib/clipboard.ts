@@ -60,6 +60,30 @@ export async function copyRich(formats: Readonly<Record<string, string>>): Promi
   return copyText(plain);
 }
 
+/**
+ * Reads the text flavors of the clipboard (MIME type -> text), or null when the browser does not
+ * allow it (then Mod+V still works). Only text types are read; nothing is interpreted here.
+ */
+export async function readClipboardFlavors(): Promise<Record<string, string> | null> {
+  try {
+    if (navigator.clipboard?.read) {
+      const out: Record<string, string> = {};
+      for (const item of await navigator.clipboard.read()) {
+        for (const type of item.types) {
+          const mime = type.replace(/^web /, "");
+          if (mime !== "text/plain" && mime !== "text/html" && mime !== "application/x-abidata-cells") continue;
+          out[mime] = await (await item.getType(type)).text();
+        }
+      }
+      if (Object.keys(out).length > 0) return out;
+    }
+  } catch {
+    // fall back to plain text below
+  }
+  const text = await readClipboardText();
+  return text === null ? null : { "text/plain": text };
+}
+
 /** Reads text from the clipboard, or null when the browser does not allow it (then Mod+V still works). */
 export async function readClipboardText(): Promise<string | null> {
   try {
