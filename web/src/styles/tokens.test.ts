@@ -49,6 +49,8 @@ const PAIRS: [string, string, number][] = [
   ["success", "success-soft", 4.5],
   ["fg", "accent-soft", 4.5],
   ["border-strong", "surface", 3],
+  ["ember", "surface", 3],
+  ["ember", "bg", 3],
   ["focus", "surface", 3],
   ["focus", "bg", 3],
   ...["table", "query", "form", "report", "script", "job"].flatMap((k): [string, string, number][] => [
