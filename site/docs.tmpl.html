@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} - AbiData documentation</title>
+<meta name="description" content="{{if .Summary}}{{.Summary}}{{else}}AbiData documentation.{{end}}">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="{{.Base}}assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{.Base}}assets/site.css">
+<link rel="stylesheet" href="{{.Base}}assets/highlight.css">
+<script>document.documentElement.classList.add("js")</script>
+<script src="{{.Base}}assets/site.js" defer></script>
+</head>
+<body class="docs-body">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="{{.Base}}" aria-label="AbiData home">
+      <img src="{{.Base}}assets/favicon.svg" width="28" height="28" alt="">
+      <span>Abi<b>Data</b></span>
+    </a>
+    <nav aria-label="Site" class="top-nav">
+      <a class="opt" href="{{.Base}}#features">Features</a>
+      <a class="opt" href="{{.Base}}#quick-start">Quick start</a>
+      <a href="{{.Base}}docs/" aria-current="page">Docs</a>
+      <a href="{{.RepoURL}}" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+  <nav class="docs-nav" aria-label="Documentation">
+    <details class="docs-nav-details" open>
+      <summary>Documentation pages</summary>
+      {{range .Nav}}
+      <h2>{{.Title}}</h2>
+      <ul>
+        {{range .Items}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Title}}</a></li>
+        {{end}}
+      </ul>
+      {{end}}
+    </details>
+  </nav>
+
+  <main id="main" class="docs-main">
+    {{if not .Root}}<p class="crumb"><a href="{{.Base}}docs/">Docs</a> <span aria-hidden="true">/</span> {{.Section}}</p>{{end}}
+    <article class="prose">
+      {{if .Root}}<h1>{{.Title}}</h1><p class="lead">{{.Summary}}</p>{{end}}
+      {{.Content}}
+    </article>
+    {{if or .Prev .Next}}
+    <nav class="pager" aria-label="Previous and next page">
+      {{if .Prev}}<a class="prev" href="{{.Prev.URL}}" rel="prev"><span>Previous</span>{{.Prev.Title}}</a>{{else}}<span></span>{{end}}
+      {{if .Next}}<a class="next" href="{{.Next.URL}}" rel="next"><span>Next</span>{{.Next.Title}}</a>{{end}}
+    </nav>
+    {{end}}
+    {{if .EditURL}}<p class="edit"><a href="{{.EditURL}}" rel="noopener">Edit this page on GitHub</a></p>{{end}}
+  </main>
+
+  {{if .TOC}}
+  <aside class="docs-toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      {{range .TOC}}<li class="l{{.Level}}"><a href="#{{.ID}}">{{.Text}}</a></li>
+      {{end}}
+    </ul>
+  </aside>
+  {{end}}
+</div>
+
+<footer class="site-footer">
+  <div class="wrap foot">
+    <p>AbiData is open source under the MIT licence.</p>
+    <p><a href="{{.RepoURL}}" rel="noopener">GitHub</a> · <a href="{{.RepoURL}}/releases" rel="noopener">Releases</a> · <a href="{{.Base}}">Home</a></p>
+  </div>
+</footer>
+</body>
+</html>
