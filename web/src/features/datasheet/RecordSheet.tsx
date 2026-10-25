@@ -12,6 +12,7 @@ import { draftOf, isReadOnlyColumn, kindOf, parseDraft } from "./values";
 import { askToConfirm } from "@/components/ui";
 import { Field } from "./RecordSheetFields";
 import { dismissActiveInput, useSwipeGesture } from "./useSwipeGesture";
+import { useDragToDismiss } from "./useDragToDismiss";
 
 export function getPaginationDots(current: number, total: number, maxDots = 7) {
   if (total <= maxDots) {
@@ -149,10 +150,15 @@ export function RecordSheet(props: Props) {
     }
   }
 
-  async function close() {
-    if (isDirty && !(await askToConfirm({ title: "Discard your changes?", message: "Your changes to this record are not saved.", confirmLabel: "Discard changes", danger: true }))) return;
+  /** Closes the sheet, first confirming when there are unsaved edits. Resolves to whether it closed. */
+  async function close(): Promise<boolean> {
+    if (isDirty && !(await askToConfirm({ title: "Discard your changes?", message: "Your changes to this record are not saved.", confirmLabel: "Discard changes", danger: true }))) return false;
     onClose();
+    return true;
   }
+
+  // Dragging the grab bar or header down dismisses the sheet; the buttons remain the keyboard path.
+  const { sheetRef, handleProps } = useDragToDismiss({ enabled: true, onRequestClose: close });
 
   async function go(next: number) {
     if (dirty && !(await save())) return;
@@ -178,6 +184,7 @@ export function RecordSheet(props: Props) {
     <Dialog.Root open onOpenChange={(o) => (o ? undefined : void close())}>
       <Dialog.Portal>
         <Dialog.Content
+          ref={sheetRef}
           aria-describedby={undefined}
           data-presentation="fullscreen"
           onPointerDown={(e) => dismissActiveInput(e.target)}
@@ -189,8 +196,13 @@ export function RecordSheet(props: Props) {
           }}
           className="fixed inset-0 z-50 flex flex-col bg-bg text-fg touch-pan-y"
         >
-          <div className="flex shrink-0 items-center gap-0.5 border-b border-border bg-surface pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-            <button type="button" className={iconBtn} aria-label="Close record" onClick={close}>
+          <div
+            {...handleProps}
+            className="shrink-0 touch-none border-b border-border bg-surface pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]"
+          >
+            <div aria-hidden="true" className="mx-auto my-2 h-1.5 w-10 rounded-full bg-border-strong/40" data-testid="sheet-grab-bar" />
+            <div className="flex items-center gap-0.5">
+            <button type="button" className={iconBtn} aria-label="Close record" onClick={() => void close()}>
               <X size={20} aria-hidden="true" />
             </button>
             <div className="min-w-0 flex-1 px-1">
@@ -228,6 +240,7 @@ export function RecordSheet(props: Props) {
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
             )}
+            </div>
           </div>
 
           <form
@@ -298,7 +311,7 @@ export function RecordSheet(props: Props) {
 
           {canEdit && (
             <div className="flex shrink-0 gap-2 border-t border-border bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <button type="button" className={`${btn} flex-1`} onClick={close}>
+              <button type="button" className={`${btn} flex-1`} onClick={() => void close()}>
                 Cancel
               </button>
               <button type="submit" form={formId} className={`${btnPrimary} flex-1`} disabled={busy || loading || !dirty || uploading}>
