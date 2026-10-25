@@ -8,6 +8,8 @@ import type { Row } from "./rowsApi";
 import type { RowBuffer, RowKey } from "./buffer";
 import { AttachmentCell } from "@/features/files/FileParts";
 import { formatValue, isEmpty, kindOf } from "./values";
+import { PullIndicator } from "@/components/PullIndicator";
+import { usePullToRefresh } from "@/lib/usePullToRefresh";
 import { LEFT_REVEAL, RIGHT_REVEAL, useCardSwipeActions, type SwipeSide } from "./useCardSwipeActions";
 
 /**
@@ -41,6 +43,8 @@ interface Props {
   canEdit: boolean;
   onOpen: (index: number) => void;
   onNew: () => void;
+  /** Pull-to-refresh: refetch the records; resolves when done. */
+  onRefresh: () => Promise<unknown>;
   /** Delete the record at an index; the caller confirms (deletes are permanent). */
   onDelete: (index: number) => void;
   onDuplicate: (index: number) => void;
@@ -123,13 +127,15 @@ function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete,
 }
 
 /** Record cards for phones: a tap opens the full-screen record sheet. */
-export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew, onDelete, onDuplicate }: Props) {
+export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew, onRefresh, onDelete, onDuplicate }: Props) {
   const { title, preview } = cardColumns(columns);
   const listId = useId();
+  const pull = usePullToRefresh(scrollRef, onRefresh);
   /** Only one card is slid open at a time; a touch anywhere else closes it. */
   const [openCard, setOpenCard] = useState<{ index: number; side: SwipeSide } | null>(null);
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      <PullIndicator state={pull} />
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"

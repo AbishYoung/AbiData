@@ -76,7 +76,7 @@ export function ResultsPanel({
         </div>
       )}
       {runner.result ? (
-        <QueryResultsGrid result={runner.result} label={label} />
+        <QueryResultsGrid result={runner.result} label={label} onRefresh={runner.running ? undefined : runner.refresh} />
       ) : (
         !runner.error && !runner.running && (
           <EmptyState kind="query" title="No results yet" hint="Choose Refresh to run the query." compact />

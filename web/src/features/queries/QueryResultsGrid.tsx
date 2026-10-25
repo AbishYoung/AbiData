@@ -8,6 +8,8 @@ import { formatCurrency, formatDateTime } from "@/features/datasheet/values";
 import type { QueryResult } from "./savedQueries";
 import { formatGeoValue } from "@/lib/geo/format";
 import { Tip } from "@/components/Tip";
+import { PullIndicator } from "@/components/PullIndicator";
+import { usePullToRefresh } from "@/lib/usePullToRefresh";
 import { useRowHeight } from "@/lib/density";
 
 const COL_WIDTH = 176;
@@ -73,9 +75,11 @@ export function truncationNotice(n: number): string {
 }
 
 /** Read-only, virtualized ARIA grid of a query result. */
-export function QueryResultsGrid({ result, label }: { result: QueryResult; label: string }) {
+export function QueryResultsGrid({ result, label, onRefresh }: { result: QueryResult; label: string; onRefresh?: () => unknown }) {
   const gridId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Pull down at the top to run the query again (the toolbar Refresh button does the same).
+  const pull = usePullToRefresh(scrollRef, () => onRefresh?.(), onRefresh !== undefined);
   const [active, setActive] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
   const { columns, rows } = result;
   const rowHeight = useRowHeight();
@@ -167,6 +171,8 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
       <p className="m-0 border-b border-border bg-surface px-3 py-1.5 text-xs text-fg-muted" aria-live="polite">
         {result.truncated ? truncationNotice(rows.length) : `${rows.length.toLocaleString("en-US")} ${rows.length === 1 ? "row" : "rows"}`}
       </p>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <PullIndicator state={pull} />
       <ContextArea label={`${label} actions`} onOpen={onMenu} entries={menu}>
       <div
         ref={scrollRef}
@@ -177,7 +183,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
         aria-colcount={columns.length}
         aria-activedescendant={rows.length > 0 && columns.length > 0 ? cellId(active.row, active.col) : undefined}
         onKeyDown={onKeyDown}
-        className="min-h-0 flex-1 overflow-auto bg-surface"
+        className="min-h-0 flex-1 overflow-auto overscroll-y-contain bg-surface"
       >
         <div role="rowgroup" className="sticky top-0 z-10 bg-surface-2" style={{ width }}>
           <div role="row" aria-rowindex={1} className="grid" style={{ gridTemplateColumns: template, height: HEADER_HEIGHT }}>
@@ -246,6 +252,7 @@ export function QueryResultsGrid({ result, label }: { result: QueryResult; label
         </div>
       </div>
       </ContextArea>
+      </div>
     </div>
   );
 }

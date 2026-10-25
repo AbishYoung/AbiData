@@ -123,11 +123,19 @@ export function useRowPages({
     );
   }
 
+  /** Refetches the rows and the count; resolves when both are done (pull-to-refresh waits on it). */
+  function refreshDataAsync(): Promise<unknown> {
+    return Promise.all([
+      qc.invalidateQueries({ queryKey: keys.rows(ws, tableId) }),
+      qc.invalidateQueries({ queryKey: keys.count(ws, tableId) }),
+    ]);
+  }
+
   function refreshData() {
     void qc.invalidateQueries({ queryKey: keys.rows(ws, tableId) });
     void qc.invalidateQueries({ queryKey: keys.count(ws, tableId) });
   }
 
 
-  return { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData };
+  return { countQuery, total, capped, rowCount, rowHeight, virtualizer, cardVirtualizer, items, failed, fetching, rowAt, indexOfRow, findRow, keyAt, setRowInCache, refreshData, refreshDataAsync };
 }

@@ -13,7 +13,7 @@ const virtualizer = {
 } as unknown as Virtualizer<HTMLDivElement, Element>;
 
 function setup(canEdit = true) {
-  const h = { onOpen: vi.fn(), onNew: vi.fn(), onDelete: vi.fn(), onDuplicate: vi.fn() };
+  const h = { onOpen: vi.fn(), onNew: vi.fn(), onRefresh: vi.fn().mockResolvedValue(undefined), onDelete: vi.fn(), onDuplicate: vi.fn() };
   render(
     <CardList
       label="Records"

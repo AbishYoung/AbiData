@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Pull-to-refresh on record cards, form records and query results on touch screens (ADR 0022).
+
+### Changed
 - Pasting one cell or row over a selection fills the whole selection, and a single value pastes straight into the cell (ADR 0019)
 
 ### Changed

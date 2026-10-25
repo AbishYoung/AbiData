@@ -11,6 +11,8 @@ import { type Form, type FormControl, type FormSection } from "../formsApi";
 import { ControlView, StackedContext, domId, type ControlEnv } from "./Controls";
 import { accuracyColumn } from "@/lib/geo/locate";
 import { useIsCompact } from "@/lib/useMediaQuery";
+import { usePullToRefresh } from "@/lib/usePullToRefresh";
+import { PullIndicator } from "@/components/PullIndicator";
 import { useFormEnv, type ParentLink } from "./env";
 import {
   applyCalc,
@@ -28,7 +30,9 @@ import {
 } from "./model";
 import { DELETED_BANNER } from "./gone";
 import { createSessionStore, useFormSession, useSessionState } from "./useFormSession";
-import { linkFilter, pagesFor, useQueryRows, useTableCount, useTablePages, type Link, type PageAccess } from "./sources";
+import { useQueryClient } from "@tanstack/react-query";
+import { keys } from "@/lib/events";
+import { formQueryKey, formRowsKey, linkFilter, pagesFor, useQueryRows, useTableCount, useTablePages, type Link, type PageAccess } from "./sources";
 import { ConfirmDialog, Toolbar, SubformHost } from "./FormInstanceParts";
 import { dismissActiveInput } from "@/lib/touchErgonomics";
 import { FormAccordion, FormAccordionItem, type FormSectionMeta } from "./FormAccordion";
@@ -124,6 +128,15 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
   const qr = useQueryRows(env.ws, blocked ? null : queryId, sourceTable, link);
   const count = blocked ? 0 : kind === "query" ? qr.rows.length : kind === "none" ? 0 : tc.count;
   const ready = blocked || kind === "none" || (kind === "query" ? qr.ready : tc.ready);
+  const queryClient = useQueryClient();
+  /** Refetches the record source (pull-to-refresh, and the Refresh records button on phones). */
+  const refreshRecords = () =>
+    Promise.all([
+      tableSourceId ? queryClient.invalidateQueries({ queryKey: formRowsKey(env.ws, tableSourceId) }) : undefined,
+      tableSourceId ? queryClient.invalidateQueries({ queryKey: keys.count(env.ws, tableSourceId) }) : undefined,
+      queryId ? queryClient.invalidateQueries({ queryKey: formQueryKey(env.ws, queryId) }) : undefined,
+    ]);
+  const pull = usePullToRefresh(scrollRef, refreshRecords, stacked && !blocked && kind !== "none");
   const writeTable = sourceTable && (kind === "table" || qr.hasIdentity) ? sourceTable : undefined;
 
   const canEdit = env.roleCanEdit && form.allow_edits && !!writeTable && !blocked;
@@ -484,7 +497,13 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
     });
 
     body = (
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden touch-pan-y" data-current="true">
+      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y" data-current="true">
+        <PullIndicator state={pull} />
+        {top && kind !== "none" && !blocked && (
+          <button type="button" className="sr-only focus:not-sr-only focus:m-3 focus:inline-flex" onClick={() => void refreshRecords()}>
+            Refresh records
+          </button>
+        )}
         {hasAnyCollapsible ? (
           <FormAccordion className="p-3 gap-3">{sectionElements}</FormAccordion>
         ) : (
