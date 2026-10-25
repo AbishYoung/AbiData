@@ -2773,6 +2773,11 @@ export interface components {
              * @default true
              */
             bom: boolean;
+            /**
+             * @description xlsx only: true writes a workbook for analysis (numbers, currency, dates and booleans as typed cells with number formats, styled header, frozen header row, filter dropdowns, fitted column widths). false writes the values as the rows API shows them, untyped. Ignored for other formats.
+             * @default true
+             */
+            clean: boolean;
             /** @description Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record. */
             filter?: string;
             /**
@@ -2784,6 +2789,8 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+            /** @description xlsx only, saved queries only: add a second sheet, Query Info, with the query's name, SQL, parameter values, export time and row count. Off by default. */
+            query_info?: boolean;
             /** @description Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter. */
             sort?: string;
             /** @description Table or saved query id. */

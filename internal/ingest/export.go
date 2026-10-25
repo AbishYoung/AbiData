@@ -9,8 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/xuri/excelize/v2"
+	"time"
 
 	"abidata/internal/catalog"
 	"abidata/internal/dbx"
@@ -39,6 +38,10 @@ type ExportRequest struct {
 	Filter     string         `json:"filter,omitempty" doc:"Tables only: JSON filter model, as the rows endpoint's filter parameter. Omit to export every record."`
 	Sort       string         `json:"sort,omitempty" doc:"Tables only: comma-separated column IDs, '-' prefix for descending, as the rows endpoint's sort parameter."`
 
+	Clean *bool `json:"clean,omitempty" default:"true" doc:"xlsx only: true writes a workbook for analysis (numbers, currency, dates and booleans as typed cells with number formats, styled header, frozen header row, filter dropdowns, fitted column widths). false writes the values as the rows API shows them, untyped. Ignored for other formats."`
+
+	QueryInfo *bool `json:"query_info,omitempty" doc:"xlsx only, saved queries only: add a second sheet, Query Info, with the query's name, SQL, parameter values, export time and row count. Off by default."`
+
 	// View is Filter and Sort parsed by the HTTP layer with the rows
 	// endpoint's parser. Nil exports every record in id order.
 	View *records.ListQuery `json:"-"`
@@ -46,6 +49,9 @@ type ExportRequest struct {
 
 // withBOM reports whether a CSV export starts with the UTF-8 byte-order mark.
 func (r ExportRequest) withBOM() bool { return r.BOM == nil || *r.BOM }
+
+// clean reports whether an xlsx export is the typed, formatted workbook.
+func (r ExportRequest) clean() bool { return r.Clean == nil || *r.Clean }
 
 // utf8BOM is the UTF-8 byte-order mark Excel needs to read a CSV as UTF-8.
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
@@ -157,42 +163,7 @@ func (j *jsonSink) row(vals []any, _ []bool) error {
 
 func (j *jsonSink) finish() error { _, err := io.WriteString(j.w, "\n]\n"); return err }
 
-type xlsxSink struct {
-	f    *excelize.File
-	sw   *excelize.StreamWriter
-	w    io.Writer
-	next int
-}
-
-func (x *xlsxSink) put(vals []any) error {
-	if x.next > xlsxMaxRows {
-		return fault.New(fault.BadRequest, "The data has more rows than an Excel sheet can hold (1,048,575). Export as CSV instead.")
-	}
-	cell, err := excelize.CoordinatesToCellName(1, x.next)
-	if err != nil {
-		return err
-	}
-	x.next++
-	return x.sw.SetRow(cell, vals)
-}
-
-func (x *xlsxSink) header(cols []string) error {
-	vals := make([]any, len(cols))
-	for i, c := range cols {
-		vals[i] = c
-	}
-	return x.put(vals)
-}
-func (x *xlsxSink) row(vals []any, _ []bool) error { return x.put(vals) }
-func (x *xlsxSink) finish() error {
-	defer func() { _ = x.f.Close() }()
-	if err := x.sw.Flush(); err != nil {
-		return err
-	}
-	return x.f.Write(x.w)
-}
-
-func newSink(format string, w io.Writer, bom bool) (sink, string, error) {
+func newSink(format string, w io.Writer, bom, clean bool) (sink, string, error) {
 	switch format {
 	case "csv":
 		if bom {
@@ -206,12 +177,11 @@ func newSink(format string, w io.Writer, bom bool) (sink, string, error) {
 	case "geojson":
 		return &geojsonSink{w: w, geom: -1}, "application/geo+json", nil
 	case "xlsx":
-		f := excelize.NewFile()
-		sw, err := f.NewStreamWriter("Sheet1")
+		x, err := newXlsxSink(w, clean)
 		if err != nil {
 			return nil, "", err
 		}
-		return &xlsxSink{f: f, sw: sw, w: w, next: 1}, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nil
+		return x, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nil
 	}
 	return nil, "", fault.New(fault.BadRequest, "format must be csv, xlsx, json or geojson.")
 }
@@ -239,7 +209,7 @@ func artifactName(display, ext string) string {
 
 // StartExport validates the source and starts the export operation.
 func (s *Service) StartExport(ctx context.Context, l *workspace.Lease, by string, pol query.Policy, req ExportRequest) (ops.Op, error) {
-	if _, _, err := newSink(req.Format, io.Discard, false); err != nil {
+	if _, _, err := newSink(req.Format, io.Discard, false, true); err != nil {
 		return ops.Op{}, err
 	}
 	var display string
@@ -301,7 +271,7 @@ func (s *Service) runExport(ctx context.Context, l *workspace.Lease, prog *ops.P
 		return nil, err
 	}
 	defer func() { _ = tmp.Close(); _ = os.Remove(tmpPath) }()
-	sk, mime, err := newSink(req.Format, tmp, req.withBOM())
+	sk, mime, err := newSink(req.Format, tmp, req.withBOM(), req.clean())
 	if err != nil {
 		return nil, err
 	}
@@ -355,6 +325,13 @@ func (s *Service) exportTable(ctx context.Context, l *workspace.Lease, prog *ops
 		if err := g.bindGeometry(cols); err != nil {
 			return 0, err
 		}
+	}
+	if ts, ok := sk.(typedSink); ok {
+		kinds := []colKind{kGeneral}
+		for _, c := range cols {
+			kinds = append(kinds, kindOfColumn(c))
+		}
+		ts.bindKinds(kinds)
 	}
 	if err := sk.header(names); err != nil {
 		return 0, err
@@ -474,6 +451,23 @@ func (s *Service) exportQuery(ctx context.Context, l *workspace.Lease, pol query
 	r, err := s.Queries.RunSaved(ctx, l, pol, req.SourceID, query.Params(req.Params), query.MaxRows)
 	if err != nil {
 		return 0, false, err
+	}
+	if x, ok := sk.(*xlsxSink); ok && x.clean && req.QueryInfo != nil && *req.QueryInfo {
+		q, err := s.Queries.Get(ctx, l, req.SourceID)
+		if err != nil {
+			return 0, false, err
+		}
+		x.info = queryInfo(q.Name, q.SQL, req.Params, time.Now().UTC())
+	}
+	if ts, ok := sk.(typedSink); ok {
+		kinds := make([]colKind, len(r.Columns))
+		for i := range kinds {
+			kinds[i] = kSniff
+			if i < len(r.Types) {
+				kinds[i] = kindOfQueryType(r.Types[i])
+			}
+		}
+		ts.bindKinds(kinds)
 	}
 	if err := sk.header(r.Columns); err != nil {
 		return 0, false, err

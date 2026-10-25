@@ -84,6 +84,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
         source_id: source.id,
         format,
         bom: format === "csv" ? bom : true,
+        clean: true,
         ...(values ? { params: values } : {}),
         ...(source.view && scope === "view" && source.view.filter ? { filter: source.view.filter } : {}),
         ...(source.view && scope === "view" && source.view.sort ? { sort: source.view.sort } : {}),
