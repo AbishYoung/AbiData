@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Versioning: every pull request bumps the patch version; releases are cut on minor versions and on special fix patch versions.
 
+### Fixed
+- Workspace maintenance race condition on PostgreSQL during user creation and demo workspace provisioning.
+
 ## [1.3.1] - 2026-10-24
 
 ### Added

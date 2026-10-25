@@ -201,6 +201,9 @@ func serve() error {
 		MaxPageCount: func(ctx context.Context, id ids.WorkspaceID) (int64, error) {
 			w, err := adm.GetWorkspace(ctx, id)
 			if err != nil {
+				if errors.Is(err, admin.ErrNotFound) {
+					return 0, nil
+				}
 				return 0, err
 			}
 			return w.Quota.MaxPageCount, nil
@@ -333,6 +336,9 @@ func serve() error {
 	afterOpen = func(id ids.WorkspaceID) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		if _, err := adm.GetWorkspace(ctx, id); err != nil {
+			return
+		}
 		l, err := wm.Acquire(ctx, id)
 		if err != nil {
 			return
