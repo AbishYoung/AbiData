@@ -111,3 +111,13 @@ describe("frozen columns", () => {
     expect(canFreeze([300, 300], 0, 76, 1000)).toBe(true);
   });
 });
+
+describe("formatting rules in the layout", () => {
+  it("round-trips valid rules and drops malformed ones", () => {
+    const rule = { id: "r1", columnId: "a", operator: "eq", value: "x", target: "cell", tone: "danger" };
+    window.localStorage.setItem(layoutKey("w1", "t1"), JSON.stringify({ order: [], widths: {}, rules: [rule, { id: "bad" }] }));
+    expect(loadLayout("w1", "t1")).toEqual({ order: [], widths: {}, rules: [rule] });
+    window.localStorage.setItem(layoutKey("w1", "t1"), JSON.stringify({ rules: [] }));
+    expect(loadLayout("w1", "t1")).toEqual({ order: [], widths: {} });
+  });
+});

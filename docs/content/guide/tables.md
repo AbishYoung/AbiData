@@ -179,6 +179,10 @@ To work on a block of cells, drag across them, `Shift+click`, or hold `Shift` wi
 
 To inspect a column, open its menu and choose **Column statistics & profiling**. The dialog shows, for the records in the current view, the number of rows, how many are empty, how many distinct values there are, and the five most frequent values with bars. Number, currency and date columns also show the minimum, maximum, mean, median and the 25th and 75th percentiles. Very large tables are profiled from their first 20,000 records, and the dialog says so.
 
+## Formatting rules {#formatting}
+
+Choose **Formatting Rules** in the toolbar to colour cells or whole records when a field meets a condition, such as a date that is overdue, a quantity below 5 or an empty field. Each rule names a field, a condition, whether it colours the cell or the whole record, and a colour (danger, warning, success, info or accent). Rules are checked from the top and the first match wins; move them up or down to change the order. A highlighted cell also shows an icon and a hidden text label, so the meaning does not depend on colour. Rules are saved for you in this browser, per table.
+
 Right-click a cell for its actions: **Copy**, **Paste**, **Edit cell**, sorting, **Filter by selection**, **Record history**, **New record** and **Delete record**. Right-click a column heading to sort it or move it left or right. `Mod+C` copies the current cell, and `Mod+V` pastes into it. The context-menu key or `Shift+F10` opens the same menu from the keyboard. A cell you are editing keeps your browser's own menu.
 
 See [Keyboard shortcuts](/docs/reference/shortcuts) for more.
