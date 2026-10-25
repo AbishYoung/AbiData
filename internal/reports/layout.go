@@ -40,19 +40,24 @@ type Band struct {
 
 // Control is a report control.
 type ReportControl struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Type      string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now,map,image"`
-	X         int               `json:"x"`
-	Y         int               `json:"y"`
-	W         int               `json:"w"`
-	H         int               `json:"h"`
-	Style     map[string]string `json:"style,omitempty"`
-	Caption   string            `json:"caption,omitempty"`
-	Format    string            `json:"format,omitempty"`
-	Bind      *forms.Bind       `json:"bind,omitempty"`
-	Calc      *forms.Calc       `json:"calc,omitempty"`
-	Aggregate *Aggregate        `json:"aggregate,omitempty"`
+	ID      string            `json:"id"`
+	Name    string            `json:"name"`
+	Type    string            `json:"type" enum:"label,textbox,line,rect,page_number,page_count,now,map,image"`
+	X       int               `json:"x"`
+	Y       int               `json:"y"`
+	W       int               `json:"w"`
+	H       int               `json:"h"`
+	Style   map[string]string `json:"style,omitempty"`
+	Caption string            `json:"caption,omitempty"`
+	Format  string            `json:"format,omitempty" doc:"Value format: currency, fixed:N, integer, percent, yesno, date:short|medium|long, datetime:short|medium, pattern:<number mask> or datepattern:<date tokens>."`
+	// Currency customises currency formatting (symbol, placement, negatives).
+	Currency *CurrencyOptions `json:"currency,omitempty"`
+	// Prefix and Suffix are printed around the formatted value.
+	Prefix    string      `json:"prefix,omitempty" maxLength:"32"`
+	Suffix    string      `json:"suffix,omitempty" maxLength:"32"`
+	Bind      *forms.Bind `json:"bind,omitempty"`
+	Calc      *forms.Calc `json:"calc,omitempty"`
+	Aggregate *Aggregate  `json:"aggregate,omitempty"`
 	// MaxImages is an image control's gallery size: how many of the field's images print (default 1, at most MaxImagesLimit).
 	MaxImages int               `json:"max_images,omitempty"`
 	Map       *forms.MapOptions `json:"map,omitempty"`
@@ -246,6 +251,15 @@ func Validate(l *ReportLayout, ps *PageSetup, t *catalog.Table, cols []string) e
 			}
 			if n > 1 {
 				return bad("%s can only have one of bind, calc or aggregate.", where)
+			}
+			if err := validateFormat(where, c.Format); err != nil {
+				return err
+			}
+			if err := validateCurrency(where, c.Currency); err != nil {
+				return err
+			}
+			if err := validateAffixes(where, &c); err != nil {
+				return err
 			}
 			if c.MaxImages < 0 || c.MaxImages > MaxImagesLimit {
 				return bad("%s: show between 1 and %d images.", where, MaxImagesLimit)

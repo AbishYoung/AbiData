@@ -11,6 +11,11 @@ import {
   contentWidth,
   controlLabel,
   deleteControls,
+  formatChoice,
+  formatPattern,
+  numberPatternError,
+  withAffix,
+  withCurrency,
   dropInvalidColumns,
   duplicateControls,
   inputFromState,
@@ -388,5 +393,40 @@ describe("starting layouts", () => {
     expect(s.bands.detail?.can_grow).toBe(true);
     expect(bound(applyStarter(start(), "tabular", cols), "c3")?.style?.align).toBe("right");
     expect(s.controls.some((c) => c.band === "page_footer" && c.type === "page_number")).toBe(true);
+  });
+});
+
+describe("formatting options (ADR 0018)", () => {
+  const ctl = (extra: Partial<DesignControl> = {}): DesignControl => ({ id: "c1", name: "Total", type: "textbox", band: "detail", x: 0, y: 0, w: 80, h: 20, ...extra });
+
+  it("maps custom formats to one select option and back", () => {
+    expect(formatChoice("pattern:#,##0")).toBe("pattern:");
+    expect(formatChoice("datepattern:YYYY")).toBe("datepattern:");
+    expect(formatChoice("currency")).toBe("currency");
+    expect(formatPattern("pattern:0.0;(0.0)")).toBe("0.0;(0.0)");
+    expect(formatPattern("currency")).toBe("");
+  });
+
+  it("validates number patterns", () => {
+    expect(numberPatternError('#,##0.00;(#,##0.00);"-"')).toBeUndefined();
+    expect(numberPatternError("")).toBeDefined();
+    expect(numberPatternError("abc")).toBeDefined();
+    expect(numberPatternError("0;0;0;0")).toBeDefined();
+    expect(numberPatternError('"0;"#')).toBeUndefined();
+    expect(numberPatternError("x".repeat(101))).toBeDefined();
+  });
+
+  it("keeps only meaningful currency options", () => {
+    const a = withCurrency(ctl(), { symbol: "€", placement: "suffix", spaced: true });
+    expect(a.currency).toEqual({ symbol: "€", placement: "suffix", spaced: true });
+    const b = withCurrency(withCurrency(a, { symbol: "" }), { placement: "", spaced: false } as never);
+    expect(b.currency).toBeUndefined();
+    expect(withCurrency(ctl(), { decimals: 0 }).currency).toEqual({ decimals: 0 });
+  });
+
+  it("sets and clears prefix and suffix", () => {
+    const a = withAffix(ctl(), "suffix", " kg");
+    expect(a.suffix).toBe(" kg");
+    expect("suffix" in withAffix(a, "suffix", "")).toBe(false);
   });
 });

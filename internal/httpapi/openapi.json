@@ -2167,6 +2167,47 @@
         ],
         "type": "object"
       },
+      "CurrencyOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "decimals": {
+            "description": "Decimal places (default 2).",
+            "format": "int64",
+            "maximum": 6,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "negative": {
+            "description": "How negative amounts print: -$1.00, ($1.00) or $1.00- (default minus).",
+            "enum": [
+              "minus",
+              "paren",
+              "sign_after",
+              ""
+            ],
+            "type": "string"
+          },
+          "placement": {
+            "description": "Where the symbol goes (default prefix).",
+            "enum": [
+              "prefix",
+              "suffix",
+              ""
+            ],
+            "type": "string"
+          },
+          "spaced": {
+            "description": "Put a space between the symbol and the number.",
+            "type": "boolean"
+          },
+          "symbol": {
+            "description": "Currency symbol such as $, €, £, ¥ or CHF (default $).",
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "DemoProvisionDTO": {
         "additionalProperties": false,
         "properties": {
@@ -6102,7 +6143,11 @@
           "caption": {
             "type": "string"
           },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyOptions"
+          },
           "format": {
+            "description": "Value format: currency, fixed:N, integer, percent, yesno, date:short|medium|long, datetime:short|medium, pattern:\u003cnumber mask\u003e or datepattern:\u003cdate tokens\u003e.",
             "type": "string"
           },
           "h": {
@@ -6122,11 +6167,19 @@
           "name": {
             "type": "string"
           },
+          "prefix": {
+            "maxLength": 32,
+            "type": "string"
+          },
           "style": {
             "additionalProperties": {
               "type": "string"
             },
             "type": "object"
+          },
+          "suffix": {
+            "maxLength": 32,
+            "type": "string"
           },
           "type": {
             "enum": [
