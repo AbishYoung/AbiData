@@ -35,10 +35,10 @@ describe("CardList actions", () => {
   it("offers Edit, Duplicate and Delete without a gesture", async () => {
     const h = setup();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Actions for Beta" }));
+    await user.click(screen.getAllByRole("button", { name: "Card actions" })[1] as HTMLElement);
     await user.click(await screen.findByRole("menuitem", { name: "Delete…" }));
     expect(h.onDelete).toHaveBeenCalledWith(1);
-    await user.click(screen.getByRole("button", { name: "Actions for Alpha" }));
+    await user.click(screen.getAllByRole("button", { name: "Card actions" })[0] as HTMLElement);
     await user.click(await screen.findByRole("menuitem", { name: "Duplicate" }));
     expect(h.onDuplicate).toHaveBeenCalledWith(0);
   });
@@ -49,7 +49,7 @@ describe("CardList actions", () => {
   });
   it("has no actions on a read-only table", () => {
     setup(false);
-    expect(screen.queryByRole("button", { name: /Actions for/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Card actions" })).toBeNull();
   });
   it("keeps the swipe tiles out of the accessibility tree until a card is slid open", () => {
     setup();

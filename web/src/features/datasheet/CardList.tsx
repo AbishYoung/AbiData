@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type RefObject } from "react";
+import { useId, useState, type ReactNode, type RefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { ChevronRight, Copy, Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
@@ -50,7 +50,8 @@ interface SwipeableProps {
   open: SwipeSide | null;
   onOpenChange: (side: SwipeSide | null) => void;
   enabled: boolean;
-  recordName: string;
+  /** Id of the element naming the record, read after "Card actions". */
+  titleId: string;
   onEdit: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -61,7 +62,7 @@ interface SwipeableProps {
  * A card that slides sideways on touch (ADR 0022): left reveals Edit and Delete, a long left swipe asks to delete,
  * right reveals Duplicate. The "Card actions" menu does the same without a gesture.
  */
-function SwipeableCard({ open, onOpenChange, enabled, recordName, onEdit, onDelete, onDuplicate, children }: SwipeableProps) {
+function SwipeableCard({ open, onOpenChange, enabled, titleId, onEdit, onDelete, onDuplicate, children }: SwipeableProps) {
   const { ref, handlers } = useCardSwipeActions({ enabled, open, onOpenChange, onFullLeft: onDelete });
   const tile = "flex h-full flex-col items-center justify-center gap-1 text-xs font-medium";
   return (
@@ -95,7 +96,7 @@ function SwipeableCard({ open, onOpenChange, enabled, recordName, onEdit, onDele
         {children}
         {enabled && (
           <DropdownMenu.Root>
-            <DropdownMenu.Trigger className={`${iconBtn} absolute right-1 top-1 !h-11 !w-11`} aria-label={`Actions for ${recordName}`}>
+            <DropdownMenu.Trigger className={`${iconBtn} absolute right-1 top-1 !h-11 !w-11`} aria-label="Card actions" aria-describedby={titleId}>
               <Ellipsis size={20} aria-hidden="true" />
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
@@ -124,6 +125,7 @@ function SwipeableCard({ open, onOpenChange, enabled, recordName, onEdit, onDele
 /** Record cards for phones: a tap opens the full-screen record sheet. */
 export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffers, canEdit, onOpen, onNew, onDelete, onDuplicate }: Props) {
   const { title, preview } = cardColumns(columns);
+  const listId = useId();
   /** Only one card is slid open at a time; a touch anywhere else closes it. */
   const [openCard, setOpenCard] = useState<{ index: number; side: SwipeSide } | null>(null);
   return (
@@ -154,7 +156,7 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                     enabled={canEdit}
                     open={openCard?.index === v.index ? openCard.side : null}
                     onOpenChange={(side) => setOpenCard((cur) => (side ? { index: v.index, side } : cur?.index === v.index ? null : cur))}
-                    recordName={(title && textOf(title, row)) || `record ${row.id}`}
+                    titleId={`${listId}-t${row.id}`}
                     onEdit={() => onOpen(v.index)}
                     onDelete={() => onDelete(v.index)}
                     onDuplicate={() => onDuplicate(v.index)}
@@ -166,7 +168,7 @@ export function CardList({ label, scrollRef, virtualizer, columns, rowAt, buffer
                   >
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
-                        <span className="truncate text-base font-semibold text-fg">
+                        <span id={`${listId}-t${row.id}`} className="truncate text-base font-semibold text-fg">
                           {(title && textOf(title, row)) || `Record ${row.id}`}
                         </span>
                         {pending && <span className={badgeWarning}>Unsaved</span>}
