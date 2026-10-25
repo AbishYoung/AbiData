@@ -64,6 +64,17 @@ type JobRun struct {
 	Args                  map[string]any
 	// SaveArtifact stores content as a named artifact of this run and returns its size.
 	SaveArtifact func(name, mime string, content []byte) (int64, error)
+	// GenerateReport runs a report and saves its rendering as an artifact of this run (reports.generate);
+	// nil when reports are not available.
+	GenerateReport func(ctx context.Context, report string, params map[string]any, format, name string) (GeneratedReport, error)
+}
+
+// GeneratedReport describes the artifact reports.generate saved.
+type GeneratedReport struct {
+	Name   string
+	Size   int64
+	Rows   int
+	Format string
 }
 
 // Tx returns the active db.transaction, if any.

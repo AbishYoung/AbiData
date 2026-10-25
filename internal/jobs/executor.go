@@ -1,10 +1,12 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -17,7 +19,9 @@ import (
 	"abidata/internal/files"
 	"abidata/internal/ids"
 	"abidata/internal/ingest"
+	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/reports"
 	"abidata/internal/script"
 	"abidata/internal/script/host"
 	"abidata/internal/scripts"
@@ -37,7 +41,8 @@ type LuaExecutor struct {
 	Files      *files.Service  // nil: the files module is unavailable
 	Egress     *egress.Gateway // nil: fetch unavailable
 	Artifacts  *artifacts.Store
-	Ingest     *ingest.Service // nil: the staging module is unavailable
+	Ingest     *ingest.Service  // nil: the staging module is unavailable
+	Reports    *reports.Service // nil: reports.generate is unavailable
 	// Enqueue queues another job from inside a run (jobs.enqueue).
 	Enqueue func(ctx context.Context, ws ids.WorkspaceID, jobName, by string, args map[string]any, fromForm bool) (string, error)
 }
@@ -67,6 +72,10 @@ func (x *LuaExecutor) Execute(ctx context.Context, ws ids.WorkspaceID, job Job, 
 		return failure(err)
 	}
 	user := Principal(job.ID)
+	tz := time.UTC
+	if loc, err := time.LoadLocation(job.Timezone); err == nil {
+		tz = loc
+	}
 	d := &host.Data{Lease: l, Schemas: x.Schemas, Records: x.Records, Files: x.Files, CanWrite: true, UserID: user,
 		Job: &host.JobRun{JobID: job.ID, JobName: job.Name, RunID: run.ID, Args: run.Args,
 			SaveArtifact: func(name, mime string, content []byte) (int64, error) {
@@ -76,6 +85,11 @@ func (x *LuaExecutor) Execute(ctx context.Context, ws ids.WorkspaceID, job Job, 
 				info, err := x.Artifacts.Save(ws, run.ID, name, mime, strings.NewReader(string(content)))
 				return info.Size, err
 			}},
+	}
+	if x.Reports != nil && x.Artifacts != nil {
+		d.Job.GenerateReport = func(ctx context.Context, ref string, params map[string]any, format, name string) (host.GeneratedReport, error) {
+			return x.generateReport(ctx, ws, l, user, tz, run.ID, ref, params, format, name)
+		}
 	}
 	if x.Ingest != nil {
 		rs := x.Ingest.NewRunStaging(l, run.ID)
@@ -91,10 +105,6 @@ func (x *LuaExecutor) Execute(ctx context.Context, ws ids.WorkspaceID, job Job, 
 		d.Enqueue = func(ctx context.Context, name string, args map[string]any) (string, error) {
 			return x.Enqueue(ctx, ws, name, user, args, false)
 		}
-	}
-	tz := time.UTC
-	if loc, err := time.LoadLocation(job.Timezone); err == nil {
-		tz = loc
 	}
 	budget := script.DefaultBudgets[script.Job]
 	if deadline, ok := ctx.Deadline(); ok {
@@ -179,4 +189,45 @@ func ReadRuns(ctx context.Context, q dbx.Querier, jobID string, limit int, befor
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._ -]+`)
+
+// artifactName makes a report's name acceptable as an artifact file name with the given extension.
+func artifactName(report, ext string) string {
+	base := strings.Trim(unsafeName.ReplaceAllString(report, "_"), "._ -")
+	for strings.Contains(base, "..") {
+		base = strings.ReplaceAll(base, "..", ".")
+	}
+	if base == "" {
+		base = "report"
+	}
+	if len(base) > 100 {
+		base = base[:100]
+	}
+	return base + "." + ext
+}
+
+// generateReport runs a report as the job and saves its rendering as an artifact of the run.
+func (x *LuaExecutor) generateReport(ctx context.Context, ws ids.WorkspaceID, l *workspace.Lease, user string, tz *time.Location, runID, ref string, params map[string]any, format, name string) (host.GeneratedReport, error) {
+	sch, err := x.Schemas.Get(ctx, l)
+	if err != nil {
+		return host.GeneratedReport{}, err
+	}
+	g, err := x.Reports.Generate(ctx, reports.GenerateInput{Lease: l, Schema: sch, Ref: ref, Params: query.Params(params), Format: format,
+		Caller: reports.Caller{UserID: user, TZ: tz}})
+	if err != nil {
+		return host.GeneratedReport{}, err
+	}
+	if name == "" {
+		name = artifactName(g.Report.Name, g.Ext)
+	}
+	if !artifacts.ValidName(name) {
+		return host.GeneratedReport{}, fault.New(fault.BadRequest, "Invalid artifact file name.")
+	}
+	info, err := x.Artifacts.Save(ws, runID, name, g.MIME, bytes.NewReader(g.Content))
+	if err != nil {
+		return host.GeneratedReport{}, err
+	}
+	return host.GeneratedReport{Name: name, Size: info.Size, Rows: g.Rows, Format: format}, nil
 }
