@@ -12,6 +12,21 @@ export const OBJECT_KINDS: Record<TabKind, { label: string; icon: LucideIcon; fg
   settings: { label: "Settings", icon: Settings, fg: "text-fg-muted", soft: "border border-border/50 bg-surface-3" },
 };
 
+/** A jewel badge for an object kind: satin gradient from the kind's soft colour, tinted border, icon and name. */
+export function KindBadge({ kind, className = "" }: { kind: TabKind; className?: string }) {
+  const k = OBJECT_KINDS[kind];
+  const Icon = k.icon;
+  return (
+    <span
+      data-kind-badge={kind}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${k.soft} ${k.fg} ${className}`.trim()}
+    >
+      <Icon size={12} strokeWidth={2} aria-hidden="true" />
+      {k.label}
+    </span>
+  );
+}
+
 /** A small tinted square holding the kind's icon. Decorative: label the surrounding control. */
 export function KindIcon({ kind, size = "md", className = "" }: { kind: TabKind; size?: "sm" | "md" | "lg"; className?: string }) {
   const k = OBJECT_KINDS[kind];

@@ -9,6 +9,7 @@ import { UserMenu } from "@/features/nav/UserMenu";
 import { MessagesHeaderLink } from "@/features/messages/MessagesHeaderLink";
 import { Logo } from "@/components/brand/Logo";
 import { Tip } from "@/components/Tip";
+import { PineCanopyIllustration } from "@/components/wildlife";
 import { WorkspaceAvatar } from "@/components/WorkspaceAvatar";
 import { EmptyState } from "@/components/ui";
 import { AddDialog } from "@/features/members/MembersPanel";
@@ -140,6 +141,9 @@ export function PickerPage({ me: initial }: { me: Me }) {
           <UserMenu me={me} />
         </div>
       </header>
+      <div aria-hidden="true" className="bg-canopy relative h-20 overflow-hidden border-b border-border text-accent/40 sm:h-24">
+        <PineCanopyIllustration className="absolute inset-x-0 bottom-0 h-full w-full" />
+      </div>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>

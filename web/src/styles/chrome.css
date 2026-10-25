@@ -2,6 +2,10 @@
    Only the open state animates; prefers-reduced-motion is handled globally in tokens.css. */
 @keyframes ui-fade-in { from { opacity: 0; } }
 @keyframes ui-pop-in { from { opacity: 0; transform: scale(0.97); } }
+@keyframes ui-tip-in-top { from { opacity: 0; transform: translateY(2px); } }
+@keyframes ui-tip-in-bottom { from { opacity: 0; transform: translateY(-2px); } }
+@keyframes ui-tip-in-left { from { opacity: 0; transform: translateX(2px); } }
+@keyframes ui-tip-in-right { from { opacity: 0; transform: translateX(-2px); } }
 @keyframes ui-slide-in-right { from { opacity: 0; transform: translateX(1.25rem); } }
 @keyframes ui-slide-up { from { opacity: 0; transform: translateY(0.5rem); } }
 
@@ -10,3 +14,9 @@
 .ui-sheet[data-state="open"] { animation: ui-slide-in-right 200ms ease-out; }
 .ui-menu[data-state="open"] { animation: ui-pop-in 120ms ease-out; }
 .ui-toast { animation: ui-slide-up 180ms ease-out; }
+
+/* Tooltips: a soft fade with a 2px drift away from the trigger. */
+.ui-tip[data-state="delayed-open"][data-side="top"], .ui-tip[data-state="instant-open"][data-side="top"] { animation: ui-tip-in-top 100ms ease-out; }
+.ui-tip[data-state="delayed-open"][data-side="bottom"], .ui-tip[data-state="instant-open"][data-side="bottom"] { animation: ui-tip-in-bottom 100ms ease-out; }
+.ui-tip[data-state="delayed-open"][data-side="left"], .ui-tip[data-state="instant-open"][data-side="left"] { animation: ui-tip-in-left 100ms ease-out; }
+.ui-tip[data-state="delayed-open"][data-side="right"], .ui-tip[data-state="instant-open"][data-side="right"] { animation: ui-tip-in-right 100ms ease-out; }
