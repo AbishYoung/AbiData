@@ -21,9 +21,9 @@ import { ExportDialog } from "@/features/workspace/lazyFeatures";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
 import { PastePreviewDialog } from "./PastePreviewDialog";
-import { boundsOf, cellCount, describeRange, inBounds, isMultiCell, type Bounds, type CellRange } from "./range";
+import { boundsOf, cellCount, describeRange, fillMatrix, inBounds, isMultiCell, type Bounds, type CellRange } from "./range";
 import type { BatchOp } from "./rowsApi";
-import type { PasteMode } from "./paste";
+import { convertPaste, type PasteMode } from "./paste";
 import { ColumnProfileDialog } from "./ColumnProfileDialog";
 import { ConditionalFormattingModal } from "./ConditionalFormattingModal";
 import { GeoFilterDialog } from "@/components/maps/lazy";
@@ -467,17 +467,43 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   }
 
   /** One value goes into the cell (opened for editing); a block opens the paste preview. */
+  /** Puts a converted value into the cell's pending change (saved like a typed edit); false when the cell needs its editor. */
+  function pasteDirect(cell: Cell, text: string): boolean {
+    const col = columns[cell.col];
+    if (!col || !canType(cell) || kindOf(col) === "lookup") return false;
+    const row = rowAt(cell.row);
+    if (cell.row < total && !row) return false;
+    const result = convertPaste(col, text);
+    if (result.status !== "ok") return false;
+    const key: RowKey = row ? row.id : "new";
+    setRange(null);
+    updateBuffers((m) => {
+      const next = applyChange(m.get(key), key, row, col, result.value);
+      if (next) m.set(key, next);
+      else m.delete(key);
+    });
+    return true;
+  }
+
   function pasteFlavors(cell: Cell, flavors: Readonly<Record<string, string | undefined>>) {
     const cells = readCells(flavors);
     if (!cells) return;
     const { matrix, payload } = cells;
     const single = matrix.every((r) => r.length <= 1);
     const col = columns[cell.col];
-    // A single value, or lines of text pasted into one long text cell, edit that cell.
-    if (matrix.length === 1 && single) {
-      pasteInto(cell, matrix[0]?.[0] ?? "");
+    // A cell or a row copied onto a larger selection is repeated over it (the preview shows the result).
+    const fill = bounds ? fillMatrix(matrix, bounds) : null;
+    if (fill && bounds) {
+      if (!canEdit) return;
+      setPaste({ matrix: fill, payload: null, startRow: bounds.r0, startCol: bounds.c0, busy: false, error: null });
       return;
     }
+    // A single value goes straight into the cell when it converts; otherwise the cell opens with the text.
+    if (matrix.length === 1 && single) {
+      if (!pasteDirect(cell, matrix[0]?.[0] ?? "")) pasteInto(cell, matrix[0]?.[0] ?? "");
+      return;
+    }
+    // Lines of text pasted into one long text cell edit that cell.
     if (single && !bounds && col !== undefined && kindOf(col) === "longtext") {
       pasteInto(cell, matrix.map((r) => r[0] ?? "").join("\n"));
       return;

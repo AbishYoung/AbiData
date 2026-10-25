@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Pasting one cell or row over a selection fills the whole selection, and a single value pastes straight into the cell (ADR 0019)
+
+### Changed
 - Pasting into a lookup field matches the pasted names to the related records (ambiguous or missing names are flagged), and a new "Update matching records, add the rest" paste mode updates records by a unique field (ADR 0019).
 
 ### Changed

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boundsOf, cellCount, describeRange, inBounds, isMultiCell, parseClipboard, toTsv } from "./range";
+import { boundsOf, cellCount, describeRange, fillMatrix, inBounds, isMultiCell, parseClipboard, toTsv } from "./range";
 
 describe("cell ranges", () => {
   const r = { anchor: { row: 3, col: 3 }, head: { row: 0, col: 1 } };
@@ -63,5 +63,23 @@ describe("parseClipboard", () => {
   it("round-trips what toTsv writes", () => {
     const rows = [["a", "b\nc"], ['"q"', "d\te"]];
     expect(parseClipboard(toTsv(rows))).toEqual(rows);
+  });
+});
+
+describe("fillMatrix", () => {
+  const b = { r0: 2, r1: 4, c0: 1, c1: 2 };
+
+  it("repeats one cell over the whole selection", () => {
+    expect(fillMatrix([["Active"]], b)).toEqual([["Active", "Active"], ["Active", "Active"], ["Active", "Active"]]);
+  });
+
+  it("repeats one row down every selected row", () => {
+    expect(fillMatrix([["a", "b"]], b)).toEqual([["a", "b"], ["a", "b"], ["a", "b"]]);
+  });
+
+  it("leaves other shapes alone", () => {
+    expect(fillMatrix([["a"], ["b"]], b)).toBeNull();
+    expect(fillMatrix([["a", "b"]], { r0: 1, r1: 1, c0: 0, c1: 3 })).toBeNull();
+    expect(fillMatrix([["a"]], { r0: 1, r1: 1, c0: 0, c1: 0 })).toBeNull();
   });
 });
