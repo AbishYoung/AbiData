@@ -7,7 +7,7 @@ import type { CellsPayload } from "./clipboardFormats";
 import type { LookupInfo } from "./Editors";
 import { lookupKey, resolveLookups, type LookupDict } from "./lookupResolve";
 import { detectHeader, matchNames, payloadMapping, positionalMapping, type Mapping } from "./headers";
-import { blockingReason, planPaste, type PasteMode, type PastePlan } from "./paste";
+import { blockingReason, convertPaste, keyOf, planPaste, type PasteMode, type PastePlan } from "./paste";
 import type { BatchOp, Row } from "./rowsApi";
 import { isReadOnlyColumn, kindOf } from "./values";
 
@@ -21,6 +21,10 @@ interface Props {
   payload?: CellsPayload | null;
   /** How a lookup field finds its related records (pasted names are matched against their display field). */
   lookupFor?: (col: Column) => LookupInfo | undefined;
+  /** Fields that identify a record (single-column unique indexes): pasted rows can update the record with the same value. */
+  uniqueColumnIds?: readonly string[];
+  /** The stored records whose `col` holds one of `values`. */
+  findExisting?: (col: Column, values: unknown[]) => Promise<Row[]>;
   startRow: number;
   startCol: number;
   total: number;
@@ -55,7 +59,7 @@ function payloadFits(payload: CellsPayload | null | undefined, matrix: readonly 
  * field, the target range, how each value converts, and whether it overwrites the cells there or becomes
  * new records. Nothing is written until Paste is chosen; the whole block is then saved in one transaction.
  */
-export function PastePreviewDialog({ columns, matrix, payload, lookupFor, startRow, startCol, total, rowAt, busy, error, onApply, onCancel }: Props) {
+export function PastePreviewDialog({ columns, matrix, payload, lookupFor, uniqueColumnIds, findExisting, startRow, startCol, total, rowAt, busy, error, onApply, onCancel }: Props) {
   const modeName = useId();
   const known = payloadFits(payload, matrix) ? payload : null;
   const guess = useMemo(() => detectHeader(matrix, columns), [matrix, columns]);
@@ -117,18 +121,74 @@ export function PastePreviewDialog({ columns, matrix, payload, lookupFor, startR
     return () => ctl.abort();
   }, [todo, lookupFailed]);
 
+  // Upsert: pasted rows update the record holding the same key value, and add the rest.
+  const keyChoices = useMemo(
+    () => mapping.flatMap((m, c) => (m !== null && m !== undefined && columns[m] && uniqueColumnIds?.includes(columns[m].id) && findExisting ? [{ col: columns[m], c }] : [])),
+    [mapping, columns, uniqueColumnIds, findExisting],
+  );
+  const [keyId, setKeyId] = useState<string | null>(null);
+  const key = keyChoices.find((k) => k.col.id === keyId) ?? keyChoices[0];
+  const keyValues = useMemo(() => {
+    if (mode !== "upsert" || !key) return [];
+    const vals = data.flatMap((r) => {
+      const res = convertPaste(key.col, r[key.c] ?? "");
+      return res.status === "ok" && res.value !== null && res.value !== "" ? [res.value] : [];
+    });
+    return [...new Map(vals.map((v) => [keyOf(v), v])).values()];
+  }, [mode, key, data]);
+  const keySig = key ? `${key.col.id}:${keyValues.map(keyOf).join("\u0000")}` : "";
+  const [existing, setExisting] = useState<{ sig: string; rows: ReadonlyMap<string, Row> } | null>(null);
+  const [existingFailed, setExistingFailed] = useState<string | null>(null);
+  const finding = mode === "upsert" && key !== undefined && existing?.sig !== keySig && existingFailed !== keySig;
+  useEffect(() => {
+    if (mode !== "upsert" || !key || !findExisting || existing?.sig === keySig || existingFailed === keySig) return;
+    const ctl = new AbortController();
+    const chunks: unknown[][] = [];
+    for (let i = 0; i < keyValues.length; i += 100) chunks.push(keyValues.slice(i, i + 100));
+    void Promise.all(chunks.map((ch) => findExisting(key.col, ch)))
+      .then((pages) => {
+        if (ctl.signal.aborted) return;
+        const rows = new Map<string, Row>();
+        for (const row of pages.flat()) rows.set(keyOf(row.fields[key.col.id]), row);
+        setExisting({ sig: keySig, rows });
+      })
+      .catch(() => {
+        if (!ctl.signal.aborted) setExistingFailed(keySig);
+      });
+    return () => ctl.abort();
+  }, [mode, key, findExisting, keySig, keyValues, existing, existingFailed]);
+
   const plan = useMemo(
-    () => planPaste({ columns, matrix: data, startRow, startCol, mapping, lookups: dicts, total, rowAt, mode }),
-    [columns, data, startRow, startCol, mapping, dicts, total, rowAt, mode],
+    () =>
+      planPaste({
+        columns,
+        matrix: data,
+        startRow,
+        startCol,
+        mapping,
+        lookups: dicts,
+        total,
+        rowAt,
+        mode,
+        upsert: mode === "upsert" && key ? { keyColumnId: key.col.id, existing: existing?.sig === keySig ? existing.rows : new Map() } : undefined,
+      }),
+    [columns, data, startRow, startCol, mapping, dicts, total, rowAt, mode, key, existing, keySig],
   );
   const blocked = !mapped
     ? "Choose at least one field to paste into."
+    : mode === "upsert" && !key
+      ? "Map a field that identifies records (a unique field) to update by."
+      : finding
+        ? "Looking for the records to update…"
+        : existingFailed === keySig && mode === "upsert"
+          ? "The existing records could not be looked up. Close this and try again."
     : resolving
       ? "Looking up related records…"
       : lookupFailed && needed.size > 0
         ? "The related records could not be looked up. Close this and try again."
         : blockingReason(plan, mode, skipInvalid);
   const writes = mode === "insert" ? count(plan.ops.length, "new record", "new records") : count(plan.ops.length, "record", "records");
+  const upsertLabel = `${count(plan.updated, "record", "records")} updated, ${count(plan.inserted, "new record", "new records")}`;
   const shownCols = Array.from({ length: Math.min(width, PREVIEW_COLS) }, (_, c) => c);
   const writable = columns.map((c, i) => ({ c, i })).filter(({ c }) => !isReadOnlyColumn(c));
   const mismatch = known !== null || hasHeader || overrides.size > 0 || width > columns.length - startCol;
@@ -155,7 +215,7 @@ export function PastePreviewDialog({ columns, matrix, payload, lookupFor, startR
             Cancel
           </Button>
           <Button variant="primary" onClick={() => onApply(plan.ops, mode)} disabled={busy || blocked !== null}>
-            {busy ? "Pasting…" : mode === "insert" ? `Paste as ${writes}` : `Paste into ${writes}`}
+            {busy ? "Pasting…" : mode === "insert" ? `Paste as ${writes}` : mode === "upsert" ? `Update or add ${writes}` : `Paste into ${writes}`}
           </Button>
         </>
       }
@@ -240,10 +300,30 @@ export function PastePreviewDialog({ columns, matrix, payload, lookupFor, startR
             <span className="block text-xs text-fg-muted">Each pasted row becomes a record.</span>
           </span>
         </label>
+        {keyChoices.length > 0 && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name={modeName} checked={mode === "upsert"} onChange={() => setMode("upsert")} className="mt-0.5 accent-accent" />
+            <span>
+              Update matching records, add the rest
+              <span className="block text-xs text-fg-muted">A pasted row replaces the values of the record with the same value in the key field.</span>
+            </span>
+          </label>
+        )}
+        {mode === "upsert" && keyChoices.length > 0 && (
+          <div className="pl-6">
+            <select aria-label="Key field" className={selectClass} value={key?.col.id ?? ""} onChange={(e) => setKeyId(e.target.value)}>
+              {keyChoices.map((k) => (
+                <option key={k.col.id} value={k.col.id}>
+                  Match on {k.col.display_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </fieldset>
 
       <p className="m-0 text-sm" role="status">
-        <strong>{count(plan.ops.length, "record", "records")}</strong> will be {mode === "insert" ? "added" : "changed"},{" "}
+        <strong>{mode === "upsert" ? upsertLabel : count(plan.ops.length, "record", "records")}</strong> will be {mode === "insert" ? "added" : mode === "upsert" ? "written" : "changed"},{" "}
         <span className="tabular-nums">{plan.valid.toLocaleString("en-US")}</span> {plan.valid === 1 ? "cell converts" : "cells convert"}
         {plan.invalid.length > 0 && <>, {count(plan.invalid.length, "cell cannot", "cells cannot")} be converted</>}
         {plan.skipped > 0 && <>, {count(plan.skipped, "cell is", "cells are")} skipped</>}.

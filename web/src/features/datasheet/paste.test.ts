@@ -111,6 +111,20 @@ describe("planPaste", () => {
     expect(plan.skipped).toBe(0);
   });
 
+  it("upserts: updates the record with the same key and adds the others", () => {
+    const existing = new Map([["Ann", rows[0] as (typeof rows)[number]]]);
+    const plan = planPaste({ ...base, startCol: 1, mode: "upsert", upsert: { keyColumnId: "name", existing }, matrix: [["Ann", "9"], ["Zed", "4"], ["Zed", "5"], ["", "6"]] });
+    expect(plan.ops).toEqual([
+      { op: "update", id: 1, version: 3, fields: { qty: 9 } },
+      { op: "insert", fields: { name: "Zed", qty: 4 } },
+      { op: "insert", fields: { qty: 6 } },
+    ]);
+    expect(plan.updated).toBe(1);
+    expect(plan.inserted).toBe(2);
+    expect(plan.invalid).toHaveLength(1);
+    expect(plan.invalid[0]).toMatchObject({ row: 2, message: expect.stringContaining("more than once") });
+  });
+
   it("will not overwrite records that have not loaded", () => {
     const plan = planPaste({ ...base, total: 5, mode: "overwrite", matrix: [["a"], ["b"], ["c"]] });
     expect(plan.unloaded).toBe(1);

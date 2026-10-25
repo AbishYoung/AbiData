@@ -142,6 +142,25 @@ describe("PastePreviewDialog", () => {
     expect(resolveLookups).toHaveBeenCalledTimes(1);
   });
 
+  it("updates records that share a unique key and adds the rest", async () => {
+    const user = userEvent.setup();
+    const findExisting = vi.fn(async () => [rows[0] as (typeof rows)[number]]);
+    const { onApply } = setup([["Ann", "9"], ["Zed", "4"]], { uniqueColumnIds: ["name"], findExisting });
+    await user.click(screen.getByRole("radio", { name: /Update matching records/ }));
+    expect(screen.getByRole("combobox", { name: "Key field" })).toHaveValue("name");
+    const go = await screen.findByRole("button", { name: /Update or add 2 records/ });
+    expect(screen.getByRole("status")).toHaveTextContent("1 record updated, 1 new record");
+    await user.click(go);
+    expect(onApply).toHaveBeenCalledWith(
+      [
+        { op: "update", id: 1, version: 2, fields: { qty: 9 } },
+        { op: "insert", fields: { name: "Zed", qty: 4 } },
+      ],
+      "upsert",
+    );
+    expect(findExisting).toHaveBeenCalledTimes(1);
+  });
+
   it("starts in insert mode below the last record and shows the server's refusal", () => {
     setup([["New", "3"]], { startRow: 2, error: "Name must be unique." });
     expect(screen.getByRole("radio", { name: /Overwrite existing cells/ })).toBeDisabled();
