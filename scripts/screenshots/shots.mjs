@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const DESKTOP = { width: 1440, height: 900 };
 // Names that are stored as JPEG (quality 85) because they are large, photo-like or chart-heavy.
-const JPEG = new Set(["command-palette", "workspace-settings", "sign-in", "row-history", "import-wizard", "table-design", "job-runs", "datasheet-orders", "datasheet-orders-dark", "admin-dashboard", "admin-dashboard-dark", "report-viewer", "docs-panel", "biosecurity-report"]);
+const JPEG = new Set(["command-palette", "workspace-settings", "sign-in", "row-history", "import-wizard", "table-design", "job-runs", "datasheet-orders", "datasheet-orders-dark", "admin-dashboard", "admin-dashboard-dark", "report-viewer", "report-designer-preview", "export-dialog", "docs-panel", "biosecurity-report"]);
 
 const STYLE = `
   *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; caret-color: transparent !important; scroll-behavior: auto !important; }
@@ -218,6 +218,18 @@ export async function shoot(ctx) {
     await gridReady(page);
     if (want("datasheet-orders")) await save(page, "datasheet-orders");
 
+    if (want("export-dialog")) {
+      await page.getByRole("toolbar", { name: "Datasheet tools" }).getByRole("button", { name: "Export…" }).click();
+      const d = page.getByRole("dialog", { name: /Export “Orders”/ });
+      await d.waitFor();
+      await d.getByRole("radio", { name: /Excel/ }).check();
+      await d.getByText("Clean Excel for analysis").waitFor();
+      await save(page, "export-dialog");
+      await page.keyboard.press("Escape");
+      await d.waitFor({ state: "hidden" });
+      await page.mouse.move(700, 450);
+    }
+
     if (want("row-history")) {
       await page.getByRole("gridcell", { name: /SO-1003/ }).first().click();
       await page.getByRole("button", { name: "History" }).click();
@@ -270,6 +282,16 @@ export async function shoot(ctx) {
       await page.getByText("Page 1 of").first().waitFor();
       await page.waitForTimeout(1500);
       await save(page, "report-viewer");
+    }
+
+    if (want("report-designer-preview")) {
+      await openObject(page, "Product catalogue");
+      await page.getByRole("button", { name: "Design", exact: true }).click();
+      const root = page.getByTestId("report-designer");
+      await root.getByRole("tab", { name: "Preview", exact: true }).click();
+      await page.getByTestId("report-page-of").waitFor();
+      await page.waitForTimeout(1500);
+      await save(page, "report-designer-preview");
     }
 
     // The Biosecurity Watch sample workspace (maps, zones and photos).

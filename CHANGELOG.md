@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Changed: Documentation screenshots re-shot, with new export dialog and report preview images.
+
+### Changed
 - PDF downloads of reports mark repeated group headers \"(continued)\", as the viewer does.
 
 ### Changed

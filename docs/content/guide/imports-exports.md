@@ -53,6 +53,8 @@ If rows are rejected, the operation ends with [IMPORT_ROW_ERRORS](/docs/referenc
 
 ## Export data {#export}
 
+![The export dialog with Excel and Clean Excel for analysis chosen](../../images/export-dialog.jpg)
+
 1. Open the **More actions** menu of a table or saved query and choose **Export…**. On a datasheet, choose **Export…** in the toolbar.
 2. On a datasheet, choose which **Records** to export: **Current view** (only the records matching the datasheet's filter, in its sort order) or **All records**. **Current view** is the default while a filter is active; otherwise **All records** is.
 3. Choose the **Format**: **CSV**, **Excel (.xlsx)** or **JSON** (an array of objects). A table with a point or area field also offers **GeoJSON**: a FeatureCollection with one feature per record, where the first geographic field is the geometry (empty when the record has none), the record ID is the feature ID and the other fields are properties. It is for tables only, not saved queries. For a query with parameters, fill in the values first.
