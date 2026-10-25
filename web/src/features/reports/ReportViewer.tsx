@@ -2,11 +2,12 @@ import { ToolbarDivider, docToolbar } from "@/components/EditorParts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Printer, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, FileDown, Printer, RefreshCw, SlidersHorizontal, Table2 } from "lucide-react";
 import { Tip } from "@/components/Tip";
 import { btnGhost } from "@/components/styles";
 import { PageView } from "./PageView";
 import { cssPageSize, type Pagination, type PageSetup, type ReportInstance, type ReportLayout } from "./paginate";
+import { downloadFile, exportFileName, reportCsv, reportTree } from "./exportData";
 import { fitWidthZoom, pageAtScroll } from "./viewerLogic";
 import "./reportViewer.css";
 
@@ -42,6 +43,7 @@ export function ReportViewer({
   layout,
   instances,
   pageSetup,
+  title = "Report",
   onRefresh,
   onChangeParams,
 }: {
@@ -49,6 +51,8 @@ export function ReportViewer({
   layout: ReportLayout;
   instances: readonly ReportInstance[];
   pageSetup: PageSetup;
+  /** The report's name, used for the downloaded files. */
+  title?: string;
   onRefresh: () => void;
   onChangeParams?: (() => void) | undefined;
 }) {
@@ -58,6 +62,26 @@ export function ReportViewer({
   const [current, setCurrent] = useState(1);
   const [printing, print] = usePrinting();
   const { pages, pageCount, paper } = pagination;
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportAs = useCallback(
+    async (kind: "pdf" | "csv" | "json"): Promise<void> => {
+      setExportError(null);
+      try {
+        if (kind === "pdf") {
+          // Loaded on demand: the PDF writer is only needed when someone downloads.
+          const { renderReportPdf } = await import("./pdf/renderPdf");
+          downloadFile(exportFileName(title, "pdf"), renderReportPdf(pagination, layout, instances, title), "application/pdf");
+        } else if (kind === "csv") {
+          downloadFile(exportFileName(title, "csv"), reportCsv(layout, instances), "text/csv;charset=utf-8");
+        } else {
+          downloadFile(exportFileName(title, "json"), JSON.stringify(reportTree(layout, instances), null, 2) + "\n", "application/json");
+        }
+      } catch (e) {
+        setExportError(e instanceof Error ? e.message : "The file could not be created.");
+      }
+    },
+    [pagination, layout, instances, title],
+  );
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -171,8 +195,25 @@ export function ReportViewer({
             <Printer size={14} aria-hidden="true" />
             Print
           </button>
+          <button type="button" className={btnGhost} onClick={() => void exportAs("pdf")}>
+            <FileDown size={14} aria-hidden="true" />
+            Download PDF
+          </button>
+          <button type="button" className={btnGhost} onClick={() => void exportAs("csv")}>
+            <Table2 size={14} aria-hidden="true" />
+            Export CSV
+          </button>
+          <button type="button" className={btnGhost} onClick={() => void exportAs("json")}>
+            <Table2 size={14} aria-hidden="true" />
+            Export JSON
+          </button>
         </div>
       </div>
+      {exportError && (
+        <p role="alert" className="m-0 border-b border-border bg-danger-soft px-3 py-1.5 text-sm text-danger">
+          {exportError}
+        </p>
+      )}
       <div
         ref={scroller}
         role="region"

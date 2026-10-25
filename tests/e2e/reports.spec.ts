@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 // Test-only dependency (ADR 0006): extracts text from the PDFs Chromium prints.
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -157,6 +158,43 @@ for (const [name, kind, width, height] of [
     expect(all.split("deliberately long note").length - 1).toBe(TOTAL_ROWS / 10);
   });
 }
+
+test("downloads the report as a vector PDF, CSV and JSON without the print dialog (ADR 0018)", async ({ page }) => {
+  await openWorkspace(page, WS);
+  await openReport(page, "Sales Letter");
+  const { total } = await pageOf(page);
+
+  const pdfDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const dl = await pdfDownload;
+  expect(dl.suggestedFilename()).toBe("Sales Letter.pdf");
+  const pdf = await extract(new Uint8Array(await readFile(await dl.path())));
+  expect(pdf.pages).toHaveLength(total);
+  expect(Math.abs(pdf.size.width - 612)).toBeLessThan(2);
+  expect(Math.abs(pdf.size.height - 792)).toBeLessThan(2);
+  const all = pdf.pages.join(" ");
+  expect(pdf.pages[0]).toContain("Sales by region");
+  for (let n = 1; n <= TOTAL_ROWS; n++) expect(all, rep(n)).toContain(rep(n));
+  expect(all).toContain("Region total");
+  expect(pdf.pages[total - 1] ?? "").toContain("Grand total");
+  expect(pdf.pages[total - 1] ?? "").toContain("900.00");
+
+  const csvDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  const csv = (await readFile(await (await csvDownload).path(), "utf8")).replace(/^\uFEFF/, "");
+  const lines = csv.trim().split("\r\n");
+  expect(lines[0]).toBe("Group 1,rep,amt,note");
+  expect(lines).toHaveLength(TOTAL_ROWS + 1);
+  // Groups sort alphabetically: East (reps 61-90) comes first.
+  expect(lines[1]).toBe(`East,${rep(61)},10.00,note 61`);
+
+  const jsonDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export JSON" }).click();
+  const tree = JSON.parse(await readFile(await (await jsonDownload).path(), "utf8")) as { groups: { key: string; rows: unknown[]; footer: Record<string, string> }[] };
+  expect(tree.groups.map((g) => g.key)).toEqual([...REGIONS].sort());
+  expect(tree.groups[0]?.rows).toHaveLength(ROWS_PER_REGION);
+  expect(tree.groups[0]?.footer).toEqual({ gsum: "300.00" });
+});
 
 test("a 10,000-row report reaches its last page in under 5 seconds", async ({ page }) => {
   await openWorkspace(page, WS);

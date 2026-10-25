@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Download a report as a PDF, or export its rows as CSV or JSON, straight from the report viewer (ADR 0018)
+
+### Changed
 none (documentation only)
 
 ### Changed
