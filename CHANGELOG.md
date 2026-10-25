@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Pull-to-refresh on record cards, form records and query results on touch screens (ADR 0022).
+
+### Changed
 - Pasting one cell or row over a selection fills the whole selection, and a single value pastes straight into the cell (ADR 0019)
 
 ### Changed
@@ -24,7 +27,6 @@ Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palett
 - Server-evaluated per-control conditional formatting rules with screen reader accessibility labels.
 - Designer property UI for accounting rules, typography, zebra striping, and conditional formatting.
 - Swipeable record cards with edit, duplicate and delete actions on touch screens (ADR 0022).
-- Pull-to-refresh on record cards, form records and query results on touch screens (ADR 0022).
 - Community health files: code of conduct, contributing guide, security policy, accessibility statement, issue forms and a pull request template.
 - Datasheet paste reads HTML tables from Excel and Google Sheets (as text only), detects a header row, matches pasted columns to fields by name in any order with a mapping you can change, and understands rows copied from other AbiData tables (ADR 0019).
 
