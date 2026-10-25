@@ -66,6 +66,53 @@ describe("PastePreviewDialog", () => {
     expect(onApply).toHaveBeenCalledWith([{ op: "insert", fields: { name: "New", qty: 3 } }], "insert");
   });
 
+  it("detects a header row and maps the columns by name, whatever their order", async () => {
+    const user = userEvent.setup();
+    const { onApply } = setup([["Qty", "Notes", "Name"], ["4", "x", "Cy"], ["5", "y", "Di"]]);
+    expect(screen.getByRole("checkbox", { name: "First row contains column headers" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Field for Qty" })).toHaveValue("1");
+    expect(screen.getByRole("combobox", { name: "Field for Notes" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Field for Name" })).toHaveValue("0");
+    await user.click(screen.getByRole("button", { name: /Paste as 2 new records/ }));
+    expect(onApply).toHaveBeenCalledWith(
+      [
+        { op: "insert", fields: { name: "Cy", qty: 4 } },
+        { op: "insert", fields: { name: "Di", qty: 5 } },
+      ],
+      "insert",
+    );
+  });
+
+  it("lets the user turn the header off and remap or skip a column", async () => {
+    const user = userEvent.setup();
+    const { onApply } = setup([["Qty", "Name"], ["4", "Cy"]]);
+    await user.click(screen.getByRole("checkbox", { name: "First row contains column headers" }));
+    // positional again, with the header row now data: the integer column rejects "Name"
+    expect(screen.getByRole("combobox", { name: "Field for Column 1" })).toHaveValue("0");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Field for Column 1" }), "");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Field for Column 2" }), "0");
+    await user.click(screen.getByRole("radio", { name: /Insert as new records/ }));
+    await user.click(screen.getByRole("button", { name: /Paste as 2 new records/ }));
+    expect(onApply).toHaveBeenCalledWith([{ op: "insert", fields: { name: "Name" } }, { op: "insert", fields: { name: "Cy" } }], "insert");
+  });
+
+  it("maps rows copied from another AbiData table and says where they came from", () => {
+    setup([["Qty", "Name"], ["4", "Cy"]], {
+      payload: {
+        version: 1,
+        source_table_id: "t9",
+        source_table_name: "Prospects",
+        columns: [
+          { id: "q", name: "qty", display_name: "Qty", type: "integer" },
+          { id: "n", name: "name", display_name: "Name", type: "short_text" },
+        ],
+        rows: [[4, "Cy"]],
+      },
+    });
+    expect(screen.getByText(/from the table Prospects/)).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Field for Qty" })).toHaveValue("1");
+  });
+
   it("starts in insert mode below the last record and shows the server's refusal", () => {
     setup([["New", "3"]], { startRow: 2, error: "Name must be unique." });
     expect(screen.getByRole("radio", { name: /Overwrite existing cells/ })).toBeDisabled();

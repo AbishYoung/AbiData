@@ -1,6 +1,7 @@
 import type { Column } from "@/lib/schema";
 import type { BatchOp, Row } from "./rowsApi";
 import { localeDateOrder, normalizeDate, normalizeDateTime, normalizeNumber, parseBooleanText, type DateOrder } from "./coerce";
+import { positionalMapping, type Mapping } from "./headers";
 import { isReadOnlyColumn, kindOf, parseDraft, valuesEqual } from "./values";
 
 // Pasting a block of cells: what each pasted text becomes in its column, and the batch of writes
@@ -70,7 +71,7 @@ export interface PastePlan {
   invalid: PasteIssue[];
   /** Cells in read-only or unsupported fields. */
   skipped: number;
-  /** Pasted columns beyond the last column of the table. */
+  /** Pasted columns that go nowhere: beyond the last column of the table, or left out of the mapping. */
   extraColumns: number;
   /** Overwrite: pasted rows beyond the last record (insert mode adds them). */
   rowsPastEnd: number;
@@ -86,7 +87,10 @@ export interface PasteInput {
   columns: readonly Column[];
   matrix: readonly (readonly string[])[];
   startRow: number;
+  /** Where the first pasted column goes when there is no `mapping`. */
   startCol: number;
+  /** For each pasted column, the index in `columns` it goes to (null: left out). Default: side by side from `startCol`. */
+  mapping?: Mapping;
   /** Saved records in the view. */
   total: number;
   rowAt: (index: number) => Row | undefined;
@@ -99,14 +103,19 @@ export const MAX_PASTE_ROWS = 1000;
 export function planPaste(p: PasteInput): PastePlan {
   const { columns, matrix, startRow, startCol, total, rowAt, mode } = p;
   const width = Math.max(0, ...matrix.map((r) => r.length));
-  const usable = Math.max(0, Math.min(width, columns.length - startCol));
+  const mapping = p.mapping ?? positionalMapping(width, startCol, columns);
+  const targets = Array.from({ length: width }, (_, c) => {
+    const at = mapping[c];
+    return at === null || at === undefined ? undefined : columns[at];
+  });
+  const mapped = targets.filter((t) => t !== undefined).length;
   const plan: PastePlan = {
     rows: matrix.length,
-    columns: usable,
+    columns: mapped,
     valid: 0,
     invalid: [],
     skipped: 0,
-    extraColumns: width - usable,
+    extraColumns: width - mapped,
     rowsPastEnd: 0,
     unloaded: 0,
     grid: [],
@@ -119,10 +128,13 @@ export function planPaste(p: PasteInput): PastePlan {
     else if (mode === "overwrite" && !target) plan.unloaded++;
     const converted: Conversion[] = [];
     const fields: Record<string, unknown> = {};
-    for (let c = 0; c < usable; c++) {
-      const col = columns[startCol + c];
+    for (let c = 0; c < width; c++) {
+      const col = targets[c];
+      if (!col) {
+        converted.push({ status: "skip", reason: "Not imported" });
+        continue;
+      }
       const text = cells[c] ?? "";
-      if (!col) continue;
       const result = convertPaste(col, text);
       converted.push(result);
       if (result.status === "skip") {

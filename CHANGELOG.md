@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Designer property UI for accounting rules, typography, zebra striping, and conditional formatting.
 - Swipeable record cards with edit, duplicate and delete actions on touch screens (ADR 0022).
 - Community health files: code of conduct, contributing guide, security policy, accessibility statement, issue forms and a pull request template.
+- Datasheet paste reads HTML tables from Excel and Google Sheets (as text only), detects a header row, matches pasted columns to fields by name in any order with a mapping you can change, and understands rows copied from other AbiData tables (ADR 0019).
 
 ### Changed
 - README rewritten as a shorter front door with the website, quick start, database choice, API example and community links; the long feature detail lives in the documentation and on the project site.

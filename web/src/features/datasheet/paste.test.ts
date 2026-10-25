@@ -102,6 +102,15 @@ describe("planPaste", () => {
     ]);
   });
 
+  it("sends each pasted column to the field it is mapped to and leaves out the rest", () => {
+    const plan = planPaste({ ...base, mode: "insert", mapping: [2, null, 1], matrix: [["3", "skip me", "Zed"]] });
+    expect(plan.ops).toEqual([{ op: "insert", fields: { qty: 3, name: "Zed" } }]);
+    expect(plan.columns).toBe(2);
+    expect(plan.extraColumns).toBe(1);
+    expect(plan.grid[0]?.[1]).toEqual({ status: "skip", reason: "Not imported" });
+    expect(plan.skipped).toBe(0);
+  });
+
   it("will not overwrite records that have not loaded", () => {
     const plan = planPaste({ ...base, total: 5, mode: "overwrite", matrix: [["a"], ["b"], ["c"]] });
     expect(plan.unloaded).toBe(1);
