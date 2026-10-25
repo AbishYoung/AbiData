@@ -26,6 +26,7 @@ Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palett
 - Repeated group headers, page header/footer suppression, keep-together, distinct and percent aggregates (ADR 0018).
 
 ### Added
+- Excel exports resolve lookup columns to the parent record's display text (batched, bounded), with an optional adjacent `[ID]` column (ADR 0020).
 - Banded report typography, accounting underlines, band background shading and detail alternate zebra striping (ADR 0018).
 - Server-evaluated per-control conditional formatting rules with screen reader accessibility labels.
 - Designer property UI for accounting rules, typography, zebra striping, and conditional formatting.
