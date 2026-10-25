@@ -12,7 +12,7 @@ export function toast(level: ToastLevel, text: string, opts?: ToastOptions): voi
 
 /** The app-wide toast region; it also offers a reload when a new service-worker version is waiting. */
 export function AppToasts() {
-  const { toasts, push, dismiss } = useToasts();
+  const { toasts, push, dismiss, pause, resume } = useToasts();
   useEffect(() => {
     sinks.add(push);
     return () => {
@@ -29,5 +29,5 @@ export function AppToasts() {
       ),
     [push],
   );
-  return <ToastRegion toasts={toasts} onDismiss={dismiss} />;
+  return <ToastRegion toasts={toasts} onDismiss={dismiss} onPause={pause} onResume={resume} />;
 }

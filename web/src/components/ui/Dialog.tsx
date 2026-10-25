@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { AlertDialog, Dialog as RadixDialog } from "radix-ui";
 import { TriangleAlert, X } from "lucide-react";
-import { dialogDescription, dialogFooter, dialogOverlay, dialogPanel, dialogTitle, iconBtn, iconChip, sheetPanel } from "@/components/styles";
+import { dialogDescription, dialogFooter, dialogHeader, dialogOverlay, dialogPanel, dialogTitle, iconBtn, iconChip, sheetPanel } from "@/components/styles";
 import { Button } from "./Button";
 
 const WIDTHS = { sm: "w-[min(28rem,calc(100vw-2rem))]", md: "w-[min(32rem,calc(100vw-2rem))]", lg: "w-[min(44rem,calc(100vw-2rem))]", xl: "w-[min(60rem,calc(100vw-2rem))]" } as const;
@@ -46,7 +46,7 @@ export function Dialog({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className={dialogOverlay} />
         <RadixDialog.Content className={`${dialogPanel} ${WIDTHS[width]} p-5 ${className}`.trim()} {...useReturnFocus(onOpenAutoFocus)}>
-          <div className={`flex items-start gap-3 ${hideClose ? "" : "pr-8"}`.trim()}>
+          <div className={`${dialogHeader} ${hideClose ? "" : "pr-12"}`.trim()}>
             {icon}
             <div className="min-w-0 flex-1">
               <RadixDialog.Title className={`${dialogTitle} ${icon ? "pt-1" : ""}`.trim()}>{title}</RadixDialog.Title>
@@ -59,7 +59,7 @@ export function Dialog({
           </div>
           {children !== undefined && <div className="mt-4 space-y-4">{children}</div>}
           {footer && <div className={dialogFooter}>{footer}</div>}
-          {!hideClose && <CloseButton label={closeLabel} className="absolute right-3 top-3" />}
+          {!hideClose && <CloseButton label={closeLabel} className="absolute right-3 top-3.5" />}
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
@@ -100,7 +100,7 @@ export function ConfirmDialog({
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={dialogOverlay} />
         <AlertDialog.Content className={`${dialogPanel} ${WIDTHS.sm} p-5`} {...useReturnFocus()}>
-          <div className="flex items-start gap-3">
+          <div className={dialogHeader}>
             {danger && (
               <span className={`${iconChip} bg-danger-soft text-danger`}>
                 <TriangleAlert size={18} aria-hidden="true" />
@@ -162,7 +162,7 @@ export function Sheet({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className={dialogOverlay} />
         <RadixDialog.Content className={sheetPanel} data-presentation="side" {...useReturnFocus()}>
-          <div className="flex items-start gap-3 border-b border-border py-4 pl-5 pr-14">
+          <div className="flex items-start gap-3 border-b border-border bg-surface-2 py-4 pl-5 pr-14">
             {icon}
             <div className="min-w-0 flex-1">
               <RadixDialog.Title className={dialogTitle}>{title}</RadixDialog.Title>
@@ -174,7 +174,7 @@ export function Sheet({
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
-          {footer && <div className="flex justify-end gap-2 border-t border-border bg-surface-2/50 px-5 py-3">{footer}</div>}
+          {footer && <div className="flex justify-end gap-2 border-t border-border bg-surface-2 px-5 py-3">{footer}</div>}
           <CloseButton label={closeLabel} className="absolute right-3 top-3.5" />
         </RadixDialog.Content>
       </RadixDialog.Portal>

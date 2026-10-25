@@ -1,6 +1,6 @@
 import { Tip } from "@/components/Tip";
 import { ContextMenu, DropdownMenu } from "radix-ui";
-import { navItemButton, navMenu, navMenuItem, navMoreButton, navRow, navRowActive } from "./navStyles";
+import { navItemButton, navMenu, navMenuItemFor, navMoreButton, navRow, navRowActive } from "./navStyles";
 import { Download, Ellipsis, Eye, Pencil, Ruler, Trash2, Upload, type LucideIcon } from "lucide-react";
 import type { Table } from "@/lib/schema";
 
@@ -69,7 +69,7 @@ export function TableNavItem({
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" className={navMenu}>
                   {actions.map((a) => (
-                    <DropdownMenu.Item key={a.id} className={navMenuItem} onSelect={a.run}>
+                    <DropdownMenu.Item key={a.id} className={navMenuItemFor(a.id)} onSelect={a.run}>
                       <a.icon size={14} aria-hidden="true" />
                       {a.label}
                     </DropdownMenu.Item>
@@ -82,7 +82,7 @@ export function TableNavItem({
         <ContextMenu.Portal>
           <ContextMenu.Content className={navMenu}>
             {actions.map((a) => (
-              <ContextMenu.Item key={a.id} className={navMenuItem} onSelect={a.run}>
+              <ContextMenu.Item key={a.id} className={navMenuItemFor(a.id)} onSelect={a.run}>
                 <a.icon size={14} aria-hidden="true" />
                 {a.label}
               </ContextMenu.Item>

@@ -75,12 +75,14 @@ Controls (ADR 0021): `btnPrimary` has a gradient face, a specular bevel, a soft 
   - The drop zone is a dashed `border-border-strong` box; on compact screens a full-width primary **Take photo** button leads it. Upload progress is a labelled `progressbar`; a refusal is an inline `role="alert"` row that can be dismissed.
   - The full-screen viewer is the one place a literal dark overlay with white text is allowed (it shows photos).
 - **Dialogs**:
-  - The title row holds a `KindIcon` or semantic icon, the title and a close `iconBtn`.
+  - The header band (`dialogHeader`: `surface-2` with a hairline) holds a `KindIcon` or semantic icon chip, the title and a close `iconBtn`. The panel has the `specular-lg` edge; the scrim blurs lightly.
   - The body is `p-5 space-y-4`.
-  - The footer is `border-t border-border bg-surface-2/50 px-5 py-3 flex justify-end gap-2`.
+  - The footer bar (`dialogFooter`: `surface-2`, hairline, actions right-aligned with `gap-2`) is applied by the `Dialog`/`ConfirmDialog` primitives; pass `footer`.
+- **Menus and popovers**: `menu` has the specular edge; `menuItem` has a 6px radius and an icon column (a leading svg is 16px wide and muted). Put shortcut caps in `menuShortcut` using `kbd`. Destructive items use `menuItemDanger` (`menuItemFor(id)` picks it for `delete`/`remove`).
 - **Side sheets** (docs, history): full height and right-anchored, `w-[min(92vw,28rem)]`, with `shadow-lg` and the same header and footer rules as dialogs.
 - **Forms and settings**: label above the field, help text below (`hint`), and errors below in `fieldError` with `aria-invalid` set. Group related settings into cards.
-- **Toasts**: a `surface` card with `shadow-lg` and a left accent stripe in the status colour, an icon, the title and the message.
+- **Toasts**: a `surface` card with `specular-lg` and a left accent stripe in the status colour, an icon and the message. Auto-dismissing toasts show a draining progress hairline along the bottom (`.ui-toast-progress`, `chrome.css`); hover or focus holds both the hairline and the dismiss timer (`ToastRegion` `onPause`/`onResume`). Under reduced motion there is no bar. Sticky toasts have none.
+- **Command palette**: grouped results with `KindIcon` chips; the active row uses `navRowActive`.
 - **Tooltips**: wrap the control in `Tip` (`components/Tip.tsx`): `<Tip label="Refresh" shortcut="Mod+R"><button aria-label="Refresh" …/></Tip>`.
   - Every icon-only button gets a `Tip` with the same text as its `aria-label`, plus the keyboard shortcut when one exists.
   - Truncated text and terse controls (badges, status dots, abbreviated column headers) may get one that spells them out.

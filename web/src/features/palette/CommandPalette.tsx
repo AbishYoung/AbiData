@@ -4,6 +4,7 @@ import { ChevronDown, CornerDownLeft, Search } from "lucide-react";
 import { dialogOverlay, dialogPanel, kbd } from "@/components/styles";
 import { KindIcon } from "@/components/objectKinds";
 import { useReturnFocus } from "@/components/ui";
+import { navRowActive } from "@/features/nav/navStyles";
 import { ImportWizard } from "@/features/workspace/lazyFeatures";
 import { useImportRequest, usePalette } from "./commands";
 import { buildRows, moreLabel, moveActive, type GroupId, type PaletteItem, type Row } from "./match";
@@ -133,7 +134,7 @@ function Palette({ onDone }: { onDone: () => void }) {
               onMouseMove={() => {
                 if (!on) setActive(row.index);
               }}
-              className={`flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm text-fg transition-colors ${on ? "bg-accent-soft" : ""}`}
+              className={`flex cursor-pointer items-center gap-3 relative rounded-md px-2.5 py-2 text-sm text-fg transition-colors ${on ? navRowActive : ""}`}
             >
               {row.type === "item" ? <ItemBody item={row.item} on={on} /> : <MoreBody group={row.group} hidden={row.hidden} />}
               {on && <CornerDownLeft size={14} aria-hidden="true" className="shrink-0 text-fg-subtle" />}

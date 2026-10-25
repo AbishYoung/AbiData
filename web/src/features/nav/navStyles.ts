@@ -1,5 +1,5 @@
 // Shared classes for navigation pane rows (see components/DESIGN.md).
-import { menu, menuItem } from "@/components/styles";
+import { menu, menuItem, menuItemFor } from "@/components/styles";
 
 export const navRow = "group relative mx-2 flex items-center rounded-md pr-0.5 transition-colors hover:bg-surface-2";
 export const navRowActive = "bg-accent-soft hover:bg-accent-soft before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent before:shadow-[0_0_8px_var(--accent)]";
@@ -11,3 +11,4 @@ export const navMoreButton =
 export const navEmpty = "mx-2 py-1 pl-7 text-sm text-fg-subtle";
 export const navMenu = `z-50 ${menu} text-sm text-fg`;
 export const navMenuItem = menuItem;
+export const navMenuItemFor = menuItemFor;

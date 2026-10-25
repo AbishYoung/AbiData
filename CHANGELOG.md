@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Light and dark themes share one forest-toned neutral ladder, with new chart, glow, selection and scrollbar tokens.
+- Polished dialogs, menus, toasts and the command palette with header/footer bands, danger menu items and a toast progress hairline.
 
 ## [1.4.0] - 2026-10-25
 
