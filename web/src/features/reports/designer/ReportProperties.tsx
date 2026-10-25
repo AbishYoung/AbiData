@@ -7,6 +7,7 @@ import type { Schema } from "@/lib/schema";
 import type { Saved } from "@/features/queries/savedQueries";
 import {
   FORMAT_CHOICES,
+  MAX_AFFIX,
   MAX_IMAGES,
   MAX_MARGIN,
   PAPER_LABEL,
@@ -15,7 +16,12 @@ import {
   bandOrder,
   capabilities,
   dataKind,
+  formatChoice,
+  formatPattern,
+  numberPatternError,
   validColor,
+  withAffix,
+  withCurrency,
   withDataKind,
   withStyle,
   type BandId,
@@ -230,7 +236,7 @@ export function ControlProperties({
             </>
           )}
           {hasData && (
-            <SelectField label="Format" value={control.format ?? ""} onChange={(e) => onChange({ ...control, format: e.target.value })}>
+            <SelectField label="Format" value={formatChoice(control.format)} onChange={(e) => onChange({ ...control, format: e.target.value })}>
               {FORMAT_CHOICES.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.label}
@@ -238,8 +244,43 @@ export function ControlProperties({
               ))}
             </SelectField>
           )}
+          {hasData && formatChoice(control.format) === "pattern:" && (
+            <CheckedText
+              label="Number pattern"
+              value={formatPattern(control.format)}
+              hint={'Positive;negative;zero sections, for example #,##0.00;(#,##0.00);"-".'}
+              check={numberPatternError}
+              onCommit={(v) => onChange({ ...control, format: `pattern:${v}` })}
+            />
+          )}
+          {hasData && formatChoice(control.format) === "datepattern:" && (
+            <CheckedText
+              label="Date pattern"
+              value={formatPattern(control.format)}
+              hint="Tokens YYYY, YY, MMMM, MMM, MM, M, DD, D, dddd, ddd, HH, hh, mm, ss, A. Text in [brackets] prints as written."
+              check={(v) => (v === "" ? "Enter a pattern such as YYYY-MM-DD." : v.length > 100 ? "Use at most 100 characters." : undefined)}
+              onCommit={(v) => onChange({ ...control, format: `datepattern:${v}` })}
+            />
+          )}
+          {hasData && (
+            <div className="grid grid-cols-2 gap-x-2">
+              <CheckedText
+                label="Prefix"
+                value={control.prefix ?? ""}
+                check={(v) => (v.length > MAX_AFFIX ? `Use at most ${MAX_AFFIX} characters.` : undefined)}
+                onCommit={(v) => onChange(withAffix(control, "prefix", v))}
+              />
+              <CheckedText
+                label="Suffix"
+                value={control.suffix ?? ""}
+                check={(v) => (v.length > MAX_AFFIX ? `Use at most ${MAX_AFFIX} characters.` : undefined)}
+                onCommit={(v) => onChange(withAffix(control, "suffix", v))}
+              />
+            </div>
+          )}
         </Group>
       )}
+      {caps.data && hasData && isCurrencyFormat(control, columns) && <CurrencyProperties control={control} onChange={onChange} />}
       {caps.image && (
         <Group title="Images">
           <SelectField
@@ -311,6 +352,41 @@ export function ControlProperties({
         </Group>
       )}
     </form>
+  );
+}
+
+/** True when the control prints a currency: the Currency format, or a bound Currency field with the default format. */
+function isCurrencyFormat(control: DesignControl, columns: readonly SourceColumn[]): boolean {
+  if (control.format === "currency") return true;
+  if (control.format) return false;
+  const col = control.bind ? columns.find((c) => c.id === control.bind?.column_id) : undefined;
+  return col?.fieldType === "currency";
+}
+
+/** Symbol, placement and negative style of a currency control (ADR 0018). */
+function CurrencyProperties({ control, onChange }: { control: DesignControl; onChange: (c: DesignControl) => void }) {
+  const cur = control.currency ?? {};
+  return (
+    <Group title="Currency">
+      <CheckedText
+        label="Currency symbol"
+        value={cur.symbol ?? ""}
+        hint="For example $, €, £, ¥ or CHF. Empty uses $."
+        check={(v) => (v.length > MAX_AFFIX ? `Use at most ${MAX_AFFIX} characters.` : undefined)}
+        onCommit={(v) => onChange(withCurrency(control, { symbol: v }))}
+      />
+      <SelectField label="Symbol placement" value={cur.placement ?? ""} onChange={(e) => onChange(withCurrency(control, { placement: e.target.value as "prefix" | "suffix" }))}>
+        <option value="">Before the number</option>
+        <option value="suffix">After the number</option>
+      </SelectField>
+      <CheckField label="Space after symbol" checked={cur.spaced === true} onChange={(e) => onChange(withCurrency(control, { spaced: e.target.checked }))} />
+      <SelectField label="Negative amounts" value={cur.negative ?? ""} onChange={(e) => onChange(withCurrency(control, { negative: e.target.value as "minus" | "paren" | "sign_after" }))}>
+        <option value="">Minus sign (-$1.00)</option>
+        <option value="paren">Parentheses ($1.00)</option>
+        <option value="sign_after">Sign after ($1.00-)</option>
+      </SelectField>
+      <NumField label="Decimal places" value={cur.decimals ?? 2} min={0} max={6} onCommit={(n) => onChange(withCurrency(control, { decimals: n === 2 ? undefined : n }))} />
+    </Group>
   );
 }
 

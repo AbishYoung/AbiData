@@ -807,7 +807,65 @@ export const FORMAT_CHOICES: readonly { value: string; label: string }[] = [
   { value: "date:long", label: "Date, long" },
   { value: "datetime:short", label: "Date and time, short" },
   { value: "datetime:medium", label: "Date and time, medium" },
+  { value: "pattern:", label: "Custom number pattern" },
+  { value: "datepattern:", label: "Custom date pattern" },
 ];
+
+/** The select option a stored format maps to (custom patterns share one option each). */
+export function formatChoice(format: string | undefined): string {
+  const f = format ?? "";
+  if (f.startsWith("pattern:")) return "pattern:";
+  if (f.startsWith("datepattern:")) return "datepattern:";
+  return f;
+}
+
+/** The pattern text of a custom format ("" for other formats). */
+export function formatPattern(format: string | undefined): string {
+  const f = format ?? "";
+  if (f.startsWith("pattern:")) return f.slice("pattern:".length);
+  if (f.startsWith("datepattern:")) return f.slice("datepattern:".length);
+  return "";
+}
+
+export const MAX_PATTERN = 100;
+export const MAX_AFFIX = 32;
+
+/** Validates a number pattern the way the server does (internal/reports/fmtopts.go): digit placeholders, at most 3 sections. */
+export function numberPatternError(p: string): string | undefined {
+  if (p.length === 0) return 'Enter a pattern such as #,##0.00;(#,##0.00);"-".';
+  if (p.length > MAX_PATTERN) return `Use at most ${MAX_PATTERN} characters.`;
+  let sections = 1;
+  let quoted = false;
+  let first = "";
+  for (let i = 0; i < p.length; i++) {
+    const ch = p[i] ?? "";
+    if (ch === "\\") i++;
+    else if (ch === '"') quoted = !quoted;
+    else if (ch === ";" && !quoted) sections++;
+    else if (sections === 1) first += ch;
+  }
+  if (sections > 3) return "Use at most three sections: positive;negative;zero.";
+  if (!/[0#]/.test(first.replace(/"[^"]*"/g, ""))) return "Include digit placeholders such as #,##0.00.";
+  return undefined;
+}
+
+export type CurrencySpec = NonNullable<ReportControl["currency"]>;
+
+/** Merges currency options into a control, dropping empty/default values (and the whole object when nothing is left). */
+export function withCurrency(c: DesignControl, patch: Partial<CurrencySpec>): DesignControl {
+  const merged = Object.fromEntries(Object.entries({ ...(c.currency ?? {}), ...patch }).filter(([, v]) => v !== undefined && v !== "" && v !== false));
+  const { currency: _c, ...rest } = c;
+  void _c;
+  return Object.keys(merged).length === 0 ? rest : { ...rest, currency: merged as CurrencySpec };
+}
+
+/** Sets (or clears, for "") a control's prefix or suffix. */
+export function withAffix(c: DesignControl, key: "prefix" | "suffix", value: string): DesignControl {
+  if (value !== "") return { ...c, [key]: value };
+  const { [key]: _drop, ...rest } = c;
+  void _drop;
+  return rest;
+}
 
 export type StyleKey = "align" | "bold" | "italic" | "font_size" | "color" | "background" | "border";
 

@@ -306,6 +306,16 @@ func format(v any, spec string, f *field, tz *time.Location) any {
 		if d, ok := asDecimal(v); ok {
 			return thousands(d.StringFixed(2))
 		}
+	case "pattern":
+		if mk, err := parseMask(arg); err == nil {
+			if d, ok := asDecimal(v); ok {
+				return applyMask(mk, d)
+			}
+		}
+	case "datepattern":
+		if t, ok := asTime(v, tz); ok && arg != "" {
+			return formatDatePattern(t, arg)
+		}
 	case "fixed":
 		// Decimal places come from the report template. Parsing at 8 bits bounds
 		// the value (out-of-range input saturates to ±127) before it is clamped

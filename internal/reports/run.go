@@ -128,7 +128,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 		})
 	}
 	now := time.Now().In(tz)
-	fmtv := func(c ReportControl, v any, f *field) any { return format(v, c.Format, f, tz) }
+	fmtv := func(c ReportControl, v any, f *field) any { return formatControl(c, v, f, tz) }
 	byKey := map[string]*field{}
 	for i := range fields {
 		byKey[fields[i].key] = &fields[i]

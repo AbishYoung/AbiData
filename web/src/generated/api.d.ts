@@ -2640,6 +2640,27 @@ export interface components {
             row: number;
             value?: unknown;
         };
+        CurrencyOptions: {
+            /**
+             * Format: int64
+             * @description Decimal places (default 2).
+             */
+            decimals?: number;
+            /**
+             * @description How negative amounts print: -$1.00, ($1.00) or $1.00- (default minus).
+             * @enum {string}
+             */
+            negative?: "minus" | "paren" | "sign_after" | "";
+            /**
+             * @description Where the symbol goes (default prefix).
+             * @enum {string}
+             */
+            placement?: "prefix" | "suffix" | "";
+            /** @description Put a space between the symbol and the number. */
+            spaced?: boolean;
+            /** @description Currency symbol such as $, €, £, ¥ or CHF (default $). */
+            symbol?: string;
+        };
         DemoProvisionDTO: {
             /** @description Emails of users who received a new demo workspace. */
             created: string[] | null;
@@ -3685,6 +3706,8 @@ export interface components {
             bind?: components["schemas"]["Bind"];
             calc?: components["schemas"]["Calc"];
             caption?: string;
+            currency?: components["schemas"]["CurrencyOptions"];
+            /** @description Value format: currency, fixed:N, integer, percent, yesno, date:short|medium|long, datetime:short|medium, pattern:<number mask> or datepattern:<date tokens>. */
             format?: string;
             /** Format: int64 */
             h: number;
@@ -3693,9 +3716,11 @@ export interface components {
             /** Format: int64 */
             max_images?: number;
             name: string;
+            prefix?: string;
             style?: {
                 [key: string]: string;
             };
+            suffix?: string;
             /** @enum {string} */
             type: "label" | "textbox" | "line" | "rect" | "page_number" | "page_count" | "now" | "map" | "image";
             /** Format: int64 */
