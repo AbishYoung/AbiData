@@ -114,7 +114,7 @@ func (r *lookupResolver) apply(ctx context.Context, l *workspace.Lease, rows [][
 	}
 	out := make([][]any, len(rows))
 	for j, row := range rows {
-		o := make([]any, 0, len(row)+len(r.targets))
+		o := make([]any, 0, len(row))
 		for i, v := range row {
 			t := r.byPos[i]
 			if t == nil {
