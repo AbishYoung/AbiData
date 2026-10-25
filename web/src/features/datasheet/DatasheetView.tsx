@@ -18,7 +18,7 @@ import { Toolbar } from "./Toolbar";
 import { CardList } from "./CardList";
 import { SortStrip } from "./MultiSortBadges";
 import { RecordSheet, type FieldChange, type SheetSave } from "./RecordSheet";
-import { hasGeoField } from "@/features/imports/exportPrefs";
+import { hasGeoField, hasLookupField } from "@/features/imports/exportPrefs";
 import { ExportDialog } from "@/features/workspace/lazyFeatures";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
@@ -1194,7 +1194,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           }}
         />
       )}
-      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, hasGeo: hasGeoField(table.columns), view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive, selectedIds: [...selected] } }} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportDialog ws={ws} source={{ kind: "table", id: tableId, name: table.display_name, hasGeo: hasGeoField(table.columns), hasLookup: hasLookupField(table.columns), view: { filter: filterActive ? (filterStr ?? null) : null, sort: sortStr ?? null, filtered: filterActive, selectedIds: [...selected] } }} onClose={() => setExportOpen(false)} />}
       {historyRow !== null && (
         <RowHistoryPanel
           ws={ws}
