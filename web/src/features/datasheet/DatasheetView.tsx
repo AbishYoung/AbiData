@@ -24,6 +24,7 @@ import { PastePreviewDialog } from "./PastePreviewDialog";
 import { boundsOf, describeRange, inBounds, isMultiCell, parseClipboard, toTsv, type Bounds, type CellRange } from "./range";
 import type { BatchOp } from "./rowsApi";
 import type { PasteMode } from "./paste";
+import { ColumnProfileDialog } from "./ColumnProfileDialog";
 import { GeoFilterDialog } from "@/components/maps/lazy";
 import { accuracyColumn } from "@/lib/geo/locate";
 import { DeleteDialog } from "./DeleteDialog";
@@ -140,6 +141,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [buffers, setBuffers] = useState<ReadonlyMap<RowKey, RowBuffer>>(() => new Map());
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set());
+  const [profileCol, setProfileCol] = useState<Column | null>(null);
   const [merge, setMerge] = useState<MergeState | null>(null);
   /** The rectangle of selected cells (drag, Shift+click, Shift+arrows); null for a single cell. */
   const [range, setRange] = useState<CellRange | null>(null);
@@ -891,6 +893,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       onMoveColumn,
       frozen: frozenCount(layout, columns.length),
       onFreeze,
+      onProfile: (colId) => setProfileCol(columns.find((c) => c.id === colId) ?? null),
       copyCell: (cell) => void (bounds && inBounds(bounds, cell.row, cell.col) ? copyRange(bounds) : copyCell(cell)),
       pasteInto: (cell) => void pasteFromMenu(cell),
       startEdit: (cell) => startEdit(null, cell),
@@ -1163,6 +1166,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         onSort={onSort}
         onResize={onResize}
         onMoveColumn={onMoveColumn}
+        onProfile={(colId) => setProfileCol(columns.find((c) => c.id === colId) ?? null)}
         onDropColumn={onDropColumn}
         onFreeze={onFreeze}
         onCommit={commitEdit}
@@ -1216,6 +1220,18 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           onHistory={() => {
             const row = rowAt(sheetIndex);
             if (row) setHistoryRow(row.id);
+          }}
+        />
+      )}
+      {profileCol && (
+        <ColumnProfileDialog
+          ws={ws}
+          tableId={tableId}
+          column={profileCol}
+          filter={filterStr}
+          onClose={() => {
+            setProfileCol(null);
+            focusGrid();
           }}
         />
       )}
