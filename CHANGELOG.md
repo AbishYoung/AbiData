@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Changed: Documentation screenshots re-shot in the Sylvan Atelier theme.
+
+### Changed
 - Pull-to-refresh on record cards, form records and query results on touch screens (ADR 0022).
 
 ### Changed
