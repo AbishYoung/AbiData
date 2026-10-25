@@ -12,6 +12,7 @@ import type { Me } from "@/lib/session";
 import { useTabs, useWorkspaceTabs, type Tab, type TableView } from "@/app/tabs";
 import { NavPane } from "@/features/nav/NavPane";
 import { NavDrawer } from "@/features/nav/NavDrawer";
+import { MobileBottomBar } from "@/features/nav/MobileBottomBar";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { useFocusOpenedTab } from "./focusOpened";
 import { UserMenu } from "@/features/nav/UserMenu";
@@ -458,6 +459,7 @@ export function WorkspaceShell({ ws, me }: { ws: string; me: Me }) {
             </>
           )}
         </main>
+        <MobileBottomBar ws={ws} onMenu={() => setNavOpen(true)} />
         <footer className="safe-bottom flex shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-xs text-fg-muted">
           <span aria-live="polite" className="tabular min-h-7 truncate leading-7">{recordNav ?? ""}</span>
           <div className="ml-auto flex items-center gap-3">

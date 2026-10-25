@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api";
 import { keys } from "@/lib/events";
 import { useDensityStore } from "@/lib/density";
 import { usePinchZoom } from "@/lib/usePinchZoom";
+import { useMobileView } from "@/lib/mobileView";
 import { useErrorStore } from "@/lib/errorStore";
 import { useStatusBar } from "@/lib/statusbar";
 import { useIsCompact } from "@/lib/useMediaQuery";
@@ -161,7 +162,8 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const [paste, setPaste] = useState<PasteState | null>(null);
   const [del, setDel] = useState<DeleteState | null>(null);
   const compact = useIsCompact();
-  const [viewMode, setViewMode] = useState<"cards" | "grid">("cards");
+  const viewMode = useMobileView((st) => st.mode);
+  const setViewMode = useMobileView((st) => st.setMode);
   /** Phones show record cards by default; the grid stays one tap away. Desktop is always the grid. */
   const mode: "cards" | "grid" = compact ? viewMode : "grid";
   /** Index of the record open in the full-screen sheet; `total` means the new record. */
