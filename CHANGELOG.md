@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Datasheet headers, rows and focus ring polished, and record counts animate smoothly
+
+### Changed
 - Whispering Pines canopy banner on sign-in and workspace picker, owl hover tilt, jewel kind badge component and softer tooltip entrance.
 
 ### Changed
