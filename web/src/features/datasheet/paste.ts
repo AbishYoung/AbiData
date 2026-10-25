@@ -2,6 +2,7 @@ import type { Column } from "@/lib/schema";
 import type { BatchOp, Row } from "./rowsApi";
 import { localeDateOrder, normalizeDate, normalizeDateTime, normalizeNumber, parseBooleanText, type DateOrder } from "./coerce";
 import { positionalMapping, type Mapping } from "./headers";
+import { lookupKey, type LookupDict } from "./lookupResolve";
 import { isReadOnlyColumn, kindOf, parseDraft, valuesEqual } from "./values";
 
 // Pasting a block of cells: what each pasted text becomes in its column, and the batch of writes
@@ -15,6 +16,22 @@ export type Conversion =
 export interface ConvertOptions {
   /** How to read 3/2/2026: month first (en-US) or day first. Defaults to the browser's locale. */
   dateOrder?: DateOrder;
+  /** The related records the lookup field's pasted texts name; without it a lookup cell is skipped. */
+  lookup?: LookupDict;
+}
+
+/** A lookup cell: the text names one related record (its id), none or several (an error), or nothing yet (skipped). */
+function convertLookup(raw: string, dict: LookupDict | undefined): Conversion {
+  const text = raw.trim();
+  if (text === "") return { status: "ok", value: null };
+  const found = dict?.get(lookupKey(text));
+  if (!found) return { status: "skip", reason: dict ? "Not looked up" : "Looking up related records" };
+  if (found.skipped) return { status: "error", message: "Too many different names to look up at once. Paste fewer rows." };
+  const [only, ...more] = found.ids;
+  if (only !== undefined && more.length === 0) return { status: "ok", value: only };
+  if (only !== undefined) return { status: "error", message: `${found.ids.length} related records have this name. Make it unique, or choose the record in the cell.` };
+  const near = found.suggestions.length > 0 ? ` Closest: ${found.suggestions.join(", ")}.` : "";
+  return { status: "error", message: `No related record is named this.${near}` };
 }
 
 let defaultOrder: DateOrder | undefined;
@@ -29,7 +46,7 @@ export function convertPaste(col: Column, raw: string, opts: ConvertOptions = {}
   const kind = kindOf(col);
   const order = opts.dateOrder ?? readerOrder();
   if (kind === "attachments") return { status: "skip", reason: "Files cannot be pasted" };
-  if (kind === "lookup") return { status: "skip", reason: "Lookup fields cannot be pasted yet" };
+  if (kind === "lookup") return convertLookup(raw, opts.lookup);
   if (kind === "boolean") {
     if (raw.trim() === "") return { status: "ok", value: null };
     const b = parseBooleanText(raw);
@@ -51,7 +68,12 @@ export function convertPaste(col: Column, raw: string, opts: ConvertOptions = {}
   return r.ok ? { status: "ok", value: r.value } : { status: "error", message: r.message };
 }
 
-export type PasteMode = "overwrite" | "insert";
+export type PasteMode = "overwrite" | "insert" | "upsert";
+
+/** How a key value is compared with the stored one. */
+export function keyOf(value: unknown): string {
+  return String(value);
+}
 
 export interface PasteIssue {
   /** Position in the pasted block (0-based). */
@@ -81,6 +103,9 @@ export interface PastePlan {
   grid: Conversion[][];
   /** The writes, with invalid cells left out. */
   ops: BatchOp[];
+  /** How many of the writes add a record and how many change one. */
+  inserted: number;
+  updated: number;
 }
 
 export interface PasteInput {
@@ -91,6 +116,10 @@ export interface PasteInput {
   startCol: number;
   /** For each pasted column, the index in `columns` it goes to (null: left out). Default: side by side from `startCol`. */
   mapping?: Mapping;
+  /** Upsert: the field that identifies a record, and the stored records already holding the pasted keys (by `keyOf`). */
+  upsert?: { keyColumnId: string; existing: ReadonlyMap<string, Row> };
+  /** Resolved lookup texts by lookup column id. */
+  lookups?: ReadonlyMap<string, LookupDict>;
   /** Saved records in the view. */
   total: number;
   rowAt: (index: number) => Row | undefined;
@@ -120,28 +149,47 @@ export function planPaste(p: PasteInput): PastePlan {
     unloaded: 0,
     grid: [],
     ops: [],
+    inserted: 0,
+    updated: 0,
   };
+  const keyAt = mode === "upsert" ? targets.findIndex((t) => t?.id === p.upsert?.keyColumnId) : -1;
+  const seen = new Set<string>();
   matrix.forEach((cells, r) => {
-    const target = mode === "overwrite" ? rowAt(startRow + r) : undefined;
-    const beyond = mode === "overwrite" && startRow + r >= total;
-    if (beyond) plan.rowsPastEnd++;
-    else if (mode === "overwrite" && !target) plan.unloaded++;
     const converted: Conversion[] = [];
-    const fields: Record<string, unknown> = {};
     for (let c = 0; c < width; c++) {
       const col = targets[c];
-      if (!col) {
-        converted.push({ status: "skip", reason: "Not imported" });
-        continue;
+      converted.push(col ? convertPaste(col, cells[c] ?? "", { lookup: p.lookups?.get(col.id) }) : { status: "skip", reason: "Not imported" });
+    }
+    // The record this row writes to: by position (overwrite) or by its key (upsert); none means a new record.
+    let target: Row | undefined;
+    let isInsert = mode === "insert";
+    if (mode === "overwrite") {
+      target = rowAt(startRow + r);
+      if (startRow + r >= total) plan.rowsPastEnd++;
+      else if (!target) plan.unloaded++;
+    } else if (mode === "upsert") {
+      const keyResult = keyAt >= 0 ? converted[keyAt] : undefined;
+      const key = keyResult?.status === "ok" && keyResult.value !== null && keyResult.value !== "" ? keyOf(keyResult.value) : null;
+      if (key !== null) {
+        if (seen.has(key)) {
+          plan.invalid.push({ row: r, col: keyAt, column: targets[keyAt]?.display_name ?? "", text: cells[keyAt] ?? "", message: "This key appears more than once in the pasted rows." });
+          plan.grid.push(converted);
+          return;
+        }
+        seen.add(key);
+        target = p.upsert?.existing.get(key);
       }
-      const text = cells[c] ?? "";
-      const result = convertPaste(col, text);
-      converted.push(result);
+      isInsert = target === undefined;
+    }
+    const fields: Record<string, unknown> = {};
+    converted.forEach((result, c) => {
+      const col = targets[c];
+      if (!col) return;
       if (result.status === "skip") {
         plan.skipped++;
       } else if (result.status === "error") {
-        plan.invalid.push({ row: r, col: c, column: col.display_name, text, message: result.message });
-      } else if (mode === "insert") {
+        plan.invalid.push({ row: r, col: c, column: col.display_name, text: cells[c] ?? "", message: result.message });
+      } else if (isInsert) {
         plan.valid++;
         if (result.value !== null && result.value !== "") fields[col.id] = result.value;
       } else if (target && !valuesEqual(col, result.value, target.fields[col.id])) {
@@ -150,11 +198,16 @@ export function planPaste(p: PasteInput): PastePlan {
       } else if (target) {
         plan.valid++;
       }
-    }
+    });
     plan.grid.push(converted);
     if (Object.keys(fields).length === 0) return;
-    if (mode === "insert") plan.ops.push({ op: "insert", fields });
-    else if (target) plan.ops.push({ op: "update", id: target.id, version: target._version, fields });
+    if (isInsert) {
+      plan.ops.push({ op: "insert", fields });
+      plan.inserted++;
+    } else if (target) {
+      plan.ops.push({ op: "update", id: target.id, version: target._version, fields });
+      plan.updated++;
+    }
   });
   return plan;
 }

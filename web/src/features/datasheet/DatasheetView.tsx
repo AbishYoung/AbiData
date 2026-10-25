@@ -81,6 +81,8 @@ import {
   batchRows,
   classifyFailure,
   deleteRow,
+  fetchRows,
+  PAGE_SIZE,
   insertRow,
   type Row,
 } from "./rowsApi";
@@ -511,7 +513,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       setPaste(null);
       setRange(null);
       refreshData();
-      toast("success", mode === "insert" ? `Added ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}` : `Pasted into ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}`);
+      toast("success", mode === "insert" ? `Added ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}` : mode === "upsert" ? `Updated or added ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}` : `Pasted into ${formatCount(ops.length)} ${ops.length === 1 ? "record" : "records"}`);
       focusGrid();
     } catch (e) {
       const failure = classifyFailure(e);
@@ -967,6 +969,16 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   // ---- effects --------------------------------------------------------------------------
   const accuracyCol = useMemo(() => accuracyColumn(allColumns), [allColumns]);
 
+  /** Fields with a single-column unique index: a paste can update records by them. */
+  const uniqueColumnIds = useMemo(
+    () => (table.indexes ?? []).flatMap((ix) => (ix.is_unique && ix.column_ids?.length === 1 ? [ix.column_ids[0] ?? ""] : [])).filter((id) => id !== ""),
+    [table.indexes],
+  );
+  const findExisting = async (col: Column, values: unknown[]): Promise<Row[]> => {
+    const page = await fetchRows({ ws, tableId, offset: 0, limit: PAGE_SIZE, filter: JSON.stringify({ col: col.id, op: "in", value: values }) });
+    return page.items ?? [];
+  };
+
   const lookupFor = (col: Column): LookupInfo | undefined => {
     if (col.field_type !== "lookup" || !col.lookup_display_column_id) return undefined;
     const rel = schema.relationships?.find((r) => r.id === col.lookup_relationship_id);
@@ -1338,6 +1350,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
           columns={columns}
           matrix={paste.matrix}
           payload={paste.payload}
+          lookupFor={lookupFor}
+          uniqueColumnIds={uniqueColumnIds}
+          findExisting={findExisting}
           startRow={paste.startRow}
           startCol={paste.startCol}
           total={total}

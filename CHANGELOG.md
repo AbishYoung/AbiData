@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Pasting into a lookup field matches the pasted names to the related records (ambiguous or missing names are flagged), and a new "Update matching records, add the rest" paste mode updates records by a unique field (ADR 0019).
+
+### Changed
 Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palettes, tactile gradient controls and segmented trays, jewel object-kind chips, line-art wildlife in empty states, and "system is alive" motion (connection beacon, top-edge progress beam, save ripple, shimmer skeletons), all disabled under reduced motion.
 
 ### Changed
