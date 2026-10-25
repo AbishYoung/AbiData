@@ -185,7 +185,7 @@ export function ExportDialog({ ws, source, onClose }: { ws: string; source: Expo
                   <div>
                     <label className="flex items-center gap-2 text-sm font-medium">
                       <input type="radio" name={`${baseId}-scope`} checked={scope === "view"} aria-describedby={`${baseId}-scope-view`} onChange={() => setScope("view")} />
-                      Filtered view
+                      Current view
                     </label>
                     <p id={`${baseId}-scope-view`} className="m-0 ml-6 text-sm text-fg-muted">
                       {source.view.filtered ? "Only the records matching the filter, in the datasheet's sort order." : "Every record, in the datasheet's sort order."}
