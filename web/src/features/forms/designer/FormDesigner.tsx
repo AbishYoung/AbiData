@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTabs } from "@/app/tabs";
-import { alertBox, badgeSuccess, badgeWarning, btn, btnPrimary } from "@/components/styles";
+import { alertBox, badgeSuccess, badgeWarning, btn, btnPrimary, segActive, segInactive, segTray } from "@/components/styles";
 import { ToolbarButton, useSaveShortcut } from "@/components/designer/toolbar";
 import { Tip } from "@/components/Tip";
 import { handleCanvasKey } from "@/components/designer/canvasKeys";
@@ -358,7 +358,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
       <div className={docToolbar}>
         <KindIcon kind="form" size="sm" />
         <h2 className="m-0 mr-2 text-sm font-semibold">{state.name || "Untitled form"}</h2>
-        <div role="tablist" aria-label="Designer panels" className="flex gap-0.5 rounded-lg bg-surface-3 p-0.5">
+        <div role="tablist" aria-label="Designer panels" className={segTray}>
           {panels.map(([p, label]) => (
             <button
               key={p}
@@ -367,7 +367,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
               aria-selected={panel === p}
               aria-controls="designer-panel"
               onClick={() => setPanel(p)}
-              className={`h-7 cursor-pointer rounded-md px-3 text-sm font-medium transition-colors ${panel === p ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"}`}
+              className={`h-7 cursor-pointer rounded-md px-3 text-sm font-medium transition-colors ${panel === p ? segActive : segInactive}`}
             >
               {label}
             </button>

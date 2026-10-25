@@ -40,6 +40,8 @@ The tokens live in `web/src/styles/tokens.css`, the primitives in `web/src/compo
 ## Materials (ADR 0021)
 Raised surfaces get a specular hairline on the top edge: `.specular`, `.specular-sm` and `.specular-lg` (these also set the matching shadow). `.glass` is the frosted translucent fill for the shell header and document toolbars. `.bg-canopy` paints dappled canopy light behind hero headers and empty screens. All of them read tokens, so they follow the theme.
 
+Controls (ADR 0021): `btnPrimary` has a gradient face, a specular bevel, a soft accent glow and presses to `scale-[0.98]`; `btn` is a subtle gradient with a specular edge. Segmented switchers (view, density, filters) use `segTray` with `segActive` and `segInactive` (a recessed tray with a floating active card) rather than an ad-hoc filled accent. Cards, dialogs, menus and sheets use the `.specular*` shadows; `docToolbar` is `.glass`. `KindIcon` chips are satin jewel gradients with a tinted border.
+
 ## Primitives
 `components/ui` (import from `@/components/ui`) turns the patterns below into components, so the rules hold by construction. Prefer them in new and touched code; the class strings in `styles.ts` stay exported for elements that cannot be a component (Radix `asChild`, links styled as buttons via `buttonClass()`).
 - `Button` (`variant`: primary, secondary, ghost, danger; `size`: md, sm). It is `type="button"` unless told otherwise.

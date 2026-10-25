@@ -25,6 +25,9 @@ import {
   menuItem,
   pageTitle,
   sectionTitle,
+  segActive,
+  segInactive,
+  segTray,
 } from "@/components/styles";
 
 const ROLE_HELP: Record<string, string> = {
@@ -167,14 +170,14 @@ export function PickerPage({ me: initial }: { me: Me }) {
         </div>
 
         {(memberships.length > 1 || sharedCount > 0) && (
-          <div role="tablist" aria-label="Filter workspaces by ownership" className="mt-4 flex flex-wrap gap-1 rounded-lg bg-surface-3 p-0.5">
+          <div role="tablist" aria-label="Filter workspaces by ownership" className={`${segTray} mt-4 flex flex-wrap gap-1`}>
             <button
               type="button"
               role="tab"
               aria-selected={tab === "all"}
               onClick={() => setTab("all")}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-focus ${
-                tab === "all" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+                tab === "all" ? segActive : segInactive
               }`}
             >
               All
@@ -188,7 +191,7 @@ export function PickerPage({ me: initial }: { me: Me }) {
               aria-selected={tab === "shared"}
               onClick={() => setTab("shared")}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-focus ${
-                tab === "shared" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+                tab === "shared" ? segActive : segInactive
               }`}
             >
               Shared with you
@@ -202,7 +205,7 @@ export function PickerPage({ me: initial }: { me: Me }) {
               aria-selected={tab === "owned"}
               onClick={() => setTab("owned")}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-focus ${
-                tab === "owned" ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+                tab === "owned" ? segActive : segInactive
               }`}
             >
               Owned by you

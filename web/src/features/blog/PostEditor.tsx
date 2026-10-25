@@ -8,7 +8,7 @@ import { matchesShortcut } from "@/lib/shortcuts";
 import { useThemeStore } from "@/lib/theme";
 import { useIsCompact } from "@/lib/useMediaQuery";
 import { askToConfirm, Badge, Button, Dialog, Field, IconButton, Input, Skeleton, Textarea, ToolbarSeparator } from "@/components/ui";
-import { alertBox, warningBox } from "@/components/styles";
+import { alertBox, segTray, warningBox } from "@/components/styles";
 import { uploadFile, type UploadHandle } from "@/features/files/filesApi";
 import { BlogNotFound } from "./BlogApp";
 import { CoverField } from "./CoverField";
@@ -501,7 +501,7 @@ function PostForm({ ws, info, initial }: { ws: string; info: BlogInfo; initial: 
       )}
       {compact ? (
         <Tabs.Root defaultValue="write">
-          <Tabs.List aria-label="Editor" className="mb-3 inline-flex rounded-md border border-border bg-surface-2 p-0.5">
+          <Tabs.List aria-label="Editor" className={`${segTray} mb-3`}>
             {(["write", "preview"] as const).map((v) => (
               <Tabs.Trigger
                 key={v}

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { AreaChart, BarChart, LineChart, formatBytes, formatCompact, formatDuration, formatMs, formatPercent, formatRate } from "@/components/charts";
 import { KindIcon } from "@/components/objectKinds";
-import { alertBox, btn, iconBtn } from "@/components/styles";
+import { alertBox, btn, iconBtn, segTray } from "@/components/styles";
 import { adminKeys, getOverview, type AdminOverview, type OverviewRange } from "./adminApi";
 import {
   errorTone,
@@ -49,8 +49,8 @@ function clock(ms: number): string {
 
 function RangeToggle({ value, onChange }: { value: OverviewRange; onChange: (r: OverviewRange) => void }) {
   const item =
-    "h-7 cursor-pointer rounded px-3 text-xs font-medium text-fg-muted transition-colors hover:text-fg " +
-    "data-[state=on]:bg-surface data-[state=on]:text-fg data-[state=on]:shadow-xs";
+    "h-7 cursor-pointer rounded-md px-3 text-xs font-medium text-fg-muted transition-colors hover:text-fg " +
+    "data-[state=on]:border data-[state=on]:border-border/40 data-[state=on]:bg-surface data-[state=on]:text-fg data-[state=on]:shadow-xs";
   return (
     <ToggleGroup.Root
       type="single"
@@ -59,7 +59,7 @@ function RangeToggle({ value, onChange }: { value: OverviewRange; onChange: (r: 
         if (v === "1h" || v === "24h") onChange(v);
       }}
       aria-label="Time range"
-      className="inline-flex rounded-md border border-border bg-surface-2 p-0.5"
+      className={segTray}
     >
       <ToggleGroup.Item value="1h" className={item}>
         1 h
