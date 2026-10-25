@@ -1,0 +1,47 @@
+name: Accessibility barrier
+description: Something is hard or impossible to use with a keyboard, a screen reader or other assistive technology, or on a phone.
+title: "a11y: "
+labels: ["accessibility", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. We treat accessibility barriers as bugs; see [ACCESSIBILITY.md](https://github.com/AbishYoung/AbiData/blob/main/ACCESSIBILITY.md). You don't need to know which WCAG criterion applies: just tell us what got in your way.
+  - type: input
+    id: where
+    attributes:
+      label: Where in AbiData?
+      placeholder: "The Orders datasheet's filter menu"
+    validations:
+      required: true
+  - type: textarea
+    id: barrier
+    attributes:
+      label: What were you trying to do, and what happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: How much does it affect you?
+      options:
+        - It blocks me from completing the task
+        - I can work around it, but it is hard
+        - It is an annoyance
+    validations:
+      required: true
+  - type: input
+    id: at
+    attributes:
+      label: Assistive technology, browser and operating system
+      placeholder: "NVDA 2026.1, Firefox 140, Windows 11 (or: keyboard only, 200% zoom, iOS VoiceOver, …)"
+  - type: input
+    id: version
+    attributes:
+      label: AbiData version
+      placeholder: "1.3.1"
+  - type: input
+    id: wcag
+    attributes:
+      label: WCAG success criterion (optional)
+      placeholder: "2.1.1 Keyboard"

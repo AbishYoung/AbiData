@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest an idea or an improvement.
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the task you are trying to do and what makes it hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: Your preferred solution. Mock-ups, examples from other tools and API sketches are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Datasheets / tables
+        - Queries (visual or SQL)
+        - Forms
+        - Reports / PDF
+        - Lua scripts / jobs
+        - Import / export
+        - Files / attachments / maps
+        - Public apps / blogs
+        - Messaging / members
+        - Admin / backups / operations
+        - REST API
+        - Mobile / PWA
+        - Other
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to work on this myself (see CONTRIBUTING.md).
