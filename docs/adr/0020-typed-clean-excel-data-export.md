@@ -1,6 +1,6 @@
 # ADR 0020: Typed Clean Excel Data Export Engine
 
-Status: Proposed · 2026-10-24 (approved for implementation)
+Status: Accepted, implemented in PRs 111, 126 and 135 (the dialog options for lookups follow separately) · 2026-10-24
 
 ## Context
 
@@ -59,3 +59,22 @@ Follow the architectural pattern established by `fileNamer` in `export_files.go`
 - Exported `.xlsx` workbooks open cleanly in Excel, Google Sheets, and LibreOffice with immediate formula and date filter compatibility.
 - Memory usage remains strictly bounded via `StreamWriter` disk chunking; exports up to 1,048,575 rows operate within memory quotas.
 - `export_test.go` and `tests/e2e/exports.spec.ts` assert typed numeric cells, resolved lookups, and frozen panes.
+
+## As built
+
+- **Style registry and typed cells** (`internal/ingest/export_xlsx.go`): header, text (`@`), integer, decimal, currency, date and date-time styles are registered once per workbook. Currency is written as a number (the stored value over 10,000), dates and date-times as Excel serials, Yes/No as native booleans. Text is always an inline string and never given a formula, so text that starts with `=`, `+`, `-` or `@` stays text. A value that does not fit its column's kind is written as text instead of being dropped; dates before 1901 stay text.
+- **Raw mode**: `clean` on the export request (default true). `clean=false` writes the previous untyped workbook.
+- **Layout**: the StreamWriter needs column widths and panes before the first row, so the sink buffers the first 1,000 rows, sizes the columns from the header and that sample (`clamp(longest + 4, 12, 60)`), sets the frozen header row and the AutoFilter, then streams the rest. Memory stays bounded.
+- **Query exports**: the query layer's column types drive the cell kinds; columns it could not type are sniffed from the first 1,000 rows (all integers, all numbers, all ISO dates or timestamps, all booleans; anything mixed stays text, and numeric-looking strings stay text so codes keep leading zeros). The Query Info sheet is opt-in (`query_info`) because it carries the SQL.
+- **Lookups** (`internal/ingest/export_lookups.go`): `resolve_lookups` (default true for csv and xlsx, false for json and geojson) resolves ids to the parent's display column in batches of 500 through sqlgen, with a per-column cache capped at 100,000 entries. An id with no parent row stays as the id. `lookup_ids` adds a `<column> [ID]` column after each resolved lookup (csv and xlsx only).
+- **Dialog**: Clean Excel (default) or Raw database export, the Query Info checkbox, and a Selected records scope (sent as an `id in [...]` filter, at most 500 records, chosen by default when a selection exists) next to the existing Current view and All records.
+
+### Deviations
+
+- Foreign keys are integer ids, not ULIDs as the context says.
+- The decimal format is `#,##0.00##` (the catalog has no per-column decimals option), and the currency format is a fixed `$#,##0.00`; the workspace has no currency symbol setting.
+- No Percent style: the catalog has no percent field.
+- Hyperlink cells are plain text, not clickable: the StreamWriter cannot add hyperlinks.
+- The scope counts (`e.g. 142 rows`) are not shown for Current view and All records.
+- The Playwright spec does not inspect workbook contents; the Go tests (`export_xlsx_test.go`, `export_lookups_test.go`) assert cell types, serials, panes, filter, widths and the absence of formulas.
+- Still to do: the dialog controls for `resolve_lookups` and `lookup_ids`.
