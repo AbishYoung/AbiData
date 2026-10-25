@@ -36,6 +36,8 @@
 .grid-resize::after { content: ""; position: absolute; inset-block: 0; right: 0; width: 2px; background: transparent; transition: background-color 120ms, box-shadow 120ms; }
 .grid-resize:hover::after { background: var(--accent); box-shadow: 0 0 8px 1px var(--accent); }
 
+/* In the base layer, so Tailwind utilities on a control (size, padding, margin) still win. */
+@layer base {
 /* Select: the input well with a single drawn chevron (two gradients, so it follows the theme), aligned 1rem
    from the right edge. Applies to every single-line select; multi-selects and listboxes keep their native look. */
 select:not([multiple], [size]) {
@@ -94,4 +96,5 @@ input[type="checkbox"]:not([role="switch"]):indeterminate::before { transform: s
 input[type="checkbox"]:not([role="switch"]):disabled, input[type="radio"]:disabled { cursor: not-allowed; opacity: 0.55; }
 @media (prefers-reduced-motion: no-preference) {
   input[type="checkbox"]:not([role="switch"])::before, input[type="radio"]::before { transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 90ms ease-out; }
+}
 }
