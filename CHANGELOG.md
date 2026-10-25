@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+Phone bottom dock with Menu, Search and Cards/Grid switch, tab swiping on the dock, and a round floating New record button (ADR 0022).
+
+### Changed
 Long-press multi-select on record cards with a floating Duplicate, Export and Delete bar (ADR 0022).
 
 ### Changed
