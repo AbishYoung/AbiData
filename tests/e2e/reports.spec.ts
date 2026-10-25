@@ -185,12 +185,13 @@ test("downloads the report as a vector PDF, CSV and JSON without the print dialo
   const lines = csv.trim().split("\r\n");
   expect(lines[0]).toBe("Group 1,rep,amt,note");
   expect(lines).toHaveLength(TOTAL_ROWS + 1);
-  expect(lines[1]).toBe(`North,${rep(1)},10.00,note 1`);
+  // Groups sort alphabetically: East (reps 61-90) comes first.
+  expect(lines[1]).toBe(`East,${rep(61)},10.00,note 61`);
 
   const jsonDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export JSON" }).click();
   const tree = JSON.parse(await readFile(await (await jsonDownload).path(), "utf8")) as { groups: { key: string; rows: unknown[]; footer: Record<string, string> }[] };
-  expect(tree.groups.map((g) => g.key)).toEqual(REGIONS);
+  expect(tree.groups.map((g) => g.key)).toEqual([...REGIONS].sort());
   expect(tree.groups[0]?.rows).toHaveLength(ROWS_PER_REGION);
   expect(tree.groups[0]?.footer).toEqual({ gsum: "300.00" });
 });
