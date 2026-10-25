@@ -130,3 +130,18 @@ function trimTrailingEmptyRow(rows: string[][]): string[][] {
   if (rows.length > 1 && last && last.length === 1 && last[0] === "") return rows.slice(0, -1);
   return rows;
 }
+
+/**
+ * What a paste fills a selected rectangle with, when the clipboard holds less than the selection:
+ * one cell goes into every cell, one row of cells goes into every row. Null when the clipboard is
+ * not smaller than the selection in that way (then it pastes from the top left as usual).
+ */
+export function fillMatrix(matrix: readonly (readonly string[])[], b: Bounds): string[][] | null {
+  const rows = b.r1 - b.r0 + 1;
+  const cols = b.c1 - b.c0 + 1;
+  if (matrix.length !== 1 || rows * cols <= 1) return null;
+  const row = matrix[0] ?? [];
+  if (row.length === 1) return Array.from({ length: rows }, () => Array.from({ length: cols }, () => row[0] ?? ""));
+  if (rows > 1) return Array.from({ length: rows }, () => [...row]);
+  return null;
+}
