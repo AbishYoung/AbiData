@@ -1,0 +1,16 @@
+/* Animated line-art wildlife (ADR 0021, components/wildlife). Every animation lives inside
+   prefers-reduced-motion: no-preference, so with reduced motion the art is simply static, fully drawn line work. */
+@media (prefers-reduced-motion: no-preference) {
+  .wl-anim .wl-draw { stroke-dasharray: 1; stroke-dashoffset: 0; animation: wl-draw 1.6s cubic-bezier(0.65, 0, 0.35, 1) both; }
+  .wl-anim .wl-breathe { transform-box: fill-box; transform-origin: 50% 100%; animation: wl-breathe 5s ease-in-out 1.6s infinite; }
+  .wl-anim .wl-blink { transform-box: fill-box; transform-origin: 50% 50%; animation: wl-blink 6s ease-in-out 2s infinite; }
+  .wl-anim .wl-wag { transform-origin: 96px 90px; animation: wl-wag 3.2s ease-in-out 1.8s infinite; }
+  .wl-anim .wl-twitch { transform-origin: 56px 66px; animation: wl-twitch 7s ease-in-out 2s infinite; }
+  .wl-anim .wl-antlers { transition: stroke 200ms ease, filter 200ms ease; }
+  .wl-anim:hover .wl-antlers { stroke: var(--ember); filter: drop-shadow(0 0 3px var(--ember)); }
+}
+@keyframes wl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes wl-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
+@keyframes wl-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes wl-wag { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-5deg); } }
+@keyframes wl-twitch { 0%, 90%, 100% { transform: rotate(0); } 93% { transform: rotate(-8deg); } 96% { transform: rotate(2deg); } }

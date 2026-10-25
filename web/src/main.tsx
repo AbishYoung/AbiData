@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import "./styles/tokens.css";
 import "./styles/chrome.css";
 import "./styles/mobile.css";
+import "./styles/wildlife.css";
 import { queryClient } from "./app/queryClient";
 import { router } from "./app/router";
 import { ErrorHost } from "./components/ErrorDialog";
