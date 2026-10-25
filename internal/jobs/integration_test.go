@@ -17,7 +17,9 @@ import (
 	"abidata/internal/fault"
 	"abidata/internal/ids"
 	"abidata/internal/jobs"
+	"abidata/internal/query"
 	"abidata/internal/records"
+	"abidata/internal/reports"
 	"abidata/internal/script"
 	_ "abidata/internal/script/modules/all"
 	"abidata/internal/scripts"
@@ -26,14 +28,18 @@ import (
 )
 
 type env struct {
-	ctx   context.Context
-	ws    ids.WorkspaceID
-	wm    *workspace.Manager
-	store *jobs.SQLStore
-	sched *jobs.Scheduler
-	svc   *jobs.Service
-	arts  *artifacts.Store
-	l     *workspace.Lease
+	ctx     context.Context
+	ws      ids.WorkspaceID
+	wm      *workspace.Manager
+	store   *jobs.SQLStore
+	sched   *jobs.Scheduler
+	svc     *jobs.Service
+	arts    *artifacts.Store
+	l       *workspace.Lease
+	cache   *catalog.Cache
+	scripts *scripts.Service
+	rec     *records.Service
+	reports *reports.Service
 	// inactive makes Config.Active report the workspace as suspended.
 	inactive atomic.Bool
 }
@@ -62,8 +68,13 @@ func setup(t *testing.T) *env {
 	arts := &artifacts.Store{Dir: filepath.Join(dir, "artifacts")}
 	store := &jobs.SQLStore{Admin: ad, Workspaces: wm}
 	e := &env{ctx: ctx, ws: ws, wm: wm, store: store, arts: arts, l: l}
-	exec := &jobs.LuaExecutor{Workspaces: wm, Scripts: sc, Runner: script.NewRunner(4, 2), Schemas: cache,
-		Records: &records.Service{Schemas: cache}, Artifacts: arts}
+	runner := script.NewRunner(4, 2)
+	rec := &records.Service{Schemas: cache}
+	rsvc := &reports.Service{Schemas: cache, Records: rec, Queries: &query.Service{Schemas: cache}, Scripts: sc, Runner: runner}
+	exec := &jobs.LuaExecutor{Workspaces: wm, Scripts: sc, Runner: runner, Schemas: cache,
+		Records: rec, Artifacts: arts,
+		Reports: rsvc}
+	e.cache, e.scripts, e.rec, e.reports = cache, sc, rec, rsvc
 	e.sched = jobs.New(jobs.Config{Store: store, Executor: exec, Workers: 2,
 		Active: func(context.Context, ids.WorkspaceID) bool { return !e.inactive.Load() }})
 	e.svc = &jobs.Service{Scripts: sc, Scheduler: e.sched}

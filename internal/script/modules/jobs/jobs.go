@@ -14,6 +14,7 @@ func init() {
 	script.Register(script.ModuleDef{Doc: jobsDoc, Build: buildJobs})
 	script.Register(script.ModuleDef{Doc: jobDoc, Build: buildJob})
 	script.Register(script.ModuleDef{Doc: artifactsDoc, Build: buildArtifacts})
+	script.Register(script.ModuleDef{Doc: reportsDoc, Build: buildReports})
 }
 
 // maxArtifact bounds one artifacts.save call (the run's string budget bounds it too).
@@ -137,6 +138,68 @@ func buildArtifacts(r *script.Run) lua.LValue {
 		res := L.NewTable()
 		res.RawSetString("name", lua.LString(name))
 		res.RawSetString("size", lua.LNumber(n))
+		L.Push(res)
+		return 1
+	}))
+	return t
+}
+
+var reportsDoc = script.ModuleDoc{
+	Name: "reports", Contexts: []script.Context{script.Job},
+	Doc: "Runs reports from a job and saves the result as a run artifact.",
+	Funcs: []script.FuncDoc{{
+		Name: "generate", Signature: "reports.generate(report, params?, options?) → {name, size, rows, format}",
+		Params: []script.ParamDoc{
+			{Name: "report", Type: "string", Doc: "The report's id or name."},
+			{Name: "params", Type: "table", Opt: true, Doc: "Values for the parameters of the report's saved-query source."},
+			{Name: "options", Type: "table", Opt: true, Doc: "format: \"csv\" (default), \"json\" or \"html\". name: the artifact file name (default: the report's name with the format's extension)."},
+		},
+		Returns: "The saved artifact's name and size, the number of detail rows and the format.",
+		Doc: "Runs the report as the job (with an editor's data rights) and saves a rendering as an artifact of this run, within the artifact quota. " +
+			"csv holds the detail rows with one leading column per grouping level; json mirrors the groups as a tree with their header and footer values; html is a self-contained table. " +
+			"Maps and images are not part of generated files. Saving the same name again replaces the file.",
+		Errors:  []string{"NOT_FOUND: no such report", "BAD_REQUEST: unknown format, invalid name or a missing report parameter", "QUOTA_EXCEEDED: artifact storage full or too many artifacts in this run"},
+		Example: `local out = reports.generate("Monthly sales", {month = "2026-09"}, {format = "csv", name = "sales-2026-09.csv"})`,
+	}},
+}
+
+func buildReports(r *script.Run) lua.LValue {
+	L := r.L
+	t := L.NewTable()
+	t.RawSetString("generate", L.NewFunction(func(L *lua.LState) int {
+		ref := L.CheckString(1)
+		var params map[string]any
+		if a := L.OptTable(2, nil); a != nil {
+			m, ok := script.FromLua(r, a).(map[string]any)
+			if !ok {
+				L.ArgError(2, "params must be a table with string keys")
+			}
+			params = m
+		}
+		format, name := "csv", ""
+		if o := L.OptTable(3, nil); o != nil {
+			if f, ok := o.RawGetString("format").(lua.LString); ok {
+				format = string(f)
+			}
+			if n, ok := o.RawGetString("name").(lua.LString); ok {
+				name = string(n)
+			}
+		}
+		d, _ := r.Host.(*host.Data)
+		if d == nil || d.Job == nil || d.Job.GenerateReport == nil {
+			r.RaiseFault(fault.New(fault.Forbidden, "reports.generate is only available in jobs."))
+			return 0
+		}
+		out, err := d.Job.GenerateReport(r.Ctx, ref, params, format, name)
+		if err != nil {
+			r.RaiseFault(err)
+			return 0
+		}
+		res := L.NewTable()
+		res.RawSetString("name", lua.LString(out.Name))
+		res.RawSetString("size", lua.LNumber(out.Size))
+		res.RawSetString("rows", lua.LNumber(out.Rows))
+		res.RawSetString("format", lua.LString(out.Format))
 		L.Push(res)
 		return 1
 	}))
