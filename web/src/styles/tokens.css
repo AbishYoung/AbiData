@@ -120,6 +120,10 @@
   --paper: oklch(100% 0 0);
   --paper-ink: oklch(0% 0 0);
   --paper-shadow: oklch(0% 0.0000 0.00 / 0.35);
+  /* Report tints: zebra rows, muted bands and the negative-number red, readable on white paper in both themes. */
+  --paper-zebra: oklch(97.5% 0.003 247.86);
+  --paper-muted: oklch(94.5% 0.006 247.86);
+  --paper-danger: oklch(50.03% 0.1821 29.51);
   --paper-map-bg: oklch(98.42% 0.0034 247.86);
   --paper-map-edge: oklch(86.90% 0.0198 252.89);
   --paper-map-grid: oklch(71.07% 0.0351 256.79);

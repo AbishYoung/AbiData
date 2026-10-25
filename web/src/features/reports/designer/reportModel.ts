@@ -64,6 +64,10 @@ export interface BandProps {
   keep_together: boolean;
   force_new_page: boolean;
   visible: boolean;
+  /** Band fill (a colour, or a --paper-* token). */
+  background?: string;
+  /** Detail band only: tint of every even row (zebra striping). */
+  alternate_background?: string;
 }
 
 export interface GroupSpec {
@@ -195,6 +199,8 @@ function bandProps(b: ReportBand): BandProps {
     keep_together: b.keep_together === true,
     force_new_page: b.force_new_page === true,
     visible: b.visible !== false,
+    ...(b.background ? { background: b.background } : {}),
+    ...(b.alternate_background ? { alternate_background: b.alternate_background } : {}),
   };
 }
 
@@ -253,6 +259,8 @@ function toApiBand(s: ReportState, id: BandId): ReportBand {
     ...(p.keep_together ? { keep_together: true } : {}),
     ...(p.force_new_page ? { force_new_page: true } : {}),
     ...(p.visible ? {} : { visible: false }),
+    ...(p.background ? { background: p.background } : {}),
+    ...(id === "detail" && p.alternate_background ? { alternate_background: p.alternate_background } : {}),
     controls: s.controls.filter((c) => c.band === id).map(toApiControl),
   };
 }
@@ -867,9 +875,23 @@ export function withAffix(c: DesignControl, key: "prefix" | "suffix", value: str
   return rest;
 }
 
-export type StyleKey = "align" | "bold" | "italic" | "font_size" | "color" | "background" | "border";
+export type StyleKey =
+  | "align"
+  | "bold"
+  | "italic"
+  | "font_size"
+  | "color"
+  | "background"
+  | "border"
+  | "font_family"
+  | "vertical_align"
+  | "text_decoration"
+  | "border_top"
+  | "border_bottom"
+  | "border_color"
+  | "border_width";
 
-const SAFE_COLOR = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+|(rgb|hsl)a?\([\d\s,.%/]+\))$/;
+const SAFE_COLOR = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+|(rgb|hsl)a?\([\d\s,.%/]+\)|var\(--paper-[a-z-]+\))$/;
 export function validColor(v: string): boolean {
   return v === "" || SAFE_COLOR.test(v);
 }
@@ -884,6 +906,53 @@ export function withStyle(c: DesignControl, key: StyleKey, value: string): Desig
     return rest;
   }
   return { ...c, style };
+}
+
+export type RuleSpec = NonNullable<ReportControl["rules"]>[number];
+export const MAX_RULES = 8;
+export const RULE_OPERATORS: readonly { value: RuleSpec["operator"]; label: string }[] = [
+  { value: "<", label: "is less than" },
+  { value: "<=", label: "is at most" },
+  { value: ">", label: "is greater than" },
+  { value: ">=", label: "is at least" },
+  { value: "=", label: "equals" },
+  { value: "!=", label: "does not equal" },
+  { value: "is_empty", label: "is empty" },
+  { value: "is_not_empty", label: "is not empty" },
+];
+
+/** A new conditional formatting rule: negative numbers in the paper danger colour. */
+export function newRule(): RuleSpec {
+  return { operator: "<", value: "0", color: "var(--paper-danger)" };
+}
+
+export function needsValue(op: RuleSpec["operator"]): boolean {
+  return op !== "is_empty" && op !== "is_not_empty";
+}
+
+/** Replaces a control's rule list (dropping the field when empty), capped at MAX_RULES. */
+export function withRules(c: DesignControl, rules: readonly RuleSpec[]): DesignControl {
+  const { rules: _r, ...rest } = c;
+  void _r;
+  return rules.length === 0 ? rest : { ...rest, rules: rules.slice(0, MAX_RULES).map((r) => cleanRule(r)) };
+}
+
+function cleanRule(r: RuleSpec): RuleSpec {
+  const out: RuleSpec = { operator: r.operator };
+  if (needsValue(r.operator)) out.value = r.value ?? "";
+  if (r.color) out.color = r.color;
+  if (r.bold) out.bold = true;
+  if (r.background) out.background = r.background;
+  if (r.label) out.label = r.label;
+  return out;
+}
+
+/** The first problem with a rule, or undefined. */
+export function ruleError(r: RuleSpec): string | undefined {
+  if (needsValue(r.operator) && (r.value ?? "") === "") return "Enter a value to compare with.";
+  if (!validColor(r.color ?? "") || !validColor(r.background ?? "")) return "Use a color name, #rrggbb or rgb(…).";
+  if (!r.color && !r.bold && !r.background) return "Choose a color, bold or a background.";
+  return undefined;
 }
 
 /** Which property groups a control type offers. */

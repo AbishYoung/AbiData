@@ -14,6 +14,8 @@ export interface ReportInstance {
   /** Control id → formatted text. page_number/page_count are resolved by the paginator. */
   values: Record<string, unknown>;
   row?: number;
+  /** Conditional formatting applied to controls by their rules (control id → effect). */
+  fx?: Record<string, { color?: string; bold?: boolean; background?: string; label: string }>;
 }
 
 /** A band (or a slice of a split can_grow band) placed on a page. */

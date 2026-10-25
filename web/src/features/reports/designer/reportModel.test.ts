@@ -16,6 +16,10 @@ import {
   numberPatternError,
   withAffix,
   withCurrency,
+  needsValue,
+  newRule,
+  ruleError,
+  withRules,
   dropInvalidColumns,
   duplicateControls,
   inputFromState,
@@ -428,5 +432,37 @@ describe("formatting options (ADR 0018)", () => {
     const a = withAffix(ctl(), "suffix", " kg");
     expect(a.suffix).toBe(" kg");
     expect("suffix" in withAffix(a, "suffix", "")).toBe(false);
+  });
+});
+
+describe("conditional formatting and band fills (ADR 0018)", () => {
+  const ctl = (extra: Partial<DesignControl> = {}): DesignControl => ({ id: "c1", name: "Total", type: "textbox", band: "detail", x: 0, y: 0, w: 80, h: 20, ...extra });
+
+  it("adds, caps and clears rules", () => {
+    const a = withRules(ctl(), [newRule()]);
+    expect(a.rules).toEqual([{ operator: "<", value: "0", color: "var(--paper-danger)" }]);
+    expect(withRules(a, Array.from({ length: 12 }, () => newRule())).rules).toHaveLength(8);
+    expect("rules" in withRules(a, [])).toBe(false);
+  });
+
+  it("drops the value for is_empty rules and validates", () => {
+    const c = withRules(ctl(), [{ operator: "is_empty", value: "x", background: "#fee" }]);
+    expect(c.rules?.[0]).toEqual({ operator: "is_empty", background: "#fee" });
+    expect(needsValue("is_empty")).toBe(false);
+    expect(ruleError({ operator: "<", value: "" })).toMatch(/value/);
+    expect(ruleError({ operator: "<", value: "1" })).toMatch(/Choose/);
+    expect(ruleError({ operator: "<", value: "1", color: "red;x" })).toMatch(/color/);
+    expect(ruleError(newRule())).toBeUndefined();
+  });
+
+  it("round-trips band backgrounds, keeping the zebra tint on the detail band only", () => {
+    let s = newState({ name: "R", sourceKind: "table", sourceId: "T", paper: "letter", orientation: "portrait", margin: 48 });
+    s = setBandProps(s, "detail", { background: "var(--paper-muted)", alternate_background: "var(--paper-zebra)" });
+    s = setBandProps(s, "report_header", { alternate_background: "var(--paper-zebra)", background: "" });
+    const l = layoutFromState(s);
+    expect(l.bands.detail.alternate_background).toBe("var(--paper-zebra)");
+    expect(l.bands.detail.background).toBe("var(--paper-muted)");
+    expect(l.bands.report_header.alternate_background).toBeUndefined();
+    expect(l.bands.report_header.background).toBeUndefined();
   });
 });

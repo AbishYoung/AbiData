@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { BandView } from "./BandView";
 import { bandDef, type Page, type PlacedBand, type ReportInstance, type ReportLayout, type Pagination } from "./paginate";
-import { printPageHeight } from "./viewerLogic";
+import { bandBackground, printPageHeight } from "./viewerLogic";
 
 function Slice({
   placed,
@@ -20,7 +20,11 @@ function Slice({
   const def = inst && bandDef(layout, inst.band);
   if (!inst || !def) return null;
   return (
-    <div className="rv-slice" data-band={placed.band} style={{ top: placed.y, height: placed.height, width: layout.width }}>
+    <div
+      className="rv-slice"
+      data-band={placed.band}
+      style={{ top: placed.y, height: placed.height, width: layout.width, backgroundColor: bandBackground(def, inst.band, inst.row) }}
+    >
       <div className="rv-band" style={{ width: layout.width, transform: placed.offset ? `translateY(${-placed.offset}px)` : undefined }}>
         <BandView controls={def.controls ?? []} instance={inst} page={page} pageCount={pageCount} grow={def.can_grow === true} />
       </div>

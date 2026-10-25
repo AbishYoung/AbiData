@@ -7,6 +7,9 @@
   font: 12px/1.25 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   box-shadow: 0 1px 4px var(--paper-shadow);
   transform-origin: 0 0;
+  /* Zebra rows, band fills and highlights are part of the report: print them. */
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
 }
 .rv-content {
   position: absolute;

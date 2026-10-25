@@ -1166,6 +1166,14 @@
       "Band": {
         "additionalProperties": false,
         "properties": {
+          "alternate_background": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "background": {
+            "maxLength": 64,
+            "type": "string"
+          },
           "can_grow": {
             "type": "boolean"
           },
@@ -2778,6 +2786,51 @@
           "source_kind",
           "layout",
           "module_source"
+        ],
+        "type": "object"
+      },
+      "FormatRule": {
+        "additionalProperties": false,
+        "properties": {
+          "background": {
+            "description": "Background colour override.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "bold": {
+            "type": "boolean"
+          },
+          "color": {
+            "description": "Text colour override.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "label": {
+            "description": "Accessible description read after the value when the rule applies (default: highlighted).",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "\u003c",
+              "\u003c=",
+              "\u003e",
+              "\u003e=",
+              "=",
+              "!=",
+              "is_empty",
+              "is_not_empty"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "description": "Comparison value (numbers compare numerically, other text case-insensitively).",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "operator"
         ],
         "type": "object"
       },
@@ -6170,6 +6223,16 @@
           "prefix": {
             "maxLength": 32,
             "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/FormatRule"
+            },
+            "maxItems": 8,
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "style": {
             "additionalProperties": {
