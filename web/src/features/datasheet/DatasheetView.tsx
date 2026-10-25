@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type 
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { keys } from "@/lib/events";
+import { useDensityStore } from "@/lib/density";
+import { usePinchZoom } from "@/lib/usePinchZoom";
 import { useErrorStore } from "@/lib/errorStore";
 import { useStatusBar } from "@/lib/statusbar";
 import { useIsCompact } from "@/lib/useMediaQuery";
@@ -172,6 +174,9 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
   const buffersRef = useRef<ReadonlyMap<RowKey, RowBuffer>>(buffers);
   const scrollRef = useRef<HTMLDivElement>(null);
   const cardScrollRef = useRef<HTMLDivElement>(null);
+  // Two-finger pinch on the phone grid switches between compact and comfortable rows (the user menu has the same choice).
+  const setDensity = useDensityStore((st) => st.setDensity);
+  usePinchZoom(scrollRef, (dir) => setDensity(dir > 0 ? "comfortable" : "compact"), compact && mode === "grid");
   const filterRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorHandle>(null);
   const anchorRef = useRef<number | null>(null);

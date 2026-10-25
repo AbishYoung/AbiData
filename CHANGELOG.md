@@ -41,6 +41,7 @@ Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palett
 - Repeated group headers, page header/footer suppression, keep-together, distinct and percent aggregates (ADR 0018).
 
 ### Added
+- Touch-first controls on phones: 50x30 toggle switches for yes/no fields, large minus/plus steppers (hold to repeat) for whole numbers, and pinch to change grid row density (ADR 0022).
 - Banded report typography, accounting underlines, band background shading and detail alternate zebra striping (ADR 0018).
 - Server-evaluated per-control conditional formatting rules with screen reader accessibility labels.
 - Designer property UI for accounting rules, typography, zebra striping, and conditional formatting.
