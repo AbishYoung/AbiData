@@ -30,6 +30,36 @@ export async function copyText(text: string): Promise<boolean> {
   return ok;
 }
 
+/**
+ * Copies several flavors at once (e.g. text/plain, text/html and an app-specific type). Browsers
+ * that refuse the app-specific type get the standard flavors; where the multi-flavor API is
+ * blocked or missing, the plain text is copied as usual.
+ */
+export async function copyRich(formats: Readonly<Record<string, string>>): Promise<boolean> {
+  const plain = formats["text/plain"] ?? "";
+  if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    const attempts: Record<string, Blob>[] = [
+      // Chromium carries app-specific types under the "web " prefix.
+      Object.fromEntries(
+        Object.entries(formats).map(([m, v]) => {
+          const type = m.startsWith("text/") ? m : `web ${m}`;
+          return [type, new Blob([v], { type })];
+        }),
+      ),
+      Object.fromEntries(Object.entries(formats).filter(([m]) => m.startsWith("text/")).map(([m, v]) => [m, new Blob([v], { type: m })])),
+    ];
+    for (const items of attempts) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem(items)]);
+        return true;
+      } catch {
+        // try the next set of flavors
+      }
+    }
+  }
+  return copyText(plain);
+}
+
 /** Reads text from the clipboard, or null when the browser does not allow it (then Mod+V still works). */
 export async function readClipboardText(): Promise<string | null> {
   try {

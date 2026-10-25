@@ -51,6 +51,7 @@ The Mac column uses ⌘ (Command), ⇧ (Shift) and ⌥ (Option). Keys on Windows
 | Resize a column (Alt+Left: narrower, Alt+Right: wider) | `⌥ →` | `Alt+→` | Datasheet column header |
 | Extend the selection to a rectangle of cells (Shift+click or drag does too) | `⇧ Arrow keys` | `Shift+Arrow keys` | Datasheet |
 | Copy the current cell, or the selected cells as tab-separated text | `⌘ C` | `Ctrl+C` | Datasheet and query results |
+| Copy the current cell, or the selected cells, with the column names as the first row | `⌘ ⇧ C` | `Ctrl+Shift+C` | Datasheet |
 | Paste into the current cell (opens it for editing with the pasted text); several cells open a preview first | `⌘ V` | `Ctrl+V` | Datasheet |
 
 ## Queries

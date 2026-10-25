@@ -21,7 +21,7 @@ import { ExportDialog } from "@/features/workspace/lazyFeatures";
 import { RowHistoryPanel } from "@/features/history/RowHistoryPanel";
 import { MergeDialog } from "./MergeDialog";
 import { PastePreviewDialog } from "./PastePreviewDialog";
-import { boundsOf, describeRange, inBounds, isMultiCell, parseClipboard, toTsv, type Bounds, type CellRange } from "./range";
+import { boundsOf, cellCount, describeRange, inBounds, isMultiCell, parseClipboard, type Bounds, type CellRange } from "./range";
 import type { BatchOp } from "./rowsApi";
 import type { PasteMode } from "./paste";
 import { ColumnProfileDialog } from "./ColumnProfileDialog";
@@ -70,7 +70,8 @@ import {
 import type { MergeField } from "./merge";
 import { toast } from "@/components/AppToasts";
 import { ContextArea, type MenuEntry } from "@/components/ContextArea";
-import { copyText, readClipboardText } from "@/lib/clipboard";
+import { copyRich, readClipboardText } from "@/lib/clipboard";
+import { blockFormats, blockTsv, type CopyBlock } from "./clipboardFormats";
 import { detectPlatform, formatKeys } from "@/lib/shortcuts";
 import { gridMenu, type MenuTarget } from "./gridMenu";
 import { useRowPages } from "./useRowPages";
@@ -101,6 +102,9 @@ interface MergeState {
   auto: Record<string, unknown>;
   busy: boolean;
 }
+
+/** Blocks with more records than this are copied as text only (the HTML and structured flavors stay small). */
+const MAX_RICH_COPY_ROWS = 2000;
 
 interface PasteState {
   matrix: string[][];
@@ -417,23 +421,35 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
 
   async function copyCell(cell: Cell) {
     if (cell.row >= total || !columns[cell.col]) return;
-    if (!(await copyText(cellText(cell)))) toast("error", "The cell could not be copied. Select the text and copy it instead.");
+    await copyBlock({ r0: cell.row, r1: cell.row, c0: cell.col, c1: cell.col }, false);
   }
 
-  /** Copies the selected rectangle as tab-separated text (what spreadsheets paste). */
-  async function copyRange(b: Bounds) {
-    const lines: string[][] = [];
+  /**
+   * Copies the cells as tab-separated text, an HTML table Excel keeps text and currency in, and
+   * AbiData's own structured payload (see clipboardFormats). Large blocks go as text only.
+   */
+  async function copyBlock(b: Bounds, headers: boolean) {
+    const text: string[][] = [];
+    const raw: unknown[][] = [];
     for (let r = b.r0; r <= b.r1; r++) {
       if (!rowAt(r)) {
         toast("error", "Some of the selected records have not loaded yet. Scroll through them and try again.");
         return;
       }
       const cells: string[] = [];
-      for (let c = b.c0; c <= b.c1; c++) cells.push(cellText({ row: r, col: c }));
-      lines.push(cells);
+      const values: unknown[] = [];
+      for (let c = b.c0; c <= b.c1; c++) {
+        cells.push(cellText({ row: r, col: c }));
+        values.push(effectiveValue({ row: r, col: c })?.value ?? null);
+      }
+      text.push(cells);
+      raw.push(values);
     }
-    if (await copyText(toTsv(lines))) toast("info", `Copied ${describeRange(b).replace("Selected ", "")}`);
-    else toast("error", "The cells could not be copied. Select the text and copy it instead.");
+    const block: CopyBlock = { tableId, tableName: table.display_name, columns: columns.slice(b.c0, b.c1 + 1), text, raw, headers };
+    const formats = text.length > MAX_RICH_COPY_ROWS ? { "text/plain": blockTsv(block) } : blockFormats(block);
+    if (await copyRich(formats)) {
+      if (cellCount(b) > 1 || headers) toast("info", `Copied ${describeRange(b).replace("Selected ", "")}${headers ? " with headers" : ""}`);
+    } else toast("error", "The cells could not be copied. Select the text and copy it instead.");
   }
 
   /** Pastes text into a cell: the cell opens for editing with the text, ready to save with Enter. */
@@ -601,8 +617,14 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
     }
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c" && window.getSelection()?.isCollapsed !== false) {
       e.preventDefault();
-      if (bounds) void copyRange(bounds);
+      if (bounds) void copyBlock(bounds, false);
       else void copyCell(activeCell);
+      return;
+    }
+    if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === "c" && window.getSelection()?.isCollapsed !== false) {
+      e.preventDefault();
+      const b = bounds ?? { r0: activeCell.row, r1: activeCell.row, c0: activeCell.col, c1: activeCell.col };
+      if (b.r0 < total) void copyBlock(b, true);
       return;
     }
     if (e.shiftKey && !e.altKey && NAV_KEYS.has(e.key) && total > 0 && activeCell.row < total) {
@@ -896,7 +918,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
       frozen: frozenCount(layout, columns.length),
       onFreeze,
       onProfile: (colId) => setProfileCol(columns.find((c) => c.id === colId) ?? null),
-      copyCell: (cell) => void (bounds && inBounds(bounds, cell.row, cell.col) ? copyRange(bounds) : copyCell(cell)),
+      copyCell: (cell) => void (bounds && inBounds(bounds, cell.row, cell.col) ? copyBlock(bounds, false) : copyCell(cell)),
       pasteInto: (cell) => void pasteFromMenu(cell),
       startEdit: (cell) => startEdit(null, cell),
       filterBySelection,
