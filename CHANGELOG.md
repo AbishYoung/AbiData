@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Pasting into a lookup field matches the pasted names to the related records (ambiguous or missing names are flagged), and a new "Update matching records, add the rest" paste mode updates records by a unique field (ADR 0019).
+
+### Changed
 Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palettes, tactile gradient controls and segmented trays, jewel object-kind chips, line-art wildlife in empty states, and "system is alive" motion (connection beacon, top-edge progress beam, save ripple, shimmer skeletons), all disabled under reduced motion.
 
 ### Changed
@@ -20,7 +23,6 @@ Added: "Sylvan Atelier" visual theme (ADR 0021): evergreen light and dark palett
 - Swipeable record cards with edit, duplicate and delete actions on touch screens (ADR 0022).
 - Community health files: code of conduct, contributing guide, security policy, accessibility statement, issue forms and a pull request template.
 - Datasheet paste reads HTML tables from Excel and Google Sheets (as text only), detects a header row, matches pasted columns to fields by name in any order with a mapping you can change, and understands rows copied from other AbiData tables (ADR 0019).
-- Pasting into a lookup field matches the pasted names to the related records (ambiguous or missing names are flagged), and a new "Update matching records, add the rest" paste mode updates records by a unique field (ADR 0019).
 
 ### Changed
 - README rewritten as a shorter front door with the website, quick start, database choice, API example and community links; the long feature detail lives in the documentation and on the project site.
