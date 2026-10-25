@@ -1,6 +1,6 @@
 # ADR 0021: Visual Design Overhaul, "Sylvan Atelier" Wildlife Theme & Alive Motion
 
-Status: Accepted and implemented · 2026-10-25 (v1.3.6)
+Status: Accepted and implemented · 2026-10-25 (v1.3.7)
 
 ## Context
 
