@@ -11,6 +11,7 @@ Closes #
 ## Checklist
 
 - [ ] Small and focused; one coherent change.
+- [ ] Patch version bumped in `web/package.json` (to the next free patch above `main`), and the change noted under `[Unreleased]` in `CHANGELOG.md`.
 - [ ] Tests added or updated at the right layer (Go, Vitest, Playwright).
 - [ ] `make test-changed` and `make lint` pass locally.
 - [ ] `make gen` run, and the generated files committed (OpenAPI, web API types, Lua manifest, reference docs).
