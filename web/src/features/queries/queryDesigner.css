@@ -24,8 +24,17 @@
 }
 
 .query-canvas .react-flow__handle {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
+}
+
+/* Selected source box: an accent outline and glow, the same as a selected control on the other designers. */
+.query-canvas .react-flow__node-source.selected > div,
+.query-canvas .react-flow__node-source:focus-visible > div {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 5px var(--accent-glow);
+  border-radius: 8px;
 }
 
 .query-canvas .react-flow__edge-textbg {

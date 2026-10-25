@@ -116,7 +116,7 @@ function SectionBody({ name, children, p }: { name: SectionName; children: React
       onClick={p.onClear}
       style={{
         height: p.state.heights[name],
-        backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
+        backgroundImage: "radial-gradient(circle, var(--chart-grid) 1.25px, transparent 1.5px)",
         backgroundSize: `${GRID}px ${GRID}px`,
       }}
       className="relative border-b border-border bg-surface"

@@ -23,14 +23,16 @@ export const btnGhostSm = `${base} h-7 px-2 text-xs text-fg-muted hover:bg-surfa
 export const iconBtn = `${base} h-8 w-8 p-0 text-fg-muted hover:bg-surface-2 hover:text-fg active:bg-surface-3`;
 export const iconBtnSm = `${base} h-6 w-6 p-0 rounded text-fg-muted hover:bg-surface-3 hover:text-fg`;
 
+/** Text input: an inset well (surface-2 at rest, surface and the focus ring when focused). */
 export const input =
-  "w-full h-8 rounded-md border border-border-strong/70 bg-surface px-3 text-sm text-fg shadow-xs placeholder:text-fg-subtle " +
-  "transition-[border-color,box-shadow] duration-150 hover:border-border-strong " +
-  "focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus focus-visible:outline-none " +
-  "disabled:bg-surface-2 disabled:text-fg-muted disabled:cursor-not-allowed aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
+  "w-full h-8 rounded-md border border-border-strong/70 bg-surface-2 px-3 text-sm text-fg shadow-[inset_0_1px_2px_var(--shadow-color-1)] placeholder:text-fg-subtle " +
+  "transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong " +
+  "focus:border-focus focus:bg-surface focus-visible:outline-offset-0 focus-visible:ring-4 focus-visible:ring-accent-glow " +
+  "disabled:bg-surface-3 disabled:text-fg-muted disabled:cursor-not-allowed disabled:shadow-none aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/30";
 /** Multi-line input: same look, natural height. */
 export const textarea = input.replace("h-8 ", "min-h-20 py-2 ");
-export const select = `${input} pr-8 appearance-auto`;
+/** Select: the input well with one drawn chevron (a global rule in chrome.css) in place of the native arrow. */
+export const select = `${input} pr-8`;
 export const label = "mb-1.5 block text-sm font-medium text-fg";
 export const hint = "mt-1 text-xs text-fg-muted";
 export const fieldError = "mt-1 text-xs font-medium text-danger";

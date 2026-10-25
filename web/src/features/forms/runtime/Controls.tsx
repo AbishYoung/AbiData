@@ -93,7 +93,9 @@ function ErrorNote({ id, message }: { id: string; message: string }) {
 }
 
 const inputCls =
-  "h-full w-full min-w-0 rounded border border-border bg-surface px-2 text-sm text-fg read-only:bg-surface-2 disabled:bg-surface-2 disabled:text-fg-muted focus:outline-2 focus:outline-offset-1 focus:outline-focus";
+  "h-full w-full min-w-0 rounded-md border border-border-strong/70 bg-surface-2 px-2 text-sm text-fg shadow-[inset_0_1px_2px_var(--shadow-color-1)] transition-[border-color,box-shadow,background-color] duration-150 " +
+  "hover:border-border-strong focus:border-focus focus:bg-surface focus:outline-2 focus:outline-offset-1 focus:outline-focus read-only:border-border read-only:bg-transparent read-only:shadow-none " +
+  "disabled:bg-surface-3 disabled:text-fg-muted disabled:shadow-none";
 
 /** One control of a form, in the band of one record. */
 export function ControlView({ control: c, siblings, domPrefix, fields, display, recordId, env, fill = false, labelledBy }: Props) {
@@ -186,7 +188,7 @@ export function ControlView({ control: c, siblings, domPrefix, fields, display, 
                   void env.actions.save();
                 }
               }}
-              className="h-4 w-4"
+              className="h-4 w-4 shrink-0"
             />
             {name}
           </label>

@@ -173,7 +173,7 @@ export function QueryCanvas(props: QueryCanvasProps) {
         proOptions={{ hideAttribution: true }}
         aria-label="Query canvas: tables, queries and joins"
       >
-        <Background gap={16} />
+        <Background gap={16} size={1.5} color="var(--chart-grid)" />
       </ReactFlow>
       {model.sources.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-center">
