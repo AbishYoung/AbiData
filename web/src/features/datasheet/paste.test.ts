@@ -24,9 +24,30 @@ describe("convertPaste", () => {
     expect(convertPaste(columns[2] as (typeof columns)[number], "")).toEqual({ status: "ok", value: null });
   });
 
+  it("reads currencies, accounting negatives and European numbers", () => {
+    const c = col("amt", "currency");
+    expect(convertPaste(c, "(1,234.50)")).toEqual({ status: "ok", value: "-1234.5000" });
+    expect(convertPaste(c, "€ 1.234,50")).toEqual({ status: "ok", value: "1234.5000" });
+    expect(convertPaste(c, "CHF 1'200")).toEqual({ status: "ok", value: "1200.0000" });
+    expect(convertPaste(col("n", "integer"), "1.234,00")).toEqual({ status: "ok", value: 1234 });
+    expect(convertPaste(col("n", "number"), "12,5")).toEqual({ status: "ok", value: 12.5 });
+  });
+
+  it("reads the date formats spreadsheets use", () => {
+    const d = col("d", "date");
+    expect(convertPaste(d, "24-Oct-2026", { dateOrder: "mdy" })).toEqual({ status: "ok", value: "2026-10-24" });
+    expect(convertPaste(d, "3/2/2026", { dateOrder: "dmy" })).toEqual({ status: "ok", value: "2026-02-03" });
+    expect(convertPaste(d, "3/2/2026", { dateOrder: "mdy" })).toEqual({ status: "ok", value: "2026-03-02" });
+    expect(convertPaste(d, "45589")).toEqual({ status: "ok", value: "2024-10-24" });
+    expect(convertPaste(d, "10/24/2026 12:00 AM", { dateOrder: "mdy" })).toEqual({ status: "ok", value: "2026-10-24" });
+    expect(convertPaste(col("t", "datetime"), "2026-10-24T10:00:00Z")).toEqual({ status: "ok", value: "2026-10-24T10:00:00.000Z" });
+    expect(convertPaste(col("t", "datetime"), "24/10/2026 2:30 PM")).toMatchObject({ status: "ok" });
+  });
+
   it("reports values that do not fit the field", () => {
     expect(convertPaste(columns[2] as (typeof columns)[number], "abc")).toMatchObject({ status: "error" });
-    expect(convertPaste(columns[5] as (typeof columns)[number], "3/2/2026")).toMatchObject({ status: "error" });
+    expect(convertPaste(columns[5] as (typeof columns)[number], "31/02/2026")).toMatchObject({ status: "error" });
+    expect(convertPaste(columns[3] as (typeof columns)[number], "12 apples")).toMatchObject({ status: "error" });
     expect(convertPaste(columns[4] as (typeof columns)[number], "maybe")).toMatchObject({ status: "error" });
   });
 

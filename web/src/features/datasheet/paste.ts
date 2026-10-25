@@ -1,5 +1,6 @@
 import type { Column } from "@/lib/schema";
 import type { BatchOp, Row } from "./rowsApi";
+import { localeDateOrder, normalizeDate, normalizeDateTime, normalizeNumber, parseBooleanText, type DateOrder } from "./coerce";
 import { isReadOnlyColumn, kindOf, parseDraft, valuesEqual } from "./values";
 
 // Pasting a block of cells: what each pasted text becomes in its column, and the batch of writes
@@ -10,31 +11,41 @@ export type Conversion =
   | { status: "error"; message: string }
   | { status: "skip"; reason: string };
 
-const YES = new Set(["true", "yes", "y", "1", "t", "x", "✓", "✔"]);
-const NO = new Set(["false", "no", "n", "0", "f"]);
+export interface ConvertOptions {
+  /** How to read 3/2/2026: month first (en-US) or day first. Defaults to the browser's locale. */
+  dateOrder?: DateOrder;
+}
 
-/** "$1,234.50" and "1,234" as spreadsheets and AbiData itself copy them, as a plain decimal. */
-function plainNumber(text: string): string {
-  const t = text.trim().replace(/^([+-]?)\$/, "$1").replace(/^\$/, "");
-  return /^[+-]?\d{1,3}(,\d{3})+(\.\d*)?$/.test(t) ? t.replace(/,/g, "") : t;
+let defaultOrder: DateOrder | undefined;
+function readerOrder(): DateOrder {
+  defaultOrder ??= localeDateOrder();
+  return defaultOrder;
 }
 
 /** What the text pasted into a cell of `col` means, or why it cannot be pasted there. */
-export function convertPaste(col: Column, raw: string): Conversion {
+export function convertPaste(col: Column, raw: string, opts: ConvertOptions = {}): Conversion {
   if (isReadOnlyColumn(col)) return { status: "skip", reason: "Read-only field" };
   const kind = kindOf(col);
+  const order = opts.dateOrder ?? readerOrder();
   if (kind === "attachments") return { status: "skip", reason: "Files cannot be pasted" };
   if (kind === "lookup") return { status: "skip", reason: "Lookup fields cannot be pasted yet" };
   if (kind === "boolean") {
-    const t = raw.trim().toLowerCase();
-    if (t === "") return { status: "ok", value: null };
-    if (YES.has(t)) return { status: "ok", value: true };
-    if (NO.has(t)) return { status: "ok", value: false };
-    return { status: "error", message: "Use Yes or No." };
+    if (raw.trim() === "") return { status: "ok", value: null };
+    const b = parseBooleanText(raw);
+    return b === undefined ? { status: "error", message: "Use Yes or No." } : { status: "ok", value: b };
   }
   let text = raw;
-  if (kind === "integer" || kind === "number" || kind === "currency") text = plainNumber(raw);
-  else if (kind === "datetime") text = raw.trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, "$1T$2");
+  if (kind === "integer" || kind === "number" || kind === "currency") {
+    const n = normalizeNumber(raw);
+    // Unreadable text goes on as it is, so the field's own message explains what it wants.
+    text = n === null ? raw : kind === "integer" ? n.replace(/\.0*$/, "") : n;
+  } else if (kind === "datetime") {
+    text = normalizeDateTime(raw, order) ?? raw.trim();
+    // A date and time that names its zone is already an instant.
+    if (text.endsWith("Z") && !Number.isNaN(Date.parse(text))) return { status: "ok", value: new Date(text).toISOString() };
+  } else if (kind === "date") {
+    text = normalizeDate(raw, order) ?? normalizeDateTime(raw, order)?.slice(0, 10) ?? raw.trim();
+  }
   const r = parseDraft(col, text);
   return r.ok ? { status: "ok", value: r.value } : { status: "error", message: r.message };
 }
