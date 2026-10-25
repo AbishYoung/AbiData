@@ -125,6 +125,8 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const issues = useMemo(() => (state ? validateState(state) : []), [state]);
   const warnings = useMemo(() => (state ? layoutWarnings(state) : []), [state]);
+  // The preview runs the design as it is now, saved or not (ADR 0018).
+  const previewInput = useMemo(() => (state ? inputFromState(state) : null), [state]);
   const dirty = draft ? isDirty(draft) : false;
 
   useEffect(() => {
@@ -431,7 +433,7 @@ function DesignerBody({ ws, tabKey }: { ws: string; tabKey: string }) {
             />
           </div>
         )}
-        {panel === "preview" && <ReportPreview ws={ws} saved={draft.saved} dirty={dirty} saving={save.isPending} onSave={doSave} />}
+        {panel === "preview" && previewInput && <ReportPreview ws={ws} input={previewInput} problems={issues.map((i) => i.message)} />}
         {panel === "layout" && (
           <DndContext
             sensors={sensors}
