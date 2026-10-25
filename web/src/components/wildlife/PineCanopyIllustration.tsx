@@ -1,31 +1,48 @@
+// A wide (12:1) view box, so the art fills a short full-width banner without being cropped away.
+const W = 1440;
+const GROUND = 112;
+
+/** Distant peaks, left to right. */
+const RIDGE = "M0 92 L90 60 L150 78 L250 34 L340 70 L430 46 L520 80 L610 40 L700 72 L800 30 L890 66 L980 50 L1070 82 L1170 38 L1260 70 L1350 52 L1440 76";
+
+/** Pines as [x, height]; each one stands on the ground line. */
 const PINES: ReadonlyArray<readonly [number, number]> = [
-  [24, 34],
-  [60, 48],
-  [98, 30],
-  [150, 44],
-  [212, 32],
-  [268, 50],
-  [330, 36],
-  [388, 46],
-  [440, 30],
+  [40, 30], [96, 44], [150, 26], [236, 38], [300, 50], [372, 28], [470, 42], [540, 32], [640, 48], [700, 26],
+  [790, 40], [880, 30], [960, 46], [1030, 28], [1120, 42], [1200, 34], [1290, 50], [1360, 30], [1410, 40],
 ];
 
-/** One pine: a trunk and two stacked boughs, rooted on the ridge line at y=118. */
+/** A gentle rolling ground line. */
+function groundY(x: number): number {
+  return GROUND - 3 * Math.sin((x / W) * Math.PI * 3);
+}
+
+const GROUND_PATH = Array.from({ length: 25 }, (_, i) => {
+  const x = (i * W) / 24;
+  return `${i === 0 ? "M" : "L"}${x.toFixed(0)} ${groundY(x).toFixed(1)}`;
+}).join(" ");
+
+/** One pine: two stacked boughs over a short trunk, rooted on the ground line. */
 function pinePath(x: number, h: number): string {
-  const top = 118 - h;
-  return `M${x} 118 V${118 - h * 0.25} M${x} ${top} L${x - h * 0.22} ${118 - h * 0.55} H${x + h * 0.22} Z M${x} ${118 - h * 0.7} L${x - h * 0.3} ${118 - h * 0.3} H${x + h * 0.3} Z`;
+  const g = groundY(x);
+  const trunkTop = g - h * 0.2;
+  const top = g - h;
+  return [
+    `M${x} ${g} V${trunkTop}`,
+    `M${x} ${top} L${x - h * 0.22} ${g - h * 0.5} H${x + h * 0.22} Z`,
+    `M${x} ${g - h * 0.65} L${x - h * 0.32} ${trunkTop} H${x + h * 0.32} Z`,
+  ].join(" ");
 }
 
 /**
  * "Whispering Pines" (ADR 0021): a minimal line-art mountain range and pine ridge used as an atmospheric
  * banner over `bg-canopy` on the sign-in and workspace picker screens. Decorative: hidden from assistive
  * technology, `currentColor` strokes, drawn on by the `wl-draw` CSS in `styles/wildlife.css` (static when
- * motion is reduced). Stretches to the width of its container.
+ * motion is reduced). Stretches to the width of its container, anchored to the bottom edge.
  */
 export function PineCanopyIllustration({ className = "", animated = true }: { className?: string; animated?: boolean }) {
   return (
     <svg
-      viewBox="0 0 480 120"
+      viewBox={`0 0 ${W} 120`}
       preserveAspectRatio="xMidYMax slice"
       fill="none"
       stroke="currentColor"
@@ -37,8 +54,8 @@ export function PineCanopyIllustration({ className = "", animated = true }: { cl
       data-wildlife="pines"
       className={`wl ${animated ? "wl-anim" : ""} ${className}`.trim()}
     >
-      <path pathLength={1} className="wl-draw" d="M0 96 L70 48 L110 74 L170 28 L240 82 L300 44 L360 78 L420 40 L480 84" />
-      <path pathLength={1} className="wl-draw" d="M0 110 C60 100 120 112 200 104 S380 100 480 108" />
+      <path pathLength={1} className="wl-draw" d={RIDGE} opacity={0.6} />
+      <path pathLength={1} className="wl-draw" d={GROUND_PATH} />
       {PINES.map(([x, h]) => (
         <path key={x} pathLength={1} className="wl-draw" d={pinePath(x, h)} />
       ))}
