@@ -79,7 +79,7 @@ export function LuaEditor({ value, onChange, kind, ws, label, height = "24rem" }
           className="w-full resize-y border-0 bg-surface p-3 font-mono text-sm text-fg"
         />
       ) : (
-        <Suspense fallback={<div role="status" className="space-y-2 p-4"><span className="sr-only">Loading the code editor…</span>{[80, 60, 70, 40].map((w) => <div key={w} aria-hidden="true" className="h-3 animate-pulse rounded bg-surface-3" style={{ width: `${w}%` }} />)}</div>}>
+        <Suspense fallback={<div role="status" className="space-y-2 p-4"><span className="sr-only">Loading the code editor…</span>{[80, 60, 70, 40].map((w) => <div key={w} aria-hidden="true" className="h-3 animate-shimmer rounded bg-surface-3" style={{ width: `${w}%` }} />)}</div>}>
           <MonacoEditor
             value={value}
             onChange={onChange}

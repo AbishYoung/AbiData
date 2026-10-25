@@ -120,7 +120,7 @@ function InlineImageCard({ src, alt }: { src: string; alt?: string }) {
       {!loaded && !error && (
         <span
           data-testid="image-skeleton"
-          className="inline-block h-44 w-64 max-w-full animate-pulse rounded-lg border border-border bg-surface-3"
+          className="inline-block h-44 w-64 max-w-full animate-shimmer rounded-lg border border-border bg-surface-3"
         />
       )}
       {error ? (

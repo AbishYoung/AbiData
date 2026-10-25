@@ -534,7 +534,7 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
                 aria-selected={isNew ? undefined : isSelected}
                 aria-busy={buffer?.status === "saving" ? true : undefined}
                 className={`group/r absolute left-0 top-0 flex ${
-                  row !== undefined && row.id === props.highlightRowId ? "bg-accent-soft" : v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"
+                  row !== undefined && row.id === props.highlightRowId ? "row-saved" : v.index % 2 === 1 ? "bg-surface-2/30" : "bg-surface"
                 } transition-colors duration-700 hover:bg-surface-2/60`}
                 style={{
                   width: totalWidth,

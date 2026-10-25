@@ -31,9 +31,9 @@ export function DatasheetTab({ ws, tableId }: { ws: string; tableId: string }) {
         <span className="sr-only">Loading table…</span>
         <div aria-hidden="true" className="h-11 border-b border-border bg-surface" />
         <div aria-hidden="true" className="space-y-px">
-          <div className="h-8 animate-pulse bg-surface-2" />
+          <div className="h-8 animate-shimmer bg-surface-2" />
           {Array.from({ length: 8 }, (_, i) => (
-            <div key={i} className="mx-3 my-2 h-4 animate-pulse rounded bg-surface-3" style={{ width: `${90 - i * 6}%` }} />
+            <div key={i} className="mx-3 my-2 h-4 animate-shimmer rounded bg-surface-3" style={{ width: `${90 - i * 6}%` }} />
           ))}
         </div>
       </div>

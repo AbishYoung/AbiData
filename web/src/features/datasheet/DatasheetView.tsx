@@ -267,6 +267,7 @@ export function DatasheetView({ ws, tableId, table, schema, canEdit }: Props) {
         });
         if (outcome.created) refreshData();
         else setRowInCache(outcome.row);
+        setAddedId(outcome.row.id);
         if (outcome.merged) toast("info", "Merged with changes made by someone else");
         return;
       }

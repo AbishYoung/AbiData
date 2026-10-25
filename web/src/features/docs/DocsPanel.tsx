@@ -415,19 +415,19 @@ export function DocsPanel() {
                   <span className="sr-only">Loading…</span>
                   <div
                     aria-hidden="true"
-                    className="h-7 w-2/3 animate-pulse rounded bg-surface-3"
+                    className="h-7 w-2/3 animate-shimmer rounded bg-surface-3"
                   />
                   <div
                     aria-hidden="true"
-                    className="h-4 w-full animate-pulse rounded bg-surface-3"
+                    className="h-4 w-full animate-shimmer rounded bg-surface-3"
                   />
                   <div
                     aria-hidden="true"
-                    className="h-4 w-5/6 animate-pulse rounded bg-surface-3"
+                    className="h-4 w-5/6 animate-shimmer rounded bg-surface-3"
                   />
                   <div
                     aria-hidden="true"
-                    className="h-4 w-4/6 animate-pulse rounded bg-surface-3"
+                    className="h-4 w-4/6 animate-shimmer rounded bg-surface-3"
                   />
                 </div>
               )}

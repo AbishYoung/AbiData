@@ -229,7 +229,7 @@ export function AttachmentManager({ ws, value, onChange, maxFiles, readOnly = fa
             className={`m-0 flex min-w-0 flex-col rounded-lg border border-border bg-surface shadow-xs ${dragId === info.id ? "opacity-50" : ""}`}
           >
             {info.loading && !info.failed ? (
-              <div className="aspect-square w-full animate-pulse rounded-t-lg bg-surface-3 motion-reduce:animate-none" role="status">
+              <div className="aspect-square w-full animate-shimmer rounded-t-lg bg-surface-3 motion-reduce:animate-none" role="status">
                 <span className="sr-only">Loading file</span>
               </div>
             ) : meta === undefined ? (

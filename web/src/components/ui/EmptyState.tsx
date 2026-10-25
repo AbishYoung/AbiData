@@ -55,7 +55,7 @@ export function Skeleton({ rows = 5, label = "Loading…" }: { rows?: number; la
     <div role="status" className="space-y-3 p-4">
       <span className="sr-only">{label}</span>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} aria-hidden="true" className="h-4 animate-pulse rounded bg-surface-3" style={{ width: `${92 - ((i * 13) % 40)}%` }} />
+        <div key={i} aria-hidden="true" className="h-4 animate-shimmer rounded bg-surface-3" style={{ width: `${92 - ((i * 13) % 40)}%` }} />
       ))}
     </div>
   );

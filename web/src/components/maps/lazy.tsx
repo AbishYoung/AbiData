@@ -22,5 +22,5 @@ export const GeoFilterDialog = suspended<ComponentProps<typeof import("@/feature
 /** A form's Map control; a plain box holds its place while Leaflet loads. */
 export const MapControl = suspended<ComponentProps<typeof import("@/features/forms/runtime/MapControl").MapControl>>(
   () => import("@/features/forms/runtime/MapControl").then((m) => ({ default: m.MapControl })),
-  <div className="h-full min-h-40 w-full animate-pulse rounded border border-border bg-surface-3" aria-hidden="true" />,
+  <div className="h-full min-h-40 w-full animate-shimmer rounded border border-border bg-surface-3" aria-hidden="true" />,
 );

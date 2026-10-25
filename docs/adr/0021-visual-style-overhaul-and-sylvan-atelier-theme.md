@@ -1,6 +1,6 @@
 # ADR 0021: Visual Design Overhaul, "Sylvan Atelier" Wildlife Theme & Alive Motion
 
-Status: Proposed · 2026-10-24 (approved for implementation)
+Status: Accepted and implemented · 2026-10-25 (v1.3.6)
 
 ## Context
 
@@ -51,3 +51,14 @@ Adopt **`motion` (`framer-motion`)** as the core SVG animation library:
 - Full WCAG AA contrast compliance verified by `tokens.test.ts`.
 - Full compliance with `@media (prefers-reduced-motion: reduce)`, instantly freezing animations into clean static line art.
 - `motion` is tree-shaken and vectors are pure code (< 3KB each), maintaining high bundle efficiency.
+
+## As built
+
+Delivered in four slices (PRs #106 tokens, #116 controls, #118 wildlife, and the motion slice).
+
+- **Palette**: as specified for the accents and the dark and light backgrounds; the surface, border and text steps were derived from them and are checked by `tokens.test.ts`. New tokens: `--ember` (campfire amber), `--specular`, `--canopy-a/b`; classes `.specular*`, `.glass`, `.bg-canopy`. The PWA theme colours, manifest and offline page follow the palette (the raster app icons are unchanged).
+- **Controls**: `btnPrimary` gradient ends in `color-mix(accent, black 8%)` instead of the ADR's fixed indigo, which would clash with the green accent. `segTray`/`segActive`/`segInactive` replace the ad-hoc view and filter toggles. `KindIcon` chips are jewel gradients.
+- **Wildlife (deviation)**: no `motion`/`framer-motion` dependency. The stag, owl and fox are inline SVG components animated with CSS (`stroke-dashoffset` path drawing via `pathLength`, breathing, blink, tail wag, ear twitch, antler glow on hover) in `styles/wildlife.css`. `EmptyState` shows them for table, query and job kinds only (the Whisper Principle).
+- **Motion**: `LiveBeacon`, `ActivityBeam` (driven by the activity store), `.row-saved` (applied to any successfully saved or created row, not only quick-add), and `.animate-shimmer` replacing `animate-pulse` on skeletons. Dialog and menu staging already existed in `chrome.css` (150 ms scale-and-fade). Numeric tickers from the planning document were not built.
+- **Reduced motion**: every new animation sits inside `prefers-reduced-motion: no-preference`; tests assert it.
+- **Not done**: shell cockpit polish (nav indicator, tab strip) and datasheet header polish from the planning document; the ADR's frosted glass is applied to document toolbars only, not the shell header.

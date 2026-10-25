@@ -93,7 +93,7 @@ export function AttachmentThumbs({ ws, ids, max = 3, size = 22 }: { ws: string; 
           i.meta ? (
             <Thumb key={i.id} ws={ws} meta={i.meta} size={size} className="rounded-sm" />
           ) : (
-            <span key={i.id} className="inline-block animate-pulse rounded-sm bg-surface-3 motion-reduce:animate-none" style={{ width: size, height: size }} />
+            <span key={i.id} className="inline-block animate-shimmer rounded-sm bg-surface-3 motion-reduce:animate-none" style={{ width: size, height: size }} />
           ),
         )}
         {ids.length > max && <span className="text-xs text-fg-muted">+{ids.length - max}</span>}
