@@ -1,6 +1,6 @@
 # ADR 0022: Mobile Touch Ergonomics & Advanced Gestures
 
-Status: Proposed · 2026-10-24 (approved for implementation)
+Status: Accepted and implemented · 2026-10-25
 
 ## Context
 
@@ -49,3 +49,26 @@ Field operations on smartphones and tablets require one-handed thumb ergonomics,
 - Every gesture is duplicated as an accessible button with aria-labels for screen reader and keyboard navigation.
 - Full compliance with `@media (prefers-reduced-motion: reduce)`, disabling drag animations and spring physics.
 - Verified in `tests/e2e/mobile.spec.ts` on mobile emulation viewports (Pixel 7 and iPhone).
+
+## As built
+
+Delivered in six slices (PRs #107, #109, #125, #127, #130, #132). Everything is scoped to touch (pointer type or `touch*` events, never mouse) and, where it changes layout, to compact viewports. Shared helpers: `lib/touchErgonomics.ts` (`haptic`, `prefersReducedMotion`), `lib/useLongPress.ts`, `lib/usePullToRefresh.ts`, `lib/usePinchZoom.ts`, `lib/mobileView.ts`.
+
+1. **Swipeable cards** (`useCardSwipeActions.ts`, `CardList.tsx`): left past 70 px reveals Edit and Delete; past 65% of the width asks to delete; right reveals Duplicate; haptic 10 ms on each threshold; one card open at a time. Button equivalent: the "Card actions" menu on every card.
+2. **Drag to dismiss** (`useDragToDismiss.ts`, `RecordSheet.tsx`): grab bar plus header; 1:1 down, 0.2x up; dismiss past 25% of the height or above 0.5 px/ms; unsaved edits go through the discard confirmation and the sheet springs back if declined. Close, Cancel and Escape remain.
+3. **Pull to refresh** (`usePullToRefresh.ts`, `PullIndicator.tsx`): card list, phone forms and query results; armed at 60 px of indicator travel (the finger moves twice as far) with an 8 ms haptic; waits for the refetch. Equivalents: the datasheet Refresh action, the query Refresh button, a "Refresh records" button in forms.
+4. **Multi-select**: 500 ms hold (10 px slop, 25 ms haptic), circular checks, floating bar with Duplicate, Export and Delete, at most 100 records per action. Equivalent: the card menu's Select item and the bar's Cancel.
+5. **Bottom dock and FAB** (`MobileBottomBar.tsx`): Menu, Search, Cards/Grid switch (tables), swipe the dock to change tab; the New record button is the 56 px round FAB.
+6. **Touch inputs** (`components/Switch.tsx`, `components/Stepper.tsx`): 50x30 switch for yes/no fields in the record sheet, -/+ steppers (hold to repeat and accelerate) for integer fields, pinch on the phone grid toggles row density.
+
+### Deviations from the decision above
+
+- **Delete asks first, no Undo toast.** Record deletion is permanent on the server and there is no restore endpoint, so a full swipe, the menu and the multi-select bar all open the existing confirmation instead of deleting at once with a 5-second Undo.
+- **Swipe right duplicates** rather than toggling a status or bookmark: tables have no status or bookmark concept. Duplicate copies every writable field except attachments.
+- **Export from multi-select** opens the table export dialog for the current view; the export API cannot export a chosen set of ids.
+- **Stepper only on integer fields.** Number and currency fields keep the plain decimal input.
+- **Pinch density** switches between the two existing densities (32 px and 40 px rows), not 28 and 40, and shares the preference with the user menu.
+- **Dock** shows the active tab as a label and swipes to neighbours; it does not duplicate the Open objects sheet. Header Menu and Search buttons were kept.
+- **Bottom sheets other than RecordSheet** (Radix dialogs restyled by `mobile.css`) do not have a grab bar yet, to keep clear of the shared `components/ui` Dialog that ADR 0021 owns.
+- No new end-to-end specs: the gestures are covered by unit tests with synthetic pointer and touch events; the existing `mobile.spec.ts` (axe, overflow, touch targets) exercises the changed screens.
+
