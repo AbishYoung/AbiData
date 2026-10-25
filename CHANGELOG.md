@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Banded report typography, accounting underlines, band background shading and detail alternate zebra striping (ADR 0018).
-- Repeated group headers, page header/footer suppression, keep-together, distinct and percent aggregates (ADR 0018).
 - Server-evaluated per-control conditional formatting rules with screen reader accessibility labels.
 - Designer property UI for accounting rules, typography, zebra striping, and conditional formatting.
 - Swipeable record cards with edit, duplicate and delete actions on touch screens (ADR 0022).
