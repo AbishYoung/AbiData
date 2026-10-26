@@ -26,6 +26,16 @@ const (
 // MaxGenerated bounds one generated file (the artifact limit).
 const MaxGenerated = 16 << 20
 
+// MaxGenerateBuffer bounds the report instances one generation holds in memory
+// before it renders them: a little over what a MaxGenerated file needs, so an
+// oversize report fails while it runs instead of after building every
+// instance (a variable so tests can lower it).
+var MaxGenerateBuffer = 4 * MaxGenerated
+
+// instanceOverhead approximates the cost of one buffered instance (struct and
+// map) on top of its values.
+const instanceOverhead = 256
+
 // GenerateInput describes one background report run.
 type GenerateInput struct {
 	Lease  *workspace.Lease
@@ -79,8 +89,23 @@ func (s *Service) Generate(ctx context.Context, in GenerateInput) (Generated, er
 		return Generated{}, err
 	}
 	var insts []Instance
+	buffered := 0
+	tooLarge := fault.Newf(fault.BadRequest, "The generated report is larger than %d MiB; add criteria to the report's source.", MaxGenerated>>20)
 	if err := s.Run(ctx, RunInput{Lease: in.Lease, Schema: in.Schema, Report: rep, Params: in.Params, Caller: in.Caller,
-		Emit: func(i Instance) error { insts = append(insts, i); return nil }}); err != nil {
+		Emit: func(i Instance) error {
+			buffered += instanceOverhead
+			for k, v := range i.Values {
+				buffered += fieldOverhead + len(k)
+				if text, ok := v.(string); ok {
+					buffered += len(text)
+				}
+			}
+			if buffered > MaxGenerateBuffer {
+				return tooLarge
+			}
+			insts = append(insts, i)
+			return nil
+		}}); err != nil {
 		return Generated{}, err
 	}
 	g := Generated{Report: rep}
@@ -99,7 +124,7 @@ func (s *Service) Generate(ctx context.Context, in GenerateInput) (Generated, er
 		g.Content, g.MIME, g.Ext = htmlBytes(&rep, insts, t), "text/html; charset=utf-8", "html"
 	}
 	if len(g.Content) > MaxGenerated {
-		return Generated{}, fault.Newf(fault.BadRequest, "The generated report is larger than %d MiB; add criteria to the report's source.", MaxGenerated>>20)
+		return Generated{}, tooLarge
 	}
 	return g, nil
 }

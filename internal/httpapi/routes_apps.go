@@ -32,6 +32,10 @@ const settingPublicApps = "public_apps"
 // maxLookupOptions caps the choices a public combo box offers.
 const maxLookupOptions = 1000
 
+// maxPublicBody caps request bodies on the unauthenticated app routes (ADR
+// 0014), well under the 1 MiB default of signed-in routes.
+const maxPublicBody = 256 << 10
+
 // publicAppsOn reports whether public apps are allowed on this install: the
 // environment can forbid them for good, the administrator setting turns them off.
 func (s *Server) publicAppsOn(ctx context.Context) (on, forced bool) {
@@ -765,7 +769,7 @@ func (s *Server) registerPublicApps(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "publicFormEvent", Method: http.MethodPost, Path: base + "/forms/{item}/events", Tags: tags, Metadata: app,
+	huma.Register(api, huma.Operation{OperationID: "publicFormEvent", Method: http.MethodPost, Path: base + "/forms/{item}/events", Tags: tags, Metadata: app, MaxBodyBytes: maxPublicBody,
 		Security: []map[string][]string{}, Summary: "A form event on the visitor's new record (load, change, confirm)", Errors: []int{400, 404, 422, 429, 503}},
 		func(ctx context.Context, in *struct {
 			Token   string `path:"token" maxLength:"64"`
@@ -806,7 +810,7 @@ func (s *Server) registerPublicApps(api huma.API) {
 			return &struct{ Body *forms.EventResponse }{Body: resp}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "publicFormSubmit", Method: http.MethodPost, Path: base + "/forms/{item}/submit", Tags: tags, Metadata: app,
+	huma.Register(api, huma.Operation{OperationID: "publicFormSubmit", Method: http.MethodPost, Path: base + "/forms/{item}/submit", Tags: tags, Metadata: app, MaxBodyBytes: maxPublicBody,
 		Security: []map[string][]string{}, Summary: "Submit a new record through a published form", Errors: []int{400, 404, 409, 422, 429, 503, 507}},
 		func(ctx context.Context, in *struct {
 			Token          string `path:"token" maxLength:"64"`
@@ -879,7 +883,7 @@ func (s *Server) registerPublicApps(api huma.API) {
 			return &struct{ Body apps.PublicReport }{Body: apps.ViewReport(st.report, params)}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "publicReportRun", Method: http.MethodPost, Path: base + "/reports/{item}/run", Tags: tags, Metadata: app,
+	huma.Register(api, huma.Operation{OperationID: "publicReportRun", Method: http.MethodPost, Path: base + "/reports/{item}/run", Tags: tags, Metadata: app, MaxBodyBytes: maxPublicBody,
 		Security: []map[string][]string{}, Summary: "Run a published report (NDJSON, as runReport)", Errors: []int{400, 404, 422, 429, 503}},
 		func(ctx context.Context, in *struct {
 			Token   string `path:"token" maxLength:"64"`
