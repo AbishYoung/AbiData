@@ -66,7 +66,7 @@ export function ControlFrame({
   }
 
   const outline = selected
-    ? "outline outline-2 outline-offset-1 outline-accent rounded-sm"
+    ? "outline outline-2 outline-offset-1 outline-accent rounded-sm shadow-[0_0_0_4px_var(--accent-glow)]"
     : flagged
       ? "outline outline-2 outline-dashed outline-danger"
       : "outline outline-1 outline-dashed outline-border";
@@ -94,9 +94,9 @@ export function ControlFrame({
       {children}
       {selected && (
         <>
-          <span aria-hidden="true" className="pointer-events-none absolute -left-1 -top-1 h-2 w-2 border border-accent bg-surface" />
-          <span aria-hidden="true" className="pointer-events-none absolute -right-1 -top-1 h-2 w-2 border border-accent bg-surface" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -left-1 h-2 w-2 border border-accent bg-surface" />
+          <span aria-hidden="true" className="pointer-events-none absolute -left-1.5 -top-1.5 h-2.5 w-2.5 border-2 border-surface bg-accent shadow-[0_0_0_1px_var(--accent)]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -right-1.5 -top-1.5 h-2.5 w-2.5 border-2 border-surface bg-accent shadow-[0_0_0_1px_var(--accent)]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -bottom-1.5 -left-1.5 h-2.5 w-2.5 border-2 border-surface bg-accent shadow-[0_0_0_1px_var(--accent)]" />
           <span
             aria-hidden="true"
             data-testid="resize-handle"
@@ -105,7 +105,7 @@ export function ControlFrame({
             onPointerUp={() => {
               resizing.current = null;
             }}
-            className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize border border-accent bg-surface"
+            className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize border-2 border-surface bg-accent shadow-[0_0_0_1px_var(--accent)]"
             style={{ touchAction: "none" }}
           />
         </>

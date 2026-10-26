@@ -128,7 +128,7 @@ function BandBody({ id, height, children, p }: { id: BandId; height: number; chi
       }}
       style={{
         height,
-        backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
+        backgroundImage: "radial-gradient(circle, var(--chart-grid) 1.25px, transparent 1.5px)",
         backgroundSize: `${GRID}px ${GRID}px`,
       }}
       className={`relative border-b border-border bg-surface ${props && !props.visible ? "opacity-60" : ""}`}

@@ -35,3 +35,66 @@
 .grid-frozen-edge { box-shadow: 3px 0 10px -2px var(--shadow-color-2); }
 .grid-resize::after { content: ""; position: absolute; inset-block: 0; right: 0; width: 2px; background: transparent; transition: background-color 120ms, box-shadow 120ms; }
 .grid-resize:hover::after { background: var(--accent); box-shadow: 0 0 8px 1px var(--accent); }
+
+/* In the base layer, so Tailwind utilities on a control (size, padding, margin) still win. */
+@layer base {
+/* Select: the input well with a single drawn chevron (two gradients, so it follows the theme), aligned 1rem
+   from the right edge. Applies to every single-line select; multi-selects and listboxes keep their native look. */
+select:not([multiple], [size]) {
+  padding-right: 2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
+    linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
+  background-position: calc(100% - 1rem) 50%, calc(100% - 0.7rem) 50%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+}
+select:disabled { background-image: none; }
+
+/* Checkbox and radio: drawn with the accent over a --border-strong outline (3:1 on the surface). The native
+   input stays, so labels, keyboard and form behaviour are untouched; the mark scales in unless reduced motion is on.
+   The Switch (role="switch") draws its own track. */
+input[type="checkbox"]:not([role="switch"]), input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border: 1.5px solid var(--border-strong);
+  background-color: var(--surface);
+  color: var(--accent-fg);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+input[type="checkbox"]:not([role="switch"]) { border-radius: 0.25rem; }
+input[type="radio"] { border-radius: 9999px; }
+input[type="checkbox"]:not([role="switch"]):hover, input[type="radio"]:hover { border-color: var(--fg-muted); }
+input[type="checkbox"]:not([role="switch"])::before, input[type="radio"]::before {
+  content: "";
+  transform: scale(0);
+  opacity: 0;
+}
+input[type="checkbox"]:not([role="switch"])::before {
+  width: 0.65rem;
+  height: 0.65rem;
+  background-color: currentColor;
+  clip-path: polygon(14% 44%, 0 59%, 40% 100%, 100% 22%, 85% 7%, 40% 70%);
+}
+input[type="radio"]::before { width: 0.5rem; height: 0.5rem; border-radius: 9999px; background-color: currentColor; }
+input[type="checkbox"]:not([role="switch"]):checked, input[type="checkbox"]:not([role="switch"]):indeterminate, input[type="radio"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:not([role="switch"]):checked::before, input[type="radio"]:checked::before { transform: scale(1); opacity: 1; }
+input[type="checkbox"]:not([role="switch"]):indeterminate::before { transform: scale(1); opacity: 1; clip-path: none; height: 0.125rem; border-radius: 1px; }
+input[type="checkbox"]:not([role="switch"]):disabled, input[type="radio"]:disabled { cursor: not-allowed; opacity: 0.55; }
+@media (prefers-reduced-motion: no-preference) {
+  input[type="checkbox"]:not([role="switch"])::before, input[type="radio"]::before { transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 90ms ease-out; }
+}
+}

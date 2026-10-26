@@ -41,6 +41,9 @@ import { SECTION_LABEL, type SectionName } from "../designer/layoutModel";
 const FOCUSABLE = "input:not([disabled]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])";
 const DETAIL_PAD = 0;
 
+/** A non-collapsible section sits on the raised material (surface + specular hairline), like a card. */
+const SECTION_CARD = "rounded-xl border border-border bg-surface specular-sm";
+
 export interface Registry {
   flushers: Set<() => Promise<boolean>>;
   dirty: Map<symbol, boolean>;
@@ -485,7 +488,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       }
 
       return (
-        <div key={name} className="flex flex-col gap-2">
+        <div key={name} className={`flex flex-col gap-2 px-3 ${SECTION_CARD}`}>
           {content}
         </div>
       );
@@ -556,7 +559,7 @@ export function FormInstance({ form, link = null, blocked = false, top = false, 
       }
 
       return (
-        <div key={name} style={{ position: "relative", height: section.height, width: layout.width }}>
+        <div key={name} style={{ position: "relative", height: section.height, width: layout.width }} className={SECTION_CARD}>
           <Band section={section} prefix={`${uid}${name}`} fields={cur.fields} display={cur.display} recordId={cur.id} env={curEnv} />
         </div>
       );
