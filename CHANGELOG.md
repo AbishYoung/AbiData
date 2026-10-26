@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inputs, selects, checkboxes, radios, form sections and designer canvases get the new inset, accent and grid styling.
 - The datasheet toolbar stays on one row with a More menu for overflow, and the record count is shown once.
 - Pages, stat cards, charts and admin tabs share the new theme tokens and header style.
+- Light and dark themes share one palette, elevation model, accent and chart colours (ADR 0023); documentation screenshots are shown in the dark theme, with a Light mode section on the website.
 
 ### Security
 - CI, release and Pages workflows pin every action to a commit SHA and no longer keep the checkout token on disk.
