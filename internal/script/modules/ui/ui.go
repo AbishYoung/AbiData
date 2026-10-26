@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -243,7 +244,7 @@ var uiDoc = script.ModuleDoc{
 		{Name: "goto_record", Signature: `ui.goto_record(target)`, Doc: `Moves to a record: an id, or "next", "prev", "first", "last", "new".`, Example: `ui.goto_record("new")`},
 		{Name: "open_form", Signature: "ui.open_form(name, {where?, args?})", Doc: "Opens another form, optionally filtered with a filter-model table and passing args.", Example: `ui.open_form("Customer", {args = {id = record.Customer}})`},
 		{Name: "open_report", Signature: "ui.open_report(name, {params?})", Doc: "Opens a report.", Example: `ui.open_report("Invoice", {params = {order_id = record.id}})`},
-		{Name: "open_url", Signature: "ui.open_url(url, target?)", Doc: "Opens an external URL in the browser.", Example: `ui.open_url("https://example.com/docs", "_blank")`},
+		{Name: "open_url", Signature: "ui.open_url(url, target?)", Doc: "Opens a URL in the browser: an http, https or mailto link, or a path on this server (/...). target is a window name such as _blank (default) or _self.", Example: `ui.open_url("https://example.com/docs", "_blank")`},
 		{Name: "close", Signature: "ui.close()", Doc: "Closes the form.", Example: `ui.close()`},
 		{Name: "requery", Signature: "ui.requery(control?)", Doc: "Reloads the form's records, or one subform/combo box.", Example: `ui.requery("Lines")`},
 		{Name: "refresh", Signature: "ui.refresh()", Doc: "Alias for ui.requery(); reloads the form's record source.", Example: `ui.refresh()`},
@@ -384,6 +385,12 @@ func buildUI(r *script.Run) lua.LValue {
 		s := session(r, L)
 		urlStr := L.CheckString(1)
 		target := L.OptString(2, "_blank")
+		if !safeOpenURL(urlStr) {
+			L.ArgError(1, "url must be an http, https or mailto link, or a path on this server starting with /")
+		}
+		if !windowNameRe.MatchString(target) {
+			L.ArgError(2, "target must be a window name such as _blank or _self")
+		}
 		s.Navigate = map[string]any{"url": urlStr, "target": target}
 		return 0
 	})
@@ -455,6 +462,39 @@ func buildUI(r *script.Run) lua.LValue {
 var identRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,99}$`)
 
 func validIdent(s string) bool { return identRe.MatchString(s) }
+
+// windowNameRe is a window name ui.open_url may target.
+var windowNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// safeOpenURL reports whether ui.open_url may open u in the user's browser:
+// an absolute http, https or mailto URL, or a path on this server. Script
+// URLs (javascript:, data:, vbscript:) and protocol-relative links are
+// refused, as are control characters and surrounding spaces, which browsers
+// strip before reading the scheme.
+func safeOpenURL(u string) bool {
+	if u == "" || len(u) > 8192 || strings.TrimSpace(u) != u {
+		return false
+	}
+	for i := 0; i < len(u); i++ {
+		if u[i] < 0x20 || u[i] == 0x7f {
+			return false
+		}
+	}
+	if strings.HasPrefix(u, "/") {
+		return !strings.HasPrefix(u, "//") && !strings.HasPrefix(u, `/\`)
+	}
+	p, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(p.Scheme) {
+	case "http", "https":
+		return p.Host != ""
+	case "mailto":
+		return p.Opaque != ""
+	}
+	return false
+}
 
 // ---- notify ------------------------------------------------------------------
 

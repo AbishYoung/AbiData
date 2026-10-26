@@ -252,6 +252,27 @@ export interface Effects {
   close: boolean;
 }
 
+/**
+ * Whether ui.open_url may open url: an http, https or mailto link, or a path on this server. The
+ * server checks the same; this keeps a script, data or protocol-relative URL out of window.open
+ * even if one got through.
+ */
+export function isSafeOpenUrl(url: string): boolean {
+  if (url === "" || url.trim() !== url) return false;
+  for (let i = 0; i < url.length; i++) {
+    const c = url.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return false;
+  }
+  if (url.startsWith("/")) return !url.startsWith("//") && !url.startsWith("/\\");
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:";
+}
+
 /** Sorts a response's non-state parts into what the UI has to do. */
 export function planResponse(resp: FormEventResponse): Effects {
   const toasts: Notice[] = [];
@@ -265,7 +286,7 @@ export function planResponse(resp: FormEventResponse): Effects {
   const r = nav.record;
   if (typeof r === "number") record = r;
   else if (r === "next" || r === "prev" || r === "first" || r === "last" || r === "new") record = r;
-  const openUrl = typeof nav.url === "string" ? { url: nav.url, target: typeof nav.target === "string" ? nav.target : undefined } : null;
+  const openUrl = typeof nav.url === "string" && isSafeOpenUrl(nav.url) ? { url: nav.url, target: typeof nav.target === "string" ? nav.target : undefined } : null;
   return {
     cancelMessage: resp.cancel ? resp.cancel.message : null,
     toasts,

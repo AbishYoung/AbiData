@@ -337,3 +337,37 @@ end
 		t.Fatalf("expected requery *, got %v", resp.Requery)
 	}
 }
+
+// TestUIOpenURLSchemes: ui.open_url opens only web and mail links (or a path
+// on this server), never javascript: or data: URLs, and only plain window names.
+func TestUIOpenURLSchemes(t *testing.T) {
+	f := setup(t)
+	n := 0
+	open := func(args string) (*EventResponse, error) {
+		t.Helper()
+		n++
+		form, err := f.svc.Put(f.ctx, f.l, "", 0, FormInput{
+			Name: fmt.Sprintf("Open %d", n), SourceKind: "table", SourceID: f.orders.ID,
+			ModuleSource: "function on_click() ui.open_url(" + args + ") end\n",
+			Layout: Layout{Width: 300, Sections: Sections{Detail: Section{Height: 100, Controls: []Control{
+				{ID: "btn", Name: "Go", Type: "button", W: 50, H: 20, Events: map[string]string{"click": "on_click"}},
+			}}}},
+		}, "editor")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f.svc.Event(f.ctx, f.l, f.editor, form.ID, EventRequest{Event: "click", Control: "Go", IsNew: true})
+	}
+	for _, ok := range []string{`"https://example.com/a?b=1"`, `"HTTP://example.com"`, `"mailto:help@example.com"`, `"/a/abc"`,
+		`"https://example.com", "_self"`, `"https://example.com", "help-window"`} {
+		if resp, err := open(ok); err != nil || resp.Navigate["url"] == nil {
+			t.Errorf("%s: %v %v", ok, resp, err)
+		}
+	}
+	for _, bad := range []string{`"javascript:alert(1)"`, `" JavaScript:alert(1)"`, `"java\tscript:alert(1)"`, `"data:text/html,<script>x</script>"`,
+		`"//evil.example.com"`, `"/\\evil.example.com"`, `"vbscript:x"`, `"example.com"`, `"https://example.com", "x y"`} {
+		if resp, err := open(bad); err == nil {
+			t.Errorf("%s was accepted: %v", bad, resp.Navigate)
+		}
+	}
+}

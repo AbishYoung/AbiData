@@ -261,7 +261,8 @@ export function useFormSession(store: StoreApi<SessionState>, opts: SessionOptio
     }
     if (fx.openForm) env.openForm(fx.openForm);
     if (fx.openUrl && typeof window !== "undefined") {
-      window.open(fx.openUrl.url, fx.openUrl.target ?? "_blank");
+      // noopener: the opened page gets no handle on this window (no reverse tabnabbing).
+      window.open(fx.openUrl.url, fx.openUrl.target ?? "_blank", "noopener,noreferrer");
     }
     if (fx.close) env.closeTab();
     if (fx.record !== null) void moveTo(fx.record);
