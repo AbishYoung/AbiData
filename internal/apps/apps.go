@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -144,15 +145,31 @@ func ReportQueries(r reports.Report) []string {
 }
 
 // Fingerprint names the exact versions behind a published item: the object,
-// its module and every saved query it reads. Any edit changes it.
-func Fingerprint(kind, id string, version, moduleVersion int64, queries map[string]int64) string {
+// its module, every saved query it reads (also through other queries) and,
+// when its module can require them, the shared modules. Any edit changes it.
+// Items without shared modules keep the fingerprint they had before shared
+// modules were part of it.
+func Fingerprint(kind, id string, version, moduleVersion int64, queries, modules map[string]int64) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s:%s@%d/m%d", kind, id, version, moduleVersion)
 	for _, q := range slices.Sorted(maps.Keys(queries)) {
 		fmt.Fprintf(&b, ";q:%s@%d", q, queries[q])
 	}
+	for _, m := range slices.Sorted(maps.Keys(modules)) {
+		fmt.Fprintf(&b, ";s:%s@%d", m, modules[m])
+	}
 	return b.String()
 }
+
+// requireWord finds the require function in Lua source.
+var requireWord = regexp.MustCompile(`\brequire\b`)
+
+// RequiresModules reports whether a form module can load shared modules. A
+// sandboxed script reaches require only by its global name (there is no _G,
+// getfenv, load or debug library), so a module that never names it cannot
+// run shared module code. A mention in a comment or string only makes the
+// check stricter.
+func RequiresModules(source string) bool { return requireWord.MatchString(source) }
 
 // PublicColumn is what a visitor learns about a field bound in a public form.
 type PublicColumn struct {

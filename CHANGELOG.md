@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - CI, release and Pages workflows pin every action to a commit SHA and no longer keep the checkout token on disk.
 - A blog post taken down by an administrator stays taken down when its owner changes its slug.
+- Public app approvals now also cover saved queries nested inside a published item's query and the shared Lua modules a published form requires. Affected items need to be published again after upgrading.
 
 ## [1.4.0] - 2026-10-25
 
