@@ -1,7 +1,7 @@
 # Plan: Theme Cohesion & UI Polish ("One Forest, Two Lights")
 
 - **Target release:** `v1.5.0`
-- **Status:** In progress
+- **Status:** Implemented ([ADR 0023](../adr/0023-theme-cohesion-and-ui-polish.md))
 - **Builds on:** [ADR 0021](../adr/0021-visual-style-overhaul-and-sylvan-atelier-theme.md), [DESIGN.md](../../web/src/components/DESIGN.md), [ui-and-style-overhaul.md](ui-and-style-overhaul.md)
 - **Principle:** the light and dark themes are the same forest at different times of day. Every surface, accent, chart and elevation step should feel like the same material in both, not two separately tuned palettes. Add style through material, depth and rhythm, never by moving controls, changing roles or adding steps to a task.
 

@@ -47,9 +47,10 @@ Deviations and subsequent architectural decisions are recorded as ADRs in this d
 | [0015](0015-web-ui-review-and-modernisation.md) | Web UI review and modernisation | Implemented |
 | [0016](0016-layered-testing.md) | Layered, change-aware testing | Accepted |
 | [0017](0017-user-blogs.md) | User blogs: a public blog for every user | Implemented |
-| [0018](0018-report-formatting-and-generation-refinements.md) | Banded Report Formatting, Intelligent Pagination & Direct Export | Proposed |
-| [0019](0019-intelligent-clipboard-and-spreadsheet-interoperability.md) | Intelligent Clipboard & Multi-MIME Spreadsheet Interoperability | Proposed |
-| [0020](0020-typed-clean-excel-data-export.md) | Typed Clean Excel Data Export Engine | Proposed |
-| [0021](0021-visual-style-overhaul-and-sylvan-atelier-theme.md) | Visual Design Overhaul, "Sylvan Atelier" Wildlife Theme & Alive Motion | Proposed |
-| [0022](0022-mobile-touch-ergonomics-and-advanced-gestures.md) | Mobile Touch Ergonomics & Advanced Gestures | Proposed |
+| [0018](0018-report-formatting-and-generation-refinements.md) | Banded Report Formatting, Intelligent Pagination & Direct Export | Implemented |
+| [0019](0019-intelligent-clipboard-and-spreadsheet-interoperability.md) | Intelligent Clipboard & Multi-MIME Spreadsheet Interoperability | Implemented |
+| [0020](0020-typed-clean-excel-data-export.md) | Typed Clean Excel Data Export Engine | Implemented |
+| [0021](0021-visual-style-overhaul-and-sylvan-atelier-theme.md) | Visual Design Overhaul, "Sylvan Atelier" Wildlife Theme & Alive Motion | Implemented |
+| [0022](0022-mobile-touch-ergonomics-and-advanced-gestures.md) | Mobile Touch Ergonomics & Advanced Gestures | Implemented |
+| [0023](0023-theme-cohesion-and-ui-polish.md) | Theme Cohesion and UI Polish ("One Forest, Two Lights") | Implemented |
 
