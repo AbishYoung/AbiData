@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public app routes refuse request bodies over 256 KB, and background report generation stops early when the output would be too large.
 - ui.open_url opens only http, https and mailto links or paths on the server, and opened pages no longer get a handle on the app window.
 - The app's Content-Security-Policy also blocks `<base>` overrides, off-site form posts and plugins, and https installs send Strict-Transport-Security.
+- Builds use Go 1.27.3, which fixes GO-2026-6809 in crypto/x509.
 
 ## [1.4.0] - 2026-10-25
 
