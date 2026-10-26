@@ -581,7 +581,7 @@ test("persists column widths and order", async ({ page }) => {
   await expect.poll(async () => (await nameHeader.boundingBox())?.width ?? 0).toBeGreaterThan(before);
   await nameHeader.getByRole("button", { name: "Name column menu" }).click();
   await page.getByRole("menuitem", { name: "Move right" }).click();
-  expect(Number(await colIndex(grid, "Name"))).toBe(4);
+  await expect.poll(async () => Number(await colIndex(grid, "Name"))).toBe(4);
   await expect
     .poll(() => page.evaluate((key) => window.localStorage.getItem(key), `abidata.ds.${f.ws}.${f.everythingId}`))
     .toContain(f.cols.Name ?? "");
