@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The datasheet toolbar stays on one row with a More menu for overflow, and the record count is shown once.
 - Pages, stat cards, charts and admin tabs share the new theme tokens and header style.
 
+### Security
+- CI, release and Pages workflows pin every action to a commit SHA and no longer keep the checkout token on disk.
+
 ## [1.4.0] - 2026-10-25
 
 ### Added
