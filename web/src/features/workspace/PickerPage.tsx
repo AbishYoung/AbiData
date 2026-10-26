@@ -232,7 +232,7 @@ export function PickerPage({ me: initial }: { me: Me }) {
             {filter.trim() ? `No workspaces match “${filter.trim()}”.` : "No workspaces in this category."}
           </p>
         ) : (
-          <ul className="mt-6 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-6 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map((m) => (
               <li key={m.workspace_id} className="relative">
                 <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
