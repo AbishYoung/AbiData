@@ -2475,7 +2475,7 @@
       {
         "name": "open_url",
         "signature": "ui.open_url(url, target?)",
-        "doc": "Opens an external URL in the browser.",
+        "doc": "Opens a URL in the browser: an http, https or mailto link, or a path on this server (/...). target is a window name such as _blank (default) or _self.",
         "example": "ui.open_url(\"https://example.com/docs\", \"_blank\")"
       },
       {

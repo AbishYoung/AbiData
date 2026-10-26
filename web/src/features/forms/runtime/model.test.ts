@@ -211,6 +211,16 @@ describe("stackedOrder", () => {
     expect(fx.openUrl).toEqual({ url: "https://example.com/help", target: "_blank" });
   });
 
+  it("never plans a script, data or protocol-relative URL", () => {
+    const plan = (url: string) => planResponse({ patches: [], record: {}, notifications: [], calc: {}, navigate: { url } }).openUrl;
+    for (const ok of ["https://example.com", "HTTP://example.com/a", "mailto:help@example.com", "/a/token"]) {
+      expect(plan(ok)).not.toBeNull();
+    }
+    for (const bad of ["javascript:alert(1)", " javascript:alert(1)", "java\tscript:alert(1)", "data:text/html,x", "//evil.example.com", "/\\evil.example.com", "vbscript:x", "example.com", ""]) {
+      expect(plan(bad)).toBeNull();
+    }
+  });
+
   it("applies error patches and exposes effective error", () => {
     const patches = [{ op: "set", control: "Email", props: { error: "Invalid email" } }];
     const overrides = applyPatches({}, patches);
