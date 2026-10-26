@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ADMIN_EMAIL, expectNoAxeViolations, signIn } from "./helpers";
+import { ADMIN_EMAIL, expectNoAxeViolations, signIn, toolbarAction } from "./helpers";
 import { callApi, cellAt, rowIndexOf, switchTable } from "./datasheet-helpers";
 import { openForm } from "./forms-runtime-helpers";
 
@@ -81,7 +81,7 @@ test("shows the changes of a record, newest first, from the datasheet", async ({
   await expect(priceCell).toContainText("2.25");
 
   await (await cellAt(grid, n, "Name")).click();
-  await page.getByRole("button", { name: "History" }).click();
+  await toolbarAction(page, "History");
   const panel = page.getByRole("dialog", { name: /History of record/ });
   await expect(panel).toBeVisible();
   const entries = panel.getByTestId("history-entry");
@@ -112,14 +112,21 @@ test("opens and closes the history panel with the keyboard only", async ({ page 
   await expect(grid.getByRole("gridcell", { name: "Widget B" })).toBeVisible();
   const n = await rowIndexOf(grid, "Widget B", "Name");
   await (await cellAt(grid, n, "Name")).click();
-  const button = page.getByRole("button", { name: "History" });
-  await button.focus();
+  // History is a toolbar button, or an item of the "More actions" menu when the toolbar is narrow.
+  const toolbar = page.getByRole("toolbar", { name: "Datasheet tools" });
+  const inline = toolbar.getByRole("button", { name: "History", exact: true });
+  const more = toolbar.getByRole("button", { name: "More actions" });
+  await expect(inline.or(more)).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const opener = (await inline.isVisible()) ? inline : more;
+  await opener.focus();
   await page.keyboard.press("Enter");
+  if (opener === more) await page.getByRole("menuitem", { name: "History", exact: true }).press("Enter");
   const panel = page.getByRole("dialog", { name: /History of record/ });
   await expect(panel).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
-  await expect(button).toBeFocused();
+  await expect(opener).toBeFocused();
 });
 
 test("opens the record's history from a form", async ({ page }) => {
@@ -173,7 +180,7 @@ test("explains that history is off for a table without tracking", async ({ page 
   await expect(grid.getByRole("gridcell", { name: "Untracked" })).toBeVisible();
   const n = await rowIndexOf(grid, "Untracked", "Name");
   await (await cellAt(grid, n, "Name")).click();
-  await page.getByRole("button", { name: "History" }).click();
+  await toolbarAction(page, "History");
   const panel = page.getByRole("dialog", { name: /History of record/ });
   await expect(panel.getByTestId("history-off")).toContainText("History is off for this table.");
   await expect(panel.getByTestId("history-off")).toContainText("A builder can turn on Track history in Design.");

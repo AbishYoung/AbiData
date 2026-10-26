@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Light and dark themes share one forest-toned neutral ladder, with new chart, glow, selection and scrollbar tokens.
 - Polished dialogs, menus, toasts and the command palette with header/footer bands, danger menu items and a toast progress hairline.
 - Inputs, selects, checkboxes, radios, form sections and designer canvases get the new inset, accent and grid styling.
+- The datasheet toolbar stays on one row with a More menu for overflow, and the record count is shown once.
 
 ## [1.4.0] - 2026-10-25
 

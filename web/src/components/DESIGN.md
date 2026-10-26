@@ -65,6 +65,10 @@ Inputs and editors: text inputs, selects and textareas are an inset well (`surfa
   - Primary actions go left. Only the main action of a toolbar is a filled `btnPrimary`; the other text buttons are `btnGhost` (or `btn` when they open a menu), so the hierarchy reads at a glance.
   - Filters and search go in the middle, with a search input that has a leading icon.
   - Export and more actions go right.
+- **Toolbar overflow** (the datasheet toolbar, and the pattern for any document toolbar that wraps):
+  - A toolbar never wraps. Group actions (Records | Filter | Data | View) with `ToolbarSeparator`-style dividers and keep the search field at a fixed width.
+  - `useToolbarOverflow` (`components/useToolbarOverflow.ts`) measures the row with a `ResizeObserver` and moves the lowest-ranked actions into a "More actions" `MoreHorizontal` menu only when space runs out. Each action has a `priority` (higher moves first); menu items keep the same names and handlers, and shortcuts stay global.
+  - Everything renders inline until measured, so jsdom and no-layout environments show every action. The datasheet toolbar and grid header use the raised material (`bg-surface` plus `specular-sm`).
 - **Cards and lists**: use `card` with `cardHeader` and `cardBody`. Lists inside cards use divided rows (`divide-y divide-border`) with hover `bg-surface-2/60`.
 - **Data tables** (non-datasheet): use `table`, `th`, `td` and `trHover`, with a sticky header. Right-align numbers, use badges for status, and put row actions as `iconBtnSm` on the right that appear on hover and on focus.
 - **Datasheet**:

@@ -164,7 +164,7 @@ function HeaderCell({ gridId, col, index, width, sort, onSort, onResize, onMoveC
       style={frozenLeft === undefined ? { width } : { width, left: frozenLeft }}
       className={`group/h ${frozenLeft === undefined ? "relative" : "sticky z-[9]"} flex shrink-0 items-center border-b border-r ${
         frozenEdge ? "grid-frozen-edge border-r-border-strong" : "border-r-border/70"
-      } grid-head border-b-border bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3`}
+      } grid-head shadow-[inset_0_1px_0_0_var(--specular)] border-b-border bg-surface-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3`}
     >
       <Tip label={`${col.display_name}. Click to sort, Shift+click to add a sort column. Alt+Left or Alt+Right resizes the column.`}>
         <button
@@ -473,13 +473,13 @@ export function Grid({ scrollRef, editorRef, ...props }: GridProps) {
       onPaste={props.onPaste}
       className="relative min-h-0 flex-1 overflow-auto bg-surface"
     >
-      <div role="rowgroup" className="sticky top-0 z-20" style={{ width: totalWidth, height: HEADER_HEIGHT }}>
+      <div role="rowgroup" className="sticky top-0 z-20 shadow-sm" style={{ width: totalWidth, height: HEADER_HEIGHT }}>
         <div role="row" className="flex" style={{ height: HEADER_HEIGHT }}>
           <div
             role="columnheader"
             aria-colindex={1}
             style={{ width: ROW_HEADER_WIDTH }}
-            className="sticky left-0 z-10 flex shrink-0 items-center grid-head border-b border-r border-border bg-surface-2 px-3 text-xs font-semibold text-fg-muted"
+            className="sticky left-0 z-10 flex shrink-0 items-center grid-head shadow-[inset_0_1px_0_0_var(--specular)] border-b border-r border-border bg-surface-2 px-3 text-xs font-semibold text-fg-muted"
           >
             Record
           </div>

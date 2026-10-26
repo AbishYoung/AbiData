@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
-import { signIn } from "./helpers";
+import { signIn, toolbarAction } from "./helpers";
 import {
   callApi,
   cellAt,
@@ -199,24 +199,24 @@ test("filters by selection and by quick text, and clears the filter", async ({ p
   await expect.poll(() => countOf(grid)).toBe(5);
   const n = await rowIndexOf(grid, "Charlie");
   await clickCell(grid, n, "Quantity");
-  await page.getByRole("button", { name: "Filter by selection" }).click();
+  await toolbarAction(page, "Filter by selection");
   await expect.poll(() => countOf(grid)).toBe(1);
   await expect(page.getByRole("list", { name: "Active filters" })).toContainText("Quantity = 9");
   await expect(await cellAt(grid, 1, "Name")).toHaveText("Charlie");
-  await page.getByRole("button", { name: "Clear filter" }).click();
+  await toolbarAction(page, "Clear filter");
   await expect.poll(() => countOf(grid)).toBe(5);
 
   // An empty cell filters by "is empty".
   const alpha = await rowIndexOf(grid, "Alpha");
   await clickCell(grid, alpha, "Notes");
-  await page.getByRole("button", { name: "Filter by selection" }).click();
+  await toolbarAction(page, "Filter by selection");
   await expect.poll(() => countOf(grid)).toBe(4);
-  await page.getByRole("button", { name: "Clear filter" }).click();
+  await toolbarAction(page, "Clear filter");
 
   await page.getByRole("searchbox", { name: "Filter records" }).fill("Alph");
   await expect.poll(() => countOf(grid)).toBe(1);
   await expect(await cellAt(grid, 1, "Name")).toHaveText("Alpha");
-  await page.getByRole("button", { name: "Clear filter" }).click();
+  await toolbarAction(page, "Clear filter");
   await expect.poll(() => countOf(grid)).toBe(5);
 });
 
