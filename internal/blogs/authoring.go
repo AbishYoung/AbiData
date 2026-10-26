@@ -289,10 +289,14 @@ func (s *Service) ListPosts(ctx context.Context, l *workspace.Lease, b admin.Blo
 	if err != nil {
 		return BlogPostList{}, err
 	}
+	old, err := oldSlugsIfDown(ctx, l, sch, pins, downs, posts)
+	if err != nil {
+		return BlogPostList{}, err
+	}
 	q = strings.ToLower(strings.TrimSpace(q))
 	items := []BlogPostSummary{}
 	for _, p := range posts {
-		c := chip(p, downs[p.Slug])
+		c := chip(p, takedownOf(downs, p, old[p.ID]))
 		if (status != "" && c != status) || (q != "" && !strings.Contains(strings.ToLower(p.Title), q)) {
 			continue
 		}
@@ -350,9 +354,40 @@ func (s *Service) getPost(ctx context.Context, l *workspace.Lease, sch *catalog.
 	if err != nil {
 		return BlogPost{}, err
 	}
+	old, err := oldSlugsIfDown(ctx, l, sch, pins, downs, posts)
+	if err != nil {
+		return BlogPost{}, err
+	}
+	td := takedownOf(downs, p, old[p.ID])
 	return BlogPost{ID: p.ID, Version: p.Version, Title: p.Title, Slug: p.Slug, Summary: p.Summary, BodyMD: p.Body,
-		Status: p.Status, Chip: chip(p, downs[p.Slug]), Problem: p.Problem(), PublishedAt: p.PublishedAt,
-		PublicURL: s.HomeURL(b.Username) + "/" + p.Slug, Takedown: downs[p.Slug], Cover: p.Cover, CoverAlt: p.CoverAlt}, nil
+		Status: p.Status, Chip: chip(p, td), Problem: p.Problem(), PublishedAt: p.PublishedAt,
+		PublicURL: s.HomeURL(b.Username) + "/" + p.Slug, Takedown: td, Cover: p.Cover, CoverAlt: p.CoverAlt}, nil
+}
+
+// takedownOf is the active take-down of post p, at its slug or at one of its
+// old slugs (a take-down follows a renamed post, as the public reader does).
+func takedownOf(downs map[string]*Takedown, p Post, old []string) *Takedown {
+	if td := downs[p.Slug]; td != nil {
+		return td
+	}
+	for _, slug := range old {
+		if td := downs[slug]; td != nil {
+			return td
+		}
+	}
+	return nil
+}
+
+// oldSlugsIfDown reads the posts' old slugs, only when some post is taken down.
+func oldSlugsIfDown(ctx context.Context, l *workspace.Lease, sch *catalog.Schema, pins Pins, downs map[string]*Takedown, posts []Post) (map[int64][]string, error) {
+	if len(downs) == 0 || len(posts) == 0 {
+		return map[int64][]string{}, nil
+	}
+	ids := make([]int64, len(posts))
+	for i, p := range posts {
+		ids[i] = p.ID
+	}
+	return oldSlugs(ctx, l, sch, pins, ids)
 }
 
 func (in PostInput) fields(pins Pins) (map[string]any, error) {
@@ -442,6 +477,28 @@ func (s *Service) UpdatePost(ctx context.Context, l *workspace.Lease, b admin.Bl
 	f, err := in.fields(pins)
 	if err != nil {
 		return BlogPost{}, err
+	}
+	if in.Slug != nil {
+		// A take-down is keyed by the post's address: it stays put until an
+		// administrator restores the post.
+		cur, err := s.getPost(ctx, l, sch, pins, b, id)
+		if err != nil {
+			return BlogPost{}, err
+		}
+		want := Slugify(*in.Slug)
+		if want == "" { // as the post rules do: an empty slug comes from the title
+			title := cur.Title
+			if in.Title != nil {
+				title = *in.Title
+			}
+			if want = Slugify(title); want == "" {
+				want = "post"
+			}
+		}
+		if cur.Takedown != nil && want != cur.Slug {
+			return BlogPost{}, fault.New(fault.BadRequest, "An administrator took this post down, so its address cannot change until an administrator restores it.").
+				WithDetails(map[string]any{"field": "slug"})
+		}
 	}
 	if len(f) > 0 {
 		if _, err := s.Records.Update(ctx, l, pins.Posts, id, version, f, actor, nil); err != nil {
