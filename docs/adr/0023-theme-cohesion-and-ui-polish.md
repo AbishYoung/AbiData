@@ -26,7 +26,7 @@ Delivered in five PRs plus this one:
 - **Toolbar (#149)**: `useToolbarOverflow` moves the lowest-priority actions into "More actions" only when they do not fit; moved items stay in the DOM, inert, so their widths keep being measured, and the toolbar re-measures when fonts load. Menu actions run after the menu closes so dialogs return focus to the More button. The grid footer is a summary strip shown only when it has something to say. The e2e helper `toolbarAction` clicks an action inline or through the menu.
 - **Inputs and editors (#150)**: inset input wells, a drawn select chevron, themed checkbox and radio with a reduced-motion-safe check-in, form sections on raised cards, dotted designer canvases in `--chart-grid`, and accent selection handles. The form runtime has no required marker to restyle.
 - **Pages, cards and charts (#151)**: `PageHeader` (eyebrow, title, description, actions, canopy wash) on the admin console, workspace picker, workspace settings and messages; stat cards with tinted icon chips, tabular values and `AnimatedNumber`; charts reading the chart tokens; one underline tab style with a glowing indicator. The picker's card list got an explicit `grid-cols-1` so wide fallback fonts cannot push it past a phone screen.
-- **Screenshots and this ADR (W6)**: every `docs/images` file was re-shot on main.
+- **Screenshots and this ADR (W6)**: every `docs/images` file was re-shot on main, all in the dark theme so the README, guides and website present one look. A small `-light` set (workspace picker, datasheet, visual query designer, admin console) appears only in the website's Light mode section; the `scripts/screenshots/shots.mjs` constant `SCHEME` sets the default.
 
 ## Consequences
 
