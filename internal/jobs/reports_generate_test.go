@@ -113,3 +113,17 @@ func TestReportsGenerateErrors(t *testing.T) {
 		}
 	}
 }
+
+// TestReportsGenerateBufferCap: a report too large to generate stops while it
+// runs, before every instance is held in memory.
+func TestReportsGenerateBufferCap(t *testing.T) {
+	e := setup(t)
+	e.seedReport(t)
+	old := reports.MaxGenerateBuffer
+	reports.MaxGenerateBuffer = 600
+	t.Cleanup(func() { reports.MaxGenerateBuffer = old })
+	got := e.runJob(t, "Too big", `reports.generate("Sales by region")`)
+	if got.Status != jobs.StatusFailed || !strings.Contains(got.ErrorMessage, "larger than") {
+		t.Fatalf("%+v", got)
+	}
+}
