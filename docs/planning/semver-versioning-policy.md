@@ -39,6 +39,7 @@ The patch versions in between are versioned builds of `main`, not releases.
      - **`v1.3.0`**: Phase 3 — Mobile Touch Fluidity & Form Composition (Record Swipe Gestures, Accordion Sections).
      - **`v1.3.1`**: Phase 4 — Advanced Data Exploration & Deep Datasheet Ergonomics (Quick Add, Multi-Sort, Freezing, Clipboard), shipped early in a 1.3 patch release.
      - **`v1.4.0`**: Reports, clipboard interchange, typed Excel export, the Sylvan Atelier theme and mobile touch ergonomics (ADRs 0018-0022).
+     - **`v1.5.0`**: Theme cohesion and UI polish (ADR 0023) and the October 2026 security review fixes.
    - Additive REST endpoints and optional query/body parameters in `/api/v1`.
    - Additive Lua host modules, functions, or analytical libraries.
    - Backward-compatible automated schema migrations applied seamlessly on startup.
@@ -61,6 +62,7 @@ The patch versions in between are versioned builds of `main`, not releases.
 | **`v1.3.0`** | **Phase 3:** Mobile Touch Swipe Gestures, iOS Keyboard Dismissal & Form Accordions | Completed | [phase-3-mobile-touch-and-forms.md](phase-3-mobile-touch-and-forms.md) |
 | **`v1.3.1`** | **Phase 4:** Pinned Quick Add, Multi-Sort Badges, Column Freezing & Range Clipboard (shipped early in a 1.3 patch) | Released | [phase-4-data-exploration-and-datasheet.md](phase-4-data-exploration-and-datasheet.md) |
 | **`v1.4.0`** | Report bands and PDF output, clipboard interchange, typed Excel export, the Sylvan Atelier theme and mobile touch ergonomics | Released | [ADRs 0018-0022](../adr/0000-record-of-decisions.md) |
+| **`v1.5.0`** | Theme cohesion and UI polish, security review fixes | Released | [ADR 0023](../adr/0023-theme-cohesion-and-ui-polish.md) |
 
 ---
 
