@@ -603,7 +603,7 @@ Uploading external `.db` or `.gz` files for restore is not supported in v1.
 
 - Script principal: UI events run as the invoking user. Jobs run as the job principal (editor data rights).
 - Security headers:
-  - CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'`.
+  - CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`.
   - `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`.
 </auth_and_tenancy>
 

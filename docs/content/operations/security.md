@@ -30,7 +30,7 @@ This page summarises what AbiData defends against, what it assumes, and what is 
 - **Hostile scripts.** Lua runs in a sandbox with no file, process, network or module access except through reviewed functions. Time, string, pattern and memory limits stop runaway scripts. See [Scripts](/docs/guide/scripts#contexts).
 - **Server-side request forgery.** Outbound requests go through the egress gateway: see below.
 - **Hostile uploads.** Imports and exports are size-capped and parsed into a separate staging database. Exported CSV text is neutralised against spreadsheet formula injection. Downloads of job artifacts are served with a restrictive `Content-Security-Policy: sandbox` header.
-- **Browser attacks.** Responses carry a strict `Content-Security-Policy` (scripts only from the app itself, images only from the app unless an administrator sets a [map tile server](/docs/operations/configuration#maps), no framing), `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`.
+- **Browser attacks.** Responses carry a strict `Content-Security-Policy` (scripts only from the app itself, images only from the app unless an administrator sets a [map tile server](/docs/operations/configuration#maps), no framing, no plugins, no `<base>` override, forms submit only to the app), `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`. When `ABIDATA_PUBLIC_URL` is an `https://` address on a real host name (not `localhost` or an IP address), responses also carry `Strict-Transport-Security: max-age=31536000`.
 - **Tampered backups.** Backups are signed. See [Backup strategy](/docs/operations/backup-strategy#manifest-key).
 
 ## What it does not defend against {#limits}

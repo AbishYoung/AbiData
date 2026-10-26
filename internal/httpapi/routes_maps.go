@@ -171,7 +171,7 @@ func LoadMaps(ctx context.Context, a *admin.Store) (MapsSettings, error) {
 }
 
 // baseCSP is the policy without any map tile origin.
-const baseCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+const baseCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 
 // buildCSP returns the Content-Security-Policy, with tileOrigin added to img-src when set.
 func buildCSP(tileOrigin string) string {
@@ -210,12 +210,31 @@ func (s *Server) setMapsCSP(m MapsSettings) {
 	s.cspValue.Store(&p)
 }
 
+// hstsFor reports whether responses send Strict-Transport-Security: only for
+// an https public URL on a real host name, so trying the production stack on
+// https://localhost never pins the plain-http development stack to https.
+func hstsFor(publicURL string) bool {
+	u, err := url.Parse(publicURL)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") || net.ParseIP(host) != nil {
+		return false
+	}
+	return true
+}
+
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Content-Security-Policy", s.csp(r.Context()))
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
+		if hstsFor(s.deps.Config.PublicURL) {
+			// An https install asks browsers never to fall back to plain http.
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
 		if strings.HasPrefix(r.URL.Path, "/a/") {
 			// A public app's page carries its secret link in the URL (ADR 0014).
 			h.Set("Referrer-Policy", "no-referrer")
