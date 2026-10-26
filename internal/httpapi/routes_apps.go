@@ -116,14 +116,49 @@ type itemState struct {
 	problem     error // the object is gone or no longer publishable
 }
 
+// queryVersions returns the version of each saved query in idsList and of
+// every saved query those use as a source, however deep: a visual query is
+// recompiled from its source queries without a version change of its own, so
+// pinning only the direct query would let an edit of a nested one through.
 func (s *Server) queryVersions(ctx context.Context, l *workspace.Lease, idsList []string) (map[string]int64, error) {
 	out := map[string]int64{}
-	for _, id := range idsList {
+	queue := append([]string(nil), idsList...)
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		if _, seen := out[id]; seen {
+			continue
+		}
 		q, err := s.deps.Queries.Get(ctx, l, id)
 		if err != nil {
 			return nil, err
 		}
 		out[id] = q.Version
+		if q.Visual != nil {
+			for _, src := range q.Visual.Sources {
+				if src.QueryID != "" {
+					queue = append(queue, src.QueryID)
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// moduleVersions returns the version of every shared module (kind module) by
+// id, for a form module that can require them (apps.RequiresModules); nil
+// otherwise. require resolves names at run time, so every module is pinned.
+func (s *Server) moduleVersions(ctx context.Context, l *workspace.Lease, formModule string) (map[string]int64, error) {
+	if s.deps.Scripts == nil || !apps.RequiresModules(formModule) {
+		return nil, nil
+	}
+	list, err := s.deps.Scripts.List(ctx, l, "module")
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int64, len(list))
+	for _, m := range list {
+		out[m.ID] = m.Version
 	}
 	return out, nil
 }
@@ -143,7 +178,11 @@ func (s *Server) inspect(ctx context.Context, l *workspace.Lease, kind, objectID
 		if err != nil {
 			return itemState{form: f, problem: fault.Newf(fault.BadRequest, "A query the form %q uses no longer exists.", f.Name)}
 		}
-		return itemState{form: f, fingerprint: apps.Fingerprint("form", f.ID, f.Version, f.ModuleVersion, qs)}
+		mods, err := s.moduleVersions(ctx, l, f.ModuleSource)
+		if err != nil {
+			return itemState{form: f, problem: err}
+		}
+		return itemState{form: f, fingerprint: apps.Fingerprint("form", f.ID, f.Version, f.ModuleVersion, qs, mods)}
 	case "report":
 		r, err := s.deps.Reports.Get(ctx, l, objectID)
 		if err != nil {
@@ -156,7 +195,8 @@ func (s *Server) inspect(ctx context.Context, l *workspace.Lease, kind, objectID
 		if err != nil {
 			return itemState{report: r, problem: fault.Newf(fault.BadRequest, "The query behind the report %q no longer exists.", r.Name)}
 		}
-		return itemState{report: r, fingerprint: apps.Fingerprint("report", r.ID, r.Version, r.ModuleVersion, qs)}
+		// Report scripts run without require (no module loader), so shared modules are not pinned.
+		return itemState{report: r, fingerprint: apps.Fingerprint("report", r.ID, r.Version, r.ModuleVersion, qs, nil)}
 	}
 	return itemState{problem: fault.Newf(fault.BadRequest, "Unknown item kind %q.", kind)}
 }

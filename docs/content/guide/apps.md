@@ -41,7 +41,7 @@ If something stops a page from being published, the app's list says why. **Canno
 
 ## Changes need your approval {#approval}
 
-When a form, a report, its script module or a query it uses is edited, visitors stop seeing that page. They see *This page is being updated* instead, until an owner publishes the changes. The app lists the page as **Changed: waiting for you to publish**.
+When a form, a report, its script module or a query it uses is edited, visitors stop seeing that page. This includes queries used as sources by that query and, for a form whose module calls `require`, every shared module. They see *This page is being updated* instead, until an owner publishes the changes. The app lists the page as **Changed: waiting for you to publish**.
 
 Check the change, then select **Publish changes**. This stops a builder from changing what strangers see without an owner looking at it.
 

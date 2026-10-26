@@ -59,6 +59,7 @@ The item's fingerprint covers:
 - the object's version
 - its module's version
 - the version of every saved query it depends on (the record source, lookup and overlay queries).
+- *Revised after the 2026-10 security review:* also the saved queries those queries use as sources, at any depth (a visual query is recompiled from its sources without a version change of its own), and, for a form whose module names `require`, the version of every shared module (`require` resolves names at run time). An item that uses neither keeps its fingerprint.
 
 When an owner adds or approves an item, the server stores the current fingerprint. If a builder later edits the form, its module or a query it uses, the fingerprints differ. The public page then says *"This page is being updated"* (HTTP 503 `APP_ITEM_CHANGED`) until an owner chooses **Publish changes**. The owner's app list shows which items wait for approval. A builder therefore cannot change what strangers see without an owner looking at it.
 

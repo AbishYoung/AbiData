@@ -77,18 +77,38 @@ func TestCheckReport(t *testing.T) {
 }
 
 func TestFingerprint(t *testing.T) {
-	a := Fingerprint("form", "F", 3, 2, map[string]int64{"Q2": 1, "Q1": 5})
+	a := Fingerprint("form", "F", 3, 2, map[string]int64{"Q2": 1, "Q1": 5}, nil)
 	if a != "form:F@3/m2;q:Q1@5;q:Q2@1" {
 		t.Fatalf("got %s", a)
 	}
+	withMods := Fingerprint("form", "F", 3, 2, map[string]int64{"Q2": 1, "Q1": 5}, map[string]int64{"S2": 1, "S1": 4})
+	if withMods != a+";s:S1@4;s:S2@1" {
+		t.Fatalf("with modules: %s", withMods)
+	}
 	for _, b := range []string{
-		Fingerprint("form", "F", 4, 2, map[string]int64{"Q2": 1, "Q1": 5}),
-		Fingerprint("form", "F", 3, 3, map[string]int64{"Q2": 1, "Q1": 5}),
-		Fingerprint("form", "F", 3, 2, map[string]int64{"Q2": 2, "Q1": 5}),
-		Fingerprint("form", "F", 3, 2, map[string]int64{"Q1": 5}),
+		Fingerprint("form", "F", 4, 2, map[string]int64{"Q2": 1, "Q1": 5}, nil),
+		Fingerprint("form", "F", 3, 3, map[string]int64{"Q2": 1, "Q1": 5}, nil),
+		Fingerprint("form", "F", 3, 2, map[string]int64{"Q2": 2, "Q1": 5}, nil),
+		Fingerprint("form", "F", 3, 2, map[string]int64{"Q1": 5}, nil),
+		Fingerprint("form", "F", 3, 2, map[string]int64{"Q2": 1, "Q1": 5}, map[string]int64{"S1": 1}),
 	} {
 		if b == a {
 			t.Fatalf("an edit kept the fingerprint %s", b)
+		}
+	}
+}
+
+func TestRequiresModules(t *testing.T) {
+	for src, want := range map[string]bool{
+		"":                                       false,
+		"function on_load() ui.notify('x') end":  false,
+		"local requirement = 1":                  false,
+		"local u = require('util')":              true,
+		"local r = require\nlocal u = r('util')": true,
+		"-- require nothing":                     true, // stricter, never weaker
+	} {
+		if got := RequiresModules(src); got != want {
+			t.Errorf("%q: %v, want %v", src, got, want)
 		}
 	}
 }
