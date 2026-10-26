@@ -4,8 +4,11 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 
 const DESKTOP = { width: 1440, height: 900 };
+// Every screenshot is taken in the dark theme so the docs present one look; the few "<name>-light" shots
+// below exist for the light mode section of the website.
+const SCHEME = "dark";
 // Names that are stored as JPEG (quality 85) because they are large, photo-like or chart-heavy.
-const JPEG = new Set(["command-palette", "workspace-settings", "sign-in", "row-history", "import-wizard", "table-design", "job-runs", "datasheet-orders", "datasheet-orders-dark", "admin-dashboard", "admin-dashboard-dark", "report-viewer", "report-designer-preview", "export-dialog", "docs-panel", "biosecurity-report"]);
+const JPEG = new Set(["command-palette", "workspace-settings", "sign-in", "row-history", "import-wizard", "table-design", "job-runs", "datasheet-orders", "datasheet-orders-light", "admin-dashboard", "admin-dashboard-light", "report-viewer", "report-designer-preview", "export-dialog", "docs-panel", "biosecurity-report"]);
 
 const STYLE = `
   *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; caret-color: transparent !important; scroll-behavior: auto !important; }
@@ -207,7 +210,7 @@ export async function shoot(ctx) {
 
   // ---- sign-in (signed out) ----
   if (want("sign-in")) {
-    const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2 });
+    const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, colorScheme: SCHEME });
     const p = await c.newPage();
     await p.goto(`${base}/login`);
     await p.getByRole("heading", { name: "Sign in" }).waitFor();
@@ -220,9 +223,9 @@ export async function shoot(ctx) {
     return { c, page: await newPage(c) };
   };
 
-  // ---- light desktop ----
+  // ---- desktop ----
   {
-    const { c, page } = await desktop("light");
+    const { c, page } = await desktop(SCHEME);
     if (want("workspace-picker")) await save(page, "workspace-picker");
     await openWorkspace(page);
 
@@ -438,17 +441,17 @@ export async function shoot(ctx) {
       await page.keyboard.press("Escape");
     }
 
-    if (want("admin-dashboard") || want("admin-dashboard-dark") || want("admin-settings")) {
+    if (want("admin-dashboard") || want("admin-dashboard-light") || want("admin-settings")) {
       // Let the server sample a few points so the charts have data.
       await page.waitForTimeout(25_000);
       await page.goto(`${base}/admin`);
       await page.getByRole("region", { name: "Server statistics" }).waitFor();
       await page.waitForTimeout(2000);
       if (want("admin-dashboard")) await save(page, "admin-dashboard");
-      if (want("admin-dashboard-dark")) {
-        await page.emulateMedia({ colorScheme: "dark" });
-        await save(page, "admin-dashboard-dark");
+      if (want("admin-dashboard-light")) {
         await page.emulateMedia({ colorScheme: "light" });
+        await save(page, "admin-dashboard-light");
+        await page.emulateMedia({ colorScheme: SCHEME });
       }
       if (want("admin-settings")) {
         await page.getByRole("tab", { name: "Settings" }).click();
@@ -459,21 +462,27 @@ export async function shoot(ctx) {
     await c.close();
   }
 
-  // ---- dark desktop ----
-  if (want("datasheet-orders-dark")) {
-    const { c, page } = await desktop("dark");
-    if (want("datasheet-orders-dark")) {
-      await openWorkspace(page);
+  // ---- light desktop (the website's light mode section) ----
+  if (want("workspace-picker-light") || want("datasheet-orders-light") || want("query-visual-designer-light")) {
+    const { c, page } = await desktop("light");
+    if (want("workspace-picker-light")) await save(page, "workspace-picker-light");
+    await openWorkspace(page);
+    if (want("datasheet-orders-light")) {
       await openObject(page, "Orders");
       await gridReady(page);
-      await save(page, "datasheet-orders-dark");
+      await save(page, "datasheet-orders-light");
+    }
+    if (want("query-visual-designer-light")) {
+      await openObject(page, "Top customers", "Design");
+      await page.getByTestId("query-canvas").waitFor();
+      await save(page, "query-visual-designer-light");
     }
     await c.close();
   }
 
   // ---- phone ----
   if (want("mobile-cards") || want("mobile-record") || want("mobile-drawer")) {
-    const c = await browser.newContext({ ...playwright.devices["Pixel 7"], timezoneId: "UTC", locale: "en-US" });
+    const c = await browser.newContext({ ...playwright.devices["Pixel 7"], colorScheme: SCHEME, timezoneId: "UTC", locale: "en-US" });
     const page = await newPage(c);
     await openWorkspaceMobile(page);
     const open = page.getByRole("button", { name: "Open navigation" });
@@ -517,7 +526,7 @@ export async function shoot(ctx) {
     }
     if (want("app-public-form") && publicApp) {
       // Signed out: a fresh context with no session.
-      const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, timezoneId: "UTC", locale: "en-US" });
+      const c = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, colorScheme: SCHEME, timezoneId: "UTC", locale: "en-US" });
       const p = await c.newPage();
       await p.goto(publicApp.link);
       await p.getByTestId("public-app").waitFor();
@@ -532,7 +541,7 @@ export async function shoot(ctx) {
       await c.close();
     }
     if (want("apps-panel")) {
-      const { c, page } = await desktop("light");
+      const { c, page } = await desktop(SCHEME);
       await openWorkspace(page);
       await page.getByRole("button", { name: new RegExp(displayName) }).click();
       await page.getByRole("menuitem", { name: "Workspace settings" }).click();
@@ -550,7 +559,7 @@ export async function shoot(ctx) {
   }
 
   if (want("datasheet-context-menu") || want("report-columnar")) {
-    const { c, page } = await desktop("light");
+    const { c, page } = await desktop(SCHEME);
     await openWorkspace(page);
     if (want("datasheet-context-menu")) {
       await openObject(page, "Orders");
@@ -582,7 +591,7 @@ export async function shoot(ctx) {
   }
 
   if (want("messages-inbox")) {
-    const { c, page } = await desktop("light");
+    const { c, page } = await desktop(SCHEME);
     await page.goto(`${base}/messages`);
     await page.getByRole("heading", { name: "Messages" }).waitFor();
     await page.getByRole("button", { name: "New message" }).waitFor();
@@ -659,7 +668,7 @@ export async function shoot(ctx) {
       });
       await call("PUT", `/api/v1/w/${blogWs}/blog/posts/${post.id}/status`, { _version: post._version, status: "published" });
       if (want("blog-editor")) {
-        const { c, page } = await desktop("light");
+        const { c, page } = await desktop(SCHEME);
         await page.goto(`${base}/w/${blogWs}/blog/posts/${post.id}`);
         await page.getByLabel(/^Title/).waitFor();
         await page.frameLocator('iframe[title="Preview"]').getByRole("heading", { name: "Autumn freight routes and lead times" }).waitFor();
@@ -667,7 +676,7 @@ export async function shoot(ctx) {
         await c.close();
       }
       if (want("public-blog-post") && blogUsername) {
-        const c = await browser.newContext({ viewport: { width: 1440, height: 1200 }, deviceScaleFactor: 2, timezoneId: "UTC", locale: "en-US" });
+        const c = await browser.newContext({ viewport: { width: 1440, height: 1200 }, deviceScaleFactor: 2, colorScheme: SCHEME, timezoneId: "UTC", locale: "en-US" });
         const p = await c.newPage();
         await p.goto(`${base}/b/${blogUsername}/autumn-freight-routes`);
         await p.getByRole("heading", { name: "Autumn freight routes and lead times", level: 1 }).waitFor();

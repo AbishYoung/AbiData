@@ -14,10 +14,7 @@
 [Quick start](#quick-start) ·
 [Releases](https://github.com/AbishYoung/AbiData/releases)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/datasheet-orders-dark.jpg">
-  <img src="docs/images/datasheet-orders.jpg" alt="The Orders datasheet in the Northwind Traders sample workspace" width="900">
-</picture>
+<img src="docs/images/datasheet-orders.jpg" alt="The Orders datasheet in the Northwind Traders sample workspace" width="900">
 
 </div>
 

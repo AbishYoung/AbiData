@@ -143,6 +143,10 @@ code, pre, kbd { font-family: var(--font-mono); }
 .k-script { --c: var(--k-script); --cs: var(--k-script-s); } .k-job { --c: var(--k-job); --cs: var(--k-job-s); }
 .k-accent { --c: var(--accent); --cs: var(--accent-soft); }
 
+/* Light mode section: a two-column grid of light-theme screenshots */
+.light-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); gap: 1.25rem; list-style: none; padding: 0; margin: 0; }
+.light-shots .slide { margin: 0; height: 100%; }
+
 /* Showcase carousel: native scroll-snap row, enhanced by JS with tabs and arrows */
 .carousel { position: relative; }
 .track { display: flex; gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0.25rem max(0px, calc((100% - 56rem) / 2)) 1rem; scrollbar-width: thin; }
