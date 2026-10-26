@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The datasheet toolbar stays on one row with a More menu for overflow, and the record count is shown once.
 - Pages, stat cards, charts and admin tabs share the new theme tokens and header style.
 - Light and dark themes share one palette, elevation model, accent and chart colours (ADR 0023); documentation screenshots are shown in the dark theme, with a Light mode section on the website.
+- Builds use Go 1.27.3, which fixes GO-2026-6809 in crypto/x509.
 
 ### Security
 - CI, release and Pages workflows pin every action to a commit SHA and no longer keep the checkout token on disk.
@@ -25,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public app routes refuse request bodies over 256 KB, and background report generation stops early when the output would be too large.
 - ui.open_url opens only http, https and mailto links or paths on the server, and opened pages no longer get a handle on the app window.
 - The app's Content-Security-Policy also blocks `<base>` overrides, off-site form posts and plugins, and https installs send Strict-Transport-Security.
-- Builds use Go 1.27.3, which fixes GO-2026-6809 in crypto/x509.
 
 ## [1.4.0] - 2026-10-25
 
