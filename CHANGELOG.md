@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A blog post taken down by an administrator stays taken down when its owner changes its slug.
 - Public app approvals now also cover saved queries nested inside a published item's query and the shared Lua modules a published form requires. Affected items need to be published again after upgrading.
 - Public app routes refuse request bodies over 256 KB, and background report generation stops early when the output would be too large.
+- ui.open_url opens only http, https and mailto links or paths on the server, and opened pages no longer get a handle on the app window.
 
 ## [1.4.0] - 2026-10-25
 
