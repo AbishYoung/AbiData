@@ -174,6 +174,16 @@ func TestReader(t *testing.T) {
 	if posts, _ := rd.Home(r.ctx, blog, HomePosts); len(posts) != 1 {
 		t.Fatalf("home after take-down %+v", posts)
 	}
+	// A take-down follows the post when its slug changes: the taken-down
+	// address neither serves nor redirects, and the new slug is hidden too.
+	rd.TakenDown = func(_ context.Context, _, slug string) (bool, error) { return slug == "first", nil }
+	_, err = rd.Post(r.ctx, blog, "first")
+	hidden("taken-down old slug", err)
+	_, err = rd.Post(r.ctx, blog, "first-renamed")
+	hidden("renamed after take-down", err)
+	if posts, _ := rd.Home(r.ctx, blog, HomePosts); len(posts) != 1 || posts[0].Title != "Second" {
+		t.Fatalf("home after renamed take-down %+v", posts)
+	}
 	rd.TakenDown = func(_ context.Context, _, slug string) (bool, error) { return slug == "", nil }
 	_, err = rd.Blog(r.ctx, "ann")
 	hidden("blog taken down", err)

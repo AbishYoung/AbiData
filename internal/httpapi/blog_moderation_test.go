@@ -54,6 +54,45 @@ func TestBlogModerationRoutes(t *testing.T) {
 	if p["chip"] != "taken_down" || td["reason"] != "Spam" || td["note"] != "Write to abuse@example.com." {
 		t.Fatalf("owner's post %v", p)
 	}
+	// Renaming does not lift the take-down. The blog API refuses a new
+	// address; a rename through the generic rows API is stored, but neither
+	// the new address nor the old one (which would redirect) serves the post.
+	if st, body, _ := ann.do("PATCH", fmt.Sprintf("%s/posts/%v", base, pid), map[string]any{"_version": p["_version"], "slug": "fresh-start"}); st != 400 {
+		t.Fatalf("rename under a take-down: %d %v", st, body)
+	}
+	_, sch, _ := ann.do("GET", "/api/v1/w/"+ws+"/schema", nil)
+	var postsTable, slugCol string
+	for _, tb := range sch["tables"].([]any) {
+		tm := tb.(map[string]any)
+		if tm["physical_name"] != "posts" {
+			continue
+		}
+		postsTable = tm["id"].(string)
+		for _, c := range tm["columns"].([]any) {
+			if cm := c.(map[string]any); cm["physical_name"] == "slug" {
+				slugCol = cm["id"].(string)
+			}
+		}
+	}
+	if postsTable == "" || slugCol == "" {
+		t.Fatalf("posts table not found in %v", sch)
+	}
+	if st, body, _ := ann.doH("PATCH", fmt.Sprintf("/api/v1/w/%s/tables/%s/rows/%v", ws, postsTable, pid),
+		map[string]any{"fields": map[string]any{slugCol: "fresh-start"}}, map[string]string{"If-Match": fmt.Sprintf(`"%v"`, p["_version"])}); st != 200 {
+		t.Fatalf("generic rename: %d %v", st, body)
+	}
+	for _, path := range []string{"/b/ann/fresh-start", "/b/ann/hello-world"} {
+		if st, _, _ := e.visit(path, nil); st != 404 {
+			t.Fatalf("%s after renaming a taken-down post: %d", path, st)
+		}
+	}
+	if st, home, _ := e.visit("/b/ann", nil); st != 200 || bytes.Contains([]byte(home), []byte("Hello World")) {
+		t.Fatalf("home lists the renamed taken-down post: %d", st)
+	}
+	_, p, _ = ann.do("GET", fmt.Sprintf("%s/posts/%v", base, pid), nil)
+	if p["chip"] != "taken_down" {
+		t.Fatalf("owner's renamed post %v", p)
+	}
 	// The owner may unpublish and edit, but not publish again.
 	st, p, _ = ann.do("PUT", fmt.Sprintf("%s/posts/%v/status", base, pid), map[string]any{"_version": p["_version"], "status": "draft"})
 	if st != 200 {

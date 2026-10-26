@@ -204,14 +204,14 @@ func (r *Reader) Home(ctx context.Context, b admin.Blog, limit int) ([]Post, err
 	if err != nil {
 		return nil, err
 	}
+	downs, err := r.postsDown(ctx, l, sch, pins, b.ID, posts)
+	if err != nil {
+		return nil, err
+	}
 	v := Visibility{InstallOn: true, UserActive: true, WorkspaceActive: true, BlogPublished: true}
 	out := make([]Post, 0, len(posts))
-	for _, p := range posts {
-		down, err := r.takenDown(ctx, b.ID, p.Slug)
-		if err != nil {
-			return nil, err
-		}
-		if PostListed(v, p, down) && len(out) < limit {
+	for i, p := range posts {
+		if PostListed(v, p, downs[i]) && len(out) < limit {
 			out = append(out, p)
 		}
 	}
@@ -263,12 +263,12 @@ func (r *Reader) Post(ctx context.Context, b admin.Blog, slug string) (Post, err
 			return Post{}, false, err
 		}
 		p := posts[0]
-		down, err := r.takenDown(ctx, b.ID, p.Slug)
+		downs, err := r.postsDown(ctx, l, sch, pins, b.ID, posts[:1])
 		if err != nil {
 			return Post{}, false, err
 		}
 		v := Visibility{InstallOn: true, UserActive: true, WorkspaceActive: true, BlogPublished: true}
-		return p, PostServed(v, p, down), nil
+		return p, PostServed(v, p, downs[0]), nil
 	}
 	p, ok, err := public(func(col func(string) sqlgen.Col) sqlgen.Expr {
 		return sqlgen.Binary{Op: sqlgen.OpEq, L: col("slug"), R: sqlgen.Arg{Value: slug}}
@@ -320,17 +320,94 @@ func (r *Reader) FileServed(ctx context.Context, b admin.Blog, fileID string) er
 	if err != nil {
 		return err
 	}
+	downs, err := r.postsDown(ctx, l, sch, pins, b.ID, posts)
+	if err != nil {
+		return err
+	}
 	v := Visibility{InstallOn: true, UserActive: true, WorkspaceActive: true, BlogPublished: true}
-	for _, p := range posts {
-		down, err := r.takenDown(ctx, b.ID, p.Slug)
-		if err != nil {
-			return err
-		}
-		if PostServed(v, p, down) {
+	for i, p := range posts {
+		if PostServed(v, p, downs[i]) {
 			return nil
 		}
 	}
 	return ErrHidden
+}
+
+// postsDown reports, for each post, whether an administrator took it down:
+// at its slug, or at an old slug that now redirects to it. Take-downs are
+// keyed by slug, so without the second check renaming a taken-down post would
+// serve it again, and its old (taken-down) address would redirect to it.
+func (r *Reader) postsDown(ctx context.Context, l *workspace.Lease, sch *catalog.Schema, pins Pins, blogID string, posts []Post) ([]bool, error) {
+	out := make([]bool, len(posts))
+	if r.TakenDown == nil || len(posts) == 0 {
+		return out, nil
+	}
+	ids := make([]int64, len(posts))
+	for i, p := range posts {
+		ids[i] = p.ID
+	}
+	old, err := oldSlugs(ctx, l, sch, pins, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i, p := range posts {
+		for _, slug := range append([]string{p.Slug}, old[p.ID]...) {
+			down, err := r.takenDown(ctx, blogID, slug)
+			if err != nil {
+				return nil, err
+			}
+			if down {
+				out[i] = true
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// oldSlugs lists the old slugs in the redirects table that point at each of ids.
+func oldSlugs(ctx context.Context, l *workspace.Lease, sch *catalog.Schema, pins Pins, ids []int64) (map[int64][]string, error) {
+	out := map[int64][]string{}
+	t, ok := sch.Table(pins.Redirects)
+	if !ok {
+		return out, nil
+	}
+	oldC, ok1 := t.Column(pins.RedirectCols["old_slug"])
+	postC, ok2 := t.Column(pins.RedirectCols["post_id"])
+	if !ok1 || !ok2 {
+		return out, nil
+	}
+	list := make([]sqlgen.Expr, len(ids))
+	for i, id := range ids {
+		list[i] = sqlgen.Arg{Value: id}
+	}
+	err := l.Read(ctx, func(db dbx.Querier) error {
+		stmt, err := sqlgen.Render(pgdb.DialectOf(db), &sqlgen.Select{
+			Columns: []sqlgen.Column{{Expr: sqlgen.Col{Name: postC.PhysicalName}}, {Expr: sqlgen.Col{Name: oldC.PhysicalName}}},
+			From:    sqlgen.Table{Name: t.PhysicalName},
+			Where:   sqlgen.In{X: sqlgen.Col{Name: postC.PhysicalName}, List: list},
+		})
+		if err != nil {
+			return err
+		}
+		rows, err := db.Query(ctx, stmt.SQL, stmt.Args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id *int64
+			var slug *string
+			if err := rows.Scan(&id, &slug); err != nil {
+				return err
+			}
+			if id != nil && slug != nil {
+				out[*id] = append(out[*id], *slug)
+			}
+		}
+		return rows.Err()
+	})
+	return out, err
 }
 
 func firstErr(err, otherwise error) error {
