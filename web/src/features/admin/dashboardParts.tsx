@@ -2,13 +2,20 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CheckCircle2, type LucideIcon } from "lucide-react";
 import { Sparkline } from "@/components/charts";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { badge, badgeDanger, badgeSuccess, badgeWarning, card, cardHeader, sectionTitle, td, th } from "@/components/styles";
 import type { SortDir } from "./overviewData";
 import type { Tone } from "./overviewData";
 
 const TONE_BADGE: Record<Tone, string> = { neutral: badge, success: badgeSuccess, warning: badgeWarning, danger: badgeDanger };
+const TONE_CHIP: Record<Tone, string> = {
+  neutral: "bg-accent-soft text-accent",
+  success: "bg-success-soft text-success",
+  warning: "bg-warning-soft text-warning",
+  danger: "bg-danger-soft text-danger",
+};
 const TONE_SPARK: Record<Tone, string> = {
-  neutral: "var(--accent)",
+  neutral: "var(--chart-1)",
   success: "var(--success)",
   warning: "var(--warning)",
   danger: "var(--danger)",
@@ -27,7 +34,8 @@ export function ToneBadge({ tone, children }: { tone: Tone; children: ReactNode 
 
 export interface StatCardProps {
   label: string;
-  value: string;
+  /** A plain number animates (AnimatedNumber); formatted text (rates, bytes, durations) is shown as is. */
+  value: string | number;
   sub?: ReactNode;
   tone?: Tone;
   toneLabel?: string;
@@ -35,12 +43,14 @@ export interface StatCardProps {
   icon: LucideIcon;
 }
 
-/** A KPI: label, big number, optional status badge, sparkline and a one-line detail. Rendered inside a <dl>. */
+/** A KPI: tinted icon chip and label, big tabular value, optional status badge, sparkline and a one-line detail. Rendered inside a <dl>. */
 export function StatCard({ label, value, sub, tone = "neutral", toneLabel, spark, icon: Icon }: StatCardProps) {
   return (
-    <div className={`${card} flex min-w-0 flex-col gap-1 p-4`}>
+    <div className={`${card} flex min-w-0 flex-col gap-2 p-4`}>
       <dt className="flex items-center gap-2 text-xs font-medium text-fg-muted">
-        <Icon size={14} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+        <span aria-hidden="true" className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${TONE_CHIP[tone]}`}>
+          <Icon size={14} />
+        </span>
         <span className="truncate">{label}</span>
         {toneLabel && (
           <span className="ml-auto">
@@ -49,8 +59,10 @@ export function StatCard({ label, value, sub, tone = "neutral", toneLabel, spark
         )}
       </dt>
       <dd className="m-0 min-w-0">
-        <div className="tabular truncate text-2xl font-semibold tracking-tight text-fg">{value}</div>
-        {spark && <Sparkline values={spark} color={TONE_SPARK[tone]} className="mt-1" />}
+        <div className="tabular truncate text-2xl font-semibold leading-tight tracking-tight text-fg">
+          {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
+        </div>
+        {spark && <Sparkline values={spark} color={TONE_SPARK[tone]} className="mt-2" />}
         {sub && <div className="mt-1 truncate text-xs text-fg-muted">{sub}</div>}
       </dd>
     </div>
@@ -97,7 +109,7 @@ export function Panel({
 /** A tinted icon chip for panels that have no object kind. */
 export function IconChip({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <span aria-hidden="true" className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface-3 text-fg-muted">
+    <span aria-hidden="true" className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
       <Icon size={14} />
     </span>
   );

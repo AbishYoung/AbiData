@@ -4,6 +4,7 @@ export { Button, IconButton, buttonClass, type ButtonVariant } from "./Button";
 export { Field, Input, Select, Textarea } from "./Field";
 export { Dialog, ConfirmDialog, Sheet, useReturnFocus, type DialogWidth } from "./Dialog";
 export { askToConfirm, ConfirmHost, type ConfirmRequest } from "./confirm";
+export { PageHeader } from "./PageHeader";
 export { Card, Badge, type BadgeTone } from "./Card";
 export { Toolbar, ToolbarSeparator, ToolbarSpacer } from "./Toolbar";
 export { EmptyState, Skeleton } from "./EmptyState";

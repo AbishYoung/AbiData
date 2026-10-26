@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Polished dialogs, menus, toasts and the command palette with header/footer bands, danger menu items and a toast progress hairline.
 - Inputs, selects, checkboxes, radios, form sections and designer canvases get the new inset, accent and grid styling.
 - The datasheet toolbar stays on one row with a More menu for overflow, and the record count is shown once.
+- Pages, stat cards, charts and admin tabs share the new theme tokens and header style.
 
 ## [1.4.0] - 2026-10-25
 

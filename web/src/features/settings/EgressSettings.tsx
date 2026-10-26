@@ -1,7 +1,8 @@
 import { Globe } from "lucide-react";
 import { KindIcon } from "@/components/objectKinds";
 import { useQuery } from "@tanstack/react-query";
-import { alertBox, btn, card, pageTitle } from "@/components/styles";
+import { PageHeader } from "@/components/ui";
+import { alertBox, btn, card } from "@/components/styles";
 import { ApiError } from "@/lib/api";
 import { BackupsPanel } from "@/features/backups/BackupsPanel";
 import { ApiKeysPanel } from "@/features/apikeys/ApiKeysPanel";
@@ -68,13 +69,13 @@ export function EgressSettings({ ws }: { ws: string }) {
   return (
     <div data-testid="workspace-settings" className="min-h-0 flex-1 overflow-y-auto bg-bg">
       <div className="mx-auto max-w-4xl px-6 py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <KindIcon kind="settings" size="lg" />
-        <div>
-          <h2 className={`${pageTitle} m-0`}>Workspace settings</h2>
-          <p className="m-0 text-sm text-fg-muted">Outbound access, members, backups, API keys and public apps for this workspace.</p>
-        </div>
-      </div>
+      <PageHeader
+        level={2}
+        className="mb-6"
+        icon={<KindIcon kind="settings" size="lg" />}
+        title="Workspace settings"
+        description="Outbound access, members, backups, API keys and public apps for this workspace."
+      />
       <AllowedHosts ws={ws} />
       <div className="mb-6">
         <MembersPanel ws={ws} />

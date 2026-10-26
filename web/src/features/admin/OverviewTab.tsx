@@ -182,14 +182,14 @@ function Dashboard({ data, range, nowMs }: { data: AdminOverview; range: Overvie
           <StatCard
             icon={Boxes}
             label="Workspaces"
-            value={String(stats.workspaces)}
+            value={stats.workspaces}
             spark={c.openWorkspaces}
             sub={`${stats.open_workspaces} open in memory`}
           />
           <StatCard
             icon={Clock}
             label="Job failures"
-            value={String(failedJobs)}
+            value={failedJobs}
             tone={failureTone(failedJobs)}
             toneLabel={failedJobs === 0 ? "None" : "Failing"}
             spark={c.jobsFailed}
@@ -198,7 +198,7 @@ function Dashboard({ data, range, nowMs }: { data: AdminOverview; range: Overvie
           <StatCard
             icon={Users}
             label="Users"
-            value={String(stats.users)}
+            value={stats.users}
             sub={`${sum(c.loginFailures)} failed sign-ins, ${sum(c.rateLimited)} rate limited`}
           />
           <StatCard icon={Server} label="Uptime" value={formatDuration(stats.uptime_seconds)} sub={`Version ${stats.version}`} />
@@ -227,7 +227,7 @@ function Dashboard({ data, range, nowMs }: { data: AdminOverview; range: Overvie
                 height={220}
                 series={[
                   { key: "2xx", label: "2xx success", color: "var(--success)", values: c.req2xx },
-                  { key: "3xx", label: "3xx redirect", color: "var(--kind-table)", values: c.req3xx },
+                  { key: "3xx", label: "3xx redirect", color: "var(--chart-2)", values: c.req3xx },
                   { key: "4xx", label: "4xx client error", color: "var(--warning)", values: c.req4xx },
                   { key: "5xx", label: "5xx server error", color: "var(--danger)", values: c.req5xx },
                 ]}
@@ -242,8 +242,8 @@ function Dashboard({ data, range, nowMs }: { data: AdminOverview; range: Overvie
                 times={c.times}
                 formatY={formatMs}
                 series={[
-                  { key: "p50", label: "p50", color: "var(--accent)", values: c.p50 },
-                  { key: "p95", label: "p95", color: "var(--kind-report)", values: c.p95 },
+                  { key: "p50", label: "p50", color: "var(--chart-1)", values: c.p50 },
+                  { key: "p95", label: "p95", color: "var(--chart-3)", values: c.p95 },
                 ]}
               />
             </div>
@@ -255,7 +255,7 @@ function Dashboard({ data, range, nowMs }: { data: AdminOverview; range: Overvie
                 testId="chart-memory-body"
                 times={c.times}
                 formatY={formatBytes}
-                series={[{ key: "heap", label: "Heap", color: "var(--accent)", values: c.heap }]}
+                series={[{ key: "heap", label: "Heap", color: "var(--chart-1)", values: c.heap }]}
               />
             </div>
           </Panel>
@@ -267,8 +267,8 @@ function Dashboard({ data, range, nowMs }: { data: AdminOverview; range: Overvie
                 times={c.times}
                 formatY={formatCompact}
                 series={[
-                  { key: "goroutines", label: "Goroutines", color: "var(--kind-script)", values: c.goroutines },
-                  { key: "open", label: "Open workspaces", color: "var(--kind-form)", values: c.openWorkspaces },
+                  { key: "goroutines", label: "Goroutines", color: "var(--chart-2)", values: c.goroutines },
+                  { key: "open", label: "Open workspaces", color: "var(--chart-4)", values: c.openWorkspaces },
                 ]}
               />
             </div>
