@@ -7,25 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-26
+
+### Upgrade notes
+- Public app items whose queries nest other saved queries, or whose forms `require` shared Lua modules, are taken off the air until they are published again: their approval now covers those dependencies too.
+
 ### Added
-- Planning document for theme cohesion and UI polish (v1.5.0).
+- **Light mode section** on the project website; documentation screenshots are now shown in the dark theme everywhere else.
+- **Toolbar overflow**: the datasheet toolbar stays on one row and moves actions that do not fit into a "More actions" menu with the same names and shortcuts.
+- **Page headers** with an eyebrow, description and actions on the admin console, workspace picker, workspace settings and messages.
 
 ### Changed
-- Light and dark themes share one forest-toned neutral ladder, with new chart, glow, selection and scrollbar tokens.
-- Polished dialogs, menus, toasts and the command palette with header/footer bands, danger menu items and a toast progress hairline.
-- Inputs, selects, checkboxes, radios, form sections and designer canvases get the new inset, accent and grid styling.
-- The datasheet toolbar stays on one row with a More menu for overflow, and the record count is shown once.
-- Pages, stat cards, charts and admin tabs share the new theme tokens and header style.
-- Light and dark themes share one palette, elevation model, accent and chart colours (ADR 0023); documentation screenshots are shown in the dark theme, with a Light mode section on the website.
-- Builds use Go 1.27.3, which fixes GO-2026-6809 in crypto/x509.
+- **One theme, two lights (ADR 0023)**: light and dark share one forest-toned neutral ladder, elevation model, accent and chart colours, with themed text selection, scrollbars and a glowing focus ring.
+- Dialogs, menus, toasts and the command palette get header and footer bands, danger-coloured destructive items and a toast progress hairline that pauses on hover.
+- Inputs, selects, checkboxes, radios, form sections and designer canvases get inset wells, accent marks and dotted grids.
+- Stat cards have tinted icon chips and animated values; charts read shared chart colours, so dark charts are translucent rather than solid; admin tabs share one underline style.
+- The record count is shown once, in the status bar; the grid footer shows only filter, selection and save state.
+
+### Fixed
+- Choosing an action from the toolbar's More menu returns focus to the menu button when its dialog closes.
+- The workspace picker's cards no longer overflow a phone screen with wide fallback fonts.
 
 ### Security
-- CI, release and Pages workflows pin every action to a commit SHA and no longer keep the checkout token on disk.
+- Builds use Go 1.27.3, which fixes GO-2026-6809 in crypto/x509.
 - A blog post taken down by an administrator stays taken down when its owner changes its slug.
-- Public app approvals now also cover saved queries nested inside a published item's query and the shared Lua modules a published form requires. Affected items need to be published again after upgrading.
+- Public app approvals also cover saved queries nested inside a published item's query and the shared Lua modules a published form requires.
 - Public app routes refuse request bodies over 256 KB, and background report generation stops early when the output would be too large.
-- ui.open_url opens only http, https and mailto links or paths on the server, and opened pages no longer get a handle on the app window.
+- `ui.open_url` opens only http, https and mailto links or paths on the server, and opened pages no longer get a handle on the app window.
 - The app's Content-Security-Policy also blocks `<base>` overrides, off-site form posts and plugins, and https installs send Strict-Transport-Security.
+- CI, release and Pages workflows pin every action to a commit SHA and no longer keep the checkout token on disk.
+- Security review of the changes since v1.3.1: [docs/reviews/security-2026-10b.md](docs/reviews/security-2026-10b.md).
 
 ## [1.4.0] - 2026-10-25
 
@@ -169,7 +180,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sandboxed script and query execution with resource quotas and process isolation.
 - Automated axe accessibility scanning in CI across both light and dark themes.
 
-[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/AbishYoung/AbiData/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/AbishYoung/AbiData/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/AbishYoung/AbiData/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/AbishYoung/AbiData/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/AbishYoung/AbiData/compare/v1.2.0...v1.3.0

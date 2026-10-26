@@ -8,7 +8,7 @@ Security fixes go into the latest minor release line. Fixes are released as patc
 
 | Version | Supported |
 |---|---|
-| 1.4.x (latest minor) | ✅ |
+| 1.5.x (latest minor) | ✅ |
 | Older 1.x minors | ❌ (upgrade to the latest; migrations are automatic within 1.x) |
 
 ## Reporting a vulnerability
