@@ -133,7 +133,7 @@ jobs:
           npm --prefix web ci
           npm --prefix web run build
           go build -o tests/e2e/.bin/abidata ./cmd/abidata
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-binary
           path: tests/e2e/.bin/abidata
@@ -186,7 +186,7 @@ jobs:
         run: go run ./tools/testplan e2e ${{ matrix.area }}
       - name: Upload traces and server logs
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-${{ matrix.area }}-traces
           path: |
@@ -289,7 +289,7 @@ jobs:
         run: go run ./tools/testplan e2e ${{ matrix.area }}
       - name: Upload traces and server logs
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-postgres-${{ matrix.area }}-traces
           path: |
@@ -335,7 +335,7 @@ jobs:
         run: ./scripts/container-smoke.sh
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-smoke-traces
           path: tests/e2e/test-results

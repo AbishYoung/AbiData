@@ -46,7 +46,7 @@ jobs:
         run: |
           npm --prefix web ci
           npm --prefix web run build
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-dist
           path: web/dist
@@ -95,7 +95,7 @@ jobs:
           OUT="bin/abidata-${TAG_VERSION}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           mkdir -p bin
           go build -trimpath -ldflags "-s -w -X main.version=${TAG_VERSION}" -o "$OUT" ./cmd/abidata
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binary-${{ matrix.os }}-${{ matrix.arch }}
           path: bin/abidata-*
