@@ -8,9 +8,9 @@
     "test": "playwright test"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.13.0",
-    "@playwright/test": "1.64.0",
-    "pdfjs-dist": "6.4.299",
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "pdfjs-dist": "6.5.438",
     "typescript": "5.9.3"
   }
 }
